@@ -56,6 +56,7 @@
 <span class="kn">from</span> <span class="nn">inspect</span> <span class="k">import</span> <span class="n">signature</span>
 <span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">islice</span>
 <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">wraps</span>
 
 
 <div class="viewcode-block" id="OpColumn"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.op.OpColumn">[docs]</a><span class="k">class</span> <span class="nc">OpColumn</span><span class="p">:</span>
@@ -105,17 +106,19 @@
     <span class="k">def</span> <span class="nf">_assert_is_video</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_type</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">protobufs</span><span class="o">.</span><span class="n">Video</span><span class="p">:</span>
             <span class="k">raise</span> <span class="n">ScannerException</span><span class="p">(</span><span class="s1">&#39;Compression only supported for columns of&#39;</span>
-                                   <span class="s1">&#39;type &quot;video&quot;. Column </span><span class="si">{}</span><span class="s1"> type is </span><span class="si">{}</span><span class="s1">.&#39;</span>
-                                   <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_col</span><span class="p">,</span>
-                                           <span class="bp">self</span><span class="o">.</span><span class="n">db</span><span class="o">.</span><span class="n">protobufs</span><span class="o">.</span><span class="n">ColumnType</span><span class="o">.</span><span class="n">Name</span><span class="p">(</span>
-                                               <span class="bp">self</span><span class="o">.</span><span class="n">_type</span><span class="p">)))</span>
+                                   <span class="s1">&#39;type &quot;video&quot;. Column </span><span class="si">{}</span><span class="s1"> type is </span><span class="si">{}</span><span class="s1">.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                                       <span class="bp">self</span><span class="o">.</span><span class="n">_col</span><span class="p">,</span>
+                                       <span class="bp">self</span><span class="o">.</span><span class="n">db</span><span class="o">.</span><span class="n">protobufs</span><span class="o">.</span><span class="n">ColumnType</span><span class="o">.</span><span class="n">Name</span><span class="p">(</span>
+                                           <span class="bp">self</span><span class="o">.</span><span class="n">_type</span><span class="p">)))</span>
 
     <span class="k">def</span> <span class="nf">_new_compressed_column</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">encode_options</span><span class="p">):</span>
         <span class="n">new_col</span> <span class="o">=</span> <span class="n">OpColumn</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_op</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_col</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_type</span><span class="p">)</span>
         <span class="n">new_col</span><span class="o">.</span><span class="n">_encode_options</span> <span class="o">=</span> <span class="n">encode_options</span>
         <span class="k">return</span> <span class="n">new_col</span></div>
 
+
 <span class="n">PYTHON_OP_REGISTRY</span> <span class="o">=</span> <span class="p">{}</span>
+
 
 <div class="viewcode-block" id="OpGenerator"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.op.OpGenerator">[docs]</a><span class="k">class</span> <span class="nc">OpGenerator</span><span class="p">:</span>
     <span class="sd">&quot;&quot;&quot;</span>
@@ -136,19 +139,13 @@
             <span class="c1"># If Op has not been registered yet, register it</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">_python_ops</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">register_op</span><span class="p">(</span>
-                    <span class="n">name</span><span class="p">,</span>
-                    <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;input_columns&#39;</span><span class="p">],</span>
-                    <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;output_columns&#39;</span><span class="p">],</span>
-                    <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;variadic_inputs&#39;</span><span class="p">],</span>
-                    <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;stencil&#39;</span><span class="p">],</span>
-                    <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;unbounded_state&#39;</span><span class="p">],</span>
-                    <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;bounded_state&#39;</span><span class="p">],</span>
-                    <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;proto_path&#39;</span><span class="p">])</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">register_python_kernel</span><span class="p">(</span>
-                    <span class="n">name</span><span class="p">,</span>
-                    <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;device_type&#39;</span><span class="p">],</span>
-                    <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;kernel&#39;</span><span class="p">],</span>
-                    <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;batch&#39;</span><span class="p">])</span>
+                    <span class="n">name</span><span class="p">,</span> <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;input_columns&#39;</span><span class="p">],</span>
+                    <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;output_columns&#39;</span><span class="p">],</span> <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;variadic_inputs&#39;</span><span class="p">],</span>
+                    <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;stencil&#39;</span><span class="p">],</span> <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;unbounded_state&#39;</span><span class="p">],</span>
+                    <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;bounded_state&#39;</span><span class="p">],</span> <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;proto_path&#39;</span><span class="p">])</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">register_python_kernel</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;device_type&#39;</span><span class="p">],</span>
+                                                <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;kernel&#39;</span><span class="p">],</span>
+                                                <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;batch&#39;</span><span class="p">])</span>
 
         <span class="c1"># This will raise an exception if the op does not exist.</span>
         <span class="n">op_info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">_get_op_info</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
@@ -199,8 +196,8 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_args</span> <span class="o">=</span> <span class="n">args</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_extra</span> <span class="o">=</span> <span class="n">extra</span>
 
-        <span class="k">if</span> <span class="p">(</span><span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;Space&#39;</span> <span class="ow">or</span> <span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;Sample&#39;</span> <span class="ow">or</span>
-            <span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;Slice&#39;</span> <span class="ow">or</span> <span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;Unslice&#39;</span><span class="p">):</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;Space&#39;</span> <span class="ow">or</span> <span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;Sample&#39;</span> <span class="ow">or</span> <span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;Slice&#39;</span>
+                <span class="ow">or</span> <span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;Unslice&#39;</span><span class="p">):</span>
             <span class="n">outputs</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">inputs</span><span class="p">:</span>
                 <span class="n">outputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">OpColumn</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="bp">self</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">_col</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">_type</span><span class="p">))</span>
@@ -247,8 +244,8 @@
                 <span class="n">op_info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">_get_op_info</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_name</span><span class="p">)</span>
                 <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">op_info</span><span class="o">.</span><span class="n">protobuf_name</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
                     <span class="n">proto_name</span> <span class="o">=</span> <span class="n">op_info</span><span class="o">.</span><span class="n">protobuf_name</span>
-                    <span class="n">e</span><span class="o">.</span><span class="n">kernel_args</span> <span class="o">=</span> <span class="n">python_to_proto</span><span class="p">(</span>
-                        <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">protobufs</span><span class="p">,</span> <span class="n">proto_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args</span><span class="p">)</span>
+                    <span class="n">e</span><span class="o">.</span><span class="n">kernel_args</span> <span class="o">=</span> <span class="n">python_to_proto</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">protobufs</span><span class="p">,</span>
+                                                    <span class="n">proto_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args</span><span class="p">)</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="n">e</span><span class="o">.</span><span class="n">kernel_args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args</span>
         <span class="k">else</span><span class="p">:</span>
@@ -258,18 +255,17 @@
         <span class="k">return</span> <span class="n">e</span></div></div>
 
 
-<div class="viewcode-block" id="register_python_op"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.op.register_python_op">[docs]</a><span class="k">def</span> <span class="nf">register_python_op</span><span class="p">(</span>
-        <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-        <span class="n">stencil</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-        <span class="n">unbounded_state</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-        <span class="n">bounded_state</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-        <span class="n">device_type</span><span class="p">:</span> <span class="n">DeviceType</span> <span class="o">=</span> <span class="n">DeviceType</span><span class="o">.</span><span class="n">CPU</span><span class="p">,</span>
-        <span class="n">batch</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
-        <span class="n">proto_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="register_python_op"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.op.register_python_op">[docs]</a><span class="k">def</span> <span class="nf">register_python_op</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                       <span class="n">stencil</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                       <span class="n">unbounded_state</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+                       <span class="n">bounded_state</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                       <span class="n">device_type</span><span class="p">:</span> <span class="n">DeviceType</span> <span class="o">=</span> <span class="n">DeviceType</span><span class="o">.</span><span class="n">CPU</span><span class="p">,</span>
+                       <span class="n">batch</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+                       <span class="n">proto_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
     <span class="k">def</span> <span class="nf">dec</span><span class="p">(</span><span class="n">fn_or_class</span><span class="p">):</span>
         <span class="n">is_fn</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">fn_or_class</span><span class="p">,</span> <span class="n">types</span><span class="o">.</span><span class="n">FunctionType</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span>
-                      <span class="n">fn_or_class</span><span class="p">,</span> <span class="n">types</span><span class="o">.</span><span class="n">BuiltinFunctionType</span><span class="p">):</span>
+                <span class="n">fn_or_class</span><span class="p">,</span> <span class="n">types</span><span class="o">.</span><span class="n">BuiltinFunctionType</span><span class="p">):</span>
             <span class="n">is_fn</span> <span class="o">=</span> <span class="kc">True</span>
 
         <span class="k">if</span> <span class="n">name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -307,8 +303,8 @@
             <span class="k">if</span> <span class="n">can_batch</span><span class="p">:</span>
                 <span class="c1"># If the op can batch, then we expect the types to be</span>
                 <span class="c1"># Sequence[T], where T = {bytes, FrameType}</span>
-                <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">typ</span><span class="p">,</span> <span class="s1">&#39;__origin__&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span>
-                    <span class="n">typ</span><span class="o">.</span><span class="n">__origin__</span> <span class="o">!=</span> <span class="n">Sequence</span><span class="p">):</span>
+                <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">typ</span><span class="p">,</span> <span class="s1">&#39;__origin__&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                        <span class="ow">or</span> <span class="n">typ</span><span class="o">.</span><span class="n">__origin__</span> <span class="o">!=</span> <span class="n">Sequence</span><span class="p">):</span>
                     <span class="k">raise</span> <span class="n">ScannerException</span><span class="p">(</span>
                         <span class="p">(</span><span class="s1">&#39;A batched Op must specify a &quot;Sequence&quot; type &#39;</span>
                          <span class="s1">&#39;annotation for each input and output.&#39;</span><span class="p">))</span>
@@ -317,14 +313,14 @@
             <span class="k">if</span> <span class="n">is_input</span> <span class="ow">and</span> <span class="n">can_stencil</span><span class="p">:</span>
                 <span class="c1"># If the op can stencil, then we expect the input types to be</span>
                 <span class="c1"># Sequence[T], where T = {bytes, FrameType}</span>
-                <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">typ</span><span class="p">,</span> <span class="s1">&#39;__origin__&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span>
-                    <span class="n">typ</span><span class="o">.</span><span class="n">__origin__</span> <span class="o">!=</span> <span class="n">Sequence</span><span class="p">):</span>
+                <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">typ</span><span class="p">,</span> <span class="s1">&#39;__origin__&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                        <span class="ow">or</span> <span class="n">typ</span><span class="o">.</span><span class="n">__origin__</span> <span class="o">!=</span> <span class="n">Sequence</span><span class="p">):</span>
                     <span class="k">raise</span> <span class="n">ScannerException</span><span class="p">(</span>
                         <span class="p">(</span><span class="s1">&#39;A stenciled Op must specify a &quot;Sequence&quot; type &#39;</span>
                          <span class="s1">&#39;annotation for each input. If the Op both stencils &#39;</span>
                          <span class="s1">&#39;and batches, then it should have the type &#39;</span>
                          <span class="s1">&#39;&quot;Sequence[Sequence[T]], where T = {bytes, FrameType}.&#39;</span>
-                        <span class="p">))</span>
+                         <span class="p">))</span>
                 <span class="n">typ</span> <span class="o">=</span> <span class="n">typ</span><span class="o">.</span><span class="n">__args__</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
 
             <span class="k">if</span> <span class="n">typ</span> <span class="o">==</span> <span class="n">param</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
@@ -340,8 +336,7 @@
                 <span class="k">raise</span> <span class="n">ScannerException</span><span class="p">(</span>
                     <span class="p">(</span><span class="s1">&#39;Invalid type annotation specified for input </span><span class="si">{:s}</span><span class="s1">. Must &#39;</span>
                      <span class="s1">&#39;specify an annotation of type &quot;bytes&quot; or &#39;</span>
-                     <span class="s1">&#39;&quot;FrameType&quot;.&#39;</span><span class="p">)</span>
-                    <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">param_name</span><span class="p">))</span>
+                     <span class="s1">&#39;&quot;FrameType&quot;.&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">param_name</span><span class="p">))</span>
             <span class="k">return</span> <span class="n">column_type</span>
 
         <span class="c1"># Analyze exec_fn parameters to determine the input types</span>
@@ -349,8 +344,7 @@
             <span class="c1"># We only allow keyword arguments and *args.</span>
             <span class="c1"># There is no support currently for positional or **kwargs</span>
             <span class="n">kind</span> <span class="o">=</span> <span class="n">param</span><span class="o">.</span><span class="n">kind</span>
-            <span class="k">if</span> <span class="p">(</span><span class="n">kind</span> <span class="o">==</span> <span class="n">param</span><span class="o">.</span><span class="n">POSITIONAL_ONLY</span> <span class="ow">or</span>
-                <span class="n">kind</span> <span class="o">==</span> <span class="n">param</span><span class="o">.</span><span class="n">VAR_KEYWORD</span><span class="p">):</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">kind</span> <span class="o">==</span> <span class="n">param</span><span class="o">.</span><span class="n">POSITIONAL_ONLY</span> <span class="ow">or</span> <span class="n">kind</span> <span class="o">==</span> <span class="n">param</span><span class="o">.</span><span class="n">VAR_KEYWORD</span><span class="p">):</span>
                 <span class="k">raise</span> <span class="n">ScannerException</span><span class="p">(</span>
                     <span class="p">(</span><span class="s1">&#39;Positional arguments and **kwargs are currently not &#39;</span>
                      <span class="s1">&#39;supported for the &quot;execute&quot; method of kernels&#39;</span><span class="p">))</span>
@@ -408,30 +402,38 @@
             <span class="k">if</span> <span class="n">return_is_tuple</span><span class="p">:</span>
                 <span class="k">return</span> <span class="n">r</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="k">return</span> <span class="p">(</span><span class="n">r</span><span class="p">,)</span>
+                <span class="k">return</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="p">)</span>
 
         <span class="c1"># Wrap exec_fn to destructure input and outputs to proper python inputs</span>
         <span class="k">if</span> <span class="n">is_fn</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">has_variadic_inputs</span><span class="p">:</span>
+
+                <span class="nd">@wraps</span><span class="p">(</span><span class="n">fn_or_class</span><span class="p">)</span>
                 <span class="k">def</span> <span class="nf">wrapper_exec</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">in_cols</span><span class="p">):</span>
                     <span class="k">return</span> <span class="n">parse_ret</span><span class="p">(</span><span class="n">exec_fn</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="o">*</span><span class="n">in_cols</span><span class="p">))</span>
             <span class="k">else</span><span class="p">:</span>
+
+                <span class="nd">@wraps</span><span class="p">(</span><span class="n">fn_or_class</span><span class="p">)</span>
                 <span class="k">def</span> <span class="nf">wrapper_exec</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">in_cols</span><span class="p">):</span>
                     <span class="n">args</span> <span class="o">=</span> <span class="p">{}</span>
                     <span class="k">for</span> <span class="p">(</span><span class="n">param_name</span><span class="p">,</span> <span class="n">_</span><span class="p">),</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">input_columns</span><span class="p">,</span> <span class="n">in_cols</span><span class="p">):</span>
                         <span class="n">args</span><span class="p">[</span><span class="n">param_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">c</span>
                     <span class="k">return</span> <span class="n">parse_ret</span><span class="p">(</span><span class="n">exec_fn</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">))</span>
+
             <span class="n">fn_or_class</span> <span class="o">=</span> <span class="n">wrapper_exec</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">has_variadic_inputs</span><span class="p">:</span>
+
                 <span class="k">def</span> <span class="nf">execute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">in_cols</span><span class="p">):</span>
                     <span class="k">return</span> <span class="n">parse_ret</span><span class="p">(</span><span class="n">exec_fn</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">in_cols</span><span class="p">))</span>
             <span class="k">else</span><span class="p">:</span>
+
                 <span class="k">def</span> <span class="nf">execute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">in_cols</span><span class="p">):</span>
                     <span class="n">args</span> <span class="o">=</span> <span class="p">{}</span>
                     <span class="k">for</span> <span class="p">(</span><span class="n">param_name</span><span class="p">,</span> <span class="n">_</span><span class="p">),</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">input_columns</span><span class="p">,</span> <span class="n">in_cols</span><span class="p">):</span>
                         <span class="n">args</span><span class="p">[</span><span class="n">param_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">c</span>
                     <span class="k">return</span> <span class="n">parse_ret</span><span class="p">(</span><span class="n">exec_fn</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">))</span>
+
             <span class="n">fn_or_class</span><span class="o">.</span><span class="n">execute</span> <span class="o">=</span> <span class="n">execute</span>
 
         <span class="n">PYTHON_OP_REGISTRY</span><span class="p">[</span><span class="n">kname</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
@@ -447,6 +449,7 @@
             <span class="s1">&#39;proto_path&#39;</span><span class="p">:</span> <span class="n">proto_path</span><span class="p">,</span>
         <span class="p">}</span>
         <span class="k">return</span> <span class="n">fn_or_class</span>
+
     <span class="k">return</span> <span class="n">dec</span></div>
 </pre></div>
 

@@ -45,8 +45,7 @@
           <div class="body" role="main">
             
   <h1>Source code for scannerpy.source</h1><div class="highlight"><pre>
-<span></span>
-<span class="kn">import</span> <span class="nn">grpc</span>
+<span></span><span class="kn">import</span> <span class="nn">grpc</span>
 <span class="kn">import</span> <span class="nn">copy</span>
 
 <span class="kn">from</span> <span class="nn">scannerpy.common</span> <span class="k">import</span> <span class="o">*</span>
@@ -70,6 +69,7 @@
         <span class="c1"># to read from the database</span>
         <span class="k">if</span> <span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;FrameColumn&#39;</span> <span class="ow">or</span> <span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;Column&#39;</span><span class="p">:</span>
             <span class="n">sc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;storage&#39;</span><span class="p">]</span>
+
             <span class="k">def</span> <span class="nf">check_and_add</span><span class="p">(</span><span class="n">key</span><span class="p">):</span>
                 <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">sc</span><span class="p">:</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">_args</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">sc</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
@@ -106,8 +106,8 @@
                 <span class="n">source_info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">_get_source_info</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_name</span><span class="p">)</span>
                 <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">source_info</span><span class="o">.</span><span class="n">protobuf_name</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
                     <span class="n">proto_name</span> <span class="o">=</span> <span class="n">source_info</span><span class="o">.</span><span class="n">protobuf_name</span>
-                    <span class="n">e</span><span class="o">.</span><span class="n">kernel_args</span> <span class="o">=</span> <span class="n">python_to_proto</span><span class="p">(</span>
-                        <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">protobufs</span><span class="p">,</span> <span class="n">proto_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args</span><span class="p">)</span>
+                    <span class="n">e</span><span class="o">.</span><span class="n">kernel_args</span> <span class="o">=</span> <span class="n">python_to_proto</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">protobufs</span><span class="p">,</span>
+                                                    <span class="n">proto_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args</span><span class="p">)</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="n">e</span><span class="o">.</span><span class="n">kernel_args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args</span>
         <span class="k">else</span><span class="p">:</span>
@@ -134,9 +134,7 @@
         <span class="n">source_info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">_get_source_info</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
 
         <span class="k">def</span> <span class="nf">make_source</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-            <span class="n">source_args</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;args&#39;</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">)</span>
-            <span class="c1">#enumerator_args = kwargs.pop(&#39;enumerator_args&#39;, kwargs)</span>
-            <span class="n">source</span> <span class="o">=</span> <span class="n">Source</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">source_args</span><span class="p">)</span>
+            <span class="n">source</span> <span class="o">=</span> <span class="n">Source</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">)</span>
             <span class="k">return</span> <span class="n">source</span><span class="o">.</span><span class="n">outputs</span><span class="p">()</span>
 
         <span class="k">return</span> <span class="n">make_source</span></div>

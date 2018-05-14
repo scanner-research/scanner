@@ -45,8 +45,7 @@
           <div class="body" role="main">
             
   <h1>Source code for scannerpy.protobuf_generator</h1><div class="highlight"><pre>
-<span></span>
-<span class="kn">import</span> <span class="nn">os.path</span>
+<span></span><span class="kn">import</span> <span class="nn">os.path</span>
 <span class="kn">import</span> <span class="nn">imp</span>
 <span class="kn">import</span> <span class="nn">sys</span>
 
@@ -63,11 +62,14 @@
 <span class="kn">import</span> <span class="nn">scanner.types_pb2</span> <span class="k">as</span> <span class="nn">misc_types</span>
 <span class="kn">from</span> <span class="nn">google.protobuf.descriptor</span> <span class="k">import</span> <span class="n">FieldDescriptor</span>
 
+
 <div class="viewcode-block" id="ProtobufGenerator"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.protobuf_generator.ProtobufGenerator">[docs]</a><span class="k">class</span> <span class="nc">ProtobufGenerator</span><span class="p">:</span>
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_mods</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">mod</span> <span class="ow">in</span> <span class="p">[</span><span class="n">misc_types</span><span class="p">,</span> <span class="n">rpc_types</span><span class="p">,</span> <span class="n">grpc_types</span><span class="p">,</span> <span class="n">metadata_types</span><span class="p">,</span>
-                    <span class="n">source_types</span><span class="p">,</span> <span class="n">sink_types</span><span class="p">,</span> <span class="n">sampler_types</span><span class="p">,</span> <span class="n">stdlib_types</span><span class="p">]:</span>
+        <span class="k">for</span> <span class="n">mod</span> <span class="ow">in</span> <span class="p">[</span>
+                <span class="n">misc_types</span><span class="p">,</span> <span class="n">rpc_types</span><span class="p">,</span> <span class="n">grpc_types</span><span class="p">,</span> <span class="n">metadata_types</span><span class="p">,</span>
+                <span class="n">source_types</span><span class="p">,</span> <span class="n">sink_types</span><span class="p">,</span> <span class="n">sampler_types</span><span class="p">,</span> <span class="n">stdlib_types</span>
+        <span class="p">]:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">add_module</span><span class="p">(</span><span class="n">mod</span><span class="p">)</span>
 
 <div class="viewcode-block" id="ProtobufGenerator.add_module"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.protobuf_generator.ProtobufGenerator.add_module">[docs]</a>    <span class="k">def</span> <span class="nf">add_module</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
@@ -90,57 +92,71 @@
 
 
 <div class="viewcode-block" id="python_to_proto"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.protobuf_generator.python_to_proto">[docs]</a><span class="k">def</span> <span class="nf">python_to_proto</span><span class="p">(</span><span class="n">protos</span><span class="p">,</span> <span class="n">proto_name</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
-    <span class="n">args_proto</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">protos</span><span class="p">,</span> <span class="n">proto_name</span><span class="p">)()</span>
+    <span class="n">args_proto</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">protos</span><span class="p">,</span> <span class="n">proto_name</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">analyze_proto</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
         <span class="n">fields</span> <span class="o">=</span> <span class="p">{}</span>
-        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">p</span><span class="o">.</span><span class="n">DESCRIPTOR</span><span class="o">.</span><span class="n">fields</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">p</span><span class="o">.</span><span class="n">fields</span><span class="p">:</span>
             <span class="n">child_fields</span> <span class="o">=</span> <span class="kc">None</span>
             <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">type</span> <span class="o">==</span> <span class="n">FieldDescriptor</span><span class="o">.</span><span class="n">TYPE_MESSAGE</span><span class="p">:</span>
                 <span class="n">child_fields</span> <span class="o">=</span> <span class="n">analyze_proto</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">message_type</span><span class="p">)</span>
 
             <span class="n">fields</span><span class="p">[</span><span class="n">f</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
-                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="n">f</span><span class="o">.</span><span class="n">type</span><span class="p">,</span>
-                <span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="n">f</span><span class="o">.</span><span class="n">message_type</span><span class="p">,</span>
-                <span class="s1">&#39;repeated&#39;</span><span class="p">:</span> <span class="n">f</span><span class="o">.</span><span class="n">label</span> <span class="o">==</span> <span class="n">FieldDescriptor</span><span class="o">.</span><span class="n">LABEL_REPEATED</span><span class="p">,</span>
-                <span class="s1">&#39;fields&#39;</span><span class="p">:</span> <span class="n">child_fields</span><span class="p">,</span>
+                <span class="s1">&#39;type&#39;</span><span class="p">:</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">type</span><span class="p">,</span>
+                <span class="s1">&#39;message&#39;</span><span class="p">:</span>
+                <span class="nb">getattr</span><span class="p">(</span><span class="n">protos</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="n">message_type</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">message_type</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="s1">&#39;repeated&#39;</span><span class="p">:</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">label</span> <span class="o">==</span> <span class="n">FieldDescriptor</span><span class="o">.</span><span class="n">LABEL_REPEATED</span><span class="p">,</span>
+                <span class="s1">&#39;fields&#39;</span><span class="p">:</span>
+                <span class="n">child_fields</span><span class="p">,</span>
             <span class="p">}</span>
         <span class="k">return</span> <span class="n">fields</span>
 
-    <span class="n">p</span> <span class="o">=</span> <span class="n">analyze_proto</span><span class="p">(</span><span class="n">args_proto</span><span class="p">)</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">analyze_proto</span><span class="p">(</span><span class="n">args_proto</span><span class="o">.</span><span class="n">DESCRIPTOR</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">serialize_obj</span><span class="p">(</span><span class="n">args_proto</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">obj</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">p</span><span class="p">:</span>
-                    <span class="k">raise</span> <span class="n">ScannerException</span><span class="p">(</span>
-                        <span class="s1">&#39;Protobuf does not have field </span><span class="si">{:s}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">k</span><span class="p">))</span>
-                <span class="n">desc</span> <span class="o">=</span> <span class="n">p</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
-                <span class="c1"># If a message field</span>
-                <span class="k">def</span> <span class="nf">make_field</span><span class="p">(</span><span class="n">val</span><span class="p">):</span>
-                    <span class="k">if</span> <span class="n">desc</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">FieldDescriptor</span><span class="o">.</span><span class="n">TYPE_MESSAGE</span><span class="p">:</span>
-                        <span class="c1"># If a message field, we need to recursively invoke</span>
-                        <span class="c1"># serialization</span>
-                        <span class="k">return</span> <span class="n">serialize_obj</span><span class="p">(</span>
-                            <span class="n">desc</span><span class="p">[</span><span class="s1">&#39;message&#39;</span><span class="p">],</span> <span class="n">desc</span><span class="p">[</span><span class="s1">&#39;fields&#39;</span><span class="p">],</span> <span class="n">val</span><span class="p">)</span>
-                    <span class="k">else</span><span class="p">:</span>
-                        <span class="k">return</span> <span class="n">val</span>
-                <span class="k">if</span> <span class="n">p</span><span class="p">[</span><span class="n">k</span><span class="p">][</span><span class="s1">&#39;repeated&#39;</span><span class="p">]:</span>
-                    <span class="c1"># If a repeated field, we need to set using slicing</span>
-                    <span class="n">data</span> <span class="o">=</span> <span class="p">[]</span>
-                    <span class="k">for</span> <span class="n">vi</span> <span class="ow">in</span> <span class="n">v</span><span class="p">:</span>
-                        <span class="n">data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">make_field</span><span class="p">(</span><span class="n">vi</span><span class="p">))</span>
-                    <span class="nb">getattr</span><span class="p">(</span><span class="n">args_proto</span><span class="p">,</span> <span class="n">k</span><span class="p">)[:]</span> <span class="o">=</span> <span class="n">data</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="c1"># Just set the regular field</span>
-                    <span class="nb">setattr</span><span class="p">(</span><span class="n">args_proto</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">make_field</span><span class="p">(</span><span class="n">v</span><span class="p">))</span>
-        <span class="k">else</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">create_obj</span><span class="p">(</span><span class="n">proto</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">proto</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">obj</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
             <span class="k">raise</span> <span class="n">ScannerException</span><span class="p">(</span><span class="s1">&#39;Attempted to bind a non-dict type to a &#39;</span>
                                    <span class="s1">&#39;protobuf&#39;</span><span class="p">)</span>
 
-    <span class="n">serialize_obj</span><span class="p">(</span><span class="n">args_proto</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">obj</span><span class="p">)</span>
+        <span class="n">proto_obj</span> <span class="o">=</span> <span class="n">proto</span><span class="p">()</span>
 
-    <span class="k">return</span> <span class="n">args_proto</span><span class="o">.</span><span class="n">SerializeToString</span><span class="p">()</span></div>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">obj</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">p</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">ScannerException</span><span class="p">(</span>
+                    <span class="s1">&#39;Protobuf </span><span class="si">{}</span><span class="s1"> does not have field </span><span class="si">{:s}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                        <span class="n">proto_name</span><span class="p">,</span> <span class="n">k</span><span class="p">))</span>
+            <span class="n">desc</span> <span class="o">=</span> <span class="n">p</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+
+            <span class="c1"># If a message field</span>
+            <span class="k">def</span> <span class="nf">make_field</span><span class="p">(</span><span class="n">val</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">desc</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">FieldDescriptor</span><span class="o">.</span><span class="n">TYPE_MESSAGE</span><span class="p">:</span>
+                    <span class="c1"># If a message field, we need to recursively invoke</span>
+                    <span class="c1"># serialization</span>
+                    <span class="k">return</span> <span class="n">create_obj</span><span class="p">(</span><span class="n">desc</span><span class="p">[</span><span class="s1">&#39;message&#39;</span><span class="p">],</span> <span class="n">desc</span><span class="p">[</span><span class="s1">&#39;fields&#39;</span><span class="p">],</span> <span class="n">val</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">val</span>
+
+            <span class="k">if</span> <span class="n">p</span><span class="p">[</span><span class="n">k</span><span class="p">][</span><span class="s1">&#39;repeated&#39;</span><span class="p">]:</span>
+                <span class="c1"># If a repeated field, we need to set using slicing</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">vi</span> <span class="ow">in</span> <span class="n">v</span><span class="p">:</span>
+                    <span class="n">data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">make_field</span><span class="p">(</span><span class="n">vi</span><span class="p">))</span>
+                <span class="nb">getattr</span><span class="p">(</span><span class="n">proto_obj</span><span class="p">,</span> <span class="n">k</span><span class="p">)[:]</span> <span class="o">=</span> <span class="n">data</span>
+            <span class="k">elif</span> <span class="n">p</span><span class="p">[</span><span class="n">k</span><span class="p">][</span><span class="s1">&#39;message&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="c1"># If a message field, have to CopyFrom, can&#39;t use direct assignment</span>
+                <span class="nb">getattr</span><span class="p">(</span><span class="n">proto_obj</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span><span class="o">.</span><span class="n">CopyFrom</span><span class="p">(</span><span class="n">make_field</span><span class="p">(</span><span class="n">v</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Just set the regular field</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="n">proto_obj</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">make_field</span><span class="p">(</span><span class="n">v</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">proto_obj</span>
+
+    <span class="k">return</span> <span class="n">create_obj</span><span class="p">(</span><span class="n">args_proto</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">obj</span><span class="p">)</span><span class="o">.</span><span class="n">SerializeToString</span><span class="p">()</span></div>
 </pre></div>
 
           </div>
