@@ -31,6 +31,8 @@ namespace scanner {
   proto::Result start_master_wrapper(Database& db, const std::string& port,
                                      const std::string& python_dir, bool watchdog,
                                      i64 no_workers_timeout) {
+    // HACK(apoms): to fix this issue: https://github.com/pybind/pybind11/issues/1364
+    pybind11::get_shared_data("");
     py::gil_scoped_release release;
     return db.start_master(default_machine_params(), port, python_dir, watchdog,
                            no_workers_timeout);
@@ -39,6 +41,8 @@ namespace scanner {
   proto::Result start_worker_wrapper(Database& db, const std::string& params_s,
                                      const std::string& port, const std::string& python_dir,
                                      bool watchdog) {
+    // HACK(apoms): to fix this issue: https://github.com/pybind/pybind11/issues/1364
+    pybind11::get_shared_data("");
     py::gil_scoped_release release;
 
     proto::MachineParameters params_proto;

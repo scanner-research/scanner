@@ -132,6 +132,20 @@ message PackedFileElementArgs {
   uint64 size = 3;
 }
 
+message PythonEnumeratorArgs {
+  // Pickled list of arguments
+  bytes data = 1;
+}
+
+message PythonSourceArgs {
+}
+
+message PythonElementArgs {
+  // Pickled argument
+  bytes data = 1;
+}
+
+
 message FilesEnumeratorArgs {
   // For creating storehouse adapter
   string storage_type = 1;

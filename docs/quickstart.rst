@@ -3,7 +3,13 @@
 Quickstart
 ==========
 
-To explain how Scanner is used, let's walk through a simple example that reads frames from a video, selects every third frame, resizes them, and then creates a new video using those resized frames. If you'd like to run the code first, install Scanner (:ref:`installation`) and from the top-level Scanner directory, run:
+To explain how Scanner is used, let's walk through a simple example that reads frames from a video, selects every third frame, resizes them, and then creates a new video using those resized frames.
+
+.. note::
+
+   In this quickstart, we are only showing a very basic Scanner application to avoid getting bogged down in details. If you are interested in more useful applications of Scanner, check out the `examples <https:://github.com/scanner-research/scanner/blob/master/examples>`__ directory, which includes using `Tensorflow for object detection <https://github.com/scanner-research/scanner/blob/master/examples/apps/object_detection_tensorflow>`__ and `Face Detection <https://github.com/scanner-research/scanner/blob/master/examples/apps/face_detection>`__.
+
+If you'd like to run the code first, install Scanner (:ref:`installation`) and from the top-level Scanner directory, run:
 
 .. code-block:: bash
 
@@ -100,8 +106,8 @@ At this point, we have defined a computation graph that describes the computatio
 
 .. _defining_a_job:
 
-Defining a Job
---------------
+Defining Jobs
+-------------
 
 As alluded to in :ref:`defining_a_graph`, we need to tell Scanner which table we should read and which table we should write to before executing the computation graph. We can perform this "binding" of arguments to graph nodes using a **Job**:
 
@@ -114,7 +120,17 @@ As alluded to in :ref:`defining_a_graph`, we need to tell Scanner which table we
 
 Here, we say that the :code:`FrameColumn` indicated by :code:`frame` should read from the column :code:`frame` in the table :code:`"table_name"`, and that the output table indicated by :code:`output_frame` should be called :code:`"resized_table"`.
 
-In this example, we are only defining one job since we only have one video, but the purpose of this API design is so Scanner can process many jobs in parallel (given they use the same computation graph).
+If we had multiple videos, we could define multiple jobs to tell Scanner that it should process these jobs in parallel. For example, if we had a list of tables called :code:`table_names`, we could do the following:
+
+.. code-block:: python
+
+   jobs = []
+   for table_name in table_names:
+       job = Job(op_args={
+           frame: db.table(table_name).column('frame'),
+           output_frame: 'resized_{:s}'.format(table_name)
+       })
+       jobs.append(job)
 
 Running a Job
 --------------
@@ -123,9 +139,9 @@ Now we can run the computation graph over the video we ingested. This is done by
 
 .. code-block:: python
 
-   output_tables = db.run(output=output_frame, jobs=[job])
+   output_tables = db.run(output=output_frame, jobs=[job]) # or jobs=jobs if processing multiple videos
 
-This call will block until Scanner has finished processing the job. You should see a progress bar while Scanner is executing the computation graph. Once the jobs are done, :code:`run` returns the newly computed tables, here shown as :code:`output_tables`.
+This call will block until Scanner has finished processing the job(s). You should see a progress bar while Scanner is executing the computation graph. Once the job(s) are done, :code:`run` returns the newly computed tables, here shown as :code:`output_tables`.
 
 Running multiple Jobs
 ---------------------

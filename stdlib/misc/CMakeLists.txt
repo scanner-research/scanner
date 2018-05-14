@@ -5,6 +5,7 @@ set(SOURCE_FILES
   test_increment_kernel.cpp
   packed_file_source.cpp
   pass_kernel.cpp
+  python_source.cpp
   files_source.cpp
   files_sink.cpp
   sql_source.cpp
