@@ -4,7 +4,7 @@ Interactive Jupyter Walkthrough
 ===============================
 
 To get a more detailed understanding of how Scanner can be used in a real
-application, we recommend trying our Jupyter notebook tutorial. To start the
+application, we recommend trying the Jupyter notebook tutorial. To start the
 notebook, if you're using Docker:
 
 .. code-block:: bash

@@ -158,7 +158,7 @@ This call will block until Scanner has finished processing the job. You should s
 Reading the results of a Job
 ----------------------------
 
-We can directly read the results of job we just ran in our Python code by querying the :code:`frame` column on the table :code:`resized_table`:
+We can directly read the results of job we just ran in the Python code by querying the :code:`frame` column on the table :code:`resized_table`:
 
 .. code-block:: python
 
@@ -178,7 +178,7 @@ We can also directly save the frame column as an mp4 file by calling :code:`save
 
 After this call returns, an mp4 video should be saved to the current working directory called :code:`resized-video.mp4` that consists of the resized frames that we generated.
 
-That's a complete Scanner pipeline! To learn more about the features of Scanner, either follow our :ref:`walkthrough` or go through the extended :ref:`tutorial`.
+That's a complete Scanner pipeline! To learn more about the features of Scanner, either follow the :ref:`walkthrough` or go through the extended :ref:`tutorial`.
 
 .. toctree::
    :maxdepth: 1

@@ -167,7 +167,7 @@ into the database.</p>
 </div>
 <div class="section" id="reading-the-results-of-a-job">
 <h2>Reading the results of a Job<a class="headerlink" href="#reading-the-results-of-a-job" title="Permalink to this headline">¶</a></h2>
-<p>We can directly read the results of job we just ran in our Python code by querying the <code class="code docutils literal notranslate"><span class="pre">frame</span></code> column on the table <code class="code docutils literal notranslate"><span class="pre">resized_table</span></code>:</p>
+<p>We can directly read the results of job we just ran in the Python code by querying the <code class="code docutils literal notranslate"><span class="pre">frame</span></code> column on the table <code class="code docutils literal notranslate"><span class="pre">resized_table</span></code>:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> <span class="n">resized_frame</span> <span class="ow">in</span> <span class="n">db</span><span class="o">.</span><span class="n">table</span><span class="p">(</span><span class="s1">&#39;resized_table&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="s1">&#39;frame&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">load</span><span class="p">():</span>
     <span class="k">print</span><span class="p">(</span><span class="n">resized_frame</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
 </pre></div>
@@ -181,7 +181,7 @@ into the database.</p>
 </pre></div>
 </div>
 <p>After this call returns, an mp4 video should be saved to the current working directory called <code class="code docutils literal notranslate"><span class="pre">resized-video.mp4</span></code> that consists of the resized frames that we generated.</p>
-<p>That’s a complete Scanner pipeline! To learn more about the features of Scanner, either follow our <a class="reference internal" href="walkthrough.html#walkthrough"><span class="std std-ref">Interactive Jupyter Walkthrough</span></a> or go through the extended <a class="reference internal" href="tutorial.html#tutorial"><span class="std std-ref">Tutorial</span></a>.</p>
+<p>That’s a complete Scanner pipeline! To learn more about the features of Scanner, either follow the <a class="reference internal" href="walkthrough.html#walkthrough"><span class="std std-ref">Interactive Jupyter Walkthrough</span></a> or go through the extended <a class="reference internal" href="tutorial.html#tutorial"><span class="std std-ref">Tutorial</span></a>.</p>
 <div class="toctree-wrapper compound">
 </div>
 </div>
