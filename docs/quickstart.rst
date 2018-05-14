@@ -3,11 +3,7 @@
 Quickstart
 ==========
 
-To explain how Scanner is used, let's walk through a simple example that
-reads frames from a video, selects every third frame, resizes them, and then
-creates a new video using those resized frames. If you'd like to run the code
-first, install Scanner (:ref:`installation`) and from the top-level Scanner
-directory, run:
+To explain how Scanner is used, let's walk through a simple example that reads frames from a video, selects every third frame, resizes them, and then creates a new video using those resized frames. If you'd like to run the code first, install Scanner (:ref:`installation`) and from the top-level Scanner directory, run:
 
 .. code-block:: bash
 
@@ -15,16 +11,11 @@ directory, run:
    wget https://storage.googleapis.com/scanner-data/public/sample-clip.mp4
    python3 main.py
 
-After :code:`main.py` exits, you should now have a resized version of
-:code:`sample-clip.mp4` named :code:`resized-video.mp4` in the current directory. Let's see
-how that happened by looking inside :code:`main.py`.
+After :code:`main.py` exits, you should now have a resized version of :code:`sample-clip.mp4` named :code:`resized-video.mp4` in the current directory. Let's see how that happened by looking inside :code:`main.py`.
 
 Starting up Scanner
 -------------------
-The first step in any Scanner program is to create a :py:class:`~scannerpy.database.Database` object.
-The :py:class:`~scannerpy.database.Database` object manages videos or other data that you have may have
-stored from data processing you've done in the past. The Database object also
-provides the API to construct and execute new video processing jobs.
+The first step in any Scanner program is to create a :py:class:`~scannerpy.database.Database` object. The :py:class:`~scannerpy.database.Database` object manages videos or other data that you have may have stored from data processing you've done in the past. The Database object also provides the API to construct and execute new video processing jobs.
 
 .. code-block:: python
 
@@ -34,17 +25,12 @@ provides the API to construct and execute new video processing jobs.
 
 Ingesting a video into the Database
 -----------------------------------
-Scanner is designed to provide fast access to frames in videos, even under
-random access patterns. In order to provide this functionality, Scanner first
-needs to analyze the video to build an index on the video. For example, given
-an mp4 video named :code:`example.mp4`, we can ingest this video as follow:
-
+Scanner is designed to provide fast access to frames in videos, even under random access patterns. In order to provide this functionality, Scanner first needs to analyze the video to build an index on the video. For example, given an mp4 video named :code:`example.mp4`, we can ingest this video as follow:
 .. code-block:: python
 
    db.ingest_videos([('table_name', 'example.mp4')])
 
-Scanner analyzes the file to build the index and creates a :py:class:`~scannerpy.table.Table` for that
-video in the Scanner database called :code:`table_name`. You can see the contents of the database by running:
+Scanner analyzes the file to build the index and creates a :py:class:`~scannerpy.table.Table` for that video in the Scanner database called :code:`table_name`. You can see the contents of the database by running:
 
 .. code-block:: python
 
@@ -69,52 +55,33 @@ into the database.
 Defining a Computation Graph
 ----------------------------
 
-Now we can tell Scanner how to process the video by constructing a
-*computation graph*. A computation graph is a graph of input nodes (**Sources**),
-function nodes (**Ops**), and output nodes (**Sinks**). **Sources** can read data from
-the Scanner database (such as the table we ingested above) or from other sources of
-data, such as the filesystem or a SQL database. **Ops** represent functions that transform their
-inputs into new outputs. **Sinks**, like **Sources**, write data to the database or to
-other forms of persistent storage.
+Now we can tell Scanner how to process the video by constructing a *computation graph*. A computation graph is a graph of input nodes (**Sources**), function nodes (**Ops**), and output nodes (**Sinks**). **Sources** can read data from the Scanner database (such as the table we ingested above) or from other sources of data, such as the filesystem or a SQL database. **Ops** represent functions that transform their inputs into new outputs. **Sinks**, like **Sources**, write data to the database or to other forms of persistent storage.
 
-Let's define a computation graph to read frames from the database, select every
-third frame, resize them to 640 x 480 resolution, and then save them back to a new
-database table. First, we'll create a Source that reads from a column in a table:
+Let's define a computation graph to read frames from the database, select every third frame, resize them to 640 x 480 resolution, and then save them back to a new database table. First, we'll create a Source that reads from a column in a table:
 
 .. code-block:: python
 
    frame = db.sources.FrameColumn()
 
-But wait a second, we didn't tell the **Source** the table and column it should
-read from. What's going on? Since it's fairly typical to use the same
-computation graph to process a collection of videos at once, Scanner adopts a
-"binding model" that lets the user define a computation graph up front and then
-later "bind" different videos to the inputs. We'll see this in action in the
-:ref:`defining_a_job` section.
+But wait a second, we didn't tell the **Source** the table and column it should read from. What's going on? Since it's fairly typical to use the same computation graph to process a collection of videos at once, Scanner adopts a "binding model" that lets the user define a computation graph up front and then later "bind" different videos to the inputs. We'll see this in action in the :ref:`defining_a_job` section.
 
-The :code:`frame` object returned by the **Source** represents the stream of frames that
-are stored in the table, and we'll use it as the input to the next operation:
+The :code:`frame` object returned by the **Source** represents the stream of frames that are stored in the table, and we'll use it as the input to the next operation:
 
 .. code-block:: python
 
    sampled_frame = db.streams.Stride(input=frame, stride=3) # Select every third frame
 
-This is where we select only every third frame from the stream of frames we read
-from the **Source**. This comes from a special class of ops (from :code:`db.streams`) that can change the size of a stream, as opposed to transforming inputs to outputs 1-to-1.
+This is where we select only every third frame from the stream of frames we read from the **Source**. This comes from a special class of ops (from :code:`db.streams`) that can change the size of a stream, as opposed to transforming inputs to outputs 1-to-1.
 
-We then process the sampled frames by instantiating a Resize **Op** that will
-resize the frames in the :code:`frame` stream to 640 x 480:
+We then process the sampled frames by instantiating a Resize **Op** that will resize the frames in the :code:`frame` stream to 640 x 480:
 
 .. code-block:: python
 
    resized = db.ops.Resize(frame=sampled_frame, width=640, height=480)
 
-This **Op** returns a new stream of frames which we call :code:`resized`. The Resize
-**Op** is one of the collection of built-in **Ops** in the
-:ref:`standard_library`. (You can learn how to write your own **Ops** by following the :ref:`tutorial`.)
+This **Op** returns a new stream of frames which we call :code:`resized`. The Resize **Op** is one of the collection of built-in **Ops** in the :ref:`standard_library`. (You can learn how to write your own **Ops** by following the :ref:`tutorial`.)
 
-Finally, we write these resized frames to a column called 'frame' in a new table
-by passing them into a column **Sink**:
+Finally, we write these resized frames to a column called 'frame' in a new table by passing them into a column **Sink**:
 
 .. code-block:: python
 
@@ -129,18 +96,14 @@ Putting it all together, we have:
    resized = db.ops.Resize(frame=sampled_frame, width=640, height=480)
    output_frame = db.sinks.Column(columns={'frame': resized})
 
-At this point, we have defined a computation graph that describes the
-computation to run, but we haven't yet told Scanner to execute the graph.
+At this point, we have defined a computation graph that describes the computation to run, but we haven't yet told Scanner to execute the graph.
 
 .. _defining_a_job:
 
 Defining a Job
 --------------
 
-As alluded to in :ref:`defining_a_graph`, we need to tell Scanner which table
-we should read, how to sample the input frames, and which table we should write
-to to execute the computation graph. We can perform this "binding" of arguments
-to graph nodes using a **Job**:
+As alluded to in :ref:`defining_a_graph`, we need to tell Scanner which table we should read and which table we should write to before executing the computation graph. We can perform this "binding" of arguments to graph nodes using a **Job**:
 
 .. code-block:: python
 
@@ -149,57 +112,55 @@ to graph nodes using a **Job**:
        output_frame: 'resized_table'
    })
 
-Here, we say that the :code:`FrameColumn` indicated by :code:`frame` should read from the
-column :code:`frame` in the table :code:`"table_name"`, and that the output table indicated by
-:code:`output_frame` should be called :code:`"resized_table"`.
+Here, we say that the :code:`FrameColumn` indicated by :code:`frame` should read from the column :code:`frame` in the table :code:`"table_name"`, and that the output table indicated by :code:`output_frame` should be called :code:`"resized_table"`.
 
-In this example, we are only defining one job since we only have one video, but the purpose of
-this API design is so Scanner can process many jobs in parallel (given they use the same
-computation graph).
+In this example, we are only defining one job since we only have one video, but the purpose of this API design is so Scanner can process many jobs in parallel (given they use the same computation graph).
 
 Running a Job
 --------------
 
-Now we can run the computation graph over the video we ingested. This is done by
-simply calling :code:`run` on the database object, specifying the jobs and outputs
-that we are interested in:
+Now we can run the computation graph over the video we ingested. This is done by simply calling :code:`run` on the database object, specifying the jobs and outputs that we are interested in:
 
 .. code-block:: python
 
    output_tables = db.run(output=output_frame, jobs=[job])
 
-This call will block until Scanner has finished processing the job. You should
-see a progress bar while Scanner is executing the computation graph. Once the
-jobs are done, :code:`run` returns the newly computed tables, here shown as
-:code:`output_tables`.
+This call will block until Scanner has finished processing the job. You should see a progress bar while Scanner is executing the computation graph. Once the jobs are done, :code:`run` returns the newly computed tables, here shown as :code:`output_tables`.
+
+Running multiple Jobs
+---------------------
+
+Now we can run the computation graph over the video we ingested. This is done by simply calling :code:`run` on the database object, specifying the jobs and outputs that we are interested in:
+
+.. code-block:: python
+
+   output_tables = db.run(output=output_frame, jobs=job)
+
+This call will block until Scanner has finished processing the job. You should see a progress bar while Scanner is executing the computation graph. Once the jobs are done, :code:`run` returns the newly computed tables, here shown as :code:`output_tables`.
+
 
 Reading the results of a Job
 ----------------------------
 
-We can directly read the results of job we just ran in our Python code by
-querying the :code:`frame` column on the table :code:`resized_table`:
+We can directly read the results of job we just ran in our Python code by querying the :code:`frame` column on the table :code:`resized_table`:
 
 .. code-block:: python
 
    for resized_frame in db.table('resized_table').column('frame').load():
        print(resized_frame.shape)
 
-Video frames are returned as numpy arrays. Here we are printing out the shape
-of the frame, which should have a width of 640 and height of 480.
+Video frames are returned as numpy arrays. Here we are printing out the shape of the frame, which should have a width of 640 and height of 480.
 
-Saving a video file
--------------------
+Exporting to mp4
+----------------
 
-We can also directly save the frame column as an mp4 file by calling
-:code:`save_mp4` on the :code:`frame` column:
+We can also directly save the frame column as an mp4 file by calling :code:`save_mp4` on the :code:`frame` column:
 
 .. code-block:: python
 
    db.table('resized_table').column('frame').save_mp4('resized-video')
 
-After this call returns, an mp4 video should be saved to the current working
-directory called :code:`resized-video.mp4` that consists of the resized frames
-that we generated.
+After this call returns, an mp4 video should be saved to the current working directory called :code:`resized-video.mp4` that consists of the resized frames that we generated.
 
 That's a complete Scanner pipeline! To learn more about the features of Scanner, either follow our :ref:`walkthrough` or go through the extended :ref:`tutorial`.
 
