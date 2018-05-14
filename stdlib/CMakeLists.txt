@@ -25,7 +25,6 @@ include(${Halide_DIR}/halide.cmake)
 #include_directories("${HALIDE_INCLUDE_DIR}")
 #include_directories("${PROJECT_BINARY_DIR}/generator_genfiles")
 
-
 if (BUILD_CUDA)
   find_package(CUDA REQUIRED)
   add_definitions(-DHAVE_CUDA)
@@ -95,6 +94,10 @@ build_op(
   PROTO_SRC stdlib.proto
   NO_FLAGS ON)
 add_dependencies(stdlib scanner)
+
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(libpqxx REQUIRED libpqxx)
+list(APPEND STDLIB_LIBRARIES "${libpqxx_LIBRARY_DIRS}/libpqxx.a" pq)
 
 add_custom_command(TARGET stdlib POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/__init__.py)

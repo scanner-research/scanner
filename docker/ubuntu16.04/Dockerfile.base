@@ -24,7 +24,7 @@ RUN apt-get update && apt-get upgrade -y && \
       libfreetype6-dev libsdl2-dev libtheora-dev libtool \
       libva-dev libvdpau-dev libvorbis-dev libxcb1-dev libxcb-shm0-dev \
       libxcb-xfixes0-dev mercurial texinfo zlib1g-dev curl libcap-dev \
-      libgnutls-dev
+      libgnutls-dev libpq-dev postgresql
 
 RUN apt-get install -y --no-install-recommends libboost-all-dev
 

@@ -28,10 +28,10 @@ build_docker() {
         docker build -t $DOCKER_REPO:$1-local . \
                --build-arg gpu=OFF --build-arg tag=cpu --build-arg deps_opt='' \
                -f docker/Dockerfile.scanner
-        # travis_wait allows tests to run for N minutes with no output
-        # https://docs.travis-ci.com/user/common-build-problems/#Build-times-out-because-no-output-was-received
+
+        # We run the tests as non-root user because Postgres test uses initdb which requires not being root
         docker run $DOCKER_REPO:$1-local /bin/bash \
-               -c "cd /opt/scanner/build && CTEST_OUTPUT_ON_FAILURE=1 make test"
+               -c "adduser --disabled-password --gecos \"\" user && su -c \"cd /opt/scanner/build && CTEST_OUTPUT_ON_FAILURE=1 make test\" user"
         docker rm $(docker ps -a -f status=exited -q)
     else
         # Parse gpu build type

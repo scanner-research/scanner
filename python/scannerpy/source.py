@@ -1,4 +1,3 @@
-
 import grpc
 import copy
 
@@ -23,6 +22,7 @@ class Source:
         # to read from the database
         if name == 'FrameColumn' or name == 'Column':
             sc = self._db.config.config['storage']
+
             def check_and_add(key):
                 if key in sc:
                     self._args[key] = sc[key]
@@ -59,8 +59,8 @@ class Source:
                 source_info = self._db._get_source_info(self._name)
                 if len(source_info.protobuf_name) > 0:
                     proto_name = source_info.protobuf_name
-                    e.kernel_args = python_to_proto(
-                        self._db.protobufs, proto_name, self._args)
+                    e.kernel_args = python_to_proto(self._db.protobufs,
+                                                    proto_name, self._args)
                 else:
                     e.kernel_args = self._args
         else:
@@ -87,9 +87,7 @@ class SourceGenerator:
         source_info = self._db._get_source_info(name)
 
         def make_source(*args, **kwargs):
-            source_args = kwargs.pop('args', kwargs)
-            #enumerator_args = kwargs.pop('enumerator_args', kwargs)
-            source = Source(self._db, name, source_args)
+            source = Source(self._db, name, kwargs)
             return source.outputs()
 
         return make_source

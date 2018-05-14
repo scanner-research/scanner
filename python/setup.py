@@ -111,8 +111,9 @@ package_data = {
 REQUIRED_PACKAGES = [
     'protobuf == 3.4.0', 'grpcio == 1.7.3', 'toml >= 0.9.2', 'enum34 >= 1.1.6',
     'numpy >= 1.12.0', 'scipy >= 0.18.1', 'tqdm >= 4.19.5',
-    'cloudpickle >= 0.5.2'
+    'cloudpickle >= 0.5.2', 'psycopg2 == 2.7.4', 'testing.postgresql == 1.3.0'
 ]
+
 if platform == 'linux' or platform == 'linux2':
     REQUIRED_PACKAGES.append('python-prctl >= 1.7.0')
 

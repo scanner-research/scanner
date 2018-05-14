@@ -16,6 +16,7 @@ docker/**/deps.sh
 docker/**/thirdparty
 **/*.mp4
 **/*.mkv
+docker/*.log
 
 python/scannerpy/include
 dist
