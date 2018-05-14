@@ -23,10 +23,12 @@ Then in your browser, go to [http://localhost:8888/notebooks/Walkthrough.ipynb](
 
 * [face_detection](https://github.com/scanner-research/scanner/blob/master/examples/apps/face_detection): Detect all faces in a video, and then render a new video overlaying the face bounding boxes on the video.  
 * [shot_detection](https://github.com/scanner-research/scanner/blob/master/examples/apps/shot_detection): Segment a video into shots and then create a single image montage featuring one thumbnail for each shot. (Same application as the walkthrough.)
-* [reverse_image_search](https://github.com/scanner-research/scanner/blob/master/examples/apps/reverse_image_search): Search through a video to look for a query frame.
-* [depth_from_stereo](https://github.com/scanner-research/scanner/blob/master/examples/apps/depth_from_stereo): Compute a per-pixel depth image from two views of the same location.
 * [hyperlapse](https://github.com/scanner-research/scanner/blob/master/examples/apps/hyperlapse): Create a stable timelapse video using the [Hyperlapse](https://www.microsoft.com/en-us/research/publication/real-time-hyperlapse-creation-via-optimal-frame-selection/) algorithm.
 * [optical_flow](https://github.com/scanner-research/scanner/blob/master/examples/apps/optical_flow): Use OpenCV to compute flow fields within a video.
+* [object_detection_tensorflow](https://github.com/scanner-research/scanner/blob/master/examples/apps/object_detection_tensorflow): Use Tensorflow's SSD Mobilenet DNN to detect objects.
+* [detectron](https://github.com/scanner-research/scanner/blob/master/examples/apps/detectron): Use the Detectron object detection API for Caffe2 to detect objects.
+* [reverse_image_search](https://github.com/scanner-research/scanner/blob/master/examples/apps/reverse_image_search): Search through a video to look for a query frame.
+* [depth_from_stereo](https://github.com/scanner-research/scanner/blob/master/examples/apps/depth_from_stereo): Compute a per-pixel depth image from two views of the same location.
 
 ## How-Tos
 
