@@ -4,7 +4,7 @@ Scanner is a system for developing applications that efficiently process large v
 * **Labeling and data mining large video collections:** Scanner is in use at Stanford University as the compute engine for visual data mining applications that detect people, commercials, human poses, etc. in datasets as big as 70,000 hours of TV news (12 billion frames, 20 TB) or 600 feature length movies (106 million frames).  We've used Scanner to run these tasks on hundreds of GPUs or thousands of CPUs on Google Compute Engine.
 * **VR Video synthesis:** scaling the [Surround 360 VR video stitching software](https://github.com/scanner-research/Surround360) to 100's of CPUs. This application processes fourteen 2048x2048 input videos to produce 8k omidirectional stereo video output for VR display.
 
-To learn more about Scanner, see the documentation below, check out our [various example applications](https://github.com/scanner-research/scanner/tree/master/examples), or read the SIGGRAPH 2018 Technical Paper: "[Scanner: Efficient Video Analysis at Scale](http://graphics.stanford.edu/papers/scanner/scanner_sig18.pdf)".
+To learn more about Scanner, see the documentation below, check out the [various example applications](https://github.com/scanner-research/scanner/tree/master/examples), or read the SIGGRAPH 2018 Technical Paper: "[Scanner: Efficient Video Analysis at Scale](http://graphics.stanford.edu/papers/scanner/scanner_sig18.pdf)".
 
 ## Key Features
 
@@ -36,8 +36,8 @@ are a few links to get you started:
 
 ## Example code
 
-Scanner applications are written using our Python API. Here's an example
-application that resizes every third frame from a video and then saves the result as an mp4 video (our
+Scanner applications are written using the Python API. Here's an example
+application that resizes every third frame from a video and then saves the result as an mp4 video (the
 [Quickstart](http://scanner.run/quickstart.html) walks through this
 example in more detail):
 
@@ -68,7 +68,7 @@ output_tables[0].column('frame').save_mp4('resized_video')
 ```
 
 If you'd like to see other example applications written with Scanner, check
-out our [Examples](https://github.com/scanner-research/scanner/tree/master/examples)
+out the [Examples](https://github.com/scanner-research/scanner/tree/master/examples)
 directory in this repository.
 
 ## Contributing
@@ -81,8 +81,8 @@ master branch and we will review your changes to be merged. Thanks for
 contributing!
 
 ### Running tests
-You can run our full suite of tests by executing `make test` in the directory
-you used to build Scanner. This will run both our C++ tests and our end-to-end
+You can run the full suite of tests by executing `make test` in the directory
+you used to build Scanner. This will run both the C++ tests and the end-to-end
 tests that verify the python API.
 
 ## About
