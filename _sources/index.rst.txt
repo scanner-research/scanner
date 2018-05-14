@@ -39,9 +39,9 @@ Scanner's key features include:
 - **Fault tolerant, distributed execution:** Scanner applications can be run on the cores of a single machine, on a multi-GPU server, or scaled to hundreds of machines (potentially with heterogeneous numbers of GPUs), without significant source-level change.  Scanner also provides fault tolerance, so your applications can not only utilize many machines, but use cheaper preemptible machines on cloud computing platforms.
 
 
-What Scanner __is not__:
+What Scanner **is not**:
 
-Scanner is not a system for implementing new high-performance image and video processing kernels from scratch.  However, Scanner can be used to create scalable video processing applications by composing kernels that already exist as part of popular libraries such as OpenCV, Caffe, TensorFlow, etc. or have been implemented in popular performance-oriented languages like [CUDA](https://developer.nvidia.com/cuda-zone) or [Halide](http://halide-lang.org/). Yes, you can write your own dataflow graph operations in Python or C++ too!
+Scanner is not a system for implementing new high-performance image and video processing kernels from scratch.  However, Scanner can be used to create scalable video processing applications by composing kernels that already exist as part of popular libraries such as OpenCV, Caffe, TensorFlow, etc. or have been implemented in popular performance-oriented languages like `CUDA <https://developer.nvidia.com/cuda-zone>`__ or `Halide <http://halide-lang.org/>`__. Yes, you can write your own dataflow graph operations in Python or C++ too!
 
 .. toctree::
    :maxdepth: 2

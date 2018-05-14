@@ -70,12 +70,12 @@
 <div class="viewcode-block" id="BBoxNMS.close"><a class="viewcode-back" href="../../../api/scannerpy.stdlib.html#scannerpy.stdlib.pipelines.BBoxNMS.close">[docs]</a>    <span class="k">def</span> <span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">pass</span></div>
 
-    <span class="k">def</span> <span class="nf">execute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">inputs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bytes</span><span class="p">:</span>
+<div class="viewcode-block" id="BBoxNMS.execute"><a class="viewcode-back" href="../../../api/scannerpy.stdlib.html#scannerpy.stdlib.pipelines.BBoxNMS.execute">[docs]</a>    <span class="k">def</span> <span class="nf">execute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">inputs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bytes</span><span class="p">:</span>
         <span class="n">bboxes_list</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">inputs</span><span class="p">:</span>
             <span class="n">bboxes_list</span> <span class="o">+=</span> <span class="n">readers</span><span class="o">.</span><span class="n">bboxes</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">protobufs</span><span class="p">)</span>
         <span class="n">nmsed_bboxes</span> <span class="o">=</span> <span class="n">bboxes</span><span class="o">.</span><span class="n">nms</span><span class="p">(</span><span class="n">bboxes_list</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">writers</span><span class="o">.</span><span class="n">bboxes</span><span class="p">(</span><span class="n">nmsed_bboxes</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">protobufs</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="n">writers</span><span class="o">.</span><span class="n">bboxes</span><span class="p">(</span><span class="n">nmsed_bboxes</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">protobufs</span><span class="p">)</span></div></div>
 
 
 <div class="viewcode-block" id="detect_faces"><a class="viewcode-back" href="../../../api/scannerpy.stdlib.html#scannerpy.stdlib.pipelines.detect_faces">[docs]</a><span class="k">def</span> <span class="nf">detect_faces</span><span class="p">(</span><span class="n">db</span><span class="p">,</span>

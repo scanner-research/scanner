@@ -419,9 +419,10 @@
                     <span class="k">for</span> <span class="p">(</span><span class="n">param_name</span><span class="p">,</span> <span class="n">_</span><span class="p">),</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">input_columns</span><span class="p">,</span> <span class="n">in_cols</span><span class="p">):</span>
                         <span class="n">args</span><span class="p">[</span><span class="n">param_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">c</span>
                     <span class="k">return</span> <span class="n">parse_ret</span><span class="p">(</span><span class="n">exec_fn</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">))</span>
-
-            <span class="n">fn_or_class</span> <span class="o">=</span> <span class="n">wrapper_exec</span>
+            <span class="n">wrapped_fn_or_class</span> <span class="o">=</span> <span class="n">wrapper_exec</span>
         <span class="k">else</span><span class="p">:</span>
+            <span class="n">wrapped_fn_or_class</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">fn_or_class</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">+</span> <span class="s1">&#39;Kernel&#39;</span><span class="p">,</span> <span class="n">fn_or_class</span><span class="o">.</span><span class="vm">__bases__</span><span class="p">,</span>
+                                       <span class="nb">dict</span><span class="p">(</span><span class="n">fn_or_class</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">))</span>
             <span class="k">if</span> <span class="n">has_variadic_inputs</span><span class="p">:</span>
 
                 <span class="k">def</span> <span class="nf">execute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">in_cols</span><span class="p">):</span>
@@ -433,8 +434,7 @@
                     <span class="k">for</span> <span class="p">(</span><span class="n">param_name</span><span class="p">,</span> <span class="n">_</span><span class="p">),</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">input_columns</span><span class="p">,</span> <span class="n">in_cols</span><span class="p">):</span>
                         <span class="n">args</span><span class="p">[</span><span class="n">param_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">c</span>
                     <span class="k">return</span> <span class="n">parse_ret</span><span class="p">(</span><span class="n">exec_fn</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">))</span>
-
-            <span class="n">fn_or_class</span><span class="o">.</span><span class="n">execute</span> <span class="o">=</span> <span class="n">execute</span>
+            <span class="n">wrapped_fn_or_class</span><span class="o">.</span><span class="n">execute</span> <span class="o">=</span> <span class="n">execute</span>
 
         <span class="n">PYTHON_OP_REGISTRY</span><span class="p">[</span><span class="n">kname</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
             <span class="s1">&#39;input_columns&#39;</span><span class="p">:</span> <span class="n">input_columns</span><span class="p">,</span>
@@ -443,7 +443,7 @@
             <span class="s1">&#39;stencil&#39;</span><span class="p">:</span> <span class="n">stencil</span><span class="p">,</span>
             <span class="s1">&#39;unbounded_state&#39;</span><span class="p">:</span> <span class="n">unbounded_state</span><span class="p">,</span>
             <span class="s1">&#39;bounded_state&#39;</span><span class="p">:</span> <span class="n">bounded_state</span><span class="p">,</span>
-            <span class="s1">&#39;kernel&#39;</span><span class="p">:</span> <span class="n">fn_or_class</span><span class="p">,</span>
+            <span class="s1">&#39;kernel&#39;</span><span class="p">:</span> <span class="n">wrapped_fn_or_class</span><span class="p">,</span>
             <span class="s1">&#39;device_type&#39;</span><span class="p">:</span> <span class="n">device_type</span><span class="p">,</span>
             <span class="s1">&#39;batch&#39;</span><span class="p">:</span> <span class="n">batch</span><span class="p">,</span>
             <span class="s1">&#39;proto_path&#39;</span><span class="p">:</span> <span class="n">proto_path</span><span class="p">,</span>

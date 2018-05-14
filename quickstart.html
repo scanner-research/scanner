@@ -54,25 +54,21 @@
             
   <div class="section" id="quickstart">
 <span id="id1"></span><h1>Quickstart<a class="headerlink" href="#quickstart" title="Permalink to this headline">¶</a></h1>
-<p>To explain how Scanner is used, let’s walk through a simple example that
-reads frames from a video, selects every third frame, resizes them, and then
-creates a new video using those resized frames. If you’d like to run the code
-first, install Scanner (<a class="reference internal" href="installation.html#installation"><span class="std std-ref">Installation</span></a>) and from the top-level Scanner
-directory, run:</p>
+<p>To explain how Scanner is used, let’s walk through a simple example that reads frames from a video, selects every third frame, resizes them, and then creates a new video using those resized frames.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">In this quickstart, we are only showing a very basic Scanner application to avoid getting bogged down in details. If you are interested in more useful applications of Scanner, check out the <a class="reference external" href="https:://github.com/scanner-research/scanner/blob/master/examples">examples</a> directory, which includes using <a class="reference external" href="https://github.com/scanner-research/scanner/blob/master/examples/apps/object_detection_tensorflow">Tensorflow for object detection</a> and <a class="reference external" href="https://github.com/scanner-research/scanner/blob/master/examples/apps/face_detection">Face Detection</a>.</p>
+</div>
+<p>If you’d like to run the code first, install Scanner (<a class="reference internal" href="installation.html#installation"><span class="std std-ref">Installation</span></a>) and from the top-level Scanner directory, run:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> examples/apps/quickstart
 wget https://storage.googleapis.com/scanner-data/public/sample-clip.mp4
 python3 main.py
 </pre></div>
 </div>
-<p>After <code class="code docutils literal notranslate"><span class="pre">main.py</span></code> exits, you should now have a resized version of
-<code class="code docutils literal notranslate"><span class="pre">sample-clip.mp4</span></code> named <code class="code docutils literal notranslate"><span class="pre">resized-video.mp4</span></code> in the current directory. Let’s see
-how that happened by looking inside <code class="code docutils literal notranslate"><span class="pre">main.py</span></code>.</p>
+<p>After <code class="code docutils literal notranslate"><span class="pre">main.py</span></code> exits, you should now have a resized version of <code class="code docutils literal notranslate"><span class="pre">sample-clip.mp4</span></code> named <code class="code docutils literal notranslate"><span class="pre">resized-video.mp4</span></code> in the current directory. Let’s see how that happened by looking inside <code class="code docutils literal notranslate"><span class="pre">main.py</span></code>.</p>
 <div class="section" id="starting-up-scanner">
 <h2>Starting up Scanner<a class="headerlink" href="#starting-up-scanner" title="Permalink to this headline">¶</a></h2>
-<p>The first step in any Scanner program is to create a <a class="reference internal" href="api/scannerpy.html#scannerpy.database.Database" title="scannerpy.database.Database"><code class="xref py py-class docutils literal notranslate"><span class="pre">Database</span></code></a> object.
-The <a class="reference internal" href="api/scannerpy.html#scannerpy.database.Database" title="scannerpy.database.Database"><code class="xref py py-class docutils literal notranslate"><span class="pre">Database</span></code></a> object manages videos or other data that you have may have
-stored from data processing you’ve done in the past. The Database object also
-provides the API to construct and execute new video processing jobs.</p>
+<p>The first step in any Scanner program is to create a <a class="reference internal" href="api/scannerpy.html#scannerpy.database.Database" title="scannerpy.database.Database"><code class="xref py py-class docutils literal notranslate"><span class="pre">Database</span></code></a> object. The <a class="reference internal" href="api/scannerpy.html#scannerpy.database.Database" title="scannerpy.database.Database"><code class="xref py py-class docutils literal notranslate"><span class="pre">Database</span></code></a> object manages videos or other data that you have may have stored from data processing you’ve done in the past. The Database object also provides the API to construct and execute new video processing jobs.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">scannerpy</span> <span class="kn">import</span> <span class="n">Database</span><span class="p">,</span> <span class="n">Job</span>
 
 <span class="n">db</span> <span class="o">=</span> <span class="n">Database</span><span class="p">()</span>
@@ -81,15 +77,11 @@ provides the API to construct and execute new video processing jobs.</p>
 </div>
 <div class="section" id="ingesting-a-video-into-the-database">
 <h2>Ingesting a video into the Database<a class="headerlink" href="#ingesting-a-video-into-the-database" title="Permalink to this headline">¶</a></h2>
-<p>Scanner is designed to provide fast access to frames in videos, even under
-random access patterns. In order to provide this functionality, Scanner first
-needs to analyze the video to build an index on the video. For example, given
-an mp4 video named <code class="code docutils literal notranslate"><span class="pre">example.mp4</span></code>, we can ingest this video as follow:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">db</span><span class="o">.</span><span class="n">ingest_videos</span><span class="p">([(</span><span class="s1">&#39;table_name&#39;</span><span class="p">,</span> <span class="s1">&#39;example.mp4&#39;</span><span class="p">)])</span>
-</pre></div>
-</div>
-<p>Scanner analyzes the file to build the index and creates a <a class="reference internal" href="api/scannerpy.html#scannerpy.table.Table" title="scannerpy.table.Table"><code class="xref py py-class docutils literal notranslate"><span class="pre">Table</span></code></a> for that
-video in the Scanner database called <code class="code docutils literal notranslate"><span class="pre">table_name</span></code>. You can see the contents of the database by running:</p>
+<p>Scanner is designed to provide fast access to frames in videos, even under random access patterns. In order to provide this functionality, Scanner first needs to analyze the video to build an index on the video. For example, given an mp4 video named <code class="code docutils literal notranslate"><span class="pre">example.mp4</span></code>, we can ingest this video as follow:
+.. code-block:: python</p>
+<blockquote>
+<div>db.ingest_videos([(‘table_name’, ‘example.mp4’)])</div></blockquote>
+<p>Scanner analyzes the file to build the index and creates a <a class="reference internal" href="api/scannerpy.html#scannerpy.table.Table" title="scannerpy.table.Table"><code class="xref py py-class docutils literal notranslate"><span class="pre">Table</span></code></a> for that video in the Scanner database called <code class="code docutils literal notranslate"><span class="pre">table_name</span></code>. You can see the contents of the database by running:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">print</span><span class="p">(</span><span class="n">db</span><span class="o">.</span><span class="n">summarize</span><span class="p">())</span>
 <span class="go">                      ** TABLES **</span>
 <span class="go">---------------------------------------------------</span>
@@ -107,42 +99,23 @@ into the database.</p>
 </div>
 <div class="section" id="defining-a-computation-graph">
 <span id="defining-a-graph"></span><h2>Defining a Computation Graph<a class="headerlink" href="#defining-a-computation-graph" title="Permalink to this headline">¶</a></h2>
-<p>Now we can tell Scanner how to process the video by constructing a
-<em>computation graph</em>. A computation graph is a graph of input nodes (<strong>Sources</strong>),
-function nodes (<strong>Ops</strong>), and output nodes (<strong>Sinks</strong>). <strong>Sources</strong> can read data from
-the Scanner database (such as the table we ingested above) or from other sources of
-data, such as the filesystem or a SQL database. <strong>Ops</strong> represent functions that transform their
-inputs into new outputs. <strong>Sinks</strong>, like <strong>Sources</strong>, write data to the database or to
-other forms of persistent storage.</p>
-<p>Let’s define a computation graph to read frames from the database, select every
-third frame, resize them to 640 x 480 resolution, and then save them back to a new
-database table. First, we’ll create a Source that reads from a column in a table:</p>
+<p>Now we can tell Scanner how to process the video by constructing a <em>computation graph</em>. A computation graph is a graph of input nodes (<strong>Sources</strong>), function nodes (<strong>Ops</strong>), and output nodes (<strong>Sinks</strong>). <strong>Sources</strong> can read data from the Scanner database (such as the table we ingested above) or from other sources of data, such as the filesystem or a SQL database. <strong>Ops</strong> represent functions that transform their inputs into new outputs. <strong>Sinks</strong>, like <strong>Sources</strong>, write data to the database or to other forms of persistent storage.</p>
+<p>Let’s define a computation graph to read frames from the database, select every third frame, resize them to 640 x 480 resolution, and then save them back to a new database table. First, we’ll create a Source that reads from a column in a table:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">frame</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">sources</span><span class="o">.</span><span class="n">FrameColumn</span><span class="p">()</span>
 </pre></div>
 </div>
-<p>But wait a second, we didn’t tell the <strong>Source</strong> the table and column it should
-read from. What’s going on? Since it’s fairly typical to use the same
-computation graph to process a collection of videos at once, Scanner adopts a
-“binding model” that lets the user define a computation graph up front and then
-later “bind” different videos to the inputs. We’ll see this in action in the
-<a class="reference internal" href="#defining-a-job"><span class="std std-ref">Defining a Job</span></a> section.</p>
-<p>The <code class="code docutils literal notranslate"><span class="pre">frame</span></code> object returned by the <strong>Source</strong> represents the stream of frames that
-are stored in the table, and we’ll use it as the input to the next operation:</p>
+<p>But wait a second, we didn’t tell the <strong>Source</strong> the table and column it should read from. What’s going on? Since it’s fairly typical to use the same computation graph to process a collection of videos at once, Scanner adopts a “binding model” that lets the user define a computation graph up front and then later “bind” different videos to the inputs. We’ll see this in action in the <a class="reference internal" href="#defining-a-job"><span class="std std-ref">Defining Jobs</span></a> section.</p>
+<p>The <code class="code docutils literal notranslate"><span class="pre">frame</span></code> object returned by the <strong>Source</strong> represents the stream of frames that are stored in the table, and we’ll use it as the input to the next operation:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">sampled_frame</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">streams</span><span class="o">.</span><span class="n">Stride</span><span class="p">(</span><span class="nb">input</span><span class="o">=</span><span class="n">frame</span><span class="p">,</span> <span class="n">stride</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span> <span class="c1"># Select every third frame</span>
 </pre></div>
 </div>
-<p>This is where we select only every third frame from the stream of frames we read
-from the <strong>Source</strong>. This comes from a special class of ops (from <code class="code docutils literal notranslate"><span class="pre">db.streams</span></code>) that can change the size of a stream, as opposed to transforming inputs to outputs 1-to-1.</p>
-<p>We then process the sampled frames by instantiating a Resize <strong>Op</strong> that will
-resize the frames in the <code class="code docutils literal notranslate"><span class="pre">frame</span></code> stream to 640 x 480:</p>
+<p>This is where we select only every third frame from the stream of frames we read from the <strong>Source</strong>. This comes from a special class of ops (from <code class="code docutils literal notranslate"><span class="pre">db.streams</span></code>) that can change the size of a stream, as opposed to transforming inputs to outputs 1-to-1.</p>
+<p>We then process the sampled frames by instantiating a Resize <strong>Op</strong> that will resize the frames in the <code class="code docutils literal notranslate"><span class="pre">frame</span></code> stream to 640 x 480:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">resized</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Resize</span><span class="p">(</span><span class="n">frame</span><span class="o">=</span><span class="n">sampled_frame</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">640</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">480</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>This <strong>Op</strong> returns a new stream of frames which we call <code class="code docutils literal notranslate"><span class="pre">resized</span></code>. The Resize
-<strong>Op</strong> is one of the collection of built-in <strong>Ops</strong> in the
-<a class="reference internal" href="api/stdlib.html#standard-library"><span class="std std-ref">Scanner Standard Library</span></a>. (You can learn how to write your own <strong>Ops</strong> by following the <a class="reference internal" href="tutorial.html#tutorial"><span class="std std-ref">Tutorial</span></a>.)</p>
-<p>Finally, we write these resized frames to a column called ‘frame’ in a new table
-by passing them into a column <strong>Sink</strong>:</p>
+<p>This <strong>Op</strong> returns a new stream of frames which we call <code class="code docutils literal notranslate"><span class="pre">resized</span></code>. The Resize <strong>Op</strong> is one of the collection of built-in <strong>Ops</strong> in the <a class="reference internal" href="api/stdlib.html#standard-library"><span class="std std-ref">Scanner Standard Library</span></a>. (You can learn how to write your own <strong>Ops</strong> by following the <a class="reference internal" href="tutorial.html#tutorial"><span class="std std-ref">Tutorial</span></a>.)</p>
+<p>Finally, we write these resized frames to a column called ‘frame’ in a new table by passing them into a column <strong>Sink</strong>:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">output_frame</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">sinks</span><span class="o">.</span><span class="n">Column</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;frame&#39;</span><span class="p">:</span> <span class="n">resized</span><span class="p">})</span>
 </pre></div>
 </div>
@@ -153,62 +126,61 @@ by passing them into a column <strong>Sink</strong>:</p>
 <span class="n">output_frame</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">sinks</span><span class="o">.</span><span class="n">Column</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;frame&#39;</span><span class="p">:</span> <span class="n">resized</span><span class="p">})</span>
 </pre></div>
 </div>
-<p>At this point, we have defined a computation graph that describes the
-computation to run, but we haven’t yet told Scanner to execute the graph.</p>
+<p>At this point, we have defined a computation graph that describes the computation to run, but we haven’t yet told Scanner to execute the graph.</p>
 </div>
-<div class="section" id="defining-a-job">
-<span id="id2"></span><h2>Defining a Job<a class="headerlink" href="#defining-a-job" title="Permalink to this headline">¶</a></h2>
-<p>As alluded to in <a class="reference internal" href="#defining-a-graph"><span class="std std-ref">Defining a Computation Graph</span></a>, we need to tell Scanner which table
-we should read, how to sample the input frames, and which table we should write
-to to execute the computation graph. We can perform this “binding” of arguments
-to graph nodes using a <strong>Job</strong>:</p>
+<div class="section" id="defining-jobs">
+<span id="defining-a-job"></span><h2>Defining Jobs<a class="headerlink" href="#defining-jobs" title="Permalink to this headline">¶</a></h2>
+<p>As alluded to in <a class="reference internal" href="#defining-a-graph"><span class="std std-ref">Defining a Computation Graph</span></a>, we need to tell Scanner which table we should read and which table we should write to before executing the computation graph. We can perform this “binding” of arguments to graph nodes using a <strong>Job</strong>:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">job</span> <span class="o">=</span> <span class="n">Job</span><span class="p">(</span><span class="n">op_args</span><span class="o">=</span><span class="p">{</span>
     <span class="n">frame</span><span class="p">:</span> <span class="n">db</span><span class="o">.</span><span class="n">table</span><span class="p">(</span><span class="s1">&#39;table_name&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="s1">&#39;frame&#39;</span><span class="p">),</span>
     <span class="n">output_frame</span><span class="p">:</span> <span class="s1">&#39;resized_table&#39;</span>
 <span class="p">})</span>
 </pre></div>
 </div>
-<p>Here, we say that the <code class="code docutils literal notranslate"><span class="pre">FrameColumn</span></code> indicated by <code class="code docutils literal notranslate"><span class="pre">frame</span></code> should read from the
-column <code class="code docutils literal notranslate"><span class="pre">frame</span></code> in the table <code class="code docutils literal notranslate"><span class="pre">&quot;table_name&quot;</span></code>, and that the output table indicated by
-<code class="code docutils literal notranslate"><span class="pre">output_frame</span></code> should be called <code class="code docutils literal notranslate"><span class="pre">&quot;resized_table&quot;</span></code>.</p>
-<p>In this example, we are only defining one job since we only have one video, but the purpose of
-this API design is so Scanner can process many jobs in parallel (given they use the same
-computation graph).</p>
+<p>Here, we say that the <code class="code docutils literal notranslate"><span class="pre">FrameColumn</span></code> indicated by <code class="code docutils literal notranslate"><span class="pre">frame</span></code> should read from the column <code class="code docutils literal notranslate"><span class="pre">frame</span></code> in the table <code class="code docutils literal notranslate"><span class="pre">&quot;table_name&quot;</span></code>, and that the output table indicated by <code class="code docutils literal notranslate"><span class="pre">output_frame</span></code> should be called <code class="code docutils literal notranslate"><span class="pre">&quot;resized_table&quot;</span></code>.</p>
+<p>If we had multiple videos, we could define multiple jobs to tell Scanner that it should process these jobs in parallel. For example, if we had a list of tables called <code class="code docutils literal notranslate"><span class="pre">table_names</span></code>, we could do the following:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">jobs</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="k">for</span> <span class="n">table_name</span> <span class="ow">in</span> <span class="n">table_names</span><span class="p">:</span>
+    <span class="n">job</span> <span class="o">=</span> <span class="n">Job</span><span class="p">(</span><span class="n">op_args</span><span class="o">=</span><span class="p">{</span>
+        <span class="n">frame</span><span class="p">:</span> <span class="n">db</span><span class="o">.</span><span class="n">table</span><span class="p">(</span><span class="n">table_name</span><span class="p">)</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="s1">&#39;frame&#39;</span><span class="p">),</span>
+        <span class="n">output_frame</span><span class="p">:</span> <span class="s1">&#39;resized_{:s}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">table_name</span><span class="p">)</span>
+    <span class="p">})</span>
+    <span class="n">jobs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">job</span><span class="p">)</span>
+</pre></div>
+</div>
 </div>
 <div class="section" id="running-a-job">
 <h2>Running a Job<a class="headerlink" href="#running-a-job" title="Permalink to this headline">¶</a></h2>
-<p>Now we can run the computation graph over the video we ingested. This is done by
-simply calling <code class="code docutils literal notranslate"><span class="pre">run</span></code> on the database object, specifying the jobs and outputs
-that we are interested in:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">output_tables</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">output</span><span class="o">=</span><span class="n">output_frame</span><span class="p">,</span> <span class="n">jobs</span><span class="o">=</span><span class="p">[</span><span class="n">job</span><span class="p">])</span>
+<p>Now we can run the computation graph over the video we ingested. This is done by simply calling <code class="code docutils literal notranslate"><span class="pre">run</span></code> on the database object, specifying the jobs and outputs that we are interested in:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">output_tables</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">output</span><span class="o">=</span><span class="n">output_frame</span><span class="p">,</span> <span class="n">jobs</span><span class="o">=</span><span class="p">[</span><span class="n">job</span><span class="p">])</span> <span class="c1"># or jobs=jobs if processing multiple videos</span>
 </pre></div>
 </div>
-<p>This call will block until Scanner has finished processing the job. You should
-see a progress bar while Scanner is executing the computation graph. Once the
-jobs are done, <code class="code docutils literal notranslate"><span class="pre">run</span></code> returns the newly computed tables, here shown as
-<code class="code docutils literal notranslate"><span class="pre">output_tables</span></code>.</p>
+<p>This call will block until Scanner has finished processing the job(s). You should see a progress bar while Scanner is executing the computation graph. Once the job(s) are done, <code class="code docutils literal notranslate"><span class="pre">run</span></code> returns the newly computed tables, here shown as <code class="code docutils literal notranslate"><span class="pre">output_tables</span></code>.</p>
+</div>
+<div class="section" id="running-multiple-jobs">
+<h2>Running multiple Jobs<a class="headerlink" href="#running-multiple-jobs" title="Permalink to this headline">¶</a></h2>
+<p>Now we can run the computation graph over the video we ingested. This is done by simply calling <code class="code docutils literal notranslate"><span class="pre">run</span></code> on the database object, specifying the jobs and outputs that we are interested in:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">output_tables</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">output</span><span class="o">=</span><span class="n">output_frame</span><span class="p">,</span> <span class="n">jobs</span><span class="o">=</span><span class="n">job</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This call will block until Scanner has finished processing the job. You should see a progress bar while Scanner is executing the computation graph. Once the jobs are done, <code class="code docutils literal notranslate"><span class="pre">run</span></code> returns the newly computed tables, here shown as <code class="code docutils literal notranslate"><span class="pre">output_tables</span></code>.</p>
 </div>
 <div class="section" id="reading-the-results-of-a-job">
 <h2>Reading the results of a Job<a class="headerlink" href="#reading-the-results-of-a-job" title="Permalink to this headline">¶</a></h2>
-<p>We can directly read the results of job we just ran in our Python code by
-querying the <code class="code docutils literal notranslate"><span class="pre">frame</span></code> column on the table <code class="code docutils literal notranslate"><span class="pre">resized_table</span></code>:</p>
+<p>We can directly read the results of job we just ran in our Python code by querying the <code class="code docutils literal notranslate"><span class="pre">frame</span></code> column on the table <code class="code docutils literal notranslate"><span class="pre">resized_table</span></code>:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> <span class="n">resized_frame</span> <span class="ow">in</span> <span class="n">db</span><span class="o">.</span><span class="n">table</span><span class="p">(</span><span class="s1">&#39;resized_table&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="s1">&#39;frame&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">load</span><span class="p">():</span>
     <span class="k">print</span><span class="p">(</span><span class="n">resized_frame</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>Video frames are returned as numpy arrays. Here we are printing out the shape
-of the frame, which should have a width of 640 and height of 480.</p>
+<p>Video frames are returned as numpy arrays. Here we are printing out the shape of the frame, which should have a width of 640 and height of 480.</p>
 </div>
-<div class="section" id="saving-a-video-file">
-<h2>Saving a video file<a class="headerlink" href="#saving-a-video-file" title="Permalink to this headline">¶</a></h2>
-<p>We can also directly save the frame column as an mp4 file by calling
-<code class="code docutils literal notranslate"><span class="pre">save_mp4</span></code> on the <code class="code docutils literal notranslate"><span class="pre">frame</span></code> column:</p>
+<div class="section" id="exporting-to-mp4">
+<h2>Exporting to mp4<a class="headerlink" href="#exporting-to-mp4" title="Permalink to this headline">¶</a></h2>
+<p>We can also directly save the frame column as an mp4 file by calling <code class="code docutils literal notranslate"><span class="pre">save_mp4</span></code> on the <code class="code docutils literal notranslate"><span class="pre">frame</span></code> column:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">db</span><span class="o">.</span><span class="n">table</span><span class="p">(</span><span class="s1">&#39;resized_table&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="s1">&#39;frame&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">save_mp4</span><span class="p">(</span><span class="s1">&#39;resized-video&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>After this call returns, an mp4 video should be saved to the current working
-directory called <code class="code docutils literal notranslate"><span class="pre">resized-video.mp4</span></code> that consists of the resized frames
-that we generated.</p>
+<p>After this call returns, an mp4 video should be saved to the current working directory called <code class="code docutils literal notranslate"><span class="pre">resized-video.mp4</span></code> that consists of the resized frames that we generated.</p>
 <p>That’s a complete Scanner pipeline! To learn more about the features of Scanner, either follow our <a class="reference internal" href="walkthrough.html#walkthrough"><span class="std std-ref">Interactive Jupyter Walkthrough</span></a> or go through the extended <a class="reference internal" href="tutorial.html#tutorial"><span class="std std-ref">Tutorial</span></a>.</p>
 <div class="toctree-wrapper compound">
 </div>
@@ -317,10 +289,11 @@ that we generated.</p>
 <li class="toctree-l3"><a class="reference internal" href="#starting-up-scanner">Starting up Scanner</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ingesting-a-video-into-the-database">Ingesting a video into the Database</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#defining-a-computation-graph">Defining a Computation Graph</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#defining-a-job">Defining a Job</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#defining-jobs">Defining Jobs</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#running-a-job">Running a Job</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#running-multiple-jobs">Running multiple Jobs</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#reading-the-results-of-a-job">Reading the results of a Job</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#saving-a-video-file">Saving a video file</a><ul class="simple">
+<li class="toctree-l3"><a class="reference internal" href="#exporting-to-mp4">Exporting to mp4</a><ul class="simple">
 </ul>
 </li>
 </ul>
