@@ -20,7 +20,7 @@ Scanner's key features include:
 
 What Scanner __is not__:
 
-Scanner is not a system for implementing new high-performance image and video processing kernels from scratch.  However, Scanner can be used to create scalable video processing applications by composing kernels that already exist as part of popular libraries such as OpenCV, Caffe, TensorFlow, etc. or have been implemented in popular performance-oriented languages like [Cuda](https://developer.nvidia.com/cuda-zone) or [Halide](http://halide-lang.org/).  Yes, you can write your dataflow graph operations in Python or C++ too!
+Scanner is not a system for implementing new high-performance image and video processing kernels from scratch.  However, Scanner can be used to create scalable video processing applications by composing kernels that already exist as part of popular libraries such as OpenCV, Caffe, TensorFlow, etc. or have been implemented in popular performance-oriented languages like [CUDA](https://developer.nvidia.com/cuda-zone) or [Halide](http://halide-lang.org/).  Yes, you can write your dataflow graph operations in Python or C++ too!
 
 ## Documentation
 
