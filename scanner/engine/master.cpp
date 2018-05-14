@@ -30,6 +30,9 @@
 #include <grpc/support/log.h>
 #include <set>
 #include <mutex>
+#include <pybind11/embed.h>
+
+namespace py = pybind11;
 
 namespace scanner {
 namespace internal {
@@ -47,6 +50,12 @@ static const u32 NEW_JOB_WORKER_TIMEOUT = 30;
 MasterImpl::MasterImpl(DatabaseParameters& params)
   : watchdog_awake_(true), db_params_(params) {
   VLOG(1) << "Creating master...";
+
+  {
+    // HACK(apoms): to fix this issue: https://github.com/pybind/pybind11/issues/1364
+    py::gil_scoped_acquire acquire;
+    pybind11::get_shared_data("");
+  }
 
   init_glog("scanner_master");
   storage_ =
@@ -1147,6 +1156,12 @@ void MasterImpl::recover_and_init_database() {
 void MasterImpl::start_job_processor() {
   VLOG(1) << "Starting job processor";
   job_processor_thread_ = std::thread([this]() {
+    {
+      // HACK(apoms): to fix this issue: https://github.com/pybind/pybind11/issues/1364
+      py::gil_scoped_acquire acquire;
+      pybind11::get_shared_data("");
+    }
+
     while (!trigger_shutdown_.raised()) {
       // Wait on not finished
       {

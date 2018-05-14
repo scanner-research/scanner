@@ -372,9 +372,10 @@ def register_python_op(name: str = None,
                     for (param_name, _), c in zip(input_columns, in_cols):
                         args[param_name] = c
                     return parse_ret(exec_fn(config, **args))
-
-            fn_or_class = wrapper_exec
+            wrapped_fn_or_class = wrapper_exec
         else:
+            wrapped_fn_or_class = type(fn_or_class.__name__ + 'Kernel', fn_or_class.__bases__,
+                                       dict(fn_or_class.__dict__))
             if has_variadic_inputs:
 
                 def execute(self, in_cols):
@@ -386,8 +387,7 @@ def register_python_op(name: str = None,
                     for (param_name, _), c in zip(input_columns, in_cols):
                         args[param_name] = c
                     return parse_ret(exec_fn(self, **args))
-
-            fn_or_class.execute = execute
+            wrapped_fn_or_class.execute = execute
 
         PYTHON_OP_REGISTRY[kname] = {
             'input_columns': input_columns,
@@ -396,7 +396,7 @@ def register_python_op(name: str = None,
             'stencil': stencil,
             'unbounded_state': unbounded_state,
             'bounded_state': bounded_state,
-            'kernel': fn_or_class,
+            'kernel': wrapped_fn_or_class,
             'device_type': device_type,
             'batch': batch,
             'proto_path': proto_path,
