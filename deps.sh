@@ -476,10 +476,10 @@ if [[ $INSTALL_HALIDE == true ]] && [[ ! -f $BUILD_DIR/halide.done ]] ; then
         wget https://github.com/halide/Halide/releases/download/release_2018_02_15/$TAR_NAME && \
             wget https://raw.githubusercontent.com/halide/Halide/release_2018_02_15/src/Generator.h && \
             tar -zxf $TAR_NAME && \
-            rm -r halide/bin && \
-            cp Generator.h halide/include && \
-            cp -r halide/* $INSTALL_PREFIX && \
             cp -r halide/bin/* $INSTALL_PREFIX/lib && \
+            rm -r halide/bin && \
+            cp -r halide/* $INSTALL_PREFIX && \
+            cp Generator.h halide/include && \
             touch $BUILD_DIR/halide.done \
                 || { echo 'Installing Halide failed!' ; exit 1; }
     fi
