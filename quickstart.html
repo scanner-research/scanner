@@ -54,12 +54,12 @@
             
   <div class="section" id="quickstart">
 <span id="id1"></span><h1>Quickstart<a class="headerlink" href="#quickstart" title="Permalink to this headline">¶</a></h1>
-<p>To explain how Scanner is used, let’s walk through a simple example that reads frames from a video, selects every third frame, resizes them, and then creates a new video using those resized frames.</p>
+<p>To explain how Scanner is used, let’s walk through a simple example that reads every third frame from a video, resizes the frames, and then creates a new video from the sequence of resized frames.</p>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
-<p class="last">In this quickstart, we are only showing a very basic Scanner application to avoid getting bogged down in details. If you are interested in more useful applications of Scanner, check out the <a class="reference external" href="https:://github.com/scanner-research/scanner/blob/master/examples">examples</a> directory, which includes using <a class="reference external" href="https://github.com/scanner-research/scanner/blob/master/examples/apps/object_detection_tensorflow">Tensorflow for object detection</a> and <a class="reference external" href="https://github.com/scanner-research/scanner/blob/master/examples/apps/face_detection">Face Detection</a>.</p>
+<p class="last">This Quickstart walks you through a very basic Scanner application that downsamples a video in space and time. Once you are done with this guide, check out the <a class="reference external" href="https:://github.com/scanner-research/scanner/blob/master/examples">examples</a> directory for more useful applications, such as using Tensorflow models <a class="reference external" href="https://github.com/scanner-research/scanner/blob/master/examples/apps/object_detection_tensorflow">__ for detecting objects in all frames of a video</a> and for <a class="reference external" href="https://github.com/scanner-research/scanner/blob/master/examples/apps/face_detection">face detection</a>.</p>
 </div>
-<p>If you’d like to run the code first, install Scanner (<a class="reference internal" href="installation.html#installation"><span class="std std-ref">Installation</span></a>) and from the top-level Scanner directory, run:</p>
+<p>To run the code discussed here, install Scanner (<a class="reference internal" href="installation.html#installation"><span class="std std-ref">Installation</span></a>). Then from the top-level Scanner directory, run:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> examples/apps/quickstart
 wget https://storage.googleapis.com/scanner-data/public/sample-clip.mp4
 python3 main.py

@@ -3,13 +3,13 @@
 Quickstart
 ==========
 
-To explain how Scanner is used, let's walk through a simple example that reads frames from a video, selects every third frame, resizes them, and then creates a new video using those resized frames.
+To explain how Scanner is used, let's walk through a simple example that reads every third frame from a video, resizes the frames, and then creates a new video from the sequence of resized frames.
 
 .. note::
 
-   In this quickstart, we are only showing a very basic Scanner application to avoid getting bogged down in details. If you are interested in more useful applications of Scanner, check out the `examples <https:://github.com/scanner-research/scanner/blob/master/examples>`__ directory, which includes using `Tensorflow for object detection <https://github.com/scanner-research/scanner/blob/master/examples/apps/object_detection_tensorflow>`__ and `Face Detection <https://github.com/scanner-research/scanner/blob/master/examples/apps/face_detection>`__.
+   This Quickstart walks you through a very basic Scanner application that downsamples a video in space and time. Once you are done with this guide, check out the `examples <https:://github.com/scanner-research/scanner/blob/master/examples>`__ directory for more useful applications, such as using Tensorflow models `__ for detecting objects in all frames of a video <https://github.com/scanner-research/scanner/blob/master/examples/apps/object_detection_tensorflow>`__ and for `face detection <https://github.com/scanner-research/scanner/blob/master/examples/apps/face_detection>`__.
 
-If you'd like to run the code first, install Scanner (:ref:`installation`) and from the top-level Scanner directory, run:
+To run the code discussed here, install Scanner (:ref:`installation`). Then from the top-level Scanner directory, run:
 
 .. code-block:: bash
 
