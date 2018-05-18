@@ -17,7 +17,7 @@ To run the code discussed here, install Scanner (:ref:`installation`). Then from
    wget https://storage.googleapis.com/scanner-data/public/sample-clip.mp4
    python3 main.py
 
-After :code:`main.py` exits, you should now have a resized version of :code:`sample-clip.mp4` named :code:`resized-video.mp4` in the current directory. Let's see how that happened by looking inside :code:`main.py`.
+After :code:`main.py` exits, you should now have a resized version of :code:`sample-clip.mp4` named :code:`sample-clip-resized.mp4` in the current directory. Let's see how that happened by looking inside :code:`main.py`.
 
 Starting up Scanner
 -------------------
@@ -120,18 +120,6 @@ As alluded to in :ref:`defining_a_graph`, we need to tell Scanner which table we
 
 Here, we say that the :code:`FrameColumn` indicated by :code:`frame` should read from the column :code:`frame` in the table :code:`"table_name"`, and that the output table indicated by :code:`output_frame` should be called :code:`"resized_table"`.
 
-If we had multiple videos, we could define multiple jobs to tell Scanner that it should process these jobs in parallel. For example, if we had a list of tables called :code:`table_names`, we could do the following:
-
-.. code-block:: python
-
-   jobs = []
-   for table_name in table_names:
-       job = Job(op_args={
-           frame: db.table(table_name).column('frame'),
-           output_frame: 'resized_{:s}'.format(table_name)
-       })
-       jobs.append(job)
-
 Running a Job
 --------------
 
@@ -139,21 +127,9 @@ Now we can run the computation graph over the video we ingested. This is done by
 
 .. code-block:: python
 
-   output_tables = db.run(output=output_frame, jobs=[job]) # or jobs=jobs if processing multiple videos
+   output_tables = db.run(output=output_frame, jobs=[job]) 
 
-This call will block until Scanner has finished processing the job(s). You should see a progress bar while Scanner is executing the computation graph. Once the job(s) are done, :code:`run` returns the newly computed tables, here shown as :code:`output_tables`.
-
-Running multiple Jobs
----------------------
-
-Now we can run the computation graph over the video we ingested. This is done by simply calling :code:`run` on the database object, specifying the jobs and outputs that we are interested in:
-
-.. code-block:: python
-
-   output_tables = db.run(output=output_frame, jobs=job)
-
-This call will block until Scanner has finished processing the job. You should see a progress bar while Scanner is executing the computation graph. Once the jobs are done, :code:`run` returns the newly computed tables, here shown as :code:`output_tables`.
-
+This call will block until Scanner has finished processing the job. You should see a progress bar while Scanner is executing the computation graph. Once the job are done, :code:`run` returns the newly computed tables, here shown as :code:`output_tables`.
 
 Reading the results of a Job
 ----------------------------
@@ -178,7 +154,64 @@ We can also directly save the frame column as an mp4 file by calling :code:`save
 
 After this call returns, an mp4 video should be saved to the current working directory called :code:`resized-video.mp4` that consists of the resized frames that we generated.
 
-That's a complete Scanner pipeline! To learn more about the features of Scanner, either follow the :ref:`walkthrough` or go through the extended :ref:`tutorial`.
+That's a complete Scanner pipeline! If you'd like to learn about process multiple jobs, keep reading! Otherwise, to learn more about the features of Scanner, either follow the :ref:`walkthrough` or go through the extended :ref:`tutorial`.
 
 .. toctree::
    :maxdepth: 1
+
+Processing multiple videos
+--------------------------
+
+Now let's say that we have a directory of videos we want to process, instead of just a single one as above. 
+To see the multiple video code in action, run the following commands from the quickstart app directoroy:
+
+.. code-block:: bash
+
+   wget https://storage.googleapis.com/scanner-data/public/sample-clip-1.mp4
+   wget https://storage.googleapis.com/scanner-data/public/sample-clip-2.mp4
+   wget https://storage.googleapis.com/scanner-data/public/sample-clip-3.mp4
+   python3 main-multi-video.py
+
+After :code:`main-multi-video.py` exits, you should now have a resized version of each of the downloaded videos named :code:`sample-clip-%d-resized.mp4` in the current directory, where :code:`%d` is replaced with the number of the video.
+
+There are two places in the code that need to change to process multiple videos. Let's look at those pieces of code inside :code:`main-multi-video.py` now.
+
+Ingesting multiple videos
+-------------------------
+
+The first change is that we need to ingest all of our videos. This means changing our call to :code:`inges_videos` to take a list of three tuples, instead of just one:
+.. code-block:: python
+
+   videos_to_process = [
+       ('sample-clip-1', 'sample-clip-1.mp4'),
+       ('sample-clip-2', 'sample-clip-2.mp4'),
+       ('sample-clip-3', 'sample-clip-3.mp4')
+   ]
+   
+   # Ingest the videos into the database
+   db.ingest_videos(videos_to_process)
+
+Now we have three tables that are ready to be processed!
+
+Defining and executing multiple Jobs
+------------------------------------
+
+The second change is to define multiple jobs, one for each video that we want to process.
+.. code-block:: python
+
+   jobs = []
+   for table_name, _ in videos_to_process:
+       job = Job(op_args={
+           frame: db.table(table_name).column('frame'),
+           output_frame: 'resized-{:s}'.format(table_name)
+       })
+       jobs.append(job)
+
+Now we can process these multiple jobs at the same time using :code:`run`:
+
+.. code-block:: python
+
+   output_tables = db.run(output=output_frame, jobs=jobs)
+
+Like before, this call will block until Scanner has finished processing all the jobs. You should see a progress bar while Scanner is executing the computation graph as before. Once the jobs are done, :code:`run` returns the newly computed tables, here shown as :code:`output_tables`.
+
