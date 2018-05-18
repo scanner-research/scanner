@@ -44,7 +44,7 @@ Run the following command:
       libfreetype6-dev libsdl2-dev libtheora-dev libtool \
       libva-dev libvdpau-dev libvorbis-dev libxcb1-dev libxcb-shm0-dev \
       libxcb-xfixes0-dev mercurial texinfo zlib1g-dev curl libcap-dev \
-      libboost-all-dev libgnutls-dev
+      libboost-all-dev libgnutls-dev libpq-dev postgresql
 
 macOS
 `````
@@ -58,7 +58,7 @@ Install `homebrew <https://brew.sh/>`__ then run the following command:
                 opus sdl shtool texi2html theora x264 x265 xvid nasm \
                 eigen glog \
                 snappy leveldb gflags glog szip lmdb hdf5 boost boost-python3 \
-                llvm python gnutls
+                llvm python gnutls postgresql
 
 
 Run deps.sh
