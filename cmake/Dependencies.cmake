@@ -12,6 +12,7 @@ foreach(NameAndValue ${ConfigContents})
 endforeach()
 
 list(APPEND CMAKE_PREFIX_PATH ${PROTOBUF_DIR})
+list(APPEND CMAKE_PREFIX_PATH ${PYBIND11_DIR})
 
 # Disable cuda if nvidia-smi was not detected
 if (${HAVE_GPU} STREQUAL "false")
