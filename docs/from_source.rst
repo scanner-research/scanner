@@ -53,7 +53,7 @@ Install `homebrew <https://brew.sh/>`__ then run the following command:
 
 .. code-block:: bash
 
-   brew install coreutils cmake git wget unzip \
+   brew install coreutils cmake git wget unzip pkg-config \
                 automake fdk-aac lame libass libtool libvorbis libvpx \
                 opus sdl shtool texi2html theora x264 x265 xvid nasm \
                 eigen glog \
