@@ -65,7 +65,7 @@ wget https://storage.googleapis.com/scanner-data/public/sample-clip.mp4
 python3 main.py
 </pre></div>
 </div>
-<p>After <code class="code docutils literal notranslate"><span class="pre">main.py</span></code> exits, you should now have a resized version of <code class="code docutils literal notranslate"><span class="pre">sample-clip.mp4</span></code> named <code class="code docutils literal notranslate"><span class="pre">resized-video.mp4</span></code> in the current directory. Let’s see how that happened by looking inside <code class="code docutils literal notranslate"><span class="pre">main.py</span></code>.</p>
+<p>After <code class="code docutils literal notranslate"><span class="pre">main.py</span></code> exits, you should now have a resized version of <code class="code docutils literal notranslate"><span class="pre">sample-clip.mp4</span></code> named <code class="code docutils literal notranslate"><span class="pre">sample-clip-resized.mp4</span></code> in the current directory. Let’s see how that happened by looking inside <code class="code docutils literal notranslate"><span class="pre">main.py</span></code>.</p>
 <div class="section" id="starting-up-scanner">
 <h2>Starting up Scanner<a class="headerlink" href="#starting-up-scanner" title="Permalink to this headline">¶</a></h2>
 <p>The first step in any Scanner program is to create a <a class="reference internal" href="api/scannerpy.html#scannerpy.database.Database" title="scannerpy.database.Database"><code class="xref py py-class docutils literal notranslate"><span class="pre">Database</span></code></a> object. The <a class="reference internal" href="api/scannerpy.html#scannerpy.database.Database" title="scannerpy.database.Database"><code class="xref py py-class docutils literal notranslate"><span class="pre">Database</span></code></a> object manages videos or other data that you have may have stored from data processing you’ve done in the past. The Database object also provides the API to construct and execute new video processing jobs.</p>
@@ -138,32 +138,14 @@ into the database.</p>
 </pre></div>
 </div>
 <p>Here, we say that the <code class="code docutils literal notranslate"><span class="pre">FrameColumn</span></code> indicated by <code class="code docutils literal notranslate"><span class="pre">frame</span></code> should read from the column <code class="code docutils literal notranslate"><span class="pre">frame</span></code> in the table <code class="code docutils literal notranslate"><span class="pre">&quot;table_name&quot;</span></code>, and that the output table indicated by <code class="code docutils literal notranslate"><span class="pre">output_frame</span></code> should be called <code class="code docutils literal notranslate"><span class="pre">&quot;resized_table&quot;</span></code>.</p>
-<p>If we had multiple videos, we could define multiple jobs to tell Scanner that it should process these jobs in parallel. For example, if we had a list of tables called <code class="code docutils literal notranslate"><span class="pre">table_names</span></code>, we could do the following:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">jobs</span> <span class="o">=</span> <span class="p">[]</span>
-<span class="k">for</span> <span class="n">table_name</span> <span class="ow">in</span> <span class="n">table_names</span><span class="p">:</span>
-    <span class="n">job</span> <span class="o">=</span> <span class="n">Job</span><span class="p">(</span><span class="n">op_args</span><span class="o">=</span><span class="p">{</span>
-        <span class="n">frame</span><span class="p">:</span> <span class="n">db</span><span class="o">.</span><span class="n">table</span><span class="p">(</span><span class="n">table_name</span><span class="p">)</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="s1">&#39;frame&#39;</span><span class="p">),</span>
-        <span class="n">output_frame</span><span class="p">:</span> <span class="s1">&#39;resized_{:s}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">table_name</span><span class="p">)</span>
-    <span class="p">})</span>
-    <span class="n">jobs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">job</span><span class="p">)</span>
-</pre></div>
-</div>
 </div>
 <div class="section" id="running-a-job">
 <h2>Running a Job<a class="headerlink" href="#running-a-job" title="Permalink to this headline">¶</a></h2>
 <p>Now we can run the computation graph over the video we ingested. This is done by simply calling <code class="code docutils literal notranslate"><span class="pre">run</span></code> on the database object, specifying the jobs and outputs that we are interested in:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">output_tables</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">output</span><span class="o">=</span><span class="n">output_frame</span><span class="p">,</span> <span class="n">jobs</span><span class="o">=</span><span class="p">[</span><span class="n">job</span><span class="p">])</span> <span class="c1"># or jobs=jobs if processing multiple videos</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">output_tables</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">output</span><span class="o">=</span><span class="n">output_frame</span><span class="p">,</span> <span class="n">jobs</span><span class="o">=</span><span class="p">[</span><span class="n">job</span><span class="p">])</span>
 </pre></div>
 </div>
-<p>This call will block until Scanner has finished processing the job(s). You should see a progress bar while Scanner is executing the computation graph. Once the job(s) are done, <code class="code docutils literal notranslate"><span class="pre">run</span></code> returns the newly computed tables, here shown as <code class="code docutils literal notranslate"><span class="pre">output_tables</span></code>.</p>
-</div>
-<div class="section" id="running-multiple-jobs">
-<h2>Running multiple Jobs<a class="headerlink" href="#running-multiple-jobs" title="Permalink to this headline">¶</a></h2>
-<p>Now we can run the computation graph over the video we ingested. This is done by simply calling <code class="code docutils literal notranslate"><span class="pre">run</span></code> on the database object, specifying the jobs and outputs that we are interested in:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">output_tables</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">output</span><span class="o">=</span><span class="n">output_frame</span><span class="p">,</span> <span class="n">jobs</span><span class="o">=</span><span class="n">job</span><span class="p">)</span>
-</pre></div>
-</div>
-<p>This call will block until Scanner has finished processing the job. You should see a progress bar while Scanner is executing the computation graph. Once the jobs are done, <code class="code docutils literal notranslate"><span class="pre">run</span></code> returns the newly computed tables, here shown as <code class="code docutils literal notranslate"><span class="pre">output_tables</span></code>.</p>
+<p>This call will block until Scanner has finished processing the job. You should see a progress bar while Scanner is executing the computation graph. Once the job are done, <code class="code docutils literal notranslate"><span class="pre">run</span></code> returns the newly computed tables, here shown as <code class="code docutils literal notranslate"><span class="pre">output_tables</span></code>.</p>
 </div>
 <div class="section" id="reading-the-results-of-a-job">
 <h2>Reading the results of a Job<a class="headerlink" href="#reading-the-results-of-a-job" title="Permalink to this headline">¶</a></h2>
@@ -181,9 +163,62 @@ into the database.</p>
 </pre></div>
 </div>
 <p>After this call returns, an mp4 video should be saved to the current working directory called <code class="code docutils literal notranslate"><span class="pre">resized-video.mp4</span></code> that consists of the resized frames that we generated.</p>
-<p>That’s a complete Scanner pipeline! To learn more about the features of Scanner, either follow the <a class="reference internal" href="walkthrough.html#walkthrough"><span class="std std-ref">Interactive Jupyter Walkthrough</span></a> or go through the extended <a class="reference internal" href="tutorial.html#tutorial"><span class="std std-ref">Tutorial</span></a>.</p>
+<p>That’s a complete Scanner pipeline! If you’d like to learn about process multiple jobs, keep reading! Otherwise, to learn more about the features of Scanner, either follow the <a class="reference internal" href="walkthrough.html#walkthrough"><span class="std std-ref">Interactive Jupyter Walkthrough</span></a> or go through the extended <a class="reference internal" href="tutorial.html#tutorial"><span class="std std-ref">Tutorial</span></a>.</p>
 <div class="toctree-wrapper compound">
 </div>
+</div>
+<div class="section" id="processing-multiple-videos">
+<h2>Processing multiple videos<a class="headerlink" href="#processing-multiple-videos" title="Permalink to this headline">¶</a></h2>
+<p>Now let’s say that we have a directory of videos we want to process, instead of just a single one as above.
+To see the multiple video code in action, run the following commands from the quickstart app directoroy:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>wget https://storage.googleapis.com/scanner-data/public/sample-clip-1.mp4
+wget https://storage.googleapis.com/scanner-data/public/sample-clip-2.mp4
+wget https://storage.googleapis.com/scanner-data/public/sample-clip-3.mp4
+python3 main-multi-video.py
+</pre></div>
+</div>
+<p>After <code class="code docutils literal notranslate"><span class="pre">main-multi-video.py</span></code> exits, you should now have a resized version of each of the downloaded videos named <code class="code docutils literal notranslate"><span class="pre">sample-clip-%d-resized.mp4</span></code> in the current directory, where <code class="code docutils literal notranslate"><span class="pre">%d</span></code> is replaced with the number of the video.</p>
+<p>There are two places in the code that need to change to process multiple videos. Let’s look at those pieces of code inside <code class="code docutils literal notranslate"><span class="pre">main-multi-video.py</span></code> now.</p>
+</div>
+<div class="section" id="ingesting-multiple-videos">
+<h2>Ingesting multiple videos<a class="headerlink" href="#ingesting-multiple-videos" title="Permalink to this headline">¶</a></h2>
+<p>The first change is that we need to ingest all of our videos. This means changing our call to <code class="code docutils literal notranslate"><span class="pre">inges_videos</span></code> to take a list of three tuples, instead of just one:
+.. code-block:: python</p>
+<blockquote>
+<div><dl class="docutils">
+<dt>videos_to_process = [</dt>
+<dd>(‘sample-clip-1’, ‘sample-clip-1.mp4’),
+(‘sample-clip-2’, ‘sample-clip-2.mp4’),
+(‘sample-clip-3’, ‘sample-clip-3.mp4’)</dd>
+</dl>
+<p>]</p>
+<p># Ingest the videos into the database
+db.ingest_videos(videos_to_process)</p>
+</div></blockquote>
+<p>Now we have three tables that are ready to be processed!</p>
+</div>
+<div class="section" id="defining-and-executing-multiple-jobs">
+<h2>Defining and executing multiple Jobs<a class="headerlink" href="#defining-and-executing-multiple-jobs" title="Permalink to this headline">¶</a></h2>
+<p>The second change is to define multiple jobs, one for each video that we want to process.
+.. code-block:: python</p>
+<blockquote>
+<div><p>jobs = []
+for table_name, _ in videos_to_process:</p>
+<blockquote>
+<div><dl class="docutils">
+<dt>job = Job(op_args={</dt>
+<dd>frame: db.table(table_name).column(‘frame’),
+output_frame: ‘resized-{:s}’.format(table_name)</dd>
+</dl>
+<p>})
+jobs.append(job)</p>
+</div></blockquote>
+</div></blockquote>
+<p>Now we can process these multiple jobs at the same time using <code class="code docutils literal notranslate"><span class="pre">run</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">output_tables</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">output</span><span class="o">=</span><span class="n">output_frame</span><span class="p">,</span> <span class="n">jobs</span><span class="o">=</span><span class="n">jobs</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Like before, this call will block until Scanner has finished processing all the jobs. You should see a progress bar while Scanner is executing the computation graph as before. Once the jobs are done, <code class="code docutils literal notranslate"><span class="pre">run</span></code> returns the newly computed tables, here shown as <code class="code docutils literal notranslate"><span class="pre">output_tables</span></code>.</p>
 </div>
 </div>
 
@@ -291,11 +326,13 @@ into the database.</p>
 <li class="toctree-l3"><a class="reference internal" href="#defining-a-computation-graph">Defining a Computation Graph</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#defining-jobs">Defining Jobs</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#running-a-job">Running a Job</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#running-multiple-jobs">Running multiple Jobs</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#reading-the-results-of-a-job">Reading the results of a Job</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#exporting-to-mp4">Exporting to mp4</a><ul class="simple">
 </ul>
 </li>
+<li class="toctree-l3"><a class="reference internal" href="#processing-multiple-videos">Processing multiple videos</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ingesting-multiple-videos">Ingesting multiple videos</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#defining-and-executing-multiple-jobs">Defining and executing multiple Jobs</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="walkthrough.html">Interactive Jupyter Walkthrough</a></li>
