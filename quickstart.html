@@ -57,7 +57,7 @@
 <p>To explain how Scanner is used, let’s walk through a simple example that reads every third frame from a video, resizes the frames, and then creates a new video from the sequence of resized frames.</p>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
-<p class="last">This Quickstart walks you through a very basic Scanner application that downsamples a video in space and time. Once you are done with this guide, check out the <a class="reference external" href="https:://github.com/scanner-research/scanner/blob/master/examples">examples</a> directory for more useful applications, such as using Tensorflow <a class="reference external" href="https://github.com/scanner-research/scanner/blob/master/examples/apps/object_detection_tensorflow">for detecting objects in all frames of a video</a> and Caffe for <a class="reference external" href="https://github.com/scanner-research/scanner/blob/master/examples/apps/face_detection">face detection</a>.</p>
+<p class="last">This Quickstart walks you through a very basic Scanner application that downsamples a video in space and time. Once you are done with this guide, check out the <a class="reference external" href="https://github.com/scanner-research/scanner/blob/master/examples">examples</a> directory for more useful applications, such as using Tensorflow <a class="reference external" href="https://github.com/scanner-research/scanner/blob/master/examples/apps/object_detection_tensorflow">for detecting objects in all frames of a video</a> and Caffe for <a class="reference external" href="https://github.com/scanner-research/scanner/blob/master/examples/apps/face_detection">face detection</a>.</p>
 </div>
 <p>To run the code discussed here, install Scanner (<a class="reference internal" href="installation.html#installation"><span class="std std-ref">Installation</span></a>). Then from the top-level Scanner directory, run:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> examples/apps/quickstart
@@ -182,19 +182,17 @@ python3 main-multi-video.py
 </div>
 <div class="section" id="ingesting-multiple-videos">
 <h2>Ingesting multiple videos<a class="headerlink" href="#ingesting-multiple-videos" title="Permalink to this headline">¶</a></h2>
-<p>The first change is that we need to ingest all of our videos. This means changing our call to <code class="code docutils literal notranslate"><span class="pre">inges_videos</span></code> to take a list of three tuples, instead of just one:
-.. code-block:: python</p>
-<blockquote>
-<div><dl class="docutils">
-<dt>videos_to_process = [</dt>
-<dd>(‘sample-clip-1’, ‘sample-clip-1.mp4’),
-(‘sample-clip-2’, ‘sample-clip-2.mp4’),
-(‘sample-clip-3’, ‘sample-clip-3.mp4’)</dd>
-</dl>
-<p>]</p>
-<p># Ingest the videos into the database
-db.ingest_videos(videos_to_process)</p>
-</div></blockquote>
+<p>The first change is that we need to ingest all of our videos. This means changing our call to <code class="code docutils literal notranslate"><span class="pre">inges_videos</span></code> to take a list of three tuples, instead of just one:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">videos_to_process</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">(</span><span class="s1">&#39;sample-clip-1&#39;</span><span class="p">,</span> <span class="s1">&#39;sample-clip-1.mp4&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;sample-clip-2&#39;</span><span class="p">,</span> <span class="s1">&#39;sample-clip-2.mp4&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;sample-clip-3&#39;</span><span class="p">,</span> <span class="s1">&#39;sample-clip-3.mp4&#39;</span><span class="p">)</span>
+<span class="p">]</span>
+
+<span class="c1"># Ingest the videos into the database</span>
+<span class="n">db</span><span class="o">.</span><span class="n">ingest_videos</span><span class="p">(</span><span class="n">videos_to_process</span><span class="p">)</span>
+</pre></div>
+</div>
 <p>Now we have three tables that are ready to be processed!</p>
 </div>
 <div class="section" id="defining-and-executing-multiple-jobs">
