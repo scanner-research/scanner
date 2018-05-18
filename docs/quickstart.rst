@@ -179,7 +179,7 @@ There are two places in the code that need to change to process multiple videos.
 Ingesting multiple videos
 -------------------------
 
-The first change is that we need to ingest all of our videos. This means changing our call to :code:`inges_videos` to take a list of three tuples, instead of just one:
+The first change is that we need to ingest all of our videos. This means changing our call to :code:`ingest_videos` to take a list of three tuples, instead of just one:
 
 .. code-block:: python
 
