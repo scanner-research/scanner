@@ -1,6 +1,8 @@
 scannerpy\.stdlib package
 =========================
 
+This section is still being written. Send an email to apoms@cs.cmu.edu if you want this section written sooner.
+
 Submodules
 ----------
 
