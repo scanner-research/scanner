@@ -7,8 +7,10 @@
 #include <sys/stat.h> /* mkdir(2) */
 #include <unistd.h>   /* access(2) */
 #include <cstdarg>
+#include <iostream>
 #include <fstream>
 #include <sstream>
+#include <wordexp.h>
 
 namespace scanner {
 // Stolen from
@@ -74,12 +76,43 @@ void temp_dir(std::string& name) {
   name = std::string(n);
 }
 
+std::string done_file_path(const std::string& path) {
+  char* s1 = new char[path.size() + 1];
+  memcpy(s1, path.c_str(), path.size() + 1);
+  char* dir = dirname(s1);
+
+  char* s2 = new char[path.size() + 1];
+  memcpy(s2, path.c_str(), path.size() + 1);
+  char* base = basename(s2);
+
+  std::string done_path = std::string(dir) + "/." + base + ".done";
+
+  delete[] s1;
+  delete[] s2;
+
+  return done_path;
+}
+
 void download(const std::string& url, const std::string& local_path) {
+  // mkdir first
+  char* s = new char[local_path.size() + 1];
+  memcpy(s, local_path.c_str(), local_path.size() + 1);
+  char* d = dirname(s);
+  mkdir_p(d, S_IRWXU);
+  delete[] s;
+
   std::ostringstream strm;
   strm << "wget " << url << " -O " << local_path;
   int rc = std::system(strm.str().c_str());
   LOG_IF(FATAL, !(WIFEXITED(rc) != 0 && WEXITSTATUS(rc) == 0))
       << "wget failed for url " << url;
+
+  // Touch done file
+  std::string done_path = done_file_path(local_path);
+  std::fstream fs;
+  fs.open(done_path, std::ios::out);
+  fs << "done";
+  fs.close();
 }
 
 std::string download_temp(const std::string& url) {
@@ -100,4 +133,30 @@ std::vector<uint8_t> read_entire_file(const std::string& file_name) {
               std::istreambuf_iterator<char>());
   return data;
 }
+
+void cached_dir(const std::string& name, std::string& full_path) {
+  wordexp_t p;
+  char** w;
+  int i;
+  full_path = "~/.scanner/resources/" + name;
+  wordexp(full_path.c_str(), &p, 0);
+  w = p.we_wordv;
+  full_path = w[0];
+  wordfree(&p);
+
+  mkdir_p(full_path.c_str(), S_IRWXU);
+}
+
+void download_if_uncached(const std::string& url,
+                          const std::string& cache_path) {
+  // Check if done file exists
+  std::string done_path = done_file_path(cache_path);
+  struct stat stat_buf;
+  int rc = stat(done_path.c_str(), &stat_buf);
+  if (rc != 0) {
+    // If not, download it
+    download(url, cache_path);
+  }
+}
+
 }

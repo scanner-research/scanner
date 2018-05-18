@@ -264,7 +264,7 @@ elif [[ $INSTALL_ALL == false ]]; then
 
     if [[ $HAVE_GPU == true ]]; then
         while true; do
-            echo -n "Do you have OpenPose (v1.2.0) installed? [y/N]: "
+            echo -n "Do you have OpenPose (v1.3.0) installed? [y/N]: "
             read yn
             if [[ $yn == y ]] || [[ $yn == Y ]]; then
                 INSTALL_OPENPOSE=false
@@ -643,10 +643,10 @@ if [[ $INSTALL_CAFFE == true ]] && \
             || { echo 'Installing caffe failed!' ; exit 1; }
 fi
 
-if [[ $INSTALL_OPENPOSE == true ]] && [[ $HAVE_GPU == true ]] && [[ ! -f $BUILD_DIR/openpose.done ]]; then
+if [[ $INSTALL_OPENPOSE == true ]] && [[ ! -f $BUILD_DIR/openpose.done ]]; then
     cd $BUILD_DIR
     rm -rf openpose
-    git clone -b v1.2.0 https://github.com/CMU-Perceptual-Computing-Lab/openpose --depth 1 && \
+    git clone -b v1.3.0 https://github.com/CMU-Perceptual-Computing-Lab/openpose --depth 1 && \
         cd openpose && mkdir build && cd build && \
         cmake -D CMAKE_INSTALL_PREFIX=$INSTALL_PREFIX \
               -D CMAKE_PREFIX_PATH=$INSTALL_PREFIX \

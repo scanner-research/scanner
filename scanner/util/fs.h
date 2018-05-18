@@ -48,6 +48,8 @@ void temp_file(std::string& name);
 
 void temp_dir(std::string& name);
 
+std::string done_file_path(const std::string& path);
+
 void download(const std::string& url, const std::string& local_path);
 
 std::string download_temp(const std::string& url);
@@ -55,4 +57,12 @@ std::string download_temp(const std::string& url);
 void delete_file(const std::string& path);
 
 std::vector<uint8_t> read_entire_file(const std::string& file_name);
+
+// Cached files
+void cached_dir(const std::string& name, std::string& full_path);
+
+void download_if_uncached(const std::string& url,
+                          const std::string& cache_path);
+
+
 }

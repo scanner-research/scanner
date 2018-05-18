@@ -78,12 +78,11 @@ class Pose(object):
         score = min(p[16, 2], p[17, 2], p[0, 2])
         return [(xmin, ymin), (xmax, ymax), score]
 
-    def draw(self, img, thickness=5):
+    def draw(self, img, thickness=5, draw_threshold=0.05):
         def to_pt(i):
             return (int(self.keypoints[i, 0] * img.shape[1]),
                     int(self.keypoints[i, 1] * img.shape[0]))
 
-        draw_threshold = 0.35
         for ([a, b], color) in zip(self.DRAW_PAIRS, self.DRAW_COLORS):
             if self.keypoints[a, 2] > draw_threshold and \
                self.keypoints[b, 2] > draw_threshold:

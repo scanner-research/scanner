@@ -6,6 +6,7 @@
 #include "scanner/api/op.h"
 #include "scanner/util/cuda.h"
 #include "scanner/util/opencv.h"
+#include "scanner/util/fs.h"
 #include "stdlib/stdlib.pb.h"
 
 namespace scanner {
@@ -27,6 +28,51 @@ class OpenPoseKernel : public scanner::BatchedKernel,
     proto::OpenPoseArgs args;
     args.ParseFromArray(config.args.data(), config.args.size());
 
+    std::string model_dir;
+    if (args.model_directory() == "") {
+      cached_dir("openpose", model_dir);
+
+      setenv("http_proxy", "http://proxy.pdl.cmu.edu:3128/", 1);
+      // Pose prototxt
+      download_if_uncached(
+          "https://raw.githubusercontent.com/CMU-Perceptual-Computing-Lab/"
+          "openpose/master/models/pose/coco/pose_deploy_linevec.prototxt",
+          model_dir + "/pose/coco/pose_deploy_linevec.prototxt");
+
+      // Pose model weights
+      const std::string pose_fs_url =
+          "http://posefs1.perception.cs.cmu.edu/OpenPose/models";
+      download_if_uncached(
+            pose_fs_url + "/pose/coco/pose_iter_440000.caffemodel",
+            model_dir + "/pose/coco/pose_iter_440000.caffemodel");
+      // Hands prototxt
+      download_if_uncached(
+            "https://raw.githubusercontent.com/CMU-Perceptual-Computing-Lab/"
+            "openpose/master/models/hand/pose_deploy.prototxt",
+            model_dir + "/hand/pose_deploy.prototxt");
+      // Hands model weights
+      download_if_uncached(
+          pose_fs_url + "/hand/pose_iter_102000.caffemodel",
+          model_dir + "/hand/pose_iter_102000.caffemodel");
+      // Face prototxt
+      download_if_uncached(
+          "https://raw.githubusercontent.com/CMU-Perceptual-Computing-Lab/"
+          "openpose/master/models/face/pose_deploy.prototxt",
+          model_dir + "/face/pose_deploy.prototxt");
+      // Face model weights
+      download_if_uncached(
+          pose_fs_url + "/face/pose_iter_116000.caffemodel",
+          model_dir + "/face/pose_iter_116000.caffemodel");
+      // Face haar cascades
+      download_if_uncached(
+          "https://raw.githubusercontent.com/CMU-Perceptual-Computing-Lab/"
+          "openpose/master/models/face/haarcascade_frontalface_alt.xml",
+          model_dir + "/face/haarcascade_frontalface_alt.xml");
+      setenv("http_proxy", "", 1);
+    } else {
+      model_dir = args.model_directory();
+    }
+
     const op::WrapperStructPose wrapperStructPose{true,
                                                   {-1, 368},
                                                   {-1, -1},
@@ -41,10 +87,12 @@ class OpenPoseKernel : public scanner::BatchedKernel,
                                                   0.6,
                                                   0.7,
                                                   0,
-                                                  args.model_directory(),
+                                                  model_dir,
                                                   {op::HeatMapType::Parts},
                                                   op::ScaleMode::ZeroToOne,
+                                                  false,
                                                   0.05,
+                                                  -1,
                                                   false};
 
     const op::WrapperStructFace wrapperStructFace{
@@ -74,11 +122,16 @@ class OpenPoseKernel : public scanner::BatchedKernel,
     for (int i = 0; i < num_rows(frame_col); ++i) {
       datumsPtr->emplace_back();
       auto& datum = datumsPtr->at(datumsPtr->size() - 1);
-      CUDA_PROTECT({
-        cv::cuda::GpuMat gpu_input =
-            scanner::frame_to_gpu_mat(frame_col[i].as_const_frame());
-        datum.cvInputData = cv::Mat(gpu_input);
-      });
+      if (device_.type == DeviceType::GPU) {
+        CUDA_PROTECT({
+          cv::cuda::GpuMat gpu_input =
+              scanner::frame_to_gpu_mat(frame_col[i].as_const_frame());
+          datum.cvInputData = cv::Mat(gpu_input);
+        });
+      } else {
+        datum.cvInputData =
+            scanner::frame_to_mat(frame_col[i].as_const_frame());
+      }
     }
 
     bool emplaced = opWrapper_.waitAndEmplace(datumsPtr);
@@ -119,10 +172,10 @@ class OpenPoseKernel : public scanner::BatchedKernel,
         curr_kp += HAND_KEYPOINTS * 3;
       }
 
-      float* gpu_kp = (float*)scanner::new_buffer(device_, size);
-      scanner::memcpy_buffer((scanner::u8*)gpu_kp, device_, (scanner::u8*)kp,
+      float* device_kp = (float*)scanner::new_buffer(device_, size);
+      scanner::memcpy_buffer((scanner::u8*)device_kp, device_, (scanner::u8*)kp,
                              scanner::CPU_DEVICE, size);
-      scanner::insert_element(output_columns[0], (scanner::u8*)gpu_kp, size);
+      scanner::insert_element(output_columns[0], (scanner::u8*)device_kp, size);
       delete kp;
     }
   }
@@ -134,6 +187,11 @@ class OpenPoseKernel : public scanner::BatchedKernel,
 
 REGISTER_OP(OpenPose).frame_input("frame").output("pose").protobuf_name(
     "OpenPoseArgs");
+
+REGISTER_KERNEL(OpenPose, OpenPoseKernel)
+    .device(scanner::DeviceType::CPU)
+    .num_devices(BaseKernel::UnlimitedDevices)
+    .batch();
 
 REGISTER_KERNEL(OpenPose, OpenPoseKernel)
     .device(scanner::DeviceType::GPU)
