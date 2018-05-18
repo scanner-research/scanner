@@ -1142,6 +1142,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   assert(num_kernel_groups > 0);  // is this actually necessary?
 
   i32 pipeline_instances_per_node = job_params->pipeline_instances_per_node();
+
+  LOG(INFO) << "Initial pipeline instances per node: " << pipeline_instances_per_node;
   // If ki per node is -1, we set a smart default. Currently, we calculate the
   // maximum possible kernel instances without oversubscribing any part of the
   // pipeline, either CPU or GPU.
@@ -1158,15 +1160,19 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
         KernelFactory* factory = std::get<0>(group[k]);
         DeviceType device_type = factory->get_device_type();
         i32 max_devices = factory->get_max_devices();
+
+        i32 kg_ppn;
         if (max_devices == Kernel::UnlimitedDevices) {
-          pipeline_instances_per_node = 1;
+          kg_ppn = 1;
         } else {
-          pipeline_instances_per_node =
-              std::min(pipeline_instances_per_node,
-                       device_type == DeviceType::CPU
-                           ? db_params_.num_cpus / local_total / max_devices
-                           : (i32)num_gpus / max_devices);
+          kg_ppn = device_type == DeviceType::CPU
+                       ? db_params_.num_cpus / local_total / max_devices
+                       : (i32)num_gpus / max_devices;
         }
+        LOG(INFO) << "Kernel Group " << k
+                  << " Pipeline instances per node: " << kg_ppn;
+        pipeline_instances_per_node = std::min(pipeline_instances_per_node, kg_ppn);
+
         if (device_type == DeviceType::GPU) {
           has_gpu_kernel = true;
         }
@@ -1176,6 +1182,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       pipeline_instances_per_node = 1;
     }
   }
+
+  LOG(INFO) << "Pipeline instances per node: " << pipeline_instances_per_node;
 
   if (pipeline_instances_per_node <= 0) {
     RESULT_ERROR(job_result,
