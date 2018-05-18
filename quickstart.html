@@ -114,7 +114,7 @@ into the database.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">resized</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Resize</span><span class="p">(</span><span class="n">frame</span><span class="o">=</span><span class="n">sampled_frame</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">640</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">480</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>This <strong>Op</strong> returns a new stream of frames which we call <code class="code docutils literal notranslate"><span class="pre">resized</span></code>. The Resize <strong>Op</strong> is one of the collection of built-in <strong>Ops</strong> in the <a class="reference internal" href="api/stdlib.html#standard-library"><span class="std std-ref">Scanner Standard Library</span></a>. (You can learn how to write your own <strong>Ops</strong> by following the <a class="reference internal" href="tutorial.html#tutorial"><span class="std std-ref">Tutorial</span></a>.)</p>
+<p>This <strong>Op</strong> returns a new stream of frames which we call <code class="code docutils literal notranslate"><span class="pre">resized</span></code>. The Resize <strong>Op</strong> is one of the collection of built-in <strong>Ops</strong> in the <a class="reference internal" href="api/stdlib.html#standard-library"><span class="std std-ref">Scanner Standard Library</span></a>. (You can learn how to write your own <strong>Ops</strong> by following the <a class="reference internal" href="tutorial.html#tutorial"><span class="std std-ref">Tutorials</span></a>.)</p>
 <p>Finally, we write these resized frames to a column called ‘frame’ in a new table by passing them into a column <strong>Sink</strong>:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">output_frame</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">sinks</span><span class="o">.</span><span class="n">Column</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;frame&#39;</span><span class="p">:</span> <span class="n">resized</span><span class="p">})</span>
 </pre></div>
@@ -163,7 +163,7 @@ into the database.</p>
 </pre></div>
 </div>
 <p>After this call returns, an mp4 video should be saved to the current working directory called <code class="code docutils literal notranslate"><span class="pre">resized-video.mp4</span></code> that consists of the resized frames that we generated.</p>
-<p>That’s a complete Scanner pipeline! If you’d like to learn about process multiple jobs, keep reading! Otherwise, to learn more about the features of Scanner, either follow the <a class="reference internal" href="walkthrough.html#walkthrough"><span class="std std-ref">Interactive Jupyter Walkthrough</span></a> or go through the extended <a class="reference internal" href="tutorial.html#tutorial"><span class="std std-ref">Tutorial</span></a>.</p>
+<p>That’s a complete Scanner pipeline! If you’d like to learn about process multiple jobs, keep reading! Otherwise, to learn more about the features of Scanner, either follow the <a class="reference internal" href="walkthrough.html#walkthrough"><span class="std std-ref">Interactive Jupyter Walkthrough</span></a> or go through the extended <a class="reference internal" href="tutorial.html#tutorial"><span class="std std-ref">Tutorials</span></a>.</p>
 <div class="toctree-wrapper compound">
 </div>
 </div>
@@ -331,7 +331,7 @@ db.ingest_videos(videos_to_process)</p>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="walkthrough.html">Interactive Jupyter Walkthrough</a></li>
-<li class="toctree-l2"><a class="reference internal" href="tutorial.html">Tutorial</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tutorial.html">Tutorials</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="programming-handbook.html">Programming Handbook</a></li>
