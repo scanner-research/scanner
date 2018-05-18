@@ -58,7 +58,7 @@ Install `homebrew <https://brew.sh/>`__ then run the following command:
                 opus sdl shtool texi2html theora x264 x265 xvid nasm \
                 eigen glog \
                 snappy leveldb gflags glog szip lmdb hdf5 boost boost-python3 \
-                llvm python gnutls postgresql
+                llvm python gnutls postgresql libpq libpqxx
 
 
 Run deps.sh
