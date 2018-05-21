@@ -479,6 +479,7 @@ if [[ $INSTALL_HALIDE == true ]] && [[ ! -f $BUILD_DIR/halide.done ]] ; then
             cp -r halide/bin/* $INSTALL_PREFIX/lib && \
             rm -r halide/bin && \
             cp -r halide/* $INSTALL_PREFIX && \
+            install_name_tool -id "@rpath/libHalide.dylib" $INSTALL_PREFIX/lib/libHalide.dylib
             cp Generator.h halide/include && \
             touch $BUILD_DIR/halide.done \
                 || { echo 'Installing Halide failed!' ; exit 1; }
@@ -643,7 +644,8 @@ if [[ $INSTALL_CAFFE == true ]] && \
             || { echo 'Installing caffe failed!' ; exit 1; }
 fi
 
-if [[ $INSTALL_OPENPOSE == true ]] && [[ ! -f $BUILD_DIR/openpose.done ]]; then
+if [[ $INSTALL_OPENPOSE == true ]] && [[ ! -f $BUILD_DIR/openpose.done ]] && \
+       ! [[ "$OSTYPE" == "darwin"* ]]; then
     cd $BUILD_DIR
     rm -rf openpose
     git clone -b v1.3.0 https://github.com/CMU-Perceptual-Computing-Lab/openpose --depth 1 && \
