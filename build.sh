@@ -25,7 +25,7 @@ if make -j$cores; then
         # directories of the same name in our cwd
         pushd /tmp
         (yes | pip3 uninstall $PKG)
-        (yes | pip3 install $cwd/dist/*)
+        (yes | pip3 install --user $cwd/dist/*)
         popd
     fi
 else

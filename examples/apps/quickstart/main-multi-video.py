@@ -18,7 +18,7 @@ db.ingest_videos(videos_to_process)
 
 # Define the same Computation Graph
 frame = db.sources.FrameColumn() # Read from the database
-sampled_frame = db.ops.Stride(frame, 3) # Select every third frame
+sampled_frame = db.streams.Stride(frame, 3) # Select every third frame
 resized = db.ops.Resize(frame=sampled_frame, width=640, height=480) # Resize input frame
 output_frame = db.sinks.Column(columns={'frame': resized}) # Save resized frame
 

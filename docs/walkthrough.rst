@@ -17,7 +17,7 @@ If you installed Scanner yourself, then run:
 
 .. code-block:: bash
 
-   pip3 install jupyter
+   pip3 install jupyter requests matplotlib
    cd path/to/scanner
    jupyter notebook --ip=0.0.0.0 --port=8888
 
