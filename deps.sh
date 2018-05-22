@@ -206,7 +206,7 @@ elif [[ $INSTALL_ALL == false ]]; then
     done
 
     while true; do
-        echo -n "Do you have protobuf>=3.4.0 installed? [y/N]: "
+        echo -n "Do you have protobuf>=3.5.1 installed? [y/N]: "
         read yn
         if [[ $yn == y ]] || [[ $yn == Y ]]; then
             INSTALL_PROTOBUF=false
@@ -225,7 +225,7 @@ elif [[ $INSTALL_ALL == false ]]; then
     done
 
     while true; do
-        echo -n "Do you have grpc==1.7.2 installed? [y/N]: "
+        echo -n "Do you have grpc==1.12.0 installed? [y/N]: "
         read yn
         if [[ $yn == y ]] || [[ $yn == Y ]]; then
             INSTALL_GRPC=false
@@ -316,8 +316,6 @@ elif [[ $INSTALL_ALL == false ]]; then
     done
 fi
 
-echo ""
-
 if [[ $INSTALL_FFMPEG == true ]] && [[ ! -f $BUILD_DIR/ffmpeg.done ]] ; then
     echo "Installing ffmpeg 3.3.1..."
 
@@ -391,24 +389,24 @@ if [[ $INSTALL_OPENCV == true ]] && [[ ! -f $BUILD_DIR/opencv.done ]]; then
 fi
 
 if [[ $INSTALL_PROTOBUF == true ]] && [[ ! -f $BUILD_DIR/protobuf.done ]] ; then
-    # protobuf 3.4.1
-    echo "Installing protobuf 3.4.1..."
+    # protobuf 3.5.1
+    echo "Installing protobuf 3.5.1..."
     cd $BUILD_DIR
     rm -fr protobuf
-    git clone -b v3.4.1 https://github.com/google/protobuf.git --depth 1 && \
+    git clone -b v3.5.1 https://github.com/google/protobuf.git --depth 1 && \
         cd protobuf && bash ./autogen.sh && \
         ./configure --prefix=$INSTALL_PREFIX && make -j$cores && \
         make install && touch $BUILD_DIR/protobuf.done \
             || { echo 'Installing protobuf failed!' ; exit 1; }
-    echo "Done installing protobuf 3.4.1"
+    echo "Done installing protobuf 3.5.1"
 fi
 
 if [[ $INSTALL_GRPC == true ]] && [[ ! -f $BUILD_DIR/grpc.done ]] ; then
-    # gRPC 1.7.2
-    echo "Installing gRPC 1.7.2..."
+    # gRPC 1.12.0
+    echo "Installing gRPC 1.12.0..."
     cd $BUILD_DIR
     rm -fr grpc
-    git clone -b v1.7.2 https://github.com/grpc/grpc && \
+    git clone -b v1.12.0 https://github.com/grpc/grpc && \
         cd grpc && git submodule update --init --recursive && \
         CPPFLAGS=-I$INSTALL_PREFIX/include LDFLAGS=-L$INSTALL_PREFIX/lib make -j$cores && \
         CPPFLAGS=-I$INSTALL_PREFIX/include LDFLAGS=-L$INSTALL_PREFIX/lib make install prefix=$INSTALL_PREFIX && \
@@ -430,7 +428,7 @@ if [[ $INSTALL_GRPC == true ]] && [[ ! -f $BUILD_DIR/grpc.done ]] ; then
         install_name_tool -change libgrpc_unsecure.dylib @rpath/libgrpc_unsecure.dylib \
                           $INSTALL_PREFIX/lib/libgrpc++_unsecure.dylib
     fi
-    echo "Done installing gRPC 1.7.2"
+    echo "Done installing gRPC 1.12.0"
 fi
 
 if [[ $INSTALL_HALIDE == true ]] && [[ ! -f $BUILD_DIR/halide.done ]] ; then
@@ -646,6 +644,11 @@ fi
 
 if [[ $INSTALL_OPENPOSE == true ]] && [[ ! -f $BUILD_DIR/openpose.done ]] && \
        ! [[ "$OSTYPE" == "darwin"* ]]; then
+    EXTRA_FLAGS=""
+    if [[ $HAVE_GPU == false ]]; then
+        EXTRA_FLAGS="-DGPU_MODE=CPU_ONLY"
+    fi
+        
     cd $BUILD_DIR
     rm -rf openpose
     git clone -b v1.3.0 https://github.com/CMU-Perceptual-Computing-Lab/openpose --depth 1 && \
@@ -664,6 +667,7 @@ if [[ $INSTALL_OPENPOSE == true ]] && [[ ! -f $BUILD_DIR/openpose.done ]] && \
               -DCUDA_ARCH="Manual" \
               -DCUDA_ARCH_BIN="30 35 50 60 61" \
               -DCUDA_ARCH_PTX="30 35 50 60 61" \
+              ${EXTRA_FLAGS} \
               .. && \
         make install -j${cores} && \
         touch $BUILD_DIR/openpose.done \
