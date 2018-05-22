@@ -20,7 +20,9 @@ RUN cd /opt/scanner && \
           -D BUILD_TESTS=ON \
           -D BUILD_CUDA=${gpu} \
           .. && \
-    cd .. && ./build.sh
+    cd .. && \
+    (yes | pip uninstall grpcio protobuf) && \
+    ./build.sh
 
 ENV LC_ALL C.UTF-8
 ENV LANG C.UTF-8
