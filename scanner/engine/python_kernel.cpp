@@ -12,6 +12,19 @@ namespace scanner {
 namespace py = pybind11;
 using namespace pybind11::literals;
 
+void gen_random(char* s, const int len) {
+  static const char alphanum[] =
+      "0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+      "abcdefghijklmnopqrstuvwxyz";
+
+  for (int i = 0; i < len; ++i) {
+    s[i] = alphanum[rand() % (sizeof(alphanum) - 1)];
+  }
+
+  s[len] = 0;
+}
+
 PythonKernel::PythonKernel(const KernelConfig &config,
                            const std::string &op_name,
                            const std::string &kernel_code,
@@ -23,7 +36,9 @@ PythonKernel::PythonKernel(const KernelConfig &config,
   py::gil_scoped_acquire acquire;
   can_batch_ = can_batch;
   can_stencil_ = can_stencil;
-  kernel_name_ = tfm::format("%s_kernel", op_name_);
+  char rand[256];
+  gen_random(rand, 256);
+  kernel_name_ = tfm::format("%s_kernel_%s", op_name_, rand);
   std::string kernel_ns_name_ = tfm::format("ns_%s", op_name_);
 
   try {

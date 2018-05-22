@@ -1373,7 +1373,7 @@ def test_sql_insert(sql_db):
         input=row2, config=sql_config, table='test2', insert=True)
 
     job = Job(op_args={row: {'filter': 'true'}, output_op: {}})
-    db.run(output_op, [job])
+    db.run(output_op, [job], show_progress=False)
 
     cur.execute('SELECT s FROM test2')
     assert cur.fetchone()[0] == "hello world"
