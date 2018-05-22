@@ -31,7 +31,7 @@ build_docker() {
 
         # We run the tests as non-root user because Postgres test uses initdb which requires not being root
         docker run $DOCKER_REPO:$1-local /bin/bash \
-               -c "adduser --disabled-password --gecos \"\" user && su -c \"cd /opt/scanner/dist && (yes | pip3 install --user *) && cd /opt/scanner/build && CTEST_OUTPUT_ON_FAILURE=1 make test\" user"
+               -c "adduser --disabled-password --gecos \"\" user && su -c \"cd /opt/scanner/dist && (yes | pip3 install --user *) && cd /opt/scanner/build && CTEST_OUTPUT_ON_FAILURE=1 make test ARGS='-V'\" user"
         docker rm $(docker ps -a -f status=exited -q)
     else
         # Parse gpu build type
