@@ -1222,6 +1222,15 @@ def timeout_db():
 
         yield db
 
+        for worker in workers:
+            channel = grpc.insecure_channel(worker)
+            worker_stub = db.protobufs.WorkerStub(channel)
+            try:
+                worker_stub.Shutdown(
+                    db.protobufs.Empty(), timeout=db._grpc_timeout)
+            except grpc.RpcError as e:
+                pass
+
         # Tear down
         run([
             'rm', '-rf', cfg['storage']['db_path'], cfg_path, vid1_path,
