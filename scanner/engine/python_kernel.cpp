@@ -44,6 +44,8 @@ PythonKernel::PythonKernel(const KernelConfig &config,
   try {
     py::module main = py::module::import("__main__");
     py::object scope = main.attr("__dict__");
+    // FIXME((apoms): for some reason, serializing the config object in release
+    // mode on MacOS fails....
     main.attr(kernel_ns_name_.c_str()) = py::dict(
         "kernel_code"_a=py::bytes(kernel_code),
         "user_config_str"_a=py::bytes(pickled_config),
