@@ -563,6 +563,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   {
     std::unique_lock<std::mutex> lock(active_mutex_);
     active_bulk_job_ = true;
+    active_bulk_job_id_ = job_params->bulk_job_id();
   }
   active_cv_.notify_all();
 
@@ -787,7 +788,7 @@ Result WorkerImpl::register_with_master() {
 
 void WorkerImpl::try_unregister() {
   if (state_.get() != State::INITIALIZING && !unregistered_.test_and_set()) {
-    proto::NodeInfo node_info;
+    proto::UnregisterWorkerRequest node_info;
     node_info.set_node_id(node_id_);
 
     proto::Empty em;
@@ -839,8 +840,9 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   job_result->set_success(true);
   auto finished_fn = [&]() {
     if (!trigger_shutdown_.raised()) {
-      proto::FinishedJobParams params;
+      proto::FinishedJobRequest params;
       params.set_node_id(node_id_);
+      params.set_bulk_job_id(active_bulk_job_id_);
       params.mutable_result()->CopyFrom(job_result_);
       proto::Empty empty;
       grpc::Status status;
@@ -1575,9 +1577,10 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     }
     for (std::tuple<i32, i64, i64>& task_retired : batched_retired_tasks) {
       // Inform master that this task was finished
-      proto::FinishedWorkParameters params;
+      proto::FinishedWorkRequest params;
 
       params.set_node_id(node_id_);
+      params.set_bulk_job_id(active_bulk_job_id_);
       params.set_job_id(std::get<1>(task_retired));
       params.set_task_id(std::get<2>(task_retired));
 
@@ -1610,10 +1613,11 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     i32 local_work = accepted_tasks - total_tasks_processed;
     if (local_work <
         pipeline_instances_per_node * job_params->tasks_in_queue_per_pu()) {
-      proto::NodeInfo node_info;
+      proto::NextWorkRequest node_info;
       node_info.set_node_id(node_id_);
+      node_info.set_bulk_job_id(active_bulk_job_id_);
 
-      proto::NewWork new_work;
+      proto::NextWorkReply new_work;
       grpc::Status status;
       GRPC_BACKOFF(master_->NextWork(&ctx, node_info, &new_work), status);
       if (!status.ok()) {

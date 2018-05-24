@@ -92,10 +92,10 @@ struct DatabaseParameters {
   std::string python_dir;
 };
 
-class MasterImpl;
+class MasterServerImpl;
 class WorkerImpl;
 
-MasterImpl* get_master_service(DatabaseParameters& param);
+MasterServerImpl* get_master_service(DatabaseParameters& param, const std::string& port);
 
 WorkerImpl* get_worker_service(DatabaseParameters& params,
                                const std::string& master_address,

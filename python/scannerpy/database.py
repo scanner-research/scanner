@@ -134,6 +134,7 @@ class Database(object):
                  config_path: str = None,
                  config: Config = None,
                  debug: bool = None,
+                 enable_watchdog: bool = True,
                  prefetch_table_metadata: bool = True,
                  no_workers_timeout: float = 30,
                  grpc_timeout: float = 30,
@@ -145,6 +146,7 @@ class Database(object):
 
         self._start_cluster = start_cluster
         self._workers_started = False
+        self._enable_watchdog = enable_watchdog
         self._prefetch_table_metadata = prefetch_table_metadata
         self._no_workers_timeout = no_workers_timeout
         self._debug = debug
@@ -331,8 +333,9 @@ class Database(object):
         self._heartbeat_process.start()
 
     def _stop_heartbeat(self):
-        if (self._heartbeat_stop_event
-                and not self._heartbeat_stop_event.is_set()):
+        if (self._enable_watchdog and
+            self._heartbeat_stop_event and
+            not self._heartbeat_stop_event.is_set()):
             self._heartbeat_stop_event.set()
 
     def _handle_signal(self, signum, frame):
@@ -595,7 +598,8 @@ class Database(object):
         # forks a process and forking after channel creation causes hangs in the
         # forked process under grpc
         # https://github.com/grpc/grpc/issues/13873#issuecomment-358476408
-        self._start_heartbeat()
+        if self._enable_watchdog:
+            self._start_heartbeat()
 
         # Boot up C++ database bindings
         self._db = self._bindings.Database(self.config.storage_config,
@@ -614,7 +618,7 @@ class Database(object):
             if self._debug:
                 self._master_conn = None
                 res = self._bindings.start_master(
-                    self._db, self.config.master_port, SCRIPT_DIR, True,
+                    self._db, self.config.master_port, SCRIPT_DIR, self._enable_watchdog,
                     self._no_workers_timeout).success
                 assert res
                 res = self._connect_to_master()
@@ -633,11 +637,12 @@ class Database(object):
                     'import pickle\n' +
                     'config=pickle.loads(bytes(\'\'\'{config:s}\'\'\', \'utf8\'))\n'
                     + 'start_master(port=\'{master_port:s}\', block=True,\n' +
-                    '             config=config,\n' +
+                    '             config=config, watchdog={watchdog},\n' +
                     '             no_workers_timeout={no_workers})\" ' +
                     '').format(
                         master_port=master_port,
                         config=pickled_config,
+                        watchdog=self._enable_watchdog,
                         no_workers=self._no_workers_timeout)
                 self._master_conn = self._run_remote_cmd(
                     self._master_address, master_cmd, nohup=True)
@@ -699,6 +704,7 @@ class Database(object):
                     port=str(int(self.config.worker_port) + i),
                     config=self.config,
                     db=self._db,
+                    watchdog=self._enable_watchdog,
                     machine_params=machine_params)
         else:
             pickled_config = pickle.dumps(self.config, 0).decode()
@@ -708,6 +714,7 @@ class Database(object):
                 'config=pickle.loads(bytes(\'\'\'{config:s}\'\'\', \'utf8\'))\n'
                 + 'start_worker(\'{master:s}\', port=\'{worker_port:s}\',\n' +
                 '             block=True,\n' +
+                '             watchdog={watchdog},',
                 '             config=config)\" ' + '')
 
             # Start workers now that master is ready
@@ -721,6 +728,7 @@ class Database(object):
                             worker_cmd.format(
                                 master=self._master_address,
                                 config=pickled_config,
+                                watchdog=self._enable_watchdog,
                                 worker_port=w.partition(':')[2]),
                             nohup=True))
                 except:
@@ -876,7 +884,6 @@ class Database(object):
         if proto_path is not None:
             self.protobufs.add_module(proto_path)
 
-        print(op_registration)
         self._try_rpc(lambda: self._master.RegisterOp(
             op_registration, timeout=self._grpc_timeout))
 
@@ -1151,7 +1158,7 @@ class Database(object):
 
         return Profiler(self, job_id)
 
-    def wait_on_current_job(self, show_progress=True):
+    def wait_on_job(self, bulk_job_id, show_progress=True):
         pbar = None
         total_tasks = None
         last_task_count = 0
@@ -1159,8 +1166,10 @@ class Database(object):
         last_failed_workers = 0
         while True:
             try:
+                req = self.protobufs.GetJobStatusRequest()
+                req.bulk_job_id = bulk_job_id
                 job_status = self._master.GetJobStatus(
-                    self.protobufs.Empty(), timeout=self._grpc_timeout)
+                    req, timeout=self._grpc_timeout)
                 if show_progress and pbar is None and job_status.total_jobs != 0 \
                    and job_status.total_tasks != 0:
                     total_tasks = job_status.total_tasks
@@ -1511,10 +1520,11 @@ class Database(object):
             self.start_workers(self._worker_paths)
 
         # Run the job
-        self._try_rpc(lambda: self._master.NewJob(
+        result = self._try_rpc(lambda: self._master.NewJob(
             job_params, timeout=self._grpc_timeout))
 
-        job_status = self.wait_on_current_job(show_progress)
+        bulk_job_id = result.bulk_job_id
+        job_status = self.wait_on_job(bulk_job_id, show_progress)
 
         if not job_status.result.success:
             raise ScannerException(job_status.result.msg)

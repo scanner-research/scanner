@@ -101,6 +101,7 @@ class WorkerImpl final : public proto::Worker::Service {
   std::mutex active_mutex_;
   std::condition_variable active_cv_;
   bool active_bulk_job_ = false;
+  i32 active_bulk_job_id_ = -1;
   proto::BulkJobParameters job_params_;
 
   // True if all work for job is done

@@ -20,13 +20,13 @@
 namespace scanner {
 namespace internal {
 
-MasterImpl* get_master_service(DatabaseParameters& param) {
-  return new MasterImpl(param);
+MasterServerImpl* get_master_service(DatabaseParameters& param, const std::string& port) {
+  return new MasterServerImpl(param, port);
 }
 
 WorkerImpl* get_worker_service(DatabaseParameters& params,
-                               const std::string& master_address,
-                               const std::string& worker_port) {
+                                     const std::string& master_address,
+                                     const std::string& worker_port) {
   return new WorkerImpl(params, master_address, worker_port);
 }
 

@@ -95,31 +95,34 @@ Database::Database(storehouse::StorageConfig* storage_config,
   gpr_set_log_verbosity(GPR_LOG_SEVERITY_ERROR);
 }
 
+Database::~Database() {
+  wait_for_server_shutdown();
+}
+
 Result Database::start_master(const MachineParameters& machine_params,
                               const std::string& port,
                               const std::string& python_dir,
                               bool watchdog,
                               i64 no_workers_timeout) {
-  if (master_state_ != nullptr) {
+  if (master_server_ != nullptr) {
     LOG(WARNING) << "Master already started";
     Result result;
     result.set_success(true);
     return result;
   }
-  master_state_.reset(new ServerState);
   internal::DatabaseParameters params =
       machine_params_to_db_params(machine_params, storage_config_, db_path_);
   params.no_workers_timeout = no_workers_timeout;
   params.python_dir = python_dir;
 
-  auto master_service = scanner::internal::get_master_service(params);
-  master_state_->service.reset(master_service);
-  master_state_->server = start(master_state_->service, port);
-
-  // Register shutdown signal handler
+  master_server_.reset(scanner::internal::get_master_service(params, port));
+  master_server_->run();
 
   // Setup watchdog
-  master_service->start_watchdog(master_state_->server.get(), watchdog);
+  master_server_->start_watchdog(watchdog);
+
+  // Start handling rpcs
+  master_thread_ = std::thread([this]() { master_server_->handle_rpcs(); });
 
   Result result;
   result.set_success(true);
@@ -229,9 +232,9 @@ Result Database::shutdown_worker() {
 }
 
 Result Database::wait_for_server_shutdown() {
-  if (master_state_ != nullptr) {
-    master_state_->server->Wait();
-    master_state_.reset(nullptr);
+  if (master_server_ != nullptr) {
+    master_thread_.join();
+    master_server_.reset(nullptr);
   }
   for (auto& state : worker_states_) {
     state->server->Wait();
