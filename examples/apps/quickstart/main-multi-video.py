@@ -6,7 +6,7 @@ from scannerpy import Database, Job
 db = Database()
 
 # This is the list of videos we are going to process formatted as
-# (table_name, video_path). 
+# (table_name, video_path).
 videos_to_process = [
     ('sample-clip-1', 'sample-clip-1.mp4'),
     ('sample-clip-2', 'sample-clip-2.mp4'),
@@ -27,7 +27,7 @@ jobs = []
 for table_name, _ in videos_to_process:
     job = Job(op_args={
         frame: db.table(table_name).column('frame'), # Column to read input frames from
-        output_frame: 'resized-{:s}'.format(table_name) # Name of output table
+        output_frame: '{:s}-resized'.format(table_name) # Name of output table
     })
     jobs.append(job)
 

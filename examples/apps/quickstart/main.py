@@ -14,8 +14,8 @@ output_frame = db.sinks.Column(columns={'frame': resized}) # Save resized frame
 
 # Bind arguments to the source and sink nodes
 job = Job(op_args={
-    frame: db.table(table_name).column('frame'), # Column to read input frames from
-    output_frame: 'resized-{:s}'.format(table_name) # Name of output table
+    frame: db.table('sample-clip').column('frame'), # Column to read input frames from
+    output_frame: 'sample-clip-resized' # Name of output table
 })
 
 # Execute the computation graph and return a handle to the newly produced tables
