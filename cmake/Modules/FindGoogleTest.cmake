@@ -25,18 +25,18 @@ else()
   find_path(GOOGLETEST_INCLUDE_DIR gtest/gtest.h
     PATHS
     ${GOOGLETEST_ROOT_DIR}/include
-    ${CMAKE_SOURCE_DIR}/thirdparty/build/bin/googletest/include)
+    ${CMAKE_SOURCE_DIR}/thirdparty/install/include)
 endif()
 
 find_library(GOOGLETEST_LIBRARY gtest
   PATHS
   ${GOOGLETEST_ROOT_DIR}/lib
-  ${CMAKE_SOURCE_DIR}/thirdparty/build/bin/googletest/lib)
+  ${CMAKE_SOURCE_DIR}/thirdparty/install/lib)
 
 find_library(GOOGLETEST_MAIN gtest_main
   PATHS
   ${GOOGLETEST_ROOT_DIR}/lib
-  ${CMAKE_SOURCE_DIR}/thirdparty/build/bin/googletest/lib)
+  ${CMAKE_SOURCE_DIR}/thirdparty/install/lib)
 
 find_package_handle_standard_args(GOOGLETEST DEFAULT_MSG
     GOOGLETEST_INCLUDE_DIR GOOGLETEST_LIBRARY)
