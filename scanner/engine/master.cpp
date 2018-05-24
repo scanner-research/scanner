@@ -1014,6 +1014,7 @@ void MasterServerImpl::NextWorkHandler(
     if (!workers_.at(worker_id)->active) {
       // Worker is not active
       new_work->set_no_more_work(true);
+      REQUEST_RPC(NextWork, proto::NextWorkRequest, proto::NextWorkReply);
       call->Respond(grpc::Status::OK);
       return;
     }
@@ -2134,7 +2135,7 @@ void MasterServerImpl::remove_worker(i32 node_id) {
 
   std::string worker_address = workers_.at(node_id)->address;
   // Remove worker from list
-  workers_[node_id]->active = false;
+  workers_.at(node_id)->active = false;
 
   {
     std::unique_lock<std::mutex> lock(active_mutex_);

@@ -21,6 +21,7 @@ import subprocess
 from testing.postgresql import Postgresql
 import psycopg2
 import json
+import time
 
 try:
     run(['nvidia-smi'])
@@ -1229,11 +1230,16 @@ def timeout_db():
 
 
 def test_job_timeout(timeout_db):
+    @scannerpy.register_python_op()
+    def timeout_fn(self, frame: FrameType) -> bytes:
+        time.sleep(5)
+        return bytes('what', 'utf-8')
+
     db = timeout_db
 
     frame = db.sources.FrameColumn()
     range_frame = db.streams.Range(frame, 0, 1)
-    sleep_frame = db.ops.SleepFrame(ignore=range_frame)
+    sleep_frame = db.ops.timeout_fn(frame=range_frame)
     output_op = db.sinks.Column(columns={'dummy': sleep_frame})
 
     job = Job(op_args={
