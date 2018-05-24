@@ -732,9 +732,9 @@ class Database(object):
                                 watchdog=self._enable_watchdog,
                                 worker_port=w.partition(':')[2]),
                             nohup=True))
-                except:
+                except Exception as e:
                     print(
-                        'WARNING: Failed to ssh into {:s}, ignoring'.format(w))
+                        'WARNING: Failed to ssh into {:s}, ignoring: {:s}'.format(w, repr(e)))
                     ignored_nodes += 1
             slept_so_far = 0
             # Has to be this long for GCS
