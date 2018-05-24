@@ -1,5 +1,5 @@
 from scannerpy import Database, DeviceType, Job
-from scannerpy.stdlib import parsers, video
+from scannerpy.stdlib import readers, video
 import numpy as np
 import math
 from scipy import sparse
@@ -61,7 +61,7 @@ with Database(debug=True) as db:
         Cm = np.zeros((C.T+1, C.T+1))
         # Cm = sparse.eye(C.T+1, C.T+1, format='lil')
 
-        rows = matches.load(['cost_matrix'], parsers.array(np.float32))
+        rows = matches.load(['cost_matrix'], readers.array(np.float32))
         for i, row in rows:
             l = min(len(row), C.T+1 - (i+2+C.w))
             if l == 0: break

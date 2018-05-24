@@ -1,5 +1,4 @@
 from scannerpy import Database, DeviceType, Job
-from scannerpy.stdlib import parsers
 import os
 import os.path as osp
 import numpy as np

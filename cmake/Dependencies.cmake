@@ -55,8 +55,8 @@ find_package(GoogleTest REQUIRED)
 find_package(CURL REQUIRED)
 find_package(Iconv REQUIRED)
 find_package(Storehouse REQUIRED CONFIG
-  PATHS "/Users/apoms/repos/storehouse/install"
-  "${CMAKE_SOURCE_DIR}/thirdparty/install")
+  PATHS "${CMAKE_SOURCE_DIR}/thirdparty/install"
+  "${STOREHOUSE_DIR}")
 find_package(Hwang REQUIRED)
 find_package(TinyToml REQUIRED)
 find_package(OpenCV COMPONENTS ${OPENCV_DESIRED_COMPONENTS})
