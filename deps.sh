@@ -51,31 +51,87 @@ key="$1"
 
 case $key in
     -c|--cores)
-    cores="$2"
-    shift # past arg
-    shift # past value
-    ;;
+        cores="$2"
+        shift # past arg
+        shift # past value
+        ;;
     -g|--use-gpu)
-    USE_GPU=true
-    shift # past arg
-    ;;
+        USE_GPU=true
+        shift # past arg
+        ;;
     -ng|--no-use-gpu)
-    NO_USE_GPU=true
-    shift # past arg
-    ;;
+        NO_USE_GPU=true
+        shift # past arg
+        ;;
     -p|--prefix)
-    INSTALL_PREFIX="$2"
-    shift # past arg
-    shift # past value
-    ;;
+        INSTALL_PREFIX="$2"
+        shift # past arg
+        shift # past value
+        ;;
     -a|--install-all)
-    INSTALL_ALL=true
-    shift # past arg
-    ;;
+        INSTALL_ALL=true
+        shift # past arg
+        ;;
     -n|--install-none)
-    INSTALL_NONE=true
-    shift # past arg
-    ;;
+        INSTALL_NONE=true
+        shift # past arg
+        ;;
+    --with-ffmpeg)
+        WITH_FFMPEG="$2"
+        shift # past arg
+        shift # past value
+        ;;
+    --with-opencv)
+        WITH_OPENCV="$2"
+        shift # past arg
+        shift # past value
+        ;;
+    --with-protobuf)
+        WITH_PROTOBUF="$2"
+        shift # past arg
+        shift # past value
+        ;;
+    --with-grpc)
+        WITH_GRPC="$2"
+        shift # past arg
+        shift # past value
+        ;;
+    --with-caffe)
+        WITH_CAFFE="$2"
+        shift # past arg
+        shift # past value
+        ;;
+    --with-halide)
+        WITH_HALIDE="$2"
+        shift # past arg
+        shift # past value
+        ;;
+    --with-openpose)
+        WITH_OPENPOSE="$2"
+        shift # past arg
+        shift # past value
+        ;;
+    --with-hwang)
+        WITH_HWANG="$2"
+        shift # past arg
+        shift # past value
+        ;;
+    --with-storehouse)
+        WITH_STOREHOUSE="$2"
+        shift # past arg
+        shift # past value
+        ;;
+    --with-pybind)
+        WITH_PYBIND="$2"
+        shift # past arg
+        shift # past value
+        ;;
+    --with-libpqxx)
+        WITH_LIBPQXX="$2"
+        shift # past arg
+        shift # past value
+        ;;
+
     *)    # unknown option
     POSITIONAL+=("$1") # save it in an array for later
     shift # past argument
@@ -142,6 +198,51 @@ TINYTOML_DIR=$INSTALL_PREFIX
 OPENPOSE_DIR=$INSTALL_PREFIX
 LIBPQXX_DIR=$INSTALL_PREFIX
 
+if [[ ! -z ${WITH_FFMPEG+x} ]]; then
+    INSTALL_FFMPEG=false
+    FFMPEG_DIR=$WITH_FFMPEG
+fi
+if [[ ! -z ${WITH_OPENCV+x} ]]; then
+    INSTALL_OPENCV=false
+    OPENCV_DIR=$WITH_OPENCV
+fi
+if [[ ! -z ${WITH_PROTOBUF+x} ]]; then
+    INSTALL_PROTOBUF=false
+    PROTOBUF_DIR=$WITH_PROTOBUF
+fi
+if [[ ! -z ${WITH_GRPC+x} ]]; then
+    INSTALL_GRPC=false
+    GRPC_DIR=$WITH_GRPC
+fi
+if [[ ! -z ${WITH_CAFFE+x} ]]; then
+    INSTALL_CAFFE=false
+    CAFFE_DIR=$WITH_CAFFE
+fi
+if [[ ! -z ${WITH_HALIDE+x} ]]; then
+    INSTALL_HALIDE=false
+    HALIDE_DIR=$WITH_HALIDE
+fi
+if [[ ! -z ${WITH_PYBIND+x} ]]; then
+    INSTALL_PYBIND=false
+    PYBIND_DIR=$WITH_PYBIND
+fi
+if [[ ! -z ${WITH_HWANG+x} ]]; then
+    INSTALL_HWANG=false
+    HWANG_DIR=$WITH_HWANG
+fi
+if [[ ! -z ${WITH_STOREHOUSE+x} ]]; then
+    INSTALL_STOREHOUSE=false
+    STOREHOUSE_DIR=$WITH_STOREHOUSE
+fi
+if [[ ! -z ${WITH_OPENPOSE+x} ]]; then
+    INSTALL_OPENPOSE=false
+    OPENPOSE_DIR=$WITH_OPENPOSE
+fi
+if [[ ! -z ${WITH_LIBPQXX+x} ]]; then
+    INSTALL_LIBPQXX=false
+    LIBPQXX_DIR=$WITH_LIBPQXX
+fi
+
 export C_INCLUDE_PATH=$INSTALL_PREFIX/include:$C_INCLUDE_PATH
 export LD_LIBRARY_PATH=$INSTALL_PREFIX/lib:$LD_LIBRARY_PATH
 export PATH=$INSTALL_PREFIX/bin:$PATH
@@ -167,7 +268,7 @@ if [[ $INSTALL_NONE == true ]]; then
 
 elif [[ $INSTALL_ALL == false ]]; then
     # Ask about each library
-    while true; do
+    if [[ -z ${WITH_FFMPEG+x} ]]; then
         echo -n "Do you have ffmpeg>=3.3.1 installed? [y/N]: "
         read yn
         if [[ $yn == y ]] || [[ $yn == Y ]]; then
@@ -184,9 +285,9 @@ elif [[ $INSTALL_ALL == false ]]; then
             INSTALL_FFMPEG=true
             break
         fi
-    done
+    fi
 
-    while true; do
+    if [[ -z ${WITH_OPENCV+x} ]]; then
         echo -n "Do you have opencv>=3.4.0 with contrib installed? [y/N]: "
         read yn
         if [[ $yn == y ]] || [[ $yn == Y ]]; then
@@ -203,9 +304,9 @@ elif [[ $INSTALL_ALL == false ]]; then
             INSTALL_OPENCV=true
             break
         fi
-    done
+    fi
 
-    while true; do
+    if [[ -z ${WITH_PROTOBUF+x} ]]; then
         echo -n "Do you have protobuf>=3.5.1 installed? [y/N]: "
         read yn
         if [[ $yn == y ]] || [[ $yn == Y ]]; then
@@ -222,9 +323,9 @@ elif [[ $INSTALL_ALL == false ]]; then
             INSTALL_PROTOBUF=true
             break
         fi
-    done
+    fi
 
-    while true; do
+    if [[ -z ${WITH_GRPC+x} ]]; then
         echo -n "Do you have grpc==1.12.0 installed? [y/N]: "
         read yn
         if [[ $yn == y ]] || [[ $yn == Y ]]; then
@@ -241,9 +342,9 @@ elif [[ $INSTALL_ALL == false ]]; then
             INSTALL_GRPC=true
             break
         fi
-    done
+    fi
 
-    while true; do
+    if [[ -z ${WITH_HALIDE+x} ]]; then
         echo -n "Do you have halide (release_2018_02_15) installed? [y/N]: "
         read yn
         if [[ $yn == y ]] || [[ $yn == Y ]]; then
@@ -260,10 +361,10 @@ elif [[ $INSTALL_ALL == false ]]; then
             INSTALL_HALIDE=true
             break
         fi
-    done
+    fi
 
     if [[ $HAVE_GPU == true ]]; then
-        while true; do
+        if [[ -z ${WITH_OPENPOSE+x} ]]; then
             echo -n "Do you have OpenPose (v1.3.0) installed? [y/N]: "
             read yn
             if [[ $yn == y ]] || [[ $yn == Y ]]; then
@@ -280,10 +381,10 @@ elif [[ $INSTALL_ALL == false ]]; then
                 INSTALL_OPENPOSE=true
                 break
             fi
-        done
+        fi
     fi
 
-    while true; do
+    if [[ -z ${WITH_CAFFE+x} ]]; then
         echo -n "Do you have caffe>=rc5 or intel-caffe>=1.0.6 installed? [y/N]: "
         read yn
         if [[ $yn == y ]] || [[ $yn == Y ]]; then
@@ -313,7 +414,7 @@ elif [[ $INSTALL_ALL == false ]]; then
                 break
             fi
         fi
-    done
+    fi
 fi
 
 if [[ $INSTALL_FFMPEG == true ]] && [[ ! -f $BUILD_DIR/ffmpeg.done ]] ; then
