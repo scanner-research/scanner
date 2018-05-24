@@ -1150,8 +1150,7 @@ def blacklist_db():
             no_workers_timeout=120,
             master=master,
             workers=workers,
-            enable_watchdog=False,
-            debug=True) as db:
+            enable_watchdog=False) as db:
         (vid1_path, vid2_path) = download_videos()
 
         db.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
@@ -1215,8 +1214,7 @@ def timeout_db():
             no_workers_timeout=120,
             master=master,
             workers=workers,
-            enable_watchdog=False,
-            debug=True) as db:
+            enable_watchdog=False) as db:
         (vid1_path, vid2_path) = download_videos()
 
         db.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
