@@ -715,7 +715,7 @@ class Database(object):
                 'config=pickle.loads(bytes(\'\'\'{config:s}\'\'\', \'utf8\'))\n'
                 + 'start_worker(\'{master:s}\', port=\'{worker_port:s}\',\n' +
                 '             block=True,\n' +
-                '             watchdog={watchdog},',
+                '             watchdog={watchdog},' +
                 '             config=config)\" ' + '')
 
             # Start workers now that master is ready
@@ -734,7 +734,8 @@ class Database(object):
                             nohup=True))
                 except Exception as e:
                     print(
-                        'WARNING: Failed to ssh into {:s}, ignoring: {:s}'.format(w, repr(e)))
+                        'WARNING: Failed to ssh into {:s} because: {:s}'.format(
+                            w, repr(e)))
                     ignored_nodes += 1
             slept_so_far = 0
             # Has to be this long for GCS
