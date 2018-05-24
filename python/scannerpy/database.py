@@ -724,7 +724,7 @@ class Database(object):
                 try:
                     self._worker_conns.append(
                         self._run_remote_cmd(
-                            w,
+                            w.partition(':')[0],
                             worker_cmd.format(
                                 master=self._master_address,
                                 config=pickled_config,
