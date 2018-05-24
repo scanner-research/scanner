@@ -296,7 +296,8 @@ class Database(object):
     def _run_remote_cmd(self, host, cmd, nohup=False):
         host_name, _, _ = host.partition(':')
         host_ip = socket.gethostbyname(host_name)
-        if ipaddress.ip_address(host_ip).is_loopback:
+        if (ipaddress.ip_address(host_ip).is_loopback or
+            host_name == 'localhost'):
             return Popen(cmd, shell=True)
         else:
             cmd = cmd.replace('"', '\\"')
@@ -724,7 +725,7 @@ class Database(object):
                 try:
                     self._worker_conns.append(
                         self._run_remote_cmd(
-                            w.partition(':')[0],
+                            w,
                             worker_cmd.format(
                                 master=self._master_address,
                                 config=pickled_config,

@@ -119,7 +119,7 @@ class Config(object):
 
     @staticmethod
     def default_config():
-        hostname = check_output(['hostname']).strip().decode('utf-8')
+        hostname = 'localhost'
 
         db_path = os.path.expanduser('~/.scanner/db')
 
