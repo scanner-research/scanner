@@ -1,5 +1,5 @@
 from scannerpy import Database, DeviceType, Job
-from scannerpy.stdlib import parsers
+from scannerpy.stdlib import readers
 from scipy.spatial import distance
 from subprocess import check_call as run
 import numpy as np
@@ -41,7 +41,7 @@ def compute_shot_boundaries(hists):
     return boundaries
 
 
-def make_monrage(n, frames):
+def make_montage(n, frames):
     _, frame = frames.next()
     frame = frame[0]
     (frame_h, frame_w, _) = frame.shape
@@ -119,7 +119,7 @@ def main(movie_path):
     print('Computing shot boundaries...')
     # Read histograms from disk
     hists = [h for h in
-             hists_table.column('histogram').load(parsers.histograms)]
+             hists_table.column('histogram').load(readers.histograms)]
     boundaries = compute_shot_boundaries(hists)
     print('Found {:d} shots.'.format(len(boundaries)))
     print('Time: {:.1f}s'.format(time.time() - s))

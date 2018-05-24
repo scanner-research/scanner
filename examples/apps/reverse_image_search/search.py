@@ -1,5 +1,5 @@
 from scannerpy import Database, DeviceType
-from scannerpy.stdlib import NetDescriptor, parsers, bboxes
+from scannerpy.stdlib import NetDescriptor, readers, bboxes
 import numpy as np
 import faiss
 import cv2
@@ -52,7 +52,7 @@ def build_index():
     fvec_index = faiss.IndexFlatL2(4096)
     bbox_index = []
     for (frame, bboxes), (_, vec) in \
-        zip(output_table.load([0], parsers.bboxes),
+        zip(output_table.load([0], readers.bboxes),
             output_table.load([1], parse_fvec)):
         # TODO(wcrichto): fix this frame*24 hack
         if len(vec) > 0:
