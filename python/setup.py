@@ -119,7 +119,7 @@ if platform == 'linux' or platform == 'linux2':
 
 setup(
     name='scannerpy',
-    version='0.0.1',
+    version='0.0.2',
     description='Efficient video analysis at scale',
     long_description='',
     url='https://github.com/scanner-research/scanner',
