@@ -70,9 +70,11 @@ void TableMetaCache::update(const TableMetadata& meta) {
 void TableMetaCache::prefetch(const std::vector<std::string>& table_names) {
   VLOG(1) << "Prefetching table metadata";
   auto load_table_meta = [&](const std::string& table_name) {
-    std::string table_path =
-        TableMetadata::descriptor_path(meta_.get_table_id(table_name));
-    update(read_table_metadata(storage_, table_path));
+    i32 table_id = meta_.get_table_id(table_name);
+    if (meta_.table_is_committed(table_id)) {
+      std::string table_path = TableMetadata::descriptor_path(table_id);
+      update(read_table_metadata(storage_, table_path));
+    }
   };
 
   VLOG(1) << "Spawning thread pool";

@@ -1423,13 +1423,6 @@ void MasterServerImpl::recover_and_init_database() {
   // Setup table metadata cache
   table_metas_.reset(new TableMetaCache(storage_, meta_));
 
-  // Prefetch table metadata for all tables
-  if (meta_.table_names().size() > 0 &&
-      !table_metas_->has(meta_.table_names()[0])) {
-    table_metas_->prefetch(meta_.table_names());
-    table_metas_->write_megafile();
-  }
-
   // VLOG(1) << "Writing database metadata";
   // write_database_metadata(storage_, meta_);
 
