@@ -23,8 +23,12 @@
 #include "scanner/engine/rpc.grpc.pb.h"
 
 #include <string>
+#include <thread>
 
 namespace scanner {
+namespace internal {
+class MasterServerImpl;
+}
 
 //! Description of resources for a given machine.
 struct MachineParameters {
@@ -49,6 +53,8 @@ class Database {
  public:
   Database(storehouse::StorageConfig* storage_config,
            const std::string& db_path, const std::string& master_address);
+
+  ~Database();
 
   Result start_master(const MachineParameters& params, const std::string& port,
                       const std::string& python_dir,
@@ -88,7 +94,8 @@ class Database {
   std::string db_path_;
   std::string master_address_;
 
-  std::unique_ptr<ServerState> master_state_;
+  std::unique_ptr<internal::MasterServerImpl> master_server_;
+  std::thread master_thread_;
   std::vector<std::unique_ptr<ServerState>> worker_states_;
 };
 }

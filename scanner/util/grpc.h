@@ -55,4 +55,80 @@ namespace scanner {
       break;                                                                \
     }                                                                       \
   } while (0);
+
+template <class ServiceImpl>
+struct BaseCall {
+  virtual ~BaseCall() {}
+
+  virtual void Handle(ServiceImpl* service) = 0;
+
+  class Tag {
+   public:
+    enum class State { Received, Sent, Cancelled };
+
+    Tag(BaseCall* call, State state) : call_(call), state_(state) {}
+
+    BaseCall* get_call() {
+      return call_;
+    }
+
+    const State& get_state() {
+      return state_;
+    }
+
+    void Advance(ServiceImpl* service) {
+      switch (state_) {
+        case State::Received: {
+          call_->Handle(service);
+          break;
+        }
+        case State::Sent: {
+          delete call_;
+          break;
+        }
+        case State::Cancelled: {
+          delete call_;
+          break;
+        }
+      }
+    }
+
+   private:
+    BaseCall* call_;
+    State state_;
+  };
+
+  std::string name;
+};
+
+template <class ServiceImpl, class Request, class Reply>
+struct Call : BaseCall<ServiceImpl> {
+  using HandleFunction =
+      void (ServiceImpl::*)(Call<ServiceImpl, Request, Reply>*);
+
+  Call(const std::string& _name, HandleFunction _handler)
+    : handler(_handler), responder(&ctx) {
+    this->name = _name;
+  }
+
+  void Handle(ServiceImpl* service) override {
+    (service->*handler)(this);
+  }
+
+  void Respond(grpc::Status status) {
+    responder.Finish(reply, status, &sent_tag);
+  }
+
+  HandleFunction handler;
+  grpc::ServerContext ctx;
+  Request request;
+  Reply reply;
+  grpc::ServerAsyncResponseWriter<Reply> responder;
+
+  // Tags
+  using Tag = typename BaseCall<ServiceImpl>::Tag;
+  Tag received_tag{this, Tag::State::Received};
+  Tag sent_tag{this, Tag::State::Sent};
+  Tag cancelled_tag{this, Tag::State::Cancelled};
+};
 }

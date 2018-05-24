@@ -891,7 +891,7 @@ def no_workers_db():
     (cfg_path, cfg) = make_config(master_port='5020', worker_port='5021')
 
     # Setup and ingest video
-    with Database(workers=[], config_path=cfg_path) as db:
+    with Database(workers=[], config_path=cfg_path, enable_watchdog=False) as db:
         (vid1_path, vid2_path) = download_videos()
 
         db.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
@@ -937,7 +937,8 @@ def fault_db():
             master='localhost:5010',
             workers=[],
             config_path=cfg_path,
-            no_workers_timeout=120) as db:
+            no_workers_timeout=120,
+            enable_watchdog=False) as db:
         (vid1_path, vid2_path) = download_videos()
 
         db.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
@@ -1146,7 +1147,8 @@ def blacklist_db():
             config_path=cfg_path,
             no_workers_timeout=120,
             master=master,
-            workers=workers) as db:
+            workers=workers,
+            enable_watchdog=False) as db:
         (vid1_path, vid2_path) = download_videos()
 
         db.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
@@ -1209,7 +1211,8 @@ def timeout_db():
             config_path=cfg_path,
             no_workers_timeout=120,
             master=master,
-            workers=workers) as db:
+            workers=workers,
+            enable_watchdog=False) as db:
         (vid1_path, vid2_path) = download_videos()
 
         db.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
