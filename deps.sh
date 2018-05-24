@@ -280,10 +280,8 @@ elif [[ $INSTALL_ALL == false ]]; then
             else
                 FFMPEG_DIR=$install_location
             fi
-            break
         else
             INSTALL_FFMPEG=true
-            break
         fi
     fi
 
@@ -299,10 +297,8 @@ elif [[ $INSTALL_ALL == false ]]; then
             else
                 OPENCV_DIR=$install_location
             fi
-            break
         else
             INSTALL_OPENCV=true
-            break
         fi
     fi
 
@@ -318,10 +314,8 @@ elif [[ $INSTALL_ALL == false ]]; then
             else
                 PROTOBUF_DIR=$install_location
             fi
-            break
         else
             INSTALL_PROTOBUF=true
-            break
         fi
     fi
 
@@ -337,10 +331,8 @@ elif [[ $INSTALL_ALL == false ]]; then
             else
                 GRPC_DIR=$install_location
             fi
-            break
         else
             INSTALL_GRPC=true
-            break
         fi
     fi
 
@@ -356,10 +348,8 @@ elif [[ $INSTALL_ALL == false ]]; then
             else
                 HALIDE_DIR=$install_location
             fi
-            break
         else
             INSTALL_HALIDE=true
-            break
         fi
     fi
 
@@ -376,10 +366,8 @@ elif [[ $INSTALL_ALL == false ]]; then
                 else
                     OPENPOSE_DIR=$install_location
                 fi
-                break
             else
                 INSTALL_OPENPOSE=true
-                break
             fi
         fi
     fi
@@ -396,7 +384,6 @@ elif [[ $INSTALL_ALL == false ]]; then
             else
                 CAFFE_DIR=$install_location
             fi
-            break
         else
             INSTALL_CAFFE=true
             if [[ $HAVE_GPU == true ]]; then
@@ -404,14 +391,11 @@ elif [[ $INSTALL_ALL == false ]]; then
                 read yn
                 if [[ $yn == n ]] || [[ $yn == N ]]; then
                     USE_GPU=false
-                    break
                 else
                     USE_GPU=true
-                    break
                 fi
             else
                 USE_GPU=false
-                break
             fi
         fi
     fi
@@ -575,6 +559,7 @@ if [[ $INSTALL_HALIDE == true ]] && [[ ! -f $BUILD_DIR/halide.done ]] ; then
         wget https://github.com/halide/Halide/releases/download/release_2018_02_15/$TAR_NAME && \
             wget https://raw.githubusercontent.com/halide/Halide/release_2018_02_15/src/Generator.h && \
             tar -zxf $TAR_NAME && \
+            mkdir -p $INSTALL_PREFIX/lib && \
             cp -r halide/bin/* $INSTALL_PREFIX/lib && \
             rm -r halide/bin && \
             cp -r halide/* $INSTALL_PREFIX && \
