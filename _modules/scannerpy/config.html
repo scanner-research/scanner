@@ -166,7 +166,7 @@
 
 <div class="viewcode-block" id="Config.default_config"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.config.Config.default_config">[docs]</a>    <span class="nd">@staticmethod</span>
     <span class="k">def</span> <span class="nf">default_config</span><span class="p">():</span>
-        <span class="n">hostname</span> <span class="o">=</span> <span class="n">check_output</span><span class="p">([</span><span class="s1">&#39;hostname&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span>
+        <span class="n">hostname</span> <span class="o">=</span> <span class="s1">&#39;localhost&#39;</span>
 
         <span class="n">db_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="s1">&#39;~/.scanner/db&#39;</span><span class="p">)</span>
 

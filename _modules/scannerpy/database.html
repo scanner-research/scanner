@@ -181,6 +181,7 @@
                  <span class="n">config_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                  <span class="n">config</span><span class="p">:</span> <span class="n">Config</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                  <span class="n">debug</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">enable_watchdog</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
                  <span class="n">prefetch_table_metadata</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
                  <span class="n">no_workers_timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">30</span><span class="p">,</span>
                  <span class="n">grpc_timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">30</span><span class="p">,</span>
@@ -192,6 +193,7 @@
 
         <span class="bp">self</span><span class="o">.</span><span class="n">_start_cluster</span> <span class="o">=</span> <span class="n">start_cluster</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_workers_started</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_enable_watchdog</span> <span class="o">=</span> <span class="n">enable_watchdog</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_prefetch_table_metadata</span> <span class="o">=</span> <span class="n">prefetch_table_metadata</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_no_workers_timeout</span> <span class="o">=</span> <span class="n">no_workers_timeout</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_debug</span> <span class="o">=</span> <span class="n">debug</span>
@@ -341,7 +343,8 @@
     <span class="k">def</span> <span class="nf">_run_remote_cmd</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">host</span><span class="p">,</span> <span class="n">cmd</span><span class="p">,</span> <span class="n">nohup</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="n">host_name</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">host</span><span class="o">.</span><span class="n">partition</span><span class="p">(</span><span class="s1">&#39;:&#39;</span><span class="p">)</span>
         <span class="n">host_ip</span> <span class="o">=</span> <span class="n">socket</span><span class="o">.</span><span class="n">gethostbyname</span><span class="p">(</span><span class="n">host_name</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">ipaddress</span><span class="o">.</span><span class="n">ip_address</span><span class="p">(</span><span class="n">host_ip</span><span class="p">)</span><span class="o">.</span><span class="n">is_loopback</span><span class="p">:</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">ipaddress</span><span class="o">.</span><span class="n">ip_address</span><span class="p">(</span><span class="n">host_ip</span><span class="p">)</span><span class="o">.</span><span class="n">is_loopback</span> <span class="ow">or</span>
+            <span class="n">host_name</span> <span class="o">==</span> <span class="s1">&#39;localhost&#39;</span><span class="p">):</span>
             <span class="k">return</span> <span class="n">Popen</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">shell</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">cmd</span> <span class="o">=</span> <span class="n">cmd</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;&quot;&#39;</span><span class="p">,</span> <span class="s1">&#39;</span><span class="se">\\</span><span class="s1">&quot;&#39;</span><span class="p">)</span>
@@ -378,8 +381,9 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_heartbeat_process</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
 
     <span class="k">def</span> <span class="nf">_stop_heartbeat</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_heartbeat_stop_event</span>
-                <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_heartbeat_stop_event</span><span class="o">.</span><span class="n">is_set</span><span class="p">()):</span>
+        <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_enable_watchdog</span> <span class="ow">and</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_heartbeat_stop_event</span> <span class="ow">and</span>
+            <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_heartbeat_stop_event</span><span class="o">.</span><span class="n">is_set</span><span class="p">()):</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_heartbeat_stop_event</span><span class="o">.</span><span class="n">set</span><span class="p">()</span>
 
     <span class="k">def</span> <span class="nf">_handle_signal</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">signum</span><span class="p">,</span> <span class="n">frame</span><span class="p">):</span>
@@ -642,7 +646,8 @@
         <span class="c1"># forks a process and forking after channel creation causes hangs in the</span>
         <span class="c1"># forked process under grpc</span>
         <span class="c1"># https://github.com/grpc/grpc/issues/13873#issuecomment-358476408</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_start_heartbeat</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_enable_watchdog</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_start_heartbeat</span><span class="p">()</span>
 
         <span class="c1"># Boot up C++ database bindings</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_db</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bindings</span><span class="o">.</span><span class="n">Database</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">storage_config</span><span class="p">,</span>
@@ -661,7 +666,7 @@
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_debug</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_master_conn</span> <span class="o">=</span> <span class="kc">None</span>
                 <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bindings</span><span class="o">.</span><span class="n">start_master</span><span class="p">(</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">master_port</span><span class="p">,</span> <span class="n">SCRIPT_DIR</span><span class="p">,</span> <span class="kc">True</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">master_port</span><span class="p">,</span> <span class="n">SCRIPT_DIR</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_enable_watchdog</span><span class="p">,</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">_no_workers_timeout</span><span class="p">)</span><span class="o">.</span><span class="n">success</span>
                 <span class="k">assert</span> <span class="n">res</span>
                 <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_connect_to_master</span><span class="p">()</span>
@@ -680,11 +685,12 @@
                     <span class="s1">&#39;import pickle</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">+</span>
                     <span class="s1">&#39;config=pickle.loads(bytes(</span><span class="se">\&#39;\&#39;\&#39;</span><span class="si">{config:s}</span><span class="se">\&#39;\&#39;\&#39;</span><span class="s1">, </span><span class="se">\&#39;</span><span class="s1">utf8</span><span class="se">\&#39;</span><span class="s1">))</span><span class="se">\n</span><span class="s1">&#39;</span>
                     <span class="o">+</span> <span class="s1">&#39;start_master(port=</span><span class="se">\&#39;</span><span class="si">{master_port:s}</span><span class="se">\&#39;</span><span class="s1">, block=True,</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">+</span>
-                    <span class="s1">&#39;             config=config,</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">+</span>
+                    <span class="s1">&#39;             config=config, watchdog=</span><span class="si">{watchdog}</span><span class="s1">,</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">+</span>
                     <span class="s1">&#39;             no_workers_timeout=</span><span class="si">{no_workers}</span><span class="s1">)</span><span class="se">\&quot;</span><span class="s1"> &#39;</span> <span class="o">+</span>
                     <span class="s1">&#39;&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
                         <span class="n">master_port</span><span class="o">=</span><span class="n">master_port</span><span class="p">,</span>
                         <span class="n">config</span><span class="o">=</span><span class="n">pickled_config</span><span class="p">,</span>
+                        <span class="n">watchdog</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_enable_watchdog</span><span class="p">,</span>
                         <span class="n">no_workers</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_no_workers_timeout</span><span class="p">)</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_master_conn</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_run_remote_cmd</span><span class="p">(</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">_master_address</span><span class="p">,</span> <span class="n">master_cmd</span><span class="p">,</span> <span class="n">nohup</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
@@ -746,6 +752,7 @@
                     <span class="n">port</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">worker_port</span><span class="p">)</span> <span class="o">+</span> <span class="n">i</span><span class="p">),</span>
                     <span class="n">config</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">,</span>
                     <span class="n">db</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="p">,</span>
+                    <span class="n">watchdog</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_enable_watchdog</span><span class="p">,</span>
                     <span class="n">machine_params</span><span class="o">=</span><span class="n">machine_params</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">pickled_config</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
@@ -755,6 +762,7 @@
                 <span class="s1">&#39;config=pickle.loads(bytes(</span><span class="se">\&#39;\&#39;\&#39;</span><span class="si">{config:s}</span><span class="se">\&#39;\&#39;\&#39;</span><span class="s1">, </span><span class="se">\&#39;</span><span class="s1">utf8</span><span class="se">\&#39;</span><span class="s1">))</span><span class="se">\n</span><span class="s1">&#39;</span>
                 <span class="o">+</span> <span class="s1">&#39;start_worker(</span><span class="se">\&#39;</span><span class="si">{master:s}</span><span class="se">\&#39;</span><span class="s1">, port=</span><span class="se">\&#39;</span><span class="si">{worker_port:s}</span><span class="se">\&#39;</span><span class="s1">,</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">+</span>
                 <span class="s1">&#39;             block=True,</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">+</span>
+                <span class="s1">&#39;             watchdog=</span><span class="si">{watchdog}</span><span class="s1">,&#39;</span> <span class="o">+</span>
                 <span class="s1">&#39;             config=config)</span><span class="se">\&quot;</span><span class="s1"> &#39;</span> <span class="o">+</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
 
             <span class="c1"># Start workers now that master is ready</span>
@@ -768,11 +776,13 @@
                             <span class="n">worker_cmd</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
                                 <span class="n">master</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_master_address</span><span class="p">,</span>
                                 <span class="n">config</span><span class="o">=</span><span class="n">pickled_config</span><span class="p">,</span>
+                                <span class="n">watchdog</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_enable_watchdog</span><span class="p">,</span>
                                 <span class="n">worker_port</span><span class="o">=</span><span class="n">w</span><span class="o">.</span><span class="n">partition</span><span class="p">(</span><span class="s1">&#39;:&#39;</span><span class="p">)[</span><span class="mi">2</span><span class="p">]),</span>
                             <span class="n">nohup</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
-                <span class="k">except</span><span class="p">:</span>
+                <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
                     <span class="nb">print</span><span class="p">(</span>
-                        <span class="s1">&#39;WARNING: Failed to ssh into </span><span class="si">{:s}</span><span class="s1">, ignoring&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">w</span><span class="p">))</span>
+                        <span class="s1">&#39;WARNING: Failed to ssh into </span><span class="si">{:s}</span><span class="s1"> because: </span><span class="si">{:s}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                            <span class="n">w</span><span class="p">,</span> <span class="nb">repr</span><span class="p">(</span><span class="n">e</span><span class="p">)))</span>
                     <span class="n">ignored_nodes</span> <span class="o">+=</span> <span class="mi">1</span>
             <span class="n">slept_so_far</span> <span class="o">=</span> <span class="mi">0</span>
             <span class="c1"># Has to be this long for GCS</span>
@@ -923,7 +933,6 @@
         <span class="k">if</span> <span class="n">proto_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">protobufs</span><span class="o">.</span><span class="n">add_module</span><span class="p">(</span><span class="n">proto_path</span><span class="p">)</span>
 
-        <span class="nb">print</span><span class="p">(</span><span class="n">op_registration</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_try_rpc</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_master</span><span class="o">.</span><span class="n">RegisterOp</span><span class="p">(</span>
             <span class="n">op_registration</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_grpc_timeout</span><span class="p">))</span></div>
 
@@ -1198,7 +1207,7 @@
 
         <span class="k">return</span> <span class="n">Profiler</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">job_id</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="Database.wait_on_current_job"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.database.Database.wait_on_current_job">[docs]</a>    <span class="k">def</span> <span class="nf">wait_on_current_job</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">show_progress</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<div class="viewcode-block" id="Database.wait_on_job"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.database.Database.wait_on_job">[docs]</a>    <span class="k">def</span> <span class="nf">wait_on_job</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bulk_job_id</span><span class="p">,</span> <span class="n">show_progress</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
         <span class="n">pbar</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="n">total_tasks</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="n">last_task_count</span> <span class="o">=</span> <span class="mi">0</span>
@@ -1206,8 +1215,10 @@
         <span class="n">last_failed_workers</span> <span class="o">=</span> <span class="mi">0</span>
         <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
             <span class="k">try</span><span class="p">:</span>
+                <span class="n">req</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">protobufs</span><span class="o">.</span><span class="n">GetJobStatusRequest</span><span class="p">()</span>
+                <span class="n">req</span><span class="o">.</span><span class="n">bulk_job_id</span> <span class="o">=</span> <span class="n">bulk_job_id</span>
                 <span class="n">job_status</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_master</span><span class="o">.</span><span class="n">GetJobStatus</span><span class="p">(</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">protobufs</span><span class="o">.</span><span class="n">Empty</span><span class="p">(),</span> <span class="n">timeout</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_grpc_timeout</span><span class="p">)</span>
+                    <span class="n">req</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_grpc_timeout</span><span class="p">)</span>
                 <span class="k">if</span> <span class="n">show_progress</span> <span class="ow">and</span> <span class="n">pbar</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">job_status</span><span class="o">.</span><span class="n">total_jobs</span> <span class="o">!=</span> <span class="mi">0</span> \
                    <span class="ow">and</span> <span class="n">job_status</span><span class="o">.</span><span class="n">total_tasks</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
                     <span class="n">total_tasks</span> <span class="o">=</span> <span class="n">job_status</span><span class="o">.</span><span class="n">total_tasks</span>
@@ -1558,10 +1569,11 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">start_workers</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_worker_paths</span><span class="p">)</span>
 
         <span class="c1"># Run the job</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_try_rpc</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_master</span><span class="o">.</span><span class="n">NewJob</span><span class="p">(</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_try_rpc</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_master</span><span class="o">.</span><span class="n">NewJob</span><span class="p">(</span>
             <span class="n">job_params</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_grpc_timeout</span><span class="p">))</span>
 
-        <span class="n">job_status</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wait_on_current_job</span><span class="p">(</span><span class="n">show_progress</span><span class="p">)</span>
+        <span class="n">bulk_job_id</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">bulk_job_id</span>
+        <span class="n">job_status</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wait_on_job</span><span class="p">(</span><span class="n">bulk_job_id</span><span class="p">,</span> <span class="n">show_progress</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="ow">not</span> <span class="n">job_status</span><span class="o">.</span><span class="n">result</span><span class="o">.</span><span class="n">success</span><span class="p">:</span>
             <span class="k">raise</span> <span class="n">ScannerException</span><span class="p">(</span><span class="n">job_status</span><span class="o">.</span><span class="n">result</span><span class="o">.</span><span class="n">msg</span><span class="p">)</span>
