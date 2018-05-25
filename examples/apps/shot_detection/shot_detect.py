@@ -136,19 +136,6 @@ def main(movie_path):
 
     # Compute partial row montages that we will stack together
     # at the end
-    frame = db.sources.FrameColumn()
-    gather_frame = frame.sample()
-    sliced_frame = gather_frame.slice()
-    montage = db.ops.Montage(
-        frame = sliced_frame,
-        num_frames = row_length * rows_per_item,
-        target_width = target_width,
-        frames_per_row = row_length,
-        device = device)
-    sampled_montage = montage.sample()
-    output = db.sinks.Column(
-        columns={'montage': sampled_montage.unslice().lossless()})
-
     item_size = row_length * rows_per_item
 
     starts_remainder = len(boundaries) % item_size
@@ -156,12 +143,24 @@ def main(movie_path):
     if not evenly_divisible:
         boundaries = boundaries[0:len(boundaries) - starts_remainder]
 
+    frame = db.sources.FrameColumn()
+    gather_frame = db.streams.Gather(frame, boundaries)
+    sliced_frame = db.streams.Slice(
+        gather_frame, partitioner=db.partitioner.all(item_size))
+    montage = db.ops.Montage(
+        frame = sliced_frame,
+        num_frames = row_length * rows_per_item,
+        target_width = target_width,
+        frames_per_row = row_length,
+        device = device)
+    sampled_montage = db.streams.Gather(montage)
+    output = db.sinks.Column(
+        columns={'montage': db.streams.Unslice(sampled_montage).lossless()})
+
     job = Job(op_args={
         frame: movie_table.column('frame'),
-        gather_frame: db.sampler.gather(boundaries),
-        sliced_frame: db.partitioner.all(item_size),
-        sampled_montage: [db.sampler.gather([item_size - 1])
-                          for _ in range(len(boundaries) / item_size)],
+        sampled_montage: [[item_size - 1]
+                          for _ in range(len(boundaries) // item_size)],
         output: 'montage_image'
     })
     [montage_table] = db.run(output=output, jobs=[job], force=True)
