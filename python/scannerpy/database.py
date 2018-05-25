@@ -42,7 +42,7 @@ from scannerpy.kernel import Kernel
 
 from storehouse import StorageConfig, StorageBackend
 
-import scanner_python as bindings
+import scannerpy._python as bindings
 import scanner.metadata_pb2 as metadata_types
 import scanner.engine.rpc_pb2 as rpc_types
 import scanner.engine.rpc_pb2_grpc as grpc_types
@@ -682,7 +682,7 @@ class Database(object):
             EXT = '.so'
         else:
             EXT = '.dylib'
-        self.load_op('libscanner_stdlib' + EXT,
+        self.load_op('__stdlib' + EXT,
                      '{}/../scanner/stdlib/stdlib_pb2.py'.format(SCRIPT_DIR))
 
     def start_workers(self, workers: List[str]):

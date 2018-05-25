@@ -71,8 +71,10 @@ namespace scanner {
     return db.wait_for_server_shutdown();
   }
 
-  PYBIND11_MODULE(scanner_python, m) {
+
+  PYBIND11_MODULE(_python, m) {
     m.doc() = "Scanner C library";
+    m.attr("__name__") = "scannerpy._python";
 
     py::class_<Database>(m, "Database")
       .def(py::init<storehouse::StorageConfig*, const std::string&, const std::string&>())
