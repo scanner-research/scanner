@@ -705,7 +705,7 @@ void MasterServerImpl::LoadOpHandler(MCall<proto::OpPath, Result>* call) {
 
   auto l = std::string("__stdlib").size();
   if (so_path.substr(0, l) == "__stdlib") {
-    so_path = db_params_.python_dir + "/lib/libstdlib" + so_path.substr(l);
+    so_path = db_params_.python_dir + "/lib/libscanner_stdlib" + so_path.substr(l);
   }
 
   for (auto& loaded_path : so_paths_) {
