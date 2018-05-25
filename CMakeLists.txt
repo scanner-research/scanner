@@ -156,3 +156,11 @@ add_subdirectory(stdlib)
 if (BUILD_TESTS)
   add_subdirectory(tests)
 endif()
+
+install(TARGETS scanner
+  EXPORT ScannerTarget
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib)
+
+install(EXPORT ScannerTarget
+  DESTINATION share/scanner)
