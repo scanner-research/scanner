@@ -578,7 +578,7 @@ grpc::Status WorkerImpl::LoadOp(grpc::ServerContext* context,
 
   auto l = std::string("__stdlib").size();
   if (so_path.substr(0, l) == "__stdlib") {
-    so_path = db_params_.python_dir + "/lib/libsstdlib" + so_path.substr(l);
+    so_path = db_params_.python_dir + "/lib/libscanner_stdlib" + so_path.substr(l);
   }
 
   void* handle = dlopen(so_path.c_str(), RTLD_NOW | RTLD_LOCAL);

@@ -32,7 +32,7 @@ else:
 # Copy libraries into pip directory
 LIBRARIES = [
     os.path.join(BUILD_DIR, 'libscanner' + EXT),
-    os.path.join(BUILD_DIR, 'stdlib', 'libstdlib' + EXT)
+    os.path.join(BUILD_DIR, 'stdlib', 'libscanner_stdlib' + EXT)
 ]
 os.makedirs(os.path.join(PIP_DIR, 'scannerpy', 'lib'))
 for library in LIBRARIES:
