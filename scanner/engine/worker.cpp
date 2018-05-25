@@ -576,10 +576,6 @@ grpc::Status WorkerImpl::LoadOp(grpc::ServerContext* context,
   std::string so_path = op_path->path();
   VLOG(1) << "Worker " << node_id_ << " loading Op library: " << so_path;
 
-  if (so_path == "__stdlib") {
-    so_path = db_params_.python_dir + "/libstdlib.so";
-  }
-
   void* handle = dlopen(so_path.c_str(), RTLD_NOW | RTLD_LOCAL);
   LOG_IF(FATAL, handle == nullptr)
       << "dlopen of " << so_path << " failed: " << dlerror();
