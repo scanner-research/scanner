@@ -16,7 +16,7 @@
 #pragma once
 
 #include <grpc/support/log.h>
-#include <grpcpp/alarm.h>
+#include <grpc++/alarm.h>
 #include "scanner/engine/rpc.grpc.pb.h"
 #include "scanner/engine/runtime.h"
 #include "scanner/engine/sampler.h"
