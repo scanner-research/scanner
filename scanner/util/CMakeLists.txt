@@ -30,4 +30,8 @@ add_library(util OBJECT
 if (BUILD_CUDA)
   cuda_add_library(util_cuda
     image.cu)
+  install(TARGETS util_cuda
+    EXPORT ScannerTarget
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib)
 endif()
