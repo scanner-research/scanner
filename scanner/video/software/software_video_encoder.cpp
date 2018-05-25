@@ -166,14 +166,19 @@ bool SoftwareVideoEncoder::feed(const u8* frame_buffer, size_t frame_size) {
   frame_->format = cc_->pix_fmt;
   frame_->width = frame_width_;
   frame_->height = frame_height_;
-  if (av_frame_get_buffer(frame_, 32) < 0) {
+  if (av_frame_get_buffer(frame_, 0) < 0) {
     LOG(FATAL) << "Could not get frame buffer";
   }
+
+  // HACK(apoms): We create this larger buf to deal with swscale potentially
+  // reading up to 16 bytes PAST the end of the frame given frame_size
+  u8* bigger_buf = new u8[frame_size + 256];
+  memcpy(bigger_buf, frame_buffer, frame_size);
 
   uint8_t* out_slices[4];
   int out_linesizes[4];
   int required_size =
-      av_image_fill_arrays(out_slices, out_linesizes, frame_buffer,
+      av_image_fill_arrays(out_slices, out_linesizes, bigger_buf,
                            AV_PIX_FMT_RGB24, frame_width_, frame_height_, 1);
   if (required_size < 0) {
     LOG(FATAL) << "Error in av_image_fill_arrays";
@@ -190,6 +195,8 @@ bool SoftwareVideoEncoder::feed(const u8* frame_buffer, size_t frame_size) {
   if (profiler_) {
     profiler_->add_interval("ffmpeg:scale_frame", scale_start, scale_end);
   }
+
+  delete[] bigger_buf;
 
   frame_->pts = frame_id_++;
   feed_frame(false);
