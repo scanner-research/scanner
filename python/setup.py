@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import setup, find_packages, Extension
 import os
 import os.path
 import shutil
@@ -8,6 +8,7 @@ from sys import platform
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCANNERPY_DIR = os.path.join(SCRIPT_DIR, 'scannerpy')
 SCANNER_DIR = '.'
+ROOT_DIR = '.'
 BUILD_DIR = os.path.join(SCANNER_DIR, 'build')
 PIP_DIR = os.path.join(BUILD_DIR, 'pip')
 
@@ -117,6 +118,19 @@ REQUIRED_PACKAGES = [
 if platform == 'linux' or platform == 'linux2':
     REQUIRED_PACKAGES.append('python-prctl >= 1.7.0')
 
+
+module1 = Extension(
+    'scanner_python',
+    include_dirs = [ROOT_DIR,
+                    os.path.join(ROOT_DIR, 'build'),
+                    os.path.join(ROOT_DIR, 'thirdparty', 'install', 'include')],
+    libraries = ['scanner'],
+    library_dirs = [ROOT_DIR,
+                    os.path.join(ROOT_DIR, 'build'),
+                    os.path.join(ROOT_DIR, 'thirdparty', 'install', 'lib')],
+    sources = [os.path.join(ROOT_DIR, 'scanner/engine/python.cpp')],
+    extra_compile_args=['-std=c++11'])
+
 setup(
     name='scannerpy',
     version='0.0.3',
@@ -133,4 +147,5 @@ setup(
     zip_safe=False,
     license='Apache 2.0',
     keywords='video distributed gpu',
+    ext_modules=[module1],
 )

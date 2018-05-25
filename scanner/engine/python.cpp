@@ -31,9 +31,9 @@ namespace scanner {
   proto::Result start_master_wrapper(Database& db, const std::string& port,
                                      const std::string& python_dir, bool watchdog,
                                      i64 no_workers_timeout) {
-    // HACK(apoms): to fix this issue: https://github.com/pybind/pybind11/issues/1364
-    pybind11::get_shared_data("");
-    py::gil_scoped_release release;
+    // HACK(apoms): we don't call the GIL release here because the db methods are
+    // in a different module and we can't release the GIL until they have initialized
+    // the builtins. To fix this issue: https://github.com/pybind/pybind11/issues/1364
     return db.start_master(default_machine_params(), port, python_dir, watchdog,
                            no_workers_timeout);
   }
@@ -41,10 +41,9 @@ namespace scanner {
   proto::Result start_worker_wrapper(Database& db, const std::string& params_s,
                                      const std::string& port, const std::string& python_dir,
                                      bool watchdog) {
-    // HACK(apoms): to fix this issue: https://github.com/pybind/pybind11/issues/1364
-    pybind11::get_shared_data("");
-    py::gil_scoped_release release;
-
+    // HACK(apoms): we don't call the GIL release here because the db methods are
+    // in a different module and we can't release the GIL until they have initialized
+    // the builtins. To fix this issue: https://github.com/pybind/pybind11/issues/1364
     proto::MachineParameters params_proto;
     params_proto.ParseFromString(params_s);
     MachineParameters params;
@@ -72,7 +71,7 @@ namespace scanner {
     return db.wait_for_server_shutdown();
   }
 
-  PYBIND11_MODULE(libscanner, m) {
+  PYBIND11_MODULE(scanner_python, m) {
     m.doc() = "Scanner C library";
 
     py::class_<Database>(m, "Database")

@@ -110,7 +110,8 @@ foreach (TARGET ${TARGETS})
   add_dependencies(${TARGET} stdlib_proto_files)
 endforeach()
 
-target_link_libraries(stdlib PUBLIC scanner
+target_link_libraries(stdlib PUBLIC
+  scanner
   ${STDLIB_LIBRARIES}
   ${HALIDE_LIBRARY}
   ${Boost_LIBRARIES})
