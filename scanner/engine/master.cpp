@@ -703,10 +703,6 @@ void MasterServerImpl::LoadOpHandler(MCall<proto::OpPath, Result>* call) {
 
   std::unique_lock<std::mutex> lk(work_mutex_);
 
-  if (so_path == "__stdlib") {
-    so_path = db_params_.python_dir + "/libstdlib.so";
-  }
-
   for (auto& loaded_path : so_paths_) {
     if (loaded_path == so_path) {
       LOG(WARNING) << "Master received redundant request to load op " << so_path;

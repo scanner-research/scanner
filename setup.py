@@ -34,9 +34,9 @@ LIBRARIES = [
     os.path.join(BUILD_DIR, 'libscanner' + EXT),
     os.path.join(BUILD_DIR, 'stdlib', 'libstdlib' + EXT)
 ]
-for library in LIBRARIES:
-    name = os.path.splitext(os.path.basename(library))[0]
-    shutil.copyfile(library, os.path.join(PIP_DIR, 'scannerpy', name + '.so'))
+#for library in LIBRARIES:
+#    name = os.path.splitext(os.path.basename(library))[0]
+#    shutil.copyfile(library, os.path.join(PIP_DIR, 'scannerpy', name + '.so'))
 
 
 def copy_partial_tree(from_dir, to_dir, pattern):
@@ -135,7 +135,7 @@ module1 = Extension(
 
 setup(
     name='scannerpy',
-    version='0.0.4',
+    version='0.0.5',
     description='Efficient video analysis at scale',
     long_description='',
     url='https://github.com/scanner-research/scanner',

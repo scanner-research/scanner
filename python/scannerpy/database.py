@@ -678,7 +678,11 @@ class Database(object):
                     'Timed out waiting to connect to master')
 
         # Load stdlib
-        self.load_op('__stdlib',
+        if sys.platform == 'linux' or sys.platform == 'linux2':
+            EXT = '.so'
+        else:
+            EXT = '.dylib'
+        self.load_op('libscanner_stdlib' + EXT,
                      '{}/../scanner/stdlib/stdlib_pb2.py'.format(SCRIPT_DIR))
 
     def start_workers(self, workers: List[str]):

@@ -89,17 +89,17 @@ foreach (TARGET ${TARGETS})
 endforeach()
 
 build_op(
-  LIB_NAME stdlib
+  LIB_NAME scanner_stdlib
   CPP_SRCS ${SOURCES}
   PROTO_SRC stdlib.proto
   NO_FLAGS ON)
-add_dependencies(stdlib scanner)
+add_dependencies(scanner_stdlib scanner)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(libpqxx REQUIRED libpqxx)
 list(APPEND STDLIB_LIBRARIES "${libpqxx_LIBRARY_DIRS}/libpqxx.a" pq)
 
-add_custom_command(TARGET stdlib POST_BUILD
+add_custom_command(TARGET scanner_stdlib POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/__init__.py)
 
 find_package(OpenCV REQUIRED COMPONENTS "${OPENCV_COMPONENTS}")
@@ -107,11 +107,16 @@ list(APPEND STDLIB_LIBRARIES "${OpenCV_LIBRARIES}")
 
 foreach (TARGET ${TARGETS})
   target_include_directories(${TARGET} PUBLIC ${OpenCV_INCLUDE_DIRS})
-  add_dependencies(${TARGET} stdlib_proto_files)
+  add_dependencies(${TARGET} scanner_stdlib_proto_files)
 endforeach()
 
-target_link_libraries(stdlib PUBLIC
+target_link_libraries(scanner_stdlib PUBLIC
   scanner
   ${STDLIB_LIBRARIES}
   ${HALIDE_LIBRARY}
   ${Boost_LIBRARIES})
+
+install(TARGETS scanner_stdlib
+  EXPORT ScannerTarget
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib)
