@@ -5,16 +5,18 @@ import shutil
 import glob
 from sys import platform
 
-SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-SCANNERPY_DIR = os.path.join(SCRIPT_DIR, 'scannerpy')
-SCANNER_DIR = '.'
-ROOT_DIR = '.'
+SCRIPT_DIR = '.'
+PYTHON_DIR = os.path.join(SCRIPT_DIR, 'python')
+SCANNERPY_DIR = os.path.join(SCRIPT_DIR, 'python', 'scannerpy')
+SCANNER_DIR = os.path.join(SCRIPT_DIR, '.')
+ROOT_DIR = SCANNER_DIR
 BUILD_DIR = os.path.join(SCANNER_DIR, 'build')
 PIP_DIR = os.path.join(BUILD_DIR, 'pip')
 
 # Make a pip directory in the build directory
+print(PYTHON_DIR, PIP_DIR)
 shutil.rmtree(PIP_DIR, ignore_errors=True)
-shutil.copytree(SCRIPT_DIR, PIP_DIR)
+shutil.copytree(PYTHON_DIR, PIP_DIR)
 #os.makedirs(PIP_DIR)
 #os.makedirs(PIP_DIR + '/scanner')
 #os.makedirs(PIP_DIR + '/scanner/stdlib')
