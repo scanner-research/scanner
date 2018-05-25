@@ -34,9 +34,10 @@ LIBRARIES = [
     os.path.join(BUILD_DIR, 'libscanner' + EXT),
     os.path.join(BUILD_DIR, 'stdlib', 'libstdlib' + EXT)
 ]
-#for library in LIBRARIES:
-#    name = os.path.splitext(os.path.basename(library))[0]
-#    shutil.copyfile(library, os.path.join(PIP_DIR, 'scannerpy', name + '.so'))
+os.makedirs(os.path.join(PIP_DIR, 'scannerpy', 'lib'))
+for library in LIBRARIES:
+    name = os.path.splitext(os.path.basename(library))[0]
+    shutil.copyfile(library, os.path.join(PIP_DIR, 'scannerpy', 'lib', name + EXT))
 
 
 def copy_partial_tree(from_dir, to_dir, pattern):
@@ -108,7 +109,7 @@ include_files = glob_files(
     os.path.join(PIP_DIR, 'scannerpy', 'include'), 'include')
 
 package_data = {
-    'scannerpy': ['./*.so', './*' + EXT] + include_files + cmake_files
+    'scannerpy': ['lib/*.so', 'lib/*' + EXT] + include_files + cmake_files
 }
 
 REQUIRED_PACKAGES = [
@@ -122,7 +123,7 @@ if platform == 'linux' or platform == 'linux2':
 
 
 module1 = Extension(
-    'scanner_python',
+    'scannerpy._python',
     include_dirs = [ROOT_DIR,
                     os.path.join(ROOT_DIR, 'build'),
                     os.path.join(ROOT_DIR, 'thirdparty', 'install', 'include')],

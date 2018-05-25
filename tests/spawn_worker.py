@@ -8,7 +8,7 @@ c = Config(None)
 import scanner.metadata_pb2 as metadata_types
 import scanner.engine.rpc_pb2 as rpc_types
 import scanner.types_pb2 as misc_types
-import scannerpy.libscanner as bindings
+import scannerpy._python as bindings
 
 con = Config(config_path='/tmp/config_test')
 protobufs = ProtobufGenerator(con)
