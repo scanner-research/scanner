@@ -1058,7 +1058,6 @@ def test_fault_tolerance(fault_db):
         import scanner.metadata_pb2 as metadata_types
         import scanner.engine.rpc_pb2 as rpc_types
         import scanner.types_pb2 as misc_types
-        import scannerpy.libscanner as bindings
 
         protobufs = ProtobufGenerator(config)
 
