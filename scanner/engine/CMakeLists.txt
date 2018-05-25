@@ -24,7 +24,6 @@ set(SOURCE_FILES
   column_sink.cpp
   enumerator_registry.cpp
   table_meta_cache.cpp
-  python.cpp
   python_kernel.cpp
   sample_op.cpp
   space_op.cpp

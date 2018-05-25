@@ -15,7 +15,7 @@ else
 fi
 
 pushd build
-if make -j$cores; then
+if make install -j$cores; then
     popd
     if rm -rf dist && \
         python3 python/setup.py bdist_wheel;
