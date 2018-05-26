@@ -454,16 +454,12 @@ void MasterServerImpl::RegisterWorkerHandler(
     i32 node_id = next_worker_id_++;
     VLOG(1) << "Adding worker: " << node_id << ", " << worker_address;
     std::shared_ptr<WorkerState> worker_state(new WorkerState());
-    VLOG(1) << "before build stuby";
     worker_state->stub = proto::Worker::NewStub(grpc::CreateChannel(
         worker_address, grpc::InsecureChannelCredentials()));
-    VLOG(1) << "after build stuby";
     registration->set_node_id(node_id);
     worker_state->address = worker_address;
     worker_state->active = true;
     worker_state->id = node_id;
-
-    VLOG(1) << "start load ops";
 
     // Load ops into worker
     for (const std::string& so_path : so_paths_) {
@@ -487,8 +483,6 @@ void MasterServerImpl::RegisterWorkerHandler(
           << status.error_code() << "): " << status.error_message();
     }
 
-    VLOG(1) << "finisehd load ops";
-
     // Register Ops on worker
     for (auto& reg : op_registrations_) {
       grpc::ClientContext ctx;
@@ -508,7 +502,6 @@ void MasterServerImpl::RegisterWorkerHandler(
           << "Master could not register op for worker at " << worker_address
           << " (" << status.error_code() << "): " << status.error_message();
     };
-    VLOG(1) << "finisehd register ops";
 
     // Register Python Kernels on worker
     for (auto& reg : py_kernel_registrations_) {
@@ -529,11 +522,9 @@ void MasterServerImpl::RegisterWorkerHandler(
           << worker_address << " (" << status.error_code()
           << "): " << status.error_message();
     };
-    VLOG(1) << "finisehd register kernesl";
 
     workers_[node_id] = worker_state;
 
-    VLOG(1) << "locking active in register worker";
     std::unique_lock<std::mutex> lock(active_mutex_);
     if (active_bulk_job_) {
       auto& state = bulk_jobs_state_.at(active_bulk_job_id_);
@@ -954,6 +945,7 @@ void MasterServerImpl::GetJobStatusHandler(
     auto request = &call->request;
     auto reply = &call->reply;
 
+    std::unique_lock<std::mutex> l(work_mutex_);
     if (bulk_jobs_state_.count(request->bulk_job_id()) == 0) {
       LOG(WARNING)
           << "GetJobStatus received request for non-existent bulk job id: "
@@ -1471,9 +1463,9 @@ void MasterServerImpl::stop_job_processor() {
 }
 
 bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
-                             proto::Result* job_result) {
+                                   proto::Result* job_result) {
   i32 bulk_job_id = active_bulk_job_id_;
-  std::shared_ptr<BulkJob> state(new BulkJob());
+  std::shared_ptr<BulkJob> state(new BulkJob);
   {
     std::unique_lock<std::mutex> l(work_mutex_);
     bulk_jobs_state_[bulk_job_id] = state;
@@ -1878,7 +1870,8 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
       auto current_time = std::chrono::duration_cast<std::chrono::seconds>(
                               now().time_since_epoch())
                               .count();
-      for (const auto& kv : state->active_job_tasks_starts) {
+      auto& jts = state->active_job_tasks_starts;
+      for (const auto& kv : jts) {
         if (current_time - kv.second > state->job_params.task_timeout()) {
           i64 worker_id;
           i64 job_id;
@@ -1892,6 +1885,9 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
                        << " seconds. Removing that worker as an active worker.";
           remove_worker(worker_id);
           state->num_failed_workers++;
+          // NOTE(apoms): We must break here because remove_worker modifies
+          // state->active_job_tasks_starts, thus invalidating our pointer
+          break;
         }
       }
     }
@@ -1962,7 +1958,11 @@ void MasterServerImpl::start_worker_pinger() {
   VLOG(1) << "Starting worker pinger";
   pinger_active_ = true;
   pinger_thread_ = std::thread([this]() {
-    auto& state = bulk_jobs_state_.at(active_bulk_job_id_);
+    std::shared_ptr<BulkJob> state;
+    {
+      std::unique_lock<std::mutex> l(work_mutex_);
+      state = bulk_jobs_state_.at(active_bulk_job_id_);
+    }
     while (pinger_active_) {
       std::map<i32, proto::Worker::Stub*> ws;
       {
