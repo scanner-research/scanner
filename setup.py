@@ -14,12 +14,11 @@ BUILD_DIR = os.path.join(SCANNER_DIR, 'build')
 PIP_DIR = os.path.join(BUILD_DIR, 'pip')
 
 # Make a pip directory in the build directory
-print(PYTHON_DIR, PIP_DIR)
 shutil.rmtree(PIP_DIR, ignore_errors=True)
 shutil.copytree(PYTHON_DIR, PIP_DIR)
-#os.makedirs(PIP_DIR)
-#os.makedirs(PIP_DIR + '/scanner')
-#os.makedirs(PIP_DIR + '/scanner/stdlib')
+#os.makedirs(PIP_DIR, exist_ok=True)
+#os.makedirs(PIP_DIR + '/scanner', exist_ok=True)
+#os.makedirs(PIP_DIR + '/scanner/stdlib', exist_ok=True)
 
 # Copy python into pip directory
 #shutil.copytree(SCANNERPY_DIR, PIP_DIR + '/scannerpy')

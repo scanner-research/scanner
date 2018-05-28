@@ -166,7 +166,11 @@ bool SoftwareVideoEncoder::feed(const u8* frame_buffer, size_t frame_size) {
   frame_->format = cc_->pix_fmt;
   frame_->width = frame_width_;
   frame_->height = frame_height_;
-  if (av_frame_get_buffer(frame_, 0) < 0) {
+  // NOTE(apoms): Although the ffmpeg docs say that setting 'align' on
+  // av_frame_get_buffer to 0 is recommended, it causes ffmpeg on linux
+  // to return empty data and linesize buffers for frame_. Therefore,
+  // we set the alignment to 64 bytes here.
+  if (av_frame_get_buffer(frame_, 64) < 0) {
     LOG(FATAL) << "Could not get frame buffer";
   }
 
