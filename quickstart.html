@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="_static/readable.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <link rel="stylesheet" href="_static/custom.css" type="text/css" />
-    <script type="text/javascript" src="_static/documentation_options.js"></script>
+    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
     <script type="text/javascript" src="_static/jquery.js"></script>
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
@@ -33,9 +33,6 @@
         <li class="right" style="margin-right: 10px">
           <a href="genindex.html" title="General Index"
              accesskey="I">index</a></li>
-        <li class="right" >
-          <a href="py-modindex.html" title="Python Module Index"
-             >modules</a> |</li>
         <li class="right" >
           <a href="walkthrough.html" title="Interactive Jupyter Walkthrough"
              accesskey="N">next</a> |</li>
@@ -68,7 +65,7 @@ python3 main.py
 <p>After <code class="code docutils literal notranslate"><span class="pre">main.py</span></code> exits, you should now have a resized version of <code class="code docutils literal notranslate"><span class="pre">sample-clip.mp4</span></code> named <code class="code docutils literal notranslate"><span class="pre">sample-clip-resized.mp4</span></code> in the current directory. Let’s see how that happened by looking inside <code class="code docutils literal notranslate"><span class="pre">main.py</span></code>.</p>
 <div class="section" id="starting-up-scanner">
 <h2>Starting up Scanner<a class="headerlink" href="#starting-up-scanner" title="Permalink to this headline">¶</a></h2>
-<p>The first step in any Scanner program is to create a <a class="reference internal" href="api/scannerpy.html#scannerpy.database.Database" title="scannerpy.database.Database"><code class="xref py py-class docutils literal notranslate"><span class="pre">Database</span></code></a> object. The <a class="reference internal" href="api/scannerpy.html#scannerpy.database.Database" title="scannerpy.database.Database"><code class="xref py py-class docutils literal notranslate"><span class="pre">Database</span></code></a> object manages videos or other data that you have may have stored from data processing you’ve done in the past. The Database object also provides the API to construct and execute new video processing jobs.</p>
+<p>The first step in any Scanner program is to create a <code class="xref py py-class docutils literal notranslate"><span class="pre">Database</span></code> object. The <code class="xref py py-class docutils literal notranslate"><span class="pre">Database</span></code> object manages videos or other data that you have may have stored from data processing you’ve done in the past. The Database object also provides the API to construct and execute new video processing jobs.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">scannerpy</span> <span class="kn">import</span> <span class="n">Database</span><span class="p">,</span> <span class="n">Job</span>
 
 <span class="n">db</span> <span class="o">=</span> <span class="n">Database</span><span class="p">()</span>
@@ -81,7 +78,7 @@ python3 main.py
 .. code-block:: python</p>
 <blockquote>
 <div>db.ingest_videos([(‘table_name’, ‘example.mp4’)])</div></blockquote>
-<p>Scanner analyzes the file to build the index and creates a <a class="reference internal" href="api/scannerpy.html#scannerpy.table.Table" title="scannerpy.table.Table"><code class="xref py py-class docutils literal notranslate"><span class="pre">Table</span></code></a> for that video in the Scanner database called <code class="code docutils literal notranslate"><span class="pre">table_name</span></code>. You can see the contents of the database by running:</p>
+<p>Scanner analyzes the file to build the index and creates a <code class="xref py py-class docutils literal notranslate"><span class="pre">Table</span></code> for that video in the Scanner database called <code class="code docutils literal notranslate"><span class="pre">table_name</span></code>. You can see the contents of the database by running:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">print</span><span class="p">(</span><span class="n">db</span><span class="o">.</span><span class="n">summarize</span><span class="p">())</span>
 <span class="go">                      ** TABLES **</span>
 <span class="go">---------------------------------------------------</span>
@@ -363,7 +360,7 @@ python3 main-multi-video.py
     </div>
   <div class="footer">
     &copy; Copyright 2018, Alex Poms, Will Crichton.
-    Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.7.4.
+    Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.7.5.
   </div>
   
   </body>

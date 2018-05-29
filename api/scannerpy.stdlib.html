@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="../_static/readable.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
-    <script type="text/javascript" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
@@ -31,9 +31,6 @@
         <li class="right" style="margin-right: 10px">
           <a href="../genindex.html" title="General Index"
              accesskey="I">index</a></li>
-        <li class="right" >
-          <a href="../py-modindex.html" title="Python Module Index"
-             >modules</a> |</li>
         <li class="nav-item nav-item-0"><a href="../index.html">Scanner 0.0.1 documentation</a> &#187;</li> 
       </ul>
     </div>  
@@ -52,429 +49,44 @@
 <div class="section" id="scannerpy-stdlib-bbox-nms-kernel-module">
 <h2>scannerpy.stdlib.bbox_nms_kernel module<a class="headerlink" href="#scannerpy-stdlib-bbox-nms-kernel-module" title="Permalink to this headline">¶</a></h2>
 </div>
-<div class="section" id="module-scannerpy.stdlib.bboxes">
-<span id="scannerpy-stdlib-bboxes-module"></span><h2>scannerpy.stdlib.bboxes module<a class="headerlink" href="#module-scannerpy.stdlib.bboxes" title="Permalink to this headline">¶</a></h2>
-<dl class="function">
-<dt id="scannerpy.stdlib.bboxes.iou">
-<code class="descclassname">scannerpy.stdlib.bboxes.</code><code class="descname">iou</code><span class="sig-paren">(</span><em>bbox_a</em>, <em>bbox_b</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/bboxes.html#iou"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.bboxes.iou" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="function">
-<dt id="scannerpy.stdlib.bboxes.nms">
-<code class="descclassname">scannerpy.stdlib.bboxes.</code><code class="descname">nms</code><span class="sig-paren">(</span><em>orig_boxes</em>, <em>overlapThresh</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/bboxes.html#nms"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.bboxes.nms" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="function">
-<dt id="scannerpy.stdlib.bboxes.proto_to_np">
-<code class="descclassname">scannerpy.stdlib.bboxes.</code><code class="descname">proto_to_np</code><span class="sig-paren">(</span><em>bboxes</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/bboxes.html#proto_to_np"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.bboxes.proto_to_np" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
+<div class="section" id="scannerpy-stdlib-bboxes-module">
+<h2>scannerpy.stdlib.bboxes module<a class="headerlink" href="#scannerpy-stdlib-bboxes-module" title="Permalink to this headline">¶</a></h2>
 </div>
-<div class="section" id="module-scannerpy.stdlib.build_flags">
-<span id="scannerpy-stdlib-build-flags-module"></span><h2>scannerpy.stdlib.build_flags module<a class="headerlink" href="#module-scannerpy.stdlib.build_flags" title="Permalink to this headline">¶</a></h2>
-<dl class="function">
-<dt id="scannerpy.stdlib.build_flags.get_cmake">
-<code class="descclassname">scannerpy.stdlib.build_flags.</code><code class="descname">get_cmake</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/build_flags.html#get_cmake"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.build_flags.get_cmake" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="function">
-<dt id="scannerpy.stdlib.build_flags.get_flags">
-<code class="descclassname">scannerpy.stdlib.build_flags.</code><code class="descname">get_flags</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/build_flags.html#get_flags"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.build_flags.get_flags" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="function">
-<dt id="scannerpy.stdlib.build_flags.get_include">
-<code class="descclassname">scannerpy.stdlib.build_flags.</code><code class="descname">get_include</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/build_flags.html#get_include"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.build_flags.get_include" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="function">
-<dt id="scannerpy.stdlib.build_flags.get_lib">
-<code class="descclassname">scannerpy.stdlib.build_flags.</code><code class="descname">get_lib</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/build_flags.html#get_lib"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.build_flags.get_lib" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="function">
-<dt id="scannerpy.stdlib.build_flags.print_cmake">
-<code class="descclassname">scannerpy.stdlib.build_flags.</code><code class="descname">print_cmake</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/build_flags.html#print_cmake"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.build_flags.print_cmake" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="function">
-<dt id="scannerpy.stdlib.build_flags.print_flags">
-<code class="descclassname">scannerpy.stdlib.build_flags.</code><code class="descname">print_flags</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/build_flags.html#print_flags"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.build_flags.print_flags" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="function">
-<dt id="scannerpy.stdlib.build_flags.print_include">
-<code class="descclassname">scannerpy.stdlib.build_flags.</code><code class="descname">print_include</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/build_flags.html#print_include"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.build_flags.print_include" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="function">
-<dt id="scannerpy.stdlib.build_flags.print_lib">
-<code class="descclassname">scannerpy.stdlib.build_flags.</code><code class="descname">print_lib</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/build_flags.html#print_lib"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.build_flags.print_lib" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
+<div class="section" id="scannerpy-stdlib-build-flags-module">
+<h2>scannerpy.stdlib.build_flags module<a class="headerlink" href="#scannerpy-stdlib-build-flags-module" title="Permalink to this headline">¶</a></h2>
 </div>
 <div class="section" id="scannerpy-stdlib-loaders-module">
 <h2>scannerpy.stdlib.loaders module<a class="headerlink" href="#scannerpy-stdlib-loaders-module" title="Permalink to this headline">¶</a></h2>
 </div>
-<div class="section" id="module-scannerpy.stdlib.montage">
-<span id="scannerpy-stdlib-montage-module"></span><h2>scannerpy.stdlib.montage module<a class="headerlink" href="#module-scannerpy.stdlib.montage" title="Permalink to this headline">¶</a></h2>
-<dl class="function">
-<dt id="scannerpy.stdlib.montage.make_montage">
-<code class="descclassname">scannerpy.stdlib.montage.</code><code class="descname">make_montage</code><span class="sig-paren">(</span><em>n</em>, <em>frames</em>, <em>frame_width=64</em>, <em>frames_per_row=16</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/montage.html#make_montage"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.montage.make_montage" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
+<div class="section" id="scannerpy-stdlib-montage-module">
+<h2>scannerpy.stdlib.montage module<a class="headerlink" href="#scannerpy-stdlib-montage-module" title="Permalink to this headline">¶</a></h2>
 </div>
-<div class="section" id="module-scannerpy.stdlib.net_descriptor">
-<span id="scannerpy-stdlib-net-descriptor-module"></span><h2>scannerpy.stdlib.net_descriptor module<a class="headerlink" href="#module-scannerpy.stdlib.net_descriptor" title="Permalink to this headline">¶</a></h2>
-<dl class="class">
-<dt id="scannerpy.stdlib.net_descriptor.NetDescriptor">
-<em class="property">class </em><code class="descclassname">scannerpy.stdlib.net_descriptor.</code><code class="descname">NetDescriptor</code><span class="sig-paren">(</span><em>db</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/net_descriptor.html#NetDescriptor"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.net_descriptor.NetDescriptor" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
-<dl class="method">
-<dt id="scannerpy.stdlib.net_descriptor.NetDescriptor.as_proto">
-<code class="descname">as_proto</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/net_descriptor.html#NetDescriptor.as_proto"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.net_descriptor.NetDescriptor.as_proto" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="classmethod">
-<dt id="scannerpy.stdlib.net_descriptor.NetDescriptor.from_file">
-<em class="property">classmethod </em><code class="descname">from_file</code><span class="sig-paren">(</span><em>db</em>, <em>path</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/net_descriptor.html#NetDescriptor.from_file"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.net_descriptor.NetDescriptor.from_file" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.net_descriptor.NetDescriptor.input_height">
-<code class="descname">input_height</code><a class="headerlink" href="#scannerpy.stdlib.net_descriptor.NetDescriptor.input_height" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.net_descriptor.NetDescriptor.input_layer_names">
-<code class="descname">input_layer_names</code><a class="headerlink" href="#scannerpy.stdlib.net_descriptor.NetDescriptor.input_layer_names" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.net_descriptor.NetDescriptor.input_width">
-<code class="descname">input_width</code><a class="headerlink" href="#scannerpy.stdlib.net_descriptor.NetDescriptor.input_width" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.net_descriptor.NetDescriptor.mean_colors">
-<code class="descname">mean_colors</code><a class="headerlink" href="#scannerpy.stdlib.net_descriptor.NetDescriptor.mean_colors" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.net_descriptor.NetDescriptor.model_path">
-<code class="descname">model_path</code><a class="headerlink" href="#scannerpy.stdlib.net_descriptor.NetDescriptor.model_path" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.net_descriptor.NetDescriptor.model_weights_path">
-<code class="descname">model_weights_path</code><a class="headerlink" href="#scannerpy.stdlib.net_descriptor.NetDescriptor.model_weights_path" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.net_descriptor.NetDescriptor.normalize">
-<code class="descname">normalize</code><a class="headerlink" href="#scannerpy.stdlib.net_descriptor.NetDescriptor.normalize" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.net_descriptor.NetDescriptor.output_layer_names">
-<code class="descname">output_layer_names</code><a class="headerlink" href="#scannerpy.stdlib.net_descriptor.NetDescriptor.output_layer_names" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.net_descriptor.NetDescriptor.pad_mod">
-<code class="descname">pad_mod</code><a class="headerlink" href="#scannerpy.stdlib.net_descriptor.NetDescriptor.pad_mod" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.net_descriptor.NetDescriptor.preserve_aspect_ratio">
-<code class="descname">preserve_aspect_ratio</code><a class="headerlink" href="#scannerpy.stdlib.net_descriptor.NetDescriptor.preserve_aspect_ratio" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.net_descriptor.NetDescriptor.transpose">
-<code class="descname">transpose</code><a class="headerlink" href="#scannerpy.stdlib.net_descriptor.NetDescriptor.transpose" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.net_descriptor.NetDescriptor.uses_python">
-<code class="descname">uses_python</code><a class="headerlink" href="#scannerpy.stdlib.net_descriptor.NetDescriptor.uses_python" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-</dd></dl>
-
+<div class="section" id="scannerpy-stdlib-net-descriptor-module">
+<h2>scannerpy.stdlib.net_descriptor module<a class="headerlink" href="#scannerpy-stdlib-net-descriptor-module" title="Permalink to this headline">¶</a></h2>
 </div>
 <div class="section" id="scannerpy-stdlib-parsers-module">
 <h2>scannerpy.stdlib.parsers module<a class="headerlink" href="#scannerpy-stdlib-parsers-module" title="Permalink to this headline">¶</a></h2>
 </div>
-<div class="section" id="module-scannerpy.stdlib.pipelines">
-<span id="scannerpy-stdlib-pipelines-module"></span><h2>scannerpy.stdlib.pipelines module<a class="headerlink" href="#module-scannerpy.stdlib.pipelines" title="Permalink to this headline">¶</a></h2>
-<dl class="class">
-<dt id="scannerpy.stdlib.pipelines.BBoxNMS">
-<em class="property">class </em><code class="descclassname">scannerpy.stdlib.pipelines.</code><code class="descname">BBoxNMS</code><span class="sig-paren">(</span><em>config</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/pipelines.html#BBoxNMS"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.pipelines.BBoxNMS" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="scannerpy.html#scannerpy.kernel.Kernel" title="scannerpy.kernel.Kernel"><code class="xref py py-class docutils literal notranslate"><span class="pre">scannerpy.kernel.Kernel</span></code></a></p>
-<dl class="method">
-<dt id="scannerpy.stdlib.pipelines.BBoxNMS.close">
-<code class="descname">close</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/pipelines.html#BBoxNMS.close"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.pipelines.BBoxNMS.close" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="method">
-<dt id="scannerpy.stdlib.pipelines.BBoxNMS.execute">
-<code class="descname">execute</code><span class="sig-paren">(</span><em>*inputs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/pipelines.html#BBoxNMS.execute"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.pipelines.BBoxNMS.execute" title="Permalink to this definition">¶</a></dt>
-<dd><table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bytes</span></code></a></td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="function">
-<dt id="scannerpy.stdlib.pipelines.detect_faces">
-<code class="descclassname">scannerpy.stdlib.pipelines.</code><code class="descname">detect_faces</code><span class="sig-paren">(</span><em>db</em>, <em>input_frame_columns</em>, <em>output_sampler</em>, <em>output_sampler_args</em>, <em>output_names</em>, <em>width=960</em>, <em>prototxt_path=None</em>, <em>model_weights_path=None</em>, <em>templates_path=None</em>, <em>return_profiling=False</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/pipelines.html#detect_faces"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.pipelines.detect_faces" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="function">
-<dt id="scannerpy.stdlib.pipelines.detect_poses">
-<code class="descclassname">scannerpy.stdlib.pipelines.</code><code class="descname">detect_poses</code><span class="sig-paren">(</span><em>db</em>, <em>input_frame_columns</em>, <em>output_sampler</em>, <em>output_sampler_args</em>, <em>output_name</em>, <em>batch=1</em>, <em>models_path=None</em>, <em>pose_model_weights_path=None</em>, <em>hand_prototxt_path=None</em>, <em>hand_model_weights_path=None</em>, <em>face_prototxt_path=None</em>, <em>face_model_weights_path=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/pipelines.html#detect_poses"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.pipelines.detect_poses" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
+<div class="section" id="scannerpy-stdlib-pipelines-module">
+<h2>scannerpy.stdlib.pipelines module<a class="headerlink" href="#scannerpy-stdlib-pipelines-module" title="Permalink to this headline">¶</a></h2>
 </div>
-<div class="section" id="module-scannerpy.stdlib.pose_nms_kernel">
-<span id="scannerpy-stdlib-pose-nms-kernel-module"></span><h2>scannerpy.stdlib.pose_nms_kernel module<a class="headerlink" href="#module-scannerpy.stdlib.pose_nms_kernel" title="Permalink to this headline">¶</a></h2>
-<dl class="class">
-<dt id="scannerpy.stdlib.pose_nms_kernel.PoseNMSKernel">
-<em class="property">class </em><code class="descclassname">scannerpy.stdlib.pose_nms_kernel.</code><code class="descname">PoseNMSKernel</code><span class="sig-paren">(</span><em>config</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/pose_nms_kernel.html#PoseNMSKernel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.pose_nms_kernel.PoseNMSKernel" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="scannerpy.html#scannerpy.kernel.Kernel" title="scannerpy.kernel.Kernel"><code class="xref py py-class docutils literal notranslate"><span class="pre">scannerpy.kernel.Kernel</span></code></a></p>
-<dl class="method">
-<dt id="scannerpy.stdlib.pose_nms_kernel.PoseNMSKernel.close">
-<code class="descname">close</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/pose_nms_kernel.html#PoseNMSKernel.close"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.pose_nms_kernel.PoseNMSKernel.close" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="method">
-<dt id="scannerpy.stdlib.pose_nms_kernel.PoseNMSKernel.execute">
-<code class="descname">execute</code><span class="sig-paren">(</span><em>*inputs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/pose_nms_kernel.html#PoseNMSKernel.execute"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.pose_nms_kernel.PoseNMSKernel.execute" title="Permalink to this definition">¶</a></dt>
-<dd><table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bytes</span></code></a></td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-</dd></dl>
-
+<div class="section" id="scannerpy-stdlib-pose-nms-kernel-module">
+<h2>scannerpy.stdlib.pose_nms_kernel module<a class="headerlink" href="#scannerpy-stdlib-pose-nms-kernel-module" title="Permalink to this headline">¶</a></h2>
 </div>
-<div class="section" id="module-scannerpy.stdlib.poses">
-<span id="scannerpy-stdlib-poses-module"></span><h2>scannerpy.stdlib.poses module<a class="headerlink" href="#module-scannerpy.stdlib.poses" title="Permalink to this headline">¶</a></h2>
-<dl class="class">
-<dt id="scannerpy.stdlib.poses.Pose">
-<em class="property">class </em><code class="descclassname">scannerpy.stdlib.poses.</code><code class="descname">Pose</code><a class="reference internal" href="../_modules/scannerpy/stdlib/poses.html#Pose"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.poses.Pose" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
-<dl class="attribute">
-<dt id="scannerpy.stdlib.poses.Pose.Background">
-<code class="descname">Background</code><em class="property"> = 18</em><a class="headerlink" href="#scannerpy.stdlib.poses.Pose.Background" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.poses.Pose.DRAW_COLORS">
-<code class="descname">DRAW_COLORS</code><em class="property"> = [[255, 0, 85], [255, 0, 0], [255, 85, 0], [255, 170, 0], [255, 255, 0], [170, 255, 0], [85, 255, 0], [0, 255, 0], [0, 255, 85], [0, 255, 170], [0, 255, 255], [0, 170, 255], [0, 85, 255], [0, 0, 255], [255, 0, 170], [170, 0, 255], [255, 0, 255], [85, 0, 255]]</em><a class="headerlink" href="#scannerpy.stdlib.poses.Pose.DRAW_COLORS" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.poses.Pose.DRAW_PAIRS">
-<code class="descname">DRAW_PAIRS</code><em class="property"> = [[1, 2], [1, 5], [2, 3], [3, 4], [5, 6], [6, 7], [1, 8], [8, 9], [9, 10], [1, 11], [11, 12], [12, 13], [1, 0], [0, 14], [14, 16], [0, 15], [15, 17]]</em><a class="headerlink" href="#scannerpy.stdlib.poses.Pose.DRAW_PAIRS" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.poses.Pose.FACE_KEYPOINTS">
-<code class="descname">FACE_KEYPOINTS</code><em class="property"> = 70</em><a class="headerlink" href="#scannerpy.stdlib.poses.Pose.FACE_KEYPOINTS" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.poses.Pose.HAND_KEYPOINTS">
-<code class="descname">HAND_KEYPOINTS</code><em class="property"> = 21</em><a class="headerlink" href="#scannerpy.stdlib.poses.Pose.HAND_KEYPOINTS" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.poses.Pose.LAnkle">
-<code class="descname">LAnkle</code><em class="property"> = 13</em><a class="headerlink" href="#scannerpy.stdlib.poses.Pose.LAnkle" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.poses.Pose.LEar">
-<code class="descname">LEar</code><em class="property"> = 17</em><a class="headerlink" href="#scannerpy.stdlib.poses.Pose.LEar" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.poses.Pose.LElbow">
-<code class="descname">LElbow</code><em class="property"> = 6</em><a class="headerlink" href="#scannerpy.stdlib.poses.Pose.LElbow" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.poses.Pose.LEye">
-<code class="descname">LEye</code><em class="property"> = 15</em><a class="headerlink" href="#scannerpy.stdlib.poses.Pose.LEye" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.poses.Pose.LHip">
-<code class="descname">LHip</code><em class="property"> = 11</em><a class="headerlink" href="#scannerpy.stdlib.poses.Pose.LHip" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.poses.Pose.LKnee">
-<code class="descname">LKnee</code><em class="property"> = 12</em><a class="headerlink" href="#scannerpy.stdlib.poses.Pose.LKnee" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.poses.Pose.LShoulder">
-<code class="descname">LShoulder</code><em class="property"> = 5</em><a class="headerlink" href="#scannerpy.stdlib.poses.Pose.LShoulder" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.poses.Pose.LWrist">
-<code class="descname">LWrist</code><em class="property"> = 7</em><a class="headerlink" href="#scannerpy.stdlib.poses.Pose.LWrist" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.poses.Pose.Neck">
-<code class="descname">Neck</code><em class="property"> = 1</em><a class="headerlink" href="#scannerpy.stdlib.poses.Pose.Neck" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.poses.Pose.Nose">
-<code class="descname">Nose</code><em class="property"> = 0</em><a class="headerlink" href="#scannerpy.stdlib.poses.Pose.Nose" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.poses.Pose.POSE_KEYPOINTS">
-<code class="descname">POSE_KEYPOINTS</code><em class="property"> = 18</em><a class="headerlink" href="#scannerpy.stdlib.poses.Pose.POSE_KEYPOINTS" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.poses.Pose.RAnkle">
-<code class="descname">RAnkle</code><em class="property"> = 10</em><a class="headerlink" href="#scannerpy.stdlib.poses.Pose.RAnkle" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.poses.Pose.REar">
-<code class="descname">REar</code><em class="property"> = 16</em><a class="headerlink" href="#scannerpy.stdlib.poses.Pose.REar" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.poses.Pose.RElbow">
-<code class="descname">RElbow</code><em class="property"> = 3</em><a class="headerlink" href="#scannerpy.stdlib.poses.Pose.RElbow" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.poses.Pose.REye">
-<code class="descname">REye</code><em class="property"> = 14</em><a class="headerlink" href="#scannerpy.stdlib.poses.Pose.REye" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.poses.Pose.RHip">
-<code class="descname">RHip</code><em class="property"> = 8</em><a class="headerlink" href="#scannerpy.stdlib.poses.Pose.RHip" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.poses.Pose.RKnee">
-<code class="descname">RKnee</code><em class="property"> = 9</em><a class="headerlink" href="#scannerpy.stdlib.poses.Pose.RKnee" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.poses.Pose.RShoulder">
-<code class="descname">RShoulder</code><em class="property"> = 2</em><a class="headerlink" href="#scannerpy.stdlib.poses.Pose.RShoulder" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="scannerpy.stdlib.poses.Pose.RWrist">
-<code class="descname">RWrist</code><em class="property"> = 4</em><a class="headerlink" href="#scannerpy.stdlib.poses.Pose.RWrist" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="method">
-<dt id="scannerpy.stdlib.poses.Pose.draw">
-<code class="descname">draw</code><span class="sig-paren">(</span><em>img</em>, <em>thickness=5</em>, <em>draw_threshold=0.05</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/poses.html#Pose.draw"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.poses.Pose.draw" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="method">
-<dt id="scannerpy.stdlib.poses.Pose.face_bbox">
-<code class="descname">face_bbox</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/poses.html#Pose.face_bbox"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.poses.Pose.face_bbox" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="method">
-<dt id="scannerpy.stdlib.poses.Pose.face_keypoints">
-<code class="descname">face_keypoints</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/poses.html#Pose.face_keypoints"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.poses.Pose.face_keypoints" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="staticmethod">
-<dt id="scannerpy.stdlib.poses.Pose.from_buffer">
-<em class="property">static </em><code class="descname">from_buffer</code><span class="sig-paren">(</span><em>keypoints_buffer</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/poses.html#Pose.from_buffer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.poses.Pose.from_buffer" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="method">
-<dt id="scannerpy.stdlib.poses.Pose.hand_keypoints">
-<code class="descname">hand_keypoints</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/poses.html#Pose.hand_keypoints"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.poses.Pose.hand_keypoints" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="method">
-<dt id="scannerpy.stdlib.poses.Pose.pose_keypoints">
-<code class="descname">pose_keypoints</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/poses.html#Pose.pose_keypoints"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.poses.Pose.pose_keypoints" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-</dd></dl>
-
-<dl class="function">
-<dt id="scannerpy.stdlib.poses.nms">
-<code class="descclassname">scannerpy.stdlib.poses.</code><code class="descname">nms</code><span class="sig-paren">(</span><em>orig_poses</em>, <em>overlapThresh</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/poses.html#nms"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.poses.nms" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
+<div class="section" id="scannerpy-stdlib-poses-module">
+<h2>scannerpy.stdlib.poses module<a class="headerlink" href="#scannerpy-stdlib-poses-module" title="Permalink to this headline">¶</a></h2>
 </div>
-<div class="section" id="module-scannerpy.stdlib.util">
-<span id="scannerpy-stdlib-util-module"></span><h2>scannerpy.stdlib.util module<a class="headerlink" href="#module-scannerpy.stdlib.util" title="Permalink to this headline">¶</a></h2>
-<dl class="function">
-<dt id="scannerpy.stdlib.util.default">
-<code class="descclassname">scannerpy.stdlib.util.</code><code class="descname">default</code><span class="sig-paren">(</span><em>d</em>, <em>k</em>, <em>v</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/util.html#default"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.util.default" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="function">
-<dt id="scannerpy.stdlib.util.download_temp_file">
-<code class="descclassname">scannerpy.stdlib.util.</code><code class="descname">download_temp_file</code><span class="sig-paren">(</span><em>url</em>, <em>local_path=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/util.html#download_temp_file"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.util.download_temp_file" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="function">
-<dt id="scannerpy.stdlib.util.temp_directory">
-<code class="descclassname">scannerpy.stdlib.util.</code><code class="descname">temp_directory</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/util.html#temp_directory"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.util.temp_directory" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
+<div class="section" id="scannerpy-stdlib-util-module">
+<h2>scannerpy.stdlib.util module<a class="headerlink" href="#scannerpy-stdlib-util-module" title="Permalink to this headline">¶</a></h2>
 </div>
-<div class="section" id="module-scannerpy.stdlib.video">
-<span id="scannerpy-stdlib-video-module"></span><h2>scannerpy.stdlib.video module<a class="headerlink" href="#module-scannerpy.stdlib.video" title="Permalink to this headline">¶</a></h2>
-<dl class="function">
-<dt id="scannerpy.stdlib.video.write_video">
-<code class="descclassname">scannerpy.stdlib.video.</code><code class="descname">write_video</code><span class="sig-paren">(</span><em>path</em>, <em>frames</em>, <em>fps=24.0</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/video.html#write_video"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.video.write_video" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
+<div class="section" id="scannerpy-stdlib-video-module">
+<h2>scannerpy.stdlib.video module<a class="headerlink" href="#scannerpy-stdlib-video-module" title="Permalink to this headline">¶</a></h2>
 </div>
-<div class="section" id="module-scannerpy.stdlib.writers">
-<span id="scannerpy-stdlib-writers-module"></span><h2>scannerpy.stdlib.writers module<a class="headerlink" href="#module-scannerpy.stdlib.writers" title="Permalink to this headline">¶</a></h2>
-<dl class="function">
-<dt id="scannerpy.stdlib.writers.bboxes">
-<code class="descclassname">scannerpy.stdlib.writers.</code><code class="descname">bboxes</code><span class="sig-paren">(</span><em>buf</em>, <em>protobufs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/writers.html#bboxes"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.writers.bboxes" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="function">
-<dt id="scannerpy.stdlib.writers.poses">
-<code class="descclassname">scannerpy.stdlib.writers.</code><code class="descname">poses</code><span class="sig-paren">(</span><em>poses</em>, <em>protobufs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/writers.html#poses"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.writers.poses" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
+<div class="section" id="scannerpy-stdlib-writers-module">
+<h2>scannerpy.stdlib.writers module<a class="headerlink" href="#scannerpy-stdlib-writers-module" title="Permalink to this headline">¶</a></h2>
 </div>
-<div class="section" id="module-scannerpy.stdlib">
-<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-scannerpy.stdlib" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-contents">
+<h2>Module contents<a class="headerlink" href="#module-contents" title="Permalink to this headline">¶</a></h2>
 </div>
 </div>
 
@@ -603,7 +215,7 @@
     </div>
   <div class="footer">
     &copy; Copyright 2018, Alex Poms, Will Crichton.
-    Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.7.4.
+    Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.7.5.
   </div>
   
   </body>

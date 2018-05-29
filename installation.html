@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="_static/readable.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <link rel="stylesheet" href="_static/custom.css" type="text/css" />
-    <script type="text/javascript" src="_static/documentation_options.js"></script>
+    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
     <script type="text/javascript" src="_static/jquery.js"></script>
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
@@ -34,9 +34,6 @@
           <a href="genindex.html" title="General Index"
              accesskey="I">index</a></li>
         <li class="right" >
-          <a href="py-modindex.html" title="Python Module Index"
-             >modules</a> |</li>
-        <li class="right" >
           <a href="docker.html" title="Docker"
              accesskey="N">next</a> |</li>
         <li class="right" >
@@ -54,6 +51,11 @@
   <div class="section" id="installation">
 <span id="id1"></span><h1>Installation<a class="headerlink" href="#installation" title="Permalink to this headline">¶</a></h1>
 <p>Scanner has out-of-the-box compatibility with frameworks like OpenCV and Caffe, but the flip side is that installing all of the dependencies can take a long time. The easiest way to get started with Scanner is using our pre-built <a class="reference internal" href="docker.html#docker"><span class="std std-ref">Docker</span></a> images, but we also support <a class="reference internal" href="from_source.html#from-source"><span class="std std-ref">Building Scanner from source</span></a>.</p>
+<p>On MacOS, you can install Scanner using homebrew with the following commands:</p>
+<p><code class="docutils literal notranslate"><span class="pre">`</span>
+<span class="pre">brew</span> <span class="pre">tap</span> <span class="pre">scanner-research/homebrew-scanner</span>
+<span class="pre">brew</span> <span class="pre">install</span> <span class="pre">scanner</span>
+<span class="pre">`</span></code></p>
 <div class="toctree-wrapper compound">
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="docker.html">Docker</a></li>
@@ -193,7 +195,7 @@
     </div>
   <div class="footer">
     &copy; Copyright 2018, Alex Poms, Will Crichton.
-    Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.7.4.
+    Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.7.5.
   </div>
   
   </body>
