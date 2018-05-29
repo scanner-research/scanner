@@ -13,11 +13,6 @@ set(STDLIB_LIBRARIES)
 set(OPENCV_MAJOR_VERSION 3)
 set(OPENCV_COMPONENTS)
 
-# Can't build OpenPose if we don't have GPUs
-if (NOT ${BUILD_CUDA})
-  set(BUILD_OPENPOSE_OPS OFF)
-endif()
-
 find_package(Halide REQUIRED)
 set(HALIDE_DISTRIB_DIR "${Halide_DIR}")
 set(HALIDE_DISTRIB_USE_STATIC_LIBRARY TRUE)
