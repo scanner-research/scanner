@@ -99,6 +99,13 @@ class MasterServerImpl final : public proto::Master::Service {
   void RegisterPythonKernelHandler(
       MCall<proto::PythonKernelRegistration, proto::Result>* call);
 
+  void ListLoadedOpsHandler(MCall<proto::Empty, proto::ListLoadedOpsReply>* call);
+
+  void ListRegisteredOpsHandler(MCall<proto::Empty, proto::ListRegisteredOpsReply>* call);
+
+  void ListRegisteredPythonKernelsHandler(
+      MCall<proto::Empty, proto::ListRegisteredPythonKernelsReply>* call);
+
   void GetJobStatusHandler(
       MCall<proto::GetJobStatusRequest, proto::GetJobStatusReply>* call);
 

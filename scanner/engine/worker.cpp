@@ -576,114 +576,6 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   return grpc::Status::OK;
 }
 
-grpc::Status WorkerImpl::LoadOp(grpc::ServerContext* context,
-                                const proto::OpPath* op_path,
-                                proto::Empty* empty) {
-  std::string so_path = op_path->path();
-  VLOG(1) << "Worker " << node_id_ << " loading Op library: " << so_path;
-
-  auto l = std::string("__stdlib").size();
-  if (so_path.substr(0, l) == "__stdlib") {
-    so_path = db_params_.python_dir + "/lib/libscanner_stdlib" + so_path.substr(l);
-  }
-
-  void* handle = dlopen(so_path.c_str(), RTLD_NOW | RTLD_LOCAL);
-  LOG_IF(FATAL, handle == nullptr)
-      << "dlopen of " << so_path << " failed: " << dlerror();
-  return grpc::Status::OK;
-}
-
-grpc::Status WorkerImpl::RegisterOp(
-    grpc::ServerContext* context, const proto::OpRegistration* op_registration,
-    proto::Result* result) {
-  const std::string& name = op_registration->name();
-  const bool variadic_inputs = op_registration->variadic_inputs();
-  std::vector<Column> input_columns;
-  size_t i = 0;
-  for (auto& c : op_registration->input_columns()) {
-    Column col;
-    col.set_id(i++);
-    col.set_name(c.name());
-    col.set_type(c.type());
-    input_columns.push_back(col);
-  }
-  std::vector<Column> output_columns;
-  i = 0;
-  for (auto& c : op_registration->output_columns()) {
-    Column col;
-    col.set_id(i++);
-    col.set_name(c.name());
-    col.set_type(c.type());
-    output_columns.push_back(col);
-  }
-  bool can_stencil = op_registration->can_stencil();
-  std::vector<i32> stencil(op_registration->preferred_stencil().begin(),
-                           op_registration->preferred_stencil().end());
-  if (stencil.empty()) {
-    stencil = {0};
-  }
-  bool has_bounded_state = op_registration->has_bounded_state();
-  i32 warmup = op_registration->warmup();
-  bool has_unbounded_state = op_registration->has_unbounded_state();
-  OpInfo* info = new OpInfo(name, variadic_inputs, input_columns,
-                            output_columns, can_stencil, stencil,
-                            has_bounded_state, warmup, has_unbounded_state, "");
-  OpRegistry* registry = get_op_registry();
-  registry->add_op(name, info);
-  VLOG(1) << "Worker " << node_id_ << " registering Op: " << name;
-
-  return grpc::Status::OK;
-}
-
-grpc::Status WorkerImpl::RegisterPythonKernel(
-    grpc::ServerContext* context,
-    const proto::PythonKernelRegistration* python_kernel,
-    proto::Result* result) {
-  const std::string& op_name = python_kernel->op_name();
-  DeviceType device_type = python_kernel->device_type();
-  const std::string& kernel_code = python_kernel->kernel_code();
-  const std::string& pickled_config = python_kernel->pickled_config();
-  const int batch_size = python_kernel->batch_size();
-
-  // Set all input and output columns to be CPU
-  std::map<std::string, DeviceType> input_devices;
-  std::map<std::string, DeviceType> output_devices;
-  bool can_batch = batch_size > 1;
-  bool can_stencil;
-  {
-    OpRegistry* registry = get_op_registry();
-    OpInfo* info = registry->get_op_info(op_name);
-    if (info->variadic_inputs()) {
-      assert(device_type != DeviceType::GPU);
-    } else {
-      for (const auto& in_col : info->input_columns()) {
-        input_devices[in_col.name()] = DeviceType::CPU;
-      }
-    }
-    for (const auto& out_col : info->output_columns()) {
-      output_devices[out_col.name()] = DeviceType::CPU;
-    }
-    can_stencil = info->can_stencil();
-  }
-
-  // Create a kernel builder function
-  auto constructor = [op_name, kernel_code, pickled_config,
-                      can_batch, can_stencil](const KernelConfig& config) {
-      return new PythonKernel(config, op_name, kernel_code, pickled_config,
-                              can_batch, can_stencil);
-  };
-
-  // Create a new kernel factory
-  KernelFactory* factory =
-      new KernelFactory(op_name, device_type, 1, input_devices, output_devices,
-                        can_batch, batch_size, constructor);
-  // Register the kernel
-  KernelRegistry* registry = get_kernel_registry();
-  registry->add_kernel(op_name, factory);
-  VLOG(1) << "Worker " << node_id_ << " registering Python Kernel: " << op_name;
-  return grpc::Status::OK;
-}
-
 grpc::Status WorkerImpl::Shutdown(grpc::ServerContext* context,
                                   const proto::Empty* empty, Result* result) {
   State state = state_.get();
@@ -811,6 +703,103 @@ void WorkerImpl::try_unregister() {
   }
 }
 
+void WorkerImpl::load_op(const proto::OpPath* op_path) {
+  std::string so_path = op_path->path();
+  VLOG(1) << "Worker " << node_id_ << " loading Op library: " << so_path;
+
+  auto l = std::string("__stdlib").size();
+  if (so_path.substr(0, l) == "__stdlib") {
+    so_path = db_params_.python_dir + "/lib/libscanner_stdlib" + so_path.substr(l);
+  }
+
+  void* handle = dlopen(so_path.c_str(), RTLD_NOW | RTLD_LOCAL);
+  LOG_IF(FATAL, handle == nullptr)
+      << "dlopen of " << so_path << " failed: " << dlerror();
+}
+
+void WorkerImpl::register_op(const proto::OpRegistration* op_registration) {
+  const std::string& name = op_registration->name();
+  const bool variadic_inputs = op_registration->variadic_inputs();
+  std::vector<Column> input_columns;
+  size_t i = 0;
+  for (auto& c : op_registration->input_columns()) {
+    Column col;
+    col.set_id(i++);
+    col.set_name(c.name());
+    col.set_type(c.type());
+    input_columns.push_back(col);
+  }
+  std::vector<Column> output_columns;
+  i = 0;
+  for (auto& c : op_registration->output_columns()) {
+    Column col;
+    col.set_id(i++);
+    col.set_name(c.name());
+    col.set_type(c.type());
+    output_columns.push_back(col);
+  }
+  bool can_stencil = op_registration->can_stencil();
+  std::vector<i32> stencil(op_registration->preferred_stencil().begin(),
+                           op_registration->preferred_stencil().end());
+  if (stencil.empty()) {
+    stencil = {0};
+  }
+  bool has_bounded_state = op_registration->has_bounded_state();
+  i32 warmup = op_registration->warmup();
+  bool has_unbounded_state = op_registration->has_unbounded_state();
+  OpInfo* info = new OpInfo(name, variadic_inputs, input_columns,
+                            output_columns, can_stencil, stencil,
+                            has_bounded_state, warmup, has_unbounded_state, "");
+  OpRegistry* registry = get_op_registry();
+  registry->add_op(name, info);
+  VLOG(1) << "Worker " << node_id_ << " registering Op: " << name;
+}
+
+void WorkerImpl::register_python_kernel(const proto::PythonKernelRegistration* python_kernel) {
+  const std::string& op_name = python_kernel->op_name();
+  DeviceType device_type = python_kernel->device_type();
+  const std::string& kernel_code = python_kernel->kernel_code();
+  const std::string& pickled_config = python_kernel->pickled_config();
+  const int batch_size = python_kernel->batch_size();
+
+  // Set all input and output columns to be CPU
+  std::map<std::string, DeviceType> input_devices;
+  std::map<std::string, DeviceType> output_devices;
+  bool can_batch = batch_size > 1;
+  bool can_stencil;
+  {
+    OpRegistry* registry = get_op_registry();
+    OpInfo* info = registry->get_op_info(op_name);
+    if (info->variadic_inputs()) {
+      assert(device_type != DeviceType::GPU);
+    } else {
+      for (const auto& in_col : info->input_columns()) {
+        input_devices[in_col.name()] = DeviceType::CPU;
+      }
+    }
+    for (const auto& out_col : info->output_columns()) {
+      output_devices[out_col.name()] = DeviceType::CPU;
+    }
+    can_stencil = info->can_stencil();
+  }
+
+  // Create a kernel builder function
+  auto constructor = [op_name, kernel_code, pickled_config,
+                      can_batch, can_stencil](const KernelConfig& config) {
+      return new PythonKernel(config, op_name, kernel_code, pickled_config,
+                              can_batch, can_stencil);
+  };
+
+  // Create a new kernel factory
+  KernelFactory* factory =
+      new KernelFactory(op_name, device_type, 1, input_devices, output_devices,
+                        can_batch, batch_size, constructor);
+  // Register the kernel
+  KernelRegistry* registry = get_kernel_registry();
+  registry->add_kernel(op_name, factory);
+  VLOG(1) << "Worker " << node_id_ << " registering Python Kernel: " << op_name;
+}
+
 void WorkerImpl::start_job_processor() {
   job_processor_thread_ = std::thread([this]() {
     while (!trigger_shutdown_.raised()) {
@@ -845,6 +834,65 @@ void WorkerImpl::stop_job_processor() {
 bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
                              proto::Result* job_result) {
   job_result->set_success(true);
+
+  // Load Ops, register Ops, and register python kernels before running jobs
+  {
+    proto::Empty empty;
+    proto::ListLoadedOpsReply reply;
+    grpc::Status status;
+    GRPC_BACKOFF(master_->ListLoadedOps(&ctx, empty, &reply), status);
+    if (!status.ok()) {
+      RESULT_ERROR(job_result, "Worker %d could not ListLoadedOps from master",
+                   node_id_);
+    }
+
+    for (auto& reg : reply.registrations()) {
+      if (so_paths_.count(reg.path()) == 0) {
+        load_op(&reg);
+      }
+    }
+  }
+
+  {
+    proto::Empty empty;
+    proto::ListRegisteredOpsReply reply;
+    grpc::Status status;
+    GRPC_BACKOFF(master_->ListRegisteredOps(&ctx, empty, &reply), status);
+    if (!status.ok()) {
+      RESULT_ERROR(job_result,
+                   "Worker %d could not ListRegisteredOps from master",
+                   node_id_);
+    }
+
+    OpRegistry* registry = get_op_registry();
+    for (auto& reg : reply.registrations()) {
+      if (!registry->has_op(reg.name())) {
+        register_op(&reg);
+      }
+    }
+  }
+
+  {
+    proto::Empty empty;
+    proto::ListRegisteredPythonKernelsReply reply;
+    grpc::Status status;
+    GRPC_BACKOFF(master_->ListRegisteredPythonKernels(&ctx, empty, &reply),
+                 status);
+    if (!status.ok()) {
+      RESULT_ERROR(
+          job_result,
+          "Worker %d could not ListRegisteredPythonKernels from master",
+          node_id_);
+    }
+
+    KernelRegistry* registry = get_kernel_registry();
+    for (auto& reg : reply.registrations()) {
+      if (!registry->has_kernel(reg.op_name(), reg.device_type())) {
+        register_python_kernel(&reg);
+      }
+    }
+  }
+
   auto finished_fn = [&]() {
     if (!trigger_shutdown_.raised()) {
       proto::FinishedJobRequest params;
@@ -872,6 +920,11 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     }
     active_cv_.notify_all();
   };
+
+  if (!job_result->success()) {
+    finished_fn();
+    return false;
+  }
 
   set_database_path(db_params_.db_path);
 
