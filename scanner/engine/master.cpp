@@ -129,7 +129,6 @@ void MasterServerImpl::run() {
   cq_ = builder.AddCompletionQueue();
   server_ = builder.BuildAndStart();
   LOG_IF(FATAL, server_.get() == nullptr) << "Failed to start server";
-  std::cout << "Server listening on " << server_address << std::endl;
 }
 
 #define REQUEST_RPC(name__, request__, reply__)                              \
