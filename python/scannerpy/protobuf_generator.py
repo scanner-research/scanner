@@ -4,7 +4,6 @@ import sys
 
 from scannerpy.common import *
 
-import scannerpy._python as bindings
 import scanner.stdlib.stdlib_pb2 as stdlib_types
 import scanner.metadata_pb2 as metadata_types
 import scanner.source_args_pb2 as source_types
