@@ -120,6 +120,13 @@ REQUIRED_PACKAGES = [
 if platform == 'linux' or platform == 'linux2':
     REQUIRED_PACKAGES.append('python-prctl >= 1.7.0')
 
+# Borrowed from https://github.com/pytorch/pytorch/blob/master/setup.py
+def make_relative_rpath(path):
+    if platform == 'linux' or platform == 'linux2':
+        return '-Wl,-rpath,$ORIGIN/' + path
+    else:
+        return '-Wl,-rpath,@loader_path/' + path
+
 
 module1 = Extension(
     'scannerpy._python',
@@ -131,11 +138,12 @@ module1 = Extension(
                     os.path.join(ROOT_DIR, 'build'),
                     os.path.join(ROOT_DIR, 'thirdparty', 'install', 'lib')],
     sources = [os.path.join(ROOT_DIR, 'scanner/engine/python.cpp')],
-    extra_compile_args=['-std=c++11'])
+    extra_compile_args=['-std=c++11'],
+    extra_link_args=[make_relative_rpath('lib')])
 
 setup(
     name='scannerpy',
-    version='0.2.3',
+    version='0.2.4',
     description='Efficient video analysis at scale',
     long_description='',
     url='https://github.com/scanner-research/scanner',
