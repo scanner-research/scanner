@@ -38,18 +38,6 @@ class WorkerImpl final : public proto::Worker::Service {
                       const proto::BulkJobParameters* job_params,
                       proto::Result* job_result);
 
-  grpc::Status LoadOp(grpc::ServerContext* context,
-                      const proto::OpPath* op_path, proto::Empty* empty);
-
-  grpc::Status RegisterOp(grpc::ServerContext* context,
-                          const proto::OpRegistration* op_registration,
-                          proto::Result* result);
-
-  grpc::Status RegisterPythonKernel(
-      grpc::ServerContext* context,
-      const proto::PythonKernelRegistration* python_kernel,
-      proto::Result* result);
-
   grpc::Status Shutdown(grpc::ServerContext* context, const proto::Empty* empty,
                         Result* result);
 
@@ -67,6 +55,12 @@ class WorkerImpl final : public proto::Worker::Service {
  private:
   void try_unregister();
 
+  void load_op(const proto::OpPath* op_path);
+
+  void register_op(const proto::OpRegistration* op_registration);
+
+  void register_python_kernel(const proto::PythonKernelRegistration* python_kernel);
+
   void start_job_processor();
 
   void stop_job_processor();
@@ -83,6 +77,7 @@ class WorkerImpl final : public proto::Worker::Service {
 
   Condition<State> state_;
   std::atomic_flag unregistered_;
+  std::set<std::string> so_paths_;
 
   std::thread watchdog_thread_;
   std::atomic<bool> watchdog_awake_;

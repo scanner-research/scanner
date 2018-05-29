@@ -161,6 +161,9 @@ void MasterServerImpl::handle_rpcs() {
   REQUEST_RPC(LoadOp, proto::OpPath, proto::Result);
   REQUEST_RPC(RegisterOp, proto::OpRegistration, proto::Result);
   REQUEST_RPC(RegisterPythonKernel, proto::PythonKernelRegistration, proto::Result);
+  REQUEST_RPC(ListLoadedOps, proto::Empty, proto::ListLoadedOpsReply);
+  REQUEST_RPC(ListRegisteredOps, proto::Empty, proto::ListRegisteredOpsReply);
+  REQUEST_RPC(ListRegisteredPythonKernels, proto::Empty, proto::ListRegisteredPythonKernelsReply);
   REQUEST_RPC(GetJobStatus, proto::GetJobStatusRequest, proto::GetJobStatusReply);
   REQUEST_RPC(NextWork, proto::NextWorkRequest, proto::NextWorkReply);
   REQUEST_RPC(FinishedWork, proto::FinishedWorkRequest, proto::Empty);
@@ -460,68 +463,6 @@ void MasterServerImpl::RegisterWorkerHandler(
     worker_state->active = true;
     worker_state->id = node_id;
 
-    // Load ops into worker
-    for (const std::string& so_path : so_paths_) {
-      grpc::ClientContext ctx;
-      // Set timeout
-      u32 timeout = LOAD_OP_WORKER_TIMEOUT;
-      std::chrono::system_clock::time_point deadline =
-          std::chrono::system_clock::now() + std::chrono::seconds(timeout);
-      ctx.set_deadline(deadline);
-
-      proto::OpPath op_path;
-      op_path.set_path(so_path);
-      proto::Empty empty;
-
-      grpc::Status status;
-      // GRPC_BACKOFF_TIMEOUT(workers_[node_id]->LoadOp(&ctx, op_path, &empty),
-      // status, 4);
-      status = worker_state->stub->LoadOp(&ctx, op_path, &empty);
-      LOG_IF(WARNING, !status.ok())
-          << "Master could not load op for worker at " << worker_address << " ("
-          << status.error_code() << "): " << status.error_message();
-    }
-
-    // Register Ops on worker
-    for (auto& reg : op_registrations_) {
-      grpc::ClientContext ctx;
-      // Set timeout
-      u32 timeout = REGISTER_OP_WORKER_TIMEOUT;
-      std::chrono::system_clock::time_point deadline =
-          std::chrono::system_clock::now() + std::chrono::seconds(timeout);
-      ctx.set_deadline(deadline);
-
-      proto::Result w_result;
-
-      grpc::Status status;
-      // GRPC_BACKOFF_TIMEOUT(workers_[node_id]->LoadOp(&ctx, op_path, &empty),
-      // status, 4);
-      status = worker_state->stub->RegisterOp(&ctx, reg, &w_result);
-      LOG_IF(WARNING, !status.ok())
-          << "Master could not register op for worker at " << worker_address
-          << " (" << status.error_code() << "): " << status.error_message();
-    };
-
-    // Register Python Kernels on worker
-    for (auto& reg : py_kernel_registrations_) {
-      proto::Result w_result;
-      grpc::Status status;
-
-      grpc::ClientContext ctx;
-      // Set timeout
-      u32 timeout = REGISTER_PYTHON_KERNEL_WORKER_TIMEOUT;
-      std::chrono::system_clock::time_point deadline =
-          std::chrono::system_clock::now() + std::chrono::seconds(timeout);
-      ctx.set_deadline(deadline);
-
-      status =
-          worker_state->stub->RegisterPythonKernel(&ctx, reg, &w_result);
-      LOG_IF(WARNING, !status.ok())
-          << "Master could not register python kernel for worker at "
-          << worker_address << " (" << status.error_code()
-          << "): " << status.error_message();
-    };
-
     workers_[node_id] = worker_state;
 
     std::unique_lock<std::mutex> lock(active_mutex_);
@@ -717,38 +658,6 @@ void MasterServerImpl::LoadOpHandler(MCall<proto::OpPath, Result>* call) {
   }
   so_paths_.push_back(so_path);
 
-  ThreadPool pool(GRPC_THREADS);
-  auto send_message = [&](auto& k) {
-    auto& worker = workers_[k];
-    proto::Empty empty;
-    grpc::Status status;
-    const std::string& worker_address = worker->address;
-    //GRPC_BACKOFF_TIMEOUT(worker->LoadOp(&ctx, *op_path, &empty), status, 4);
-    grpc::ClientContext ctx;
-    // Set timeout
-    u32 timeout = LOAD_OP_WORKER_TIMEOUT;
-    std::chrono::system_clock::time_point deadline =
-        std::chrono::system_clock::now() + std::chrono::seconds(timeout);
-    ctx.set_deadline(deadline);
-
-    status = worker->stub->LoadOp(&ctx, *op_path, &empty);
-    LOG_IF(WARNING, !status.ok())
-      << "Master could not load op for worker at " << worker_address << " ("
-      << status.error_code() << "): " << status.error_message();
-  };
-
-  // Load ops into worker
-  std::vector<std::future<void>> futures;
-  for (auto& kv : workers_) {
-    if (kv.second->active) {
-      futures.emplace_back(pool.enqueue(send_message, kv.first));
-    }
-  }
-
-  for (auto& future : futures) {
-    future.wait();
-  }
-
   result->set_success(true);
   VLOG(1) << "Master successfully loaded Op: " << op_path->path();
 
@@ -807,35 +716,6 @@ void MasterServerImpl::RegisterOpHandler(
     LOG(WARNING) << "Master failed to register op " << name;
     REQUEST_RPC(RegisterOp, proto::OpRegistration, proto::Result);
     call->Respond(grpc::Status::OK);
-  }
-
-
-  ThreadPool pool(GRPC_THREADS);
-  auto send_message = [&](auto& k) {
-    auto& worker = workers_[k];
-    proto::Result w_result;
-    grpc::Status status;
-    // GRPC_BACKOFF_TIMEOUT(worker->RegisterOp(&ctx, *op_registration, &w_result),
-    //                      status, 4);
-    grpc::ClientContext ctx;
-    // Set timeout
-    u32 timeout = REGISTER_OP_WORKER_TIMEOUT;
-    std::chrono::system_clock::time_point deadline =
-        std::chrono::system_clock::now() + std::chrono::seconds(timeout);
-    ctx.set_deadline(deadline);
-
-    status = worker->stub->RegisterOp(&ctx, *op_registration, &w_result);
-    const std::string& worker_address = worker->address;
-    LOG_IF(WARNING, !status.ok())
-      << "Master could not load op for worker at " << worker_address << " ("
-      << status.error_code() << "): " << status.error_message();
-  };
-
-  std::vector<std::future<void>> futures;
-  for (auto& kv : workers_) {
-    if (kv.second->active) {
-      futures.emplace_back(pool.enqueue(send_message, kv.first));
-    }
   }
 
   op_registrations_.push_back(*op_registration);
@@ -898,40 +778,46 @@ void MasterServerImpl::RegisterPythonKernelHandler(
     registry->add_kernel(op_name, factory);
   }
 
-  ThreadPool pool(GRPC_THREADS);
-  auto send_message = [&](auto& k) {
-    auto& worker = workers_[k];
-    proto::Result w_result;
-    grpc::Status status;
-    // GRPC_BACKOFF_TIMEOUT(worker->RegisterPythonKernel(&ctx, *python_kernel, &w_result),
-    //                      status, 4);
-    grpc::ClientContext ctx;
-    // Set timeout
-    u32 timeout = REGISTER_PYTHON_KERNEL_WORKER_TIMEOUT;
-    std::chrono::system_clock::time_point deadline =
-        std::chrono::system_clock::now() + std::chrono::seconds(timeout);
-    ctx.set_deadline(deadline);
-
-    status = worker->stub->RegisterPythonKernel(&ctx, *python_kernel, &w_result);
-    const std::string& worker_address = worker->address;
-    LOG_IF(WARNING, !status.ok())
-      << "Master could not register python kernel for worker at "
-      << worker_address << " (" << status.error_code()
-      << "): " << status.error_message();
-  };
-
-  std::vector<std::future<void>> futures;
-  for (auto& kv : workers_) {
-    if (kv.second->active) {
-      futures.emplace_back(pool.enqueue(send_message, kv.first));
-    }
-  }
-
-  py_kernel_registrations_.push_back(*python_kernel);
   result->set_success(true);
+  py_kernel_registrations_.push_back(*python_kernel);
   VLOG(1) << "Master successfully registered Python Kernel: " << python_kernel->op_name();
 
   REQUEST_RPC(RegisterPythonKernel, proto::PythonKernelRegistration, proto::Result);
+  call->Respond(grpc::Status::OK);
+}
+
+
+void MasterServerImpl::ListLoadedOpsHandler(MCall<proto::Empty, proto::ListLoadedOpsReply>* call) {
+  auto& reply = call->reply;
+  for (const std::string& so_path : so_paths_) {
+    proto::OpPath* op_path = reply.add_registrations();
+    op_path->set_path(so_path);
+  }
+
+  REQUEST_RPC(ListLoadedOps, proto::Empty, proto::ListLoadedOpsReply);
+  call->Respond(grpc::Status::OK);
+}
+
+void MasterServerImpl::ListRegisteredOpsHandler(MCall<proto::Empty, proto::ListRegisteredOpsReply>* call) {
+  auto& reply = call->reply;
+  for (auto& reg : op_registrations_) {
+    auto r = reply.add_registrations();
+    r->CopyFrom(reg);
+  }
+
+  REQUEST_RPC(ListRegisteredOps, proto::Empty, proto::ListRegisteredOpsReply);
+  call->Respond(grpc::Status::OK);
+}
+
+void MasterServerImpl::ListRegisteredPythonKernelsHandler(
+    MCall<proto::Empty, proto::ListRegisteredPythonKernelsReply>* call) {
+  auto& reply = call->reply;
+  for (auto& reg : py_kernel_registrations_) {
+    auto r = reply.add_registrations();
+    r->CopyFrom(reg);
+  }
+
+  REQUEST_RPC(ListRegisteredPythonKernels, proto::Empty, proto::ListRegisteredPythonKernelsReply);
   call->Respond(grpc::Status::OK);
 }
 
