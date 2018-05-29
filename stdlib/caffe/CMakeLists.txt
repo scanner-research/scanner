@@ -19,12 +19,8 @@ if (BUILD_CUDA)
 endif()
 
 if (BUILD_OPENPOSE_OPS)
-  if (NOT BUILD_CUDA)
-    # TODO(apoms): add warning
-  else()
-    list(APPEND SOURCE_FILES
-      openpose_kernel.cpp)
-  endif()
+  list(APPEND SOURCE_FILES
+    openpose_kernel.cpp)
 endif()
 
 add_library(caffe OBJECT ${SOURCE_FILES})
