@@ -452,7 +452,7 @@ void MasterServerImpl::RegisterWorkerHandler(
 
     i32 node_id = next_worker_id_++;
     VLOG(1) << "Adding worker: " << node_id << ", " << worker_address;
-    std::shared_ptr<WorkerState> worker_state(new WorkerState());
+    std::shared_ptr<WorkerState> worker_state(new WorkerState);
     worker_state->stub = proto::Worker::NewStub(grpc::CreateChannel(
         worker_address, grpc::InsecureChannelCredentials()));
     registration->set_node_id(node_id);

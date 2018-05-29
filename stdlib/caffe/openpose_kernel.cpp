@@ -32,7 +32,6 @@ class OpenPoseKernel : public scanner::BatchedKernel,
     if (args.model_directory() == "") {
       cached_dir("openpose", model_dir);
 
-      setenv("http_proxy", "http://proxy.pdl.cmu.edu:3128/", 1);
       // Pose prototxt
       download_if_uncached(
           "https://raw.githubusercontent.com/CMU-Perceptual-Computing-Lab/"
@@ -68,7 +67,6 @@ class OpenPoseKernel : public scanner::BatchedKernel,
           "https://raw.githubusercontent.com/CMU-Perceptual-Computing-Lab/"
           "openpose/master/models/face/haarcascade_frontalface_alt.xml",
           model_dir + "/face/haarcascade_frontalface_alt.xml");
-      setenv("http_proxy", "", 1);
     } else {
       model_dir = args.model_directory();
     }
