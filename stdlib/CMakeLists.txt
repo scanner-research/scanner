@@ -117,7 +117,8 @@ target_link_libraries(scanner_stdlib PUBLIC
   ${HALIDE_LIBRARY}
   ${Boost_LIBRARIES})
 
-install(TARGETS scanner_stdlib
-  EXPORT ScannerTarget
-  ARCHIVE DESTINATION lib
-  LIBRARY DESTINATION lib)
+if(APPLE)
+  target_link_libraries(scanner_stdlib PRIVATE "-Wl,-rpath,@loader_path/lib")
+elseif(UNIX)
+  target_link_libraries(scanner_stdlib PRIVATE "-Wl,-rpath,$ORIGIN/lib")
+endif()
