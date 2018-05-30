@@ -1664,15 +1664,20 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
   //              the main change is that the workers should handle
   //              spawning sub processes instead of appearing as
   //              multiple logical nodes
-  for (auto kv : workers_) {
-    const std::string& address = kv.second->address;
-    // Strip port
-    std::vector<std::string> split_addr = split(address, ':');
-    std::string sans_port = split_addr[0];
-    if (local_totals_.count(sans_port) == 0) {
-      local_totals_[sans_port] = 0;
+  {
+    std::unique_lock<std::mutex> lk(work_mutex_);
+    for (auto kv : workers_) {
+      if (kv.second->active) {
+        const std::string& address = kv.second->address;
+        // Strip port
+        std::vector<std::string> split_addr = split(address, ':');
+        std::string sans_port = split_addr[0];
+        if (local_totals_.count(sans_port) == 0) {
+          local_totals_[sans_port] = 0;
+        }
+        local_totals_[sans_port] += 1;
+      }
     }
-    local_totals_[sans_port] += 1;
   }
 
   // Send new job command to workers
@@ -2088,11 +2093,11 @@ void MasterServerImpl::remove_worker(i32 node_id) {
   }
 
   // Update locals
-  /*std::vector<std::string> split_addr = split(worker_address, ':');
+  std::vector<std::string> split_addr = split(worker_address, ':');
   std::string sans_port = split_addr[0];
   assert(local_totals_.count(sans_port) > 0);
   local_totals_[sans_port] -= 1;
-  local_ids_[sans_port] -= 1;*/
+  local_ids_[sans_port] -= 1;
 
   VLOG(1) << "Removing worker " << node_id << " (" << worker_address << ").";
 }

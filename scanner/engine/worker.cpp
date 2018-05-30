@@ -1010,12 +1010,12 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   assert(num_cpus > 0);
 
   i32 total_gpus = db_params_.gpu_ids.size();
-  i32 num_gpus = db_params_.gpu_ids.size() / local_total;
+  i32 num_gpus = db_params_.gpu_ids.size();
   // Should have at least one gpu if there are gpus
   assert(db_params_.gpu_ids.size() == 0 || num_gpus > 0);
   std::vector<i32> gpu_ids;
   {
-    i32 start_idx = num_gpus * local_id;
+    i32 start_idx = 0;
     for (i32 i = 0; i < num_gpus; ++i) {
       gpu_ids.push_back(db_params_.gpu_ids[(start_idx + i) % total_gpus]);
     }
@@ -1278,7 +1278,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       finished_fn();
       return false;
     }
-    if (db_params_.gpu_ids.size() < local_total * pipeline_instances_per_node &&
+    if (db_params_.gpu_ids.size() < pipeline_instances_per_node &&
         job_params->memory_pool_config().gpu().use_pool()) {
       RESULT_ERROR(job_result,
                    "Cannot oversubscribe GPUs and also use GPU memory pool");
@@ -1974,3 +1974,4 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
 }
 }
+
