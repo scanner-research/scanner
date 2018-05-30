@@ -826,11 +826,11 @@ void MasterServerImpl::GetJobStatusHandler(
   VLOG(3) << "Master received GetJobStatus command";
 
   pool_->enqueue([this, call]() {
+    std::unique_lock<std::mutex> l(work_mutex_);
     std::unique_lock<std::mutex> lock(active_mutex_);
     auto request = &call->request;
     auto reply = &call->reply;
 
-    std::unique_lock<std::mutex> l(work_mutex_);
     if (bulk_jobs_state_.count(request->bulk_job_id()) == 0) {
       LOG(WARNING)
           << "GetJobStatus received request for non-existent bulk job id: "
@@ -1000,6 +1000,7 @@ void MasterServerImpl::FinishedWorkHandler(
     MCall<proto::FinishedWorkRequest, proto::Empty>* call) {
   pool_->enqueue([this, call]() {
     std::unique_lock<std::mutex> lk(work_mutex_);
+    std::unique_lock<std::mutex> lock(active_mutex_);
     VLOG(2) << "Master received FinishedWork command";
 
     auto params = &call->request;
@@ -1020,7 +1021,6 @@ void MasterServerImpl::FinishedWorkHandler(
     }
 
     {
-      std::unique_lock<std::mutex> lock(active_mutex_);
       if (bulk_job_id != active_bulk_job_id_) {
         LOG(WARNING) << "Worker " << worker_id << " ("
                      << workers_.at(worker_id)->address
