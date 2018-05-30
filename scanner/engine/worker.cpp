@@ -498,6 +498,18 @@ WorkerImpl::WorkerImpl(DatabaseParameters& db_params,
   // Processes jobs in the background
   start_job_processor();
   VLOG(1) << "Worker created.";
+
+  std::stringstream resource_ss;
+  resource_ss << "Resources: ";
+  resource_ss << "CPUs: " << db_params_.num_cpus << ", ";
+  resource_ss << "Save: " << db_params_.num_save_workers << ", ";
+  resource_ss << "Load: " << db_params_.num_load_workers << ", ";
+  resource_ss << "GPU ids: ";
+  for (i32 g : db_params_.gpu_ids) {
+    resource_ss << g << " ";
+  }
+  resource_ss << ".";
+  VLOG(2) << resource_ss.rdbuf();
 }
 
 WorkerImpl::~WorkerImpl() {
