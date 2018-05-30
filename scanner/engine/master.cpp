@@ -2014,6 +2014,9 @@ void MasterServerImpl::start_job_on_workers(const std::vector<i32>& worker_ids) 
               std::chrono::system_clock::now();
           deadline += std::chrono::milliseconds((i64)(sleep_time * 1000));
           alarm->Set(&cq, deadline, new Req{worker_id, false});
+          LOG(WARNING) << "Worker " << worker_id << " unavailable for NewJob: ("
+                       << status.error_code() << "): " << status.error_message()
+                       << ". Retrying after " << sleep_time << " seconds.";
         }
       } else {
         // Request failed, so we should ignore this worker
