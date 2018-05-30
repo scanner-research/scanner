@@ -1921,13 +1921,22 @@ void MasterServerImpl::start_job_on_workers(const std::vector<i32>& worker_ids) 
 
   auto& state = bulk_jobs_state_.at(active_bulk_job_id_);
 
+  struct Req {
+    i32 worker_id;
+    // If not request, then it is an alarm
+    bool is_request;
+  };
+
   grpc::CompletionQueue cq;
   std::map<i32, std::unique_ptr<grpc::ClientContext>> client_contexts;
   std::map<i32, std::unique_ptr<grpc::Status>> statuses;
   std::map<i32, std::unique_ptr<proto::Result>> replies;
   std::map<i32, std::unique_ptr<grpc::ClientAsyncResponseReader<proto::Result>>>
       rpcs;
-  for (i32 worker_id : worker_ids) {
+  std::map<i32, std::unique_ptr<grpc::Alarm>> alarms;
+  std::map<i32, i32> retry_attempts;
+
+  auto send_new_job = [&](i32 worker_id) {
     const std::string& address = workers_.at(worker_id)->address;
     auto& worker = workers_.at(worker_id)->stub;
     std::vector<std::string> split_addr = split(address, ':');
@@ -1948,39 +1957,84 @@ void MasterServerImpl::start_job_on_workers(const std::vector<i32>& worker_ids) 
     rpcs[worker_id] = worker->AsyncNewJob(client_contexts[worker_id].get(),
                                           w_job_params, &cq);
     rpcs[worker_id]->Finish(replies[worker_id].get(), statuses[worker_id].get(),
-                            (void*)worker_id);
+                            (void*)new Req{worker_id, true});
     state->worker_histories[worker_id].start_time = now();
     state->worker_histories[worker_id].tasks_assigned = 0;
     state->worker_histories[worker_id].tasks_retired = 0;
-    state->unfinished_workers[worker_id] = true;
     VLOG(2) << "Sent NewJob command to worker " << worker_id;
+  };
+
+  for (i32 worker_id : worker_ids) {
+    send_new_job(worker_id);
   }
 
-  for (i64 i = 0; i < worker_ids.size(); ++i) {
+  i64 workers_processed = 0;
+  while (workers_processed < worker_ids.size()) {
     void* got_tag;
     bool ok = false;
-    auto stat = (cq.Next(&got_tag, &ok));
-    assert(stat != grpc::CompletionQueue::NextStatus::SHUTDOWN);
+    auto stat = cq.Next(&got_tag, &ok);
+    assert(stat != false);
     assert(ok);
 
-    i64 worker_id = (i64)got_tag;
-    auto status = *statuses[worker_id].get();
-    if (status.ok()) {
-      VLOG(2) << "Worker " << worker_id << " NewJob returned.";
+    Req* req = (Req*)got_tag;
+    i32 worker_id = req->worker_id;
+    bool is_request = req->is_request;
+    delete req;
 
-      if (workers_.at(worker_id)->active && !replies[worker_id]->success()) {
-        LOG(WARNING) << "Worker " << worker_id << " ("
-                     << workers_.at(worker_id)->address << ") "
-                     << "returned error: " << replies[worker_id]->msg();
-        workers_[worker_id]->active = false;
+    if (is_request) {
+      auto status = *statuses[worker_id].get();
+      if (status.ok()) {
+        VLOG(2) << "Worker " << worker_id << " NewJob returned.";
+
+        if (workers_.at(worker_id)->active && !replies[worker_id]->success()) {
+          LOG(WARNING) << "Worker " << worker_id << " ("
+                       << workers_.at(worker_id)->address << ") "
+                       << "returned error: " << replies[worker_id]->msg();
+          workers_.at(worker_id)->active = false;
+        } else {
+          state->unfinished_workers[worker_id] = true;
+        }
+        workers_processed++;
+      } else if (status.error_code() == grpc::StatusCode::UNAVAILABLE) {
+        // We should retry this request
+        i32 retries = retry_attempts[worker_id]++;
+        if (retries > 5) {
+          // Already retried too many times
+          LOG(WARNING) << "Worker " << worker_id << " timed out for NewJob: ("
+                       << status.error_code() << "): " << status.error_message();
+          workers_.at(worker_id)->active = false;
+          workers_processed++;
+        } else {
+          // Issue a grpc Alarm to alert when we should reissue this NewJob request
+          auto alarm = new grpc::Alarm();
+          alarms[worker_id].reset(alarm);
+          double sleep_time = std::pow(2, retries) +
+                              (static_cast<double>(rand()) / RAND_MAX);
+          auto deadline =
+              std::chrono::system_clock::now();
+          deadline += std::chrono::milliseconds((i64)(sleep_time * 1000));
+          alarm->Set(&cq, deadline, new Req{worker_id, false});
+        }
+      } else {
+        // Request failed, so we should ignore this worker
+        LOG(WARNING) << "Worker " << worker_id << " did not return NewJob: ("
+                     << status.error_code() << "): " << status.error_message();
+        workers_.at(worker_id)->active = false;
+        workers_processed++;
       }
     } else {
-      LOG(WARNING) << "Worker " << worker_id << " did not return NewJob: ("
-                   << status.error_code() << "): " << status.error_message();
-      workers_.at(worker_id)->active = false;
+      // This was an alarm, so reissue this request
+      send_new_job(worker_id);
     }
   }
   cq.Shutdown();
+
+  void* got_tag;
+  bool ok = false;
+  while (cq.Next(&got_tag, &ok)) {
+    Req* req = (Req*)got_tag;
+    delete req;
+  }
 }
 
 void MasterServerImpl::stop_job_on_worker(i32 worker_id) {
