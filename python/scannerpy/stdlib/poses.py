@@ -80,15 +80,41 @@ class Pose(object):
 
     def draw(self, img, thickness=5, draw_threshold=0.05):
         def to_pt(i):
+            def check(v):
+                return v >= 0 and v < 1 and v == v
+            if not check(self.keypoints[i, 0]) or not check(self.keypoints[i, 1]):
+                return None
             return (int(self.keypoints[i, 0] * img.shape[1]),
                     int(self.keypoints[i, 1] * img.shape[0]))
 
         for ([a, b], color) in zip(self.DRAW_PAIRS, self.DRAW_COLORS):
             if self.keypoints[a, 2] > draw_threshold and \
                self.keypoints[b, 2] > draw_threshold:
-                cv2.line(img, to_pt(a), to_pt(b), color, thickness)
+                pt_a = to_pt(a)
+                pt_b = to_pt(b)
+                if pt_a is not None and pt_b is not None:
+                    cv2.line(img, pt_a, pt_b, color, thickness)
 
         return img
+
+    def distance_to(self, pose, confidence_threshold=0.2):
+        kp = self.pose_keypoints()
+        other_kp = pose.pose_keypoints()
+
+        distances = []
+        for pi in range(self.POSE_KEYPOINTS):
+            if (kp[pi, 2] > confidence_threshold and
+                other_kp[pi, 2] > confidence_threshold):
+                dist = math.sqrt((other_kp[pi, 0] - kp[pi, 0])**2 +
+                                 (other_kp[pi, 1] - kp[pi, 1])**2)
+                distances.append(dist)
+
+        if len(distances) == 0:
+            score = float('inf')
+        else:
+            score = np.median(distances)
+
+        return score
 
     @staticmethod
     def from_buffer(keypoints_buffer):
