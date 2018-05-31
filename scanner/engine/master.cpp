@@ -716,6 +716,7 @@ void MasterServerImpl::RegisterOpHandler(
     LOG(WARNING) << "Master failed to register op " << name;
     REQUEST_RPC(RegisterOp, proto::OpRegistration, proto::Result);
     call->Respond(grpc::Status::OK);
+    return;
   }
 
   op_registrations_.push_back(*op_registration);
