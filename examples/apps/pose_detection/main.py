@@ -61,7 +61,7 @@ job = Job(
         output: movie_name + '_drawn_poses',
 })
 [drawn_poses_table] = db.run(output=output, jobs=[job], work_packet_size=8, io_packet_size=64,
-                             pipeline_instances_per_node=pipelineinstances,
+                             pipeline_instances_per_node=pipeline_instances,
                              force=True)
 
 print('Writing output video...')
