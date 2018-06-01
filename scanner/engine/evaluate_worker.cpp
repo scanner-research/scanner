@@ -143,35 +143,38 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
         delete_element(CPU_DEVICE, element);
       }
 
-      if (!work_entry.inplace_video[c]) {
-        decoders_[media_col_idx]->initialize(args);
-      } else {
-        // Translate into encoded data
-        std::vector<hwang::DecoderAutomata::EncodedData> encoded_data;
-        for (auto &da : args) {
-          encoded_data.emplace_back();
-          hwang::DecoderAutomata::EncodedData& ed = encoded_data.back();
-          u8* video_data = reinterpret_cast<u8*>(da.encoded_video());
-          size_t video_data_size = da.encoded_video_size();
-          ed.encoded_video =
-              std::vector<u8>(video_data, video_data + video_data_size);
-          ed.width = da.width();
-          ed.height = da.height();
-          ed.start_keyframe = da.start_keyframe();
-          ed.end_keyframe = da.end_keyframe();
-          ed.sample_offsets = std::vector<u64>(da.sample_offsets().begin(),
-                                               da.sample_offsets().end());
-          ed.sample_sizes = std::vector<u64>(da.sample_sizes().begin(),
-                                             da.sample_sizes().end());
-          ed.keyframes =
-              std::vector<u64>(da.keyframes().begin(), da.keyframes().end());
-          ed.valid_frames = std::vector<u64>(da.valid_frames().begin(),
-                                             da.valid_frames().end());
-        }
-        if (args.size() > 0) {
-          std::vector<u8> metadata(args.back().metadata().begin(),
-                                   args.back().metadata().end());
-          inplace_decoders_[media_col_idx]->initialize(encoded_data, metadata);
+      if (work_entry.columns[c].size() > 0) {
+        if (!work_entry.inplace_video[c]) {
+          decoders_[media_col_idx]->initialize(args);
+        } else {
+          // Translate into encoded data
+          std::vector<hwang::DecoderAutomata::EncodedData> encoded_data;
+          for (auto& da : args) {
+            encoded_data.emplace_back();
+            hwang::DecoderAutomata::EncodedData& ed = encoded_data.back();
+            u8* video_data = reinterpret_cast<u8*>(da.encoded_video());
+            size_t video_data_size = da.encoded_video_size();
+            ed.encoded_video =
+                std::vector<u8>(video_data, video_data + video_data_size);
+            ed.width = da.width();
+            ed.height = da.height();
+            ed.start_keyframe = da.start_keyframe();
+            ed.end_keyframe = da.end_keyframe();
+            ed.sample_offsets = std::vector<u64>(da.sample_offsets().begin(),
+                                                 da.sample_offsets().end());
+            ed.sample_sizes = std::vector<u64>(da.sample_sizes().begin(),
+                                               da.sample_sizes().end());
+            ed.keyframes =
+                std::vector<u64>(da.keyframes().begin(), da.keyframes().end());
+            ed.valid_frames = std::vector<u64>(da.valid_frames().begin(),
+                                               da.valid_frames().end());
+          }
+          if (args.size() > 0) {
+            std::vector<u8> metadata(args.back().metadata().begin(),
+                                     args.back().metadata().end());
+            inplace_decoders_[media_col_idx]->initialize(encoded_data,
+                                                         metadata);
+          }
         }
       }
       media_col_idx++;
@@ -587,11 +590,20 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
     // Determine the highest row seen so we know how many elements we
     // might be able to produce
     i64 max_row_id_seen = -1;
-    if (input_column_idx.size() > 0 && kernel_cache_row_ids[0].size() > 0) {
-      max_row_id_seen = kernel_cache_row_ids[0].back();
-      for (i32 i = 1; i < input_column_idx.size(); ++i) {
-        max_row_id_seen =
-            std::min(max_row_id_seen, kernel_cache_row_ids[i].back());
+    if (input_column_idx.size() > 0) {
+      for (i32 i = 0; i < input_column_idx.size(); ++i) {
+        // If one of the inputs is empty, then we haven't seen enough rows!
+        if (kernel_cache_row_ids[i].size() == 0) {
+          max_row_id_seen = -1;
+          break;
+        }
+
+        if (max_row_id_seen == -1) {
+          max_row_id_seen = kernel_cache_row_ids[i].back();
+        } else {
+          max_row_id_seen =
+              std::min(max_row_id_seen, kernel_cache_row_ids[i].back());
+        }
       }
       // Update current compute position
       for (i64 i = 0; i < kernel_cache_row_ids[0].size(); ++i) {
@@ -806,11 +818,11 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
       i64 row_end = row_start + producible_elements;
 
       // First build mapping from row number to element in the cache
-      auto& cache_row_deque = kernel_cache_row_ids[0];
       std::vector<std::unordered_map<i32, Element>> cache_row_maps;
       for (size_t i = 0; i < input_column_idx.size(); ++i) {
         cache_row_maps.emplace_back();
         auto& row_map = cache_row_maps[i];
+        auto& cache_row_deque = kernel_cache_row_ids[i];
         auto& cache_deque = kernel_cache[i];
         for (size_t j = 0; j < cache_row_deque.size(); ++j) {
           row_map[cache_row_deque[j]] = cache_deque[j];
