@@ -113,7 +113,9 @@ bool LoadWorker::yield(i32 item_size,
 
     // Pass to the source to read the data
     std::vector<Elements> elements(1);
-    sources_[i]->read(element_args, elements);
+    if (element_args.size() > 0) {
+      sources_[i]->read(element_args, elements);
+    }
     eval_work_entry.columns.insert(eval_work_entry.columns.end(),
                                    elements.begin(), elements.end());
 
