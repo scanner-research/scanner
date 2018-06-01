@@ -1,6 +1,7 @@
 import numpy as np
 import cv2
 import copy
+import math
 from collections import defaultdict
 
 
@@ -63,19 +64,48 @@ class Pose(object):
 
     def face_bbox(self):
         p = self.pose_keypoints()
-        l = p[16, :2]
-        r = p[17, :2]
-        o = p[0, :2]
-        up = o + [r[1] - l[1], l[0] - r[0]]
-        down = o + [l[1] - r[1], r[0] - l[0]]
-        face = np.array([l, r, up, down])
 
+        # Keypoints for eyes, ears, and nose
+        re = p[14, :]
+        le = p[15, :]
+        r = p[16, :]
+        l = p[17, :]
+        o = p[0, :]
+        pts = [re, le, r, l, o]
+
+        # Gather up all valid keypoints
+        valid = []
+        for pt in pts:
+            if pt[2] > 0.05:
+                valid.append(pt)
+
+        if len(valid) == 0:
+            return [(0, 0), (0, 0), 0]
+
+        face = np.array(valid, ndmin=2)
+
+        # Find the x extent of the keypoints
         xmin = face[:, 0].min()
         xmax = face[:, 0].max()
-        ymin = face[:, 1].min()
-        ymax = face[:, 1].max()
+        width = xmax - xmin
+        xmin -= width * 0.1
+        xmax += width * 0.1
+
+        yavg = np.mean(face[:, 1])
+
+        ymin = yavg - width
+        ymax = yavg + width
 
         score = min(p[16, 2], p[17, 2], p[0, 2])
+        return [(xmin, ymin), (xmax, ymax), score]
+
+    def body_bbox(self):
+        p = self.pose_keypoints()
+        xmin = p[:, 0].min()
+        xmax = p[:, 0].max()
+        ymin = p[:, 1].min()
+        ymax = p[:, 1].max()
+        score = np.mean(p[:, 2])
         return [(xmin, ymin), (xmax, ymax), score]
 
     def draw(self, img, thickness=5, draw_threshold=0.05):
