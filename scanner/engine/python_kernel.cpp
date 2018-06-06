@@ -36,6 +36,10 @@ PythonKernel::PythonKernel(const KernelConfig &config,
   py::gil_scoped_acquire acquire;
   can_batch_ = can_batch;
   can_stencil_ = can_stencil;
+
+  // Remove uuid from op_name
+  op_name_ = op_name_.substr(0, op_name_.find(":"));
+
   char rand[256];
   gen_random(rand, 256);
   kernel_name_ = tfm::format("%s_kernel_%s", op_name_, rand);

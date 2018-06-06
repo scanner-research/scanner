@@ -2,6 +2,7 @@ import grpc
 import copy
 import pickle
 import types
+import uuid
 
 from scannerpy.common import *
 from scannerpy.protobuf_generator import python_to_proto
@@ -90,13 +91,15 @@ class OpGenerator:
         if name in PYTHON_OP_REGISTRY:
             py_op_info = PYTHON_OP_REGISTRY[name]
             # If Op has not been registered yet, register it
+            pseudo_name = name + ':' + py_op_info['registration_id']
+            name = pseudo_name
             if not name in self._db._python_ops:
                 self._db.register_op(
-                    name, py_op_info['input_columns'],
+                    pseudo_name, py_op_info['input_columns'],
                     py_op_info['output_columns'], py_op_info['variadic_inputs'],
                     py_op_info['stencil'], py_op_info['unbounded_state'],
                     py_op_info['bounded_state'], py_op_info['proto_path'])
-                self._db.register_python_kernel(name, py_op_info['device_type'],
+                self._db.register_python_kernel(pseudo_name, py_op_info['device_type'],
                                                 py_op_info['kernel'],
                                                 py_op_info['batch'])
 
@@ -400,6 +403,7 @@ def register_python_op(name: str = None,
             'device_type': device_type,
             'batch': batch,
             'proto_path': proto_path,
+            'registration_id': uuid.uuid4().hex
         }
         return fn_or_class
 
