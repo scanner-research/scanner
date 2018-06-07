@@ -164,11 +164,12 @@ void MasterServerImpl::handle_rpcs() {
   REQUEST_RPC(ListLoadedOps, proto::Empty, proto::ListLoadedOpsReply);
   REQUEST_RPC(ListRegisteredOps, proto::Empty, proto::ListRegisteredOpsReply);
   REQUEST_RPC(ListRegisteredPythonKernels, proto::Empty, proto::ListRegisteredPythonKernelsReply);
-  REQUEST_RPC(GetJobStatus, proto::GetJobStatusRequest, proto::GetJobStatusReply);
   REQUEST_RPC(NextWork, proto::NextWorkRequest, proto::NextWorkReply);
   REQUEST_RPC(FinishedWork, proto::FinishedWorkRequest, proto::Empty);
   REQUEST_RPC(FinishedJob, proto::FinishedJobRequest, proto::Empty);
   REQUEST_RPC(NewJob, proto::BulkJobParameters, proto::NewJobReply);
+  REQUEST_RPC(GetJobs, proto::GetJobsRequest, proto::GetJobsReply);
+  REQUEST_RPC(GetJobStatus, proto::GetJobStatusRequest, proto::GetJobStatusReply);
   REQUEST_RPC(Ping, proto::Empty, proto::Empty);
   REQUEST_RPC(PokeWatchdog, proto::Empty, proto::Empty);
 
@@ -822,65 +823,6 @@ void MasterServerImpl::ListRegisteredPythonKernelsHandler(
   call->Respond(grpc::Status::OK);
 }
 
-void MasterServerImpl::GetJobStatusHandler(
-    MCall<proto::GetJobStatusRequest, proto::GetJobStatusReply>* call) {
-  VLOG(3) << "Master received GetJobStatus command";
-
-  pool_->enqueue([this, call]() {
-    std::unique_lock<std::mutex> l(work_mutex_);
-    std::unique_lock<std::mutex> lock(active_mutex_);
-    auto request = &call->request;
-    auto reply = &call->reply;
-
-    if (bulk_jobs_state_.count(request->bulk_job_id()) == 0) {
-      LOG(WARNING)
-          << "GetJobStatus received request for non-existent bulk job id: "
-          << request->bulk_job_id();
-
-      REQUEST_RPC(GetJobStatus, proto::GetJobStatusRequest,
-                  proto::GetJobStatusReply);
-      call->Respond(grpc::Status::OK);
-      return;
-    }
-    std::shared_ptr<BulkJob> state =
-        bulk_jobs_state_.at(request->bulk_job_id());
-
-    if (!active_bulk_job_) {
-      reply->set_finished(true);
-      reply->mutable_result()->CopyFrom(state->job_result);
-
-      reply->set_tasks_done(0);
-      reply->set_total_tasks(0);
-
-      reply->set_jobs_done(0);
-      reply->set_jobs_failed(0);
-      reply->set_total_jobs(0);
-    } else {
-      reply->set_finished(false);
-
-      reply->set_tasks_done(state->total_tasks_used);
-      reply->set_total_tasks(state->total_tasks);
-
-      reply->set_jobs_done(state->next_job - 1);
-      reply->set_jobs_failed(0);
-      reply->set_total_jobs(state->num_jobs);
-    }
-    // Num workers
-    i32 num_workers = 0;
-    for (auto& kv : workers_) {
-      if (kv.second->active) {
-        num_workers++;
-      }
-    }
-    reply->set_num_workers(num_workers);
-    reply->set_failed_workers(state->num_failed_workers);
-
-    REQUEST_RPC(GetJobStatus, proto::GetJobStatusRequest,
-                proto::GetJobStatusReply);
-    call->Respond(grpc::Status::OK);
-  });
-}
-
 void MasterServerImpl::NextWorkHandler(
     MCall<proto::NextWorkRequest, proto::NextWorkReply>* call) {
   pool_->enqueue([this, call]() {
@@ -1163,6 +1105,87 @@ void MasterServerImpl::NewJobHandler(
     active_cv_.notify_all();
   });
 }
+
+void MasterServerImpl::GetJobStatusHandler(
+    MCall<proto::GetJobStatusRequest, proto::GetJobStatusReply>* call) {
+  VLOG(3) << "Master received GetJobStatus command";
+
+  pool_->enqueue([this, call]() {
+    std::unique_lock<std::mutex> l(work_mutex_);
+    std::unique_lock<std::mutex> lock(active_mutex_);
+    auto request = &call->request;
+    auto reply = &call->reply;
+
+    if (bulk_jobs_state_.count(request->bulk_job_id()) == 0) {
+      LOG(WARNING)
+          << "GetJobStatus received request for non-existent bulk job id: "
+          << request->bulk_job_id();
+
+      REQUEST_RPC(GetJobStatus, proto::GetJobStatusRequest,
+                  proto::GetJobStatusReply);
+      call->Respond(grpc::Status::OK);
+      return;
+    }
+    std::shared_ptr<BulkJob> state =
+        bulk_jobs_state_.at(request->bulk_job_id());
+
+    if (!active_bulk_job_) {
+      reply->set_finished(true);
+      reply->mutable_result()->CopyFrom(state->job_result);
+
+      reply->set_tasks_done(0);
+      reply->set_total_tasks(0);
+
+      reply->set_jobs_done(0);
+      reply->set_jobs_failed(0);
+      reply->set_total_jobs(0);
+    } else {
+      reply->set_finished(false);
+
+      reply->set_tasks_done(state->total_tasks_used);
+      reply->set_total_tasks(state->total_tasks);
+
+      reply->set_jobs_done(state->next_job - 1);
+      reply->set_jobs_failed(0);
+      reply->set_total_jobs(state->num_jobs);
+    }
+    // Num workers
+    i32 num_workers = 0;
+    for (auto& kv : workers_) {
+      if (kv.second->active) {
+        num_workers++;
+      }
+    }
+    reply->set_num_workers(num_workers);
+    reply->set_failed_workers(state->num_failed_workers);
+
+    REQUEST_RPC(GetJobStatus, proto::GetJobStatusRequest,
+                proto::GetJobStatusReply);
+    call->Respond(grpc::Status::OK);
+  });
+}
+
+void MasterServerImpl::GetJobsHandler(
+    MCall<proto::GetJobsRequest, proto::GetJobsReply>* call) {
+  VLOG(3) << "Master received GetJobs command";
+
+  pool_->enqueue([this, call]() {
+    std::unique_lock<std::mutex> l(work_mutex_);
+    std::unique_lock<std::mutex> lock(active_mutex_);
+
+    auto request = &call->request;
+    auto reply = &call->reply;
+
+    if (active_bulk_job_) {
+      reply->add_active_bulk_jobs(active_bulk_job_id_);
+    }
+
+    REQUEST_RPC(GetJobs, proto::GetJobsRequest, proto::GetJobsReply);
+    call->Respond(grpc::Status::OK);
+  });
+}
+
+
 
 void MasterServerImpl::PingHandler(
     MCall<proto::Empty, proto::Empty>* call) {
