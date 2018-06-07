@@ -106,9 +106,6 @@ class MasterServerImpl final : public proto::Master::Service {
   void ListRegisteredPythonKernelsHandler(
       MCall<proto::Empty, proto::ListRegisteredPythonKernelsReply>* call);
 
-  void GetJobStatusHandler(
-      MCall<proto::GetJobStatusRequest, proto::GetJobStatusReply>* call);
-
   void NextWorkHandler(
       MCall<proto::NextWorkRequest, proto::NextWorkReply>* call);
 
@@ -118,6 +115,11 @@ class MasterServerImpl final : public proto::Master::Service {
   void FinishedJobHandler(MCall<proto::FinishedJobRequest, proto::Empty>* call);
 
   void NewJobHandler(MCall<proto::BulkJobParameters, proto::NewJobReply>* call);
+
+  void GetJobsHandler(MCall<proto::GetJobsRequest, proto::GetJobsReply>* call);
+
+  void GetJobStatusHandler(
+      MCall<proto::GetJobStatusRequest, proto::GetJobStatusReply>* call);
 
   // Misc methods
   void PingHandler(MCall<proto::Empty, proto::Empty>* call);

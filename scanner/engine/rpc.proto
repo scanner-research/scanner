@@ -23,7 +23,6 @@ service Master {
   rpc ActiveWorkers (Empty) returns (RegisteredWorkers) {}
   // Ingest videos into the system
   rpc IngestVideos (IngestParameters) returns (IngestResult) {}
-  rpc GetJobStatus (GetJobStatusRequest) returns (GetJobStatusReply) {}
 
   // Register new methods
   rpc LoadOp (OpPath) returns (Result) {}
@@ -48,6 +47,10 @@ service Master {
   rpc FinishedWork (FinishedWorkRequest) returns (Empty) {}
   rpc FinishedJob (FinishedJobRequest) returns (Empty) {}
   rpc NewJob (BulkJobParameters) returns (NewJobReply) {}
+
+  rpc GetJobs (GetJobsRequest) returns (GetJobsReply) {}
+  rpc GetJobStatus (GetJobStatusRequest) returns (GetJobStatusReply) {}
+
 }
 
 service Worker {
@@ -62,6 +65,13 @@ message Empty {}
 message Result {
   bool success = 1;
   string msg = 2;
+}
+
+message GetJobsRequest {
+}
+
+message GetJobsReply {
+  repeated int64 active_bulk_jobs = 1;
 }
 
 message GetJobStatusRequest {
