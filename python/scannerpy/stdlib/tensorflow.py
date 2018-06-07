@@ -24,6 +24,7 @@ class TensorFlowKernel(Kernel):
         self.tf_config = tf_config
         self.graph = self.build_graph()
         self.sess = tf.Session(config=self.tf_config, graph=self.graph)
+        self.sess.as_default()
         self.protobufs = config.protobufs
 
     def close(self):
