@@ -6,5 +6,4 @@ scannerpy.start_worker(
                    os.environ['SCANNER_MASTER_SERVICE_PORT']),
     block=True,
     watchdog=False,
-    prefetch_table_metadata=True,
     port=5002)
