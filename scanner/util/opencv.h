@@ -28,6 +28,8 @@ FrameType cv_to_frame_type(int type);
 
 FrameInfo mat_to_frame_info(const cv::Mat& mat);
 
+Frame* mat_to_frame(const cv::Mat& mat);
+
 cv::Mat frame_to_mat(const Frame* frame);
 
 cv::Mat frame_to_mat(Frame* frame);
@@ -52,6 +54,8 @@ cvc::GpuMat frame_to_gpu_mat(Frame* frame);
 cvc::GpuMat bytesToImage_gpu(u8* buf, const proto::FrameInfo& metadata);
 
 FrameInfo gpu_mat_to_frame_info(const cv::cuda::GpuMat& mat);
+
+Frame* gpu_mat_to_frame(const cv::cuda::GpuMat& mat);
 
 cudaError_t convertNV12toRGBA(
     const cv::cuda::GpuMat& in, cv::cuda::GpuMat& outFrame, int width,

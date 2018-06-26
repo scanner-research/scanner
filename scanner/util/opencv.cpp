@@ -5,6 +5,7 @@
 #include "scanner/util/image.h"
 
 #ifdef HAVE_CUDA
+#include "scanner/util/cuda.h"
 #include <opencv2/core/cuda_stream_accessor.hpp>
 #endif
 
@@ -62,6 +63,21 @@ FrameInfo mat_to_frame_info(const cv::Mat& mat) {
                    cv_to_frame_type(mat.depth()));
 }
 
+Frame* mat_to_frame(const cv::Mat& mat) {
+  Frame* frame = new_frame(CPU_DEVICE, mat_to_frame_info(mat));
+  if (mat.isContinuous()) {
+    memcpy(frame->data, mat.data, frame->size());
+  } else {
+    u64 offset = 0;
+    u64 row_size = mat.cols * mat.elemSize();
+    for (int i = 0; i < mat.rows; ++i) {
+      memcpy(frame->data + offset, mat.data + i * mat.step, row_size);
+      offset += row_size;
+    }
+  }
+  return frame;
+}
+
 cv::Mat frame_to_mat(const Frame* frame) { return frame_to_mat((Frame*)frame); }
 
 cv::Mat frame_to_mat(Frame* frame) {
@@ -95,6 +111,21 @@ FrameInfo gpu_mat_to_frame_info(const cv::cuda::GpuMat& mat) {
                    cv_to_frame_type(mat.depth()));
 }
 
+Frame* gpu_mat_to_frame(const cv::cuda::GpuMat& mat) {
+  int device;
+  CU_CHECK(cudaGetDevice(&device));
+  Frame* frame = new_frame(DeviceHandle(DeviceType::GPU, device),
+                           gpu_mat_to_frame_info(mat));
+  if (mat.isContinuous()) {
+    cudaMemcpy(frame->data, mat.data, frame->size(), cudaMemcpyDefault);
+  } else {
+    size_t frame_pitch =
+        frame->width() * frame->channels() * size_of_frame_type(frame->type);
+    cudaMemcpy2D(frame->data, frame_pitch, mat.data, mat.step, mat.cols,
+                 mat.rows, cudaMemcpyDefault);
+  }
+  return frame;
+}
 
 cudaError_t convertNV12toRGBA(const cv::cuda::GpuMat& in,
                               cv::cuda::GpuMat& outFrame, int width, int height,
