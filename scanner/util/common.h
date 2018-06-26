@@ -51,7 +51,11 @@ using proto::Point;
 using proto::Result;
 
 struct DeviceHandle {
- public:
+  DeviceHandle(DeviceType type_, i32 id_) : type(type_), id(id_) {}
+  DeviceHandle() = default;
+  DeviceHandle(const DeviceHandle&) = default;
+  DeviceHandle& operator=(const DeviceHandle&) = default;
+
   bool operator==(const DeviceHandle& other) {
     return type == other.type && id == other.id;
   }
