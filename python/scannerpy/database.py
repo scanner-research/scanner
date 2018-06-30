@@ -1164,6 +1164,12 @@ class Database(object):
 
         return Profiler(self, job_id)
 
+    def get_active_jobs(self):
+        req = self.protobufs.GetJobsRequest()
+        reply = self._try_rpc(lambda: self._master.GetJobs(
+            req, timeout=self._grpc_timeout))
+        return [x for x in reply.active_bulk_jobs]
+
     def wait_on_job(self, bulk_job_id, show_progress=True):
         pbar = None
         total_tasks = None
