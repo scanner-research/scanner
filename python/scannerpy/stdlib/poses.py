@@ -7,6 +7,7 @@ from collections import defaultdict
 
 class Pose(object):
     POSE_KEYPOINTS = 18
+    POSE_SCORES = 1
     FACE_KEYPOINTS = 70
     HAND_KEYPOINTS = 21
 
@@ -42,6 +43,7 @@ class Pose(object):
                    [255, 0, 170], [170, 0, 255], [255, 0, 255], [85, 0, 255]]
 
     def __init__(self):
+        self.posescores = 0
         self.keypoints = np.zeros((Pose.POSE_KEYPOINTS + Pose.FACE_KEYPOINTS +
                                    Pose.HAND_KEYPOINTS * 2, 3))
 
@@ -150,8 +152,9 @@ class Pose(object):
     def from_buffer(keypoints_buffer):
         pose = Pose()
         shape = pose.keypoints.shape
-        pose.keypoints = (np.frombuffer(keypoints_buffer,
-                                        dtype=np.float32).reshape(shape))
+        data = np.frombuffer(keypoints_buffer, dtype=np.float32)
+        pose.posescores = data[0]
+        pose.keypoints = data[1:].reshape(shape)
         return pose
 
 
