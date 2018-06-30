@@ -178,7 +178,8 @@ class OpenPoseKernel : public scanner::BatchedKernel,
         curr_kp += HAND_KEYPOINTS * 3;
       }
 
-      float* device_kp = (float*)scanner::new_buffer(device_, size); scanner::memcpy_buffer((scanner::u8*)device_kp, device_, (scanner::u8*)kp,
+      float* device_kp = (float*)scanner::new_buffer(device_, size);
+      scanner::memcpy_buffer((scanner::u8*)device_kp, device_, (scanner::u8*)kp,
                              scanner::CPU_DEVICE, size);
       scanner::insert_element(output_columns[0], (scanner::u8*)device_kp, size);
       delete kp;
