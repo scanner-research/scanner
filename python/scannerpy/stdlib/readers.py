@@ -24,7 +24,7 @@ def poses(buf, protobufs):
 
     kp_size = (
         Pose.POSE_KEYPOINTS + Pose.FACE_KEYPOINTS + Pose.HAND_KEYPOINTS * 2
-    ) * 3
+    ) * 3 + Pose.POSE_SCORES
     poses = []
     all_kp = np.frombuffer(buf, dtype=np.float32)
     for j in range(0, len(all_kp), kp_size):
