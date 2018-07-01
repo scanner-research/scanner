@@ -75,7 +75,7 @@ class SoftwareVideoEncoder : public VideoEncoder {
 
   i32 frame_id_;
   AVFrame* frame_;
-  Queue<AVPacket*> ready_packet_queue_;
+  std::deque<AVPacket*> ready_packet_queue_;
 };
 }
 }
