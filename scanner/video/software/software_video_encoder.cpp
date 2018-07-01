@@ -54,7 +54,6 @@ SoftwareVideoEncoder::SoftwareVideoEncoder(i32 device_id,
     cc_(nullptr),
     sws_context_(nullptr),
     was_reset_(false),
-    ready_packet_queue_(1024),
     frame_id_(0),
     frame_(nullptr) {
   avcodec_register_all();
@@ -98,8 +97,8 @@ void SoftwareVideoEncoder::configure(const FrameInfo& metadata,
     av_freep(&cc_);
 #endif
     while (ready_packet_queue_.size() > 0) {
-      AVPacket* packet;
-      ready_packet_queue_.pop(packet);
+      AVPacket* packet = ready_packet_queue_.back();
+      ready_packet_queue_.pop_back();
       PACKET_FREE(packet);
     }
   }
@@ -220,7 +219,8 @@ bool SoftwareVideoEncoder::get_packet(u8* packet_buffer, size_t packet_size,
 
   AVPacket* packet;
   if (ready_packet_queue_.size() > 0) {
-    ready_packet_queue_.pop(packet);
+    packet = ready_packet_queue_.back();
+    ready_packet_queue_.pop_back();
   } else {
     return false;
   }
@@ -240,7 +240,7 @@ bool SoftwareVideoEncoder::get_packet(u8* packet_buffer, size_t packet_size,
   // Make sure we have space for this packet, otherwise put it back on the queue and return
   actual_packet_size = filtered_data_size;
   if (actual_packet_size > packet_size) {
-    ready_packet_queue_.push(packet);
+    ready_packet_queue_.push_back(packet);
     free(filtered_data);
     return true;
   }
@@ -279,7 +279,7 @@ void SoftwareVideoEncoder::feed_frame(bool flush) {
     AVPacket* packet = av_packet_alloc();
     ret = avcodec_receive_packet(cc_, packet);
     if (ret == 0) {
-      ready_packet_queue_.push(packet);
+      ready_packet_queue_.push_front(packet);
     } else if (ret == AVERROR(EAGAIN)) {
       PACKET_FREE(packet);
     } else if (ret == AVERROR_EOF) {
