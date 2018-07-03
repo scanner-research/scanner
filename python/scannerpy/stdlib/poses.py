@@ -43,7 +43,7 @@ class Pose(object):
                    [255, 0, 170], [170, 0, 255], [255, 0, 255], [85, 0, 255]]
 
     def __init__(self):
-        self.posescores = 0
+        self.pose_score = 0
         self.keypoints = np.zeros((Pose.POSE_KEYPOINTS + Pose.FACE_KEYPOINTS +
                                    Pose.HAND_KEYPOINTS * 2, 3))
 
@@ -153,7 +153,7 @@ class Pose(object):
         pose = Pose()
         shape = pose.keypoints.shape
         data = np.frombuffer(keypoints_buffer, dtype=np.float32)
-        pose.posescores = data[0]
+        pose.pose_score = data[0]
         pose.keypoints = data[1:].reshape(shape)
         return pose
 
