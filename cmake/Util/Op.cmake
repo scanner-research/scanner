@@ -45,13 +45,13 @@ function(build_op)
     execute_process(
       OUTPUT_VARIABLE SCANNER_LIB_PATH
       COMMAND
-      python -c "import scannerpy.stdlib.build_flags as b; b.print_lib()")
+      python3 -c "import scannerpy.stdlib.build_flags as b; b.print_lib()")
     target_link_libraries(${args_LIB_NAME} PUBLIC "${SCANNER_LIB_PATH}/libscanner.so")
 
     execute_process(
       OUTPUT_VARIABLE BUILD_FLAGS
       COMMAND
-      python -c "import scannerpy.stdlib.build_flags as b; b.print_flags()")
+      python3 -c "import scannerpy.stdlib.build_flags as b; b.print_flags()")
     set_target_properties(
       ${args_LIB_NAME} PROPERTIES
       COMPILE_FLAGS "${BUILD_FLAGS}")
