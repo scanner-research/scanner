@@ -41,7 +41,11 @@ class ImageEncoderKernel : public BatchedKernel, public VideoKernel {
       cv::Mat img = frame_to_mat(frame_col[i].as_const_frame());
       std::vector<u8> buf;
       cv::Mat recolored;
-      cv::cvtColor(img, recolored, CV_RGB2BGR);
+      if (img.channels() == 3) {
+        cv::cvtColor(img, recolored, CV_RGB2BGR);
+      } else {
+        recolored = img;
+      }
       bool success =
           cv::imencode("." + image_type_, recolored, buf, encode_params);
       LOG_IF(FATAL, !success) << "Failed to encode image";
