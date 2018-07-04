@@ -57,7 +57,7 @@ service Worker {
   rpc NewJob (BulkJobParameters) returns (Result) {}
   rpc Shutdown (Empty) returns (Result) {}
   rpc PokeWatchdog (Empty) returns (Empty) {}
-  rpc Ping (Empty) returns (Empty) {}
+  rpc Ping (Empty) returns (PingReply) {}
 }
 
 message Empty {}
@@ -306,4 +306,8 @@ message SinkInfo {
   repeated Column input_columns = 3;
   string protobuf_name = 5;
   string stream_protobuf_name = 6;
+}
+
+message PingReply {
+  int32 node_id = 1;
 }

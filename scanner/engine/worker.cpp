@@ -631,7 +631,8 @@ grpc::Status WorkerImpl::PokeWatchdog(grpc::ServerContext* context,
 
 grpc::Status WorkerImpl::Ping(grpc::ServerContext* context,
                               const proto::Empty* empty1,
-                              proto::Empty* empty2) {
+                              proto::PingReply* reply) {
+  reply->set_node_id(node_id_);
   return grpc::Status::OK;
 }
 

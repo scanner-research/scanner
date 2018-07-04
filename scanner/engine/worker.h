@@ -45,7 +45,7 @@ class WorkerImpl final : public proto::Worker::Service {
                             const proto::Empty* empty, proto::Empty* result);
 
   grpc::Status Ping(grpc::ServerContext* context, const proto::Empty* empty,
-                    proto::Empty* result);
+                    proto::PingReply* reply);
 
   void start_watchdog(grpc::Server* server, bool enable_timeout,
                       i32 timeout_ms = 50000);
