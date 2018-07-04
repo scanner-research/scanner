@@ -1,8 +1,10 @@
 import struct
 import math
-from subprocess import Popen, PIPE
 import tempfile
 import os
+from subprocess import Popen, PIPE
+from concurrent.futures import ThreadPoolExecutor
+
 
 from storehouse import RandomReadFile
 from scannerpy.stdlib import readers
@@ -166,6 +168,7 @@ class Column(object):
         rows_idx = 0
         rows = list(range(total_rows)) if rows is None else rows
         prev = 0
+        io_requests = []
         for item_id in range(num_items):
             start_row = prev
             end_row = table_descriptor.end_rows[item_id]
@@ -180,10 +183,24 @@ class Column(object):
                 else:
                     break
             if select_rows:
-                for output in self._load_output_file(item_id, select_rows, fn):
-                    yield output
-                    i += 1
+                io_requests.append((item_id, select_rows))
             rows_so_far += item_rows
+        # Start processing io requests in parallel
+        workers = 16
+        loaded_data = []
+        executor = ThreadPoolExecutor(max_workers=workers)
+        def eager(item_id, select_rows):
+            return [x for x in self._load_output_file(item_id, select_rows, fn)]
+        for i in range(min(workers, len(io_requests))):
+            item_id, select_rows = io_requests[i]
+            loaded_data.append(executor.submit(eager, item_id, select_rows))
+
+        for i in range(len(io_requests)):
+            if len(loaded_data) < len(io_requests):
+                item_id, select_rows = io_requests[workers + i]
+                loaded_data.append(executor.submit(eager, item_id, select_rows))
+            for output in loaded_data[i].result():
+                yield output
 
     # TODO(wcrichto): don't show progress bar when running decode png
     def load(self, fn=None, rows=None):
