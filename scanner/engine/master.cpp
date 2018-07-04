@@ -1903,14 +1903,15 @@ void MasterServerImpl::start_worker_pinger() {
         ctx.set_deadline(deadline);
 
         proto::Empty empty1;
-        proto::Empty empty2;
-        grpc::Status status = worker->Ping(&ctx, empty1, &empty2);
-        if (!status.ok()) {
+        proto::PingReply reply;
+        grpc::Status status = worker->Ping(&ctx, empty1, &reply);
+        if (!status.ok() || reply.node_id() != worker_id) {
           VLOG(3) << "Master failed to Ping worker " << worker_id;
           // Worker not responding, increment ping count
           i64 num_failed_pings = ++workers_[worker_id]->failed_pings;
           const i64 FAILED_PINGS_BEFORE_REMOVAL = 3;
-          if (num_failed_pings >= FAILED_PINGS_BEFORE_REMOVAL) {
+          if (num_failed_pings >= FAILED_PINGS_BEFORE_REMOVAL ||
+              reply.node_id() != worker_id) {
             // remove it from active workers
             LOG(WARNING) << "Worker " << worker_id
                          << " did not respond to Ping. "
