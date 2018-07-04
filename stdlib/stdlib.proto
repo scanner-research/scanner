@@ -82,6 +82,7 @@ message ResizeArgs {
   int32 height = 2;
   bool min = 3;
   bool preserve_aspect = 4;
+  string interpolation = 5;
 }
 
 message ImageEncoderArgs {
