@@ -1,11 +1,11 @@
 from ..kernel import Kernel
 from scannerpy import DeviceType
 
-import tensorflow as tf
-
 
 class TensorFlowKernel(Kernel):
     def __init__(self, config):
+        import tensorflow as tf
+
         # If this is a CPU kernel, tell TF that it should not use
         # any GPUs for its graph operations
         cpu_only = True
