@@ -674,7 +674,7 @@ u8* new_buffer_(DeviceHandle device, size_t size, std::string call_file,
 
 u8* new_block_buffer_(DeviceHandle device, size_t size, i32 refs,
                      std::string call_file, i32 call_line) {
-  assert(size > 0);
+  LOG_IF(FATAL, size == 0) << "Cannot allocate zero-length buffer";
 #ifdef USE_LINKED_ALLOCATOR
   return linked_allocator->allocate(device, size, refs);
 #else
