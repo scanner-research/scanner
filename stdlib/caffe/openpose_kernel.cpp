@@ -14,6 +14,7 @@ namespace scanner {
 const int POSE_KEYPOINTS = 18;
 const int FACE_KEYPOINTS = 70;
 const int HAND_KEYPOINTS = 21;
+const int POSE_SCORES = 1;
 const int TOTAL_KEYPOINTS =
     POSE_KEYPOINTS + FACE_KEYPOINTS + 2 * HAND_KEYPOINTS;
 
@@ -142,11 +143,17 @@ class OpenPoseKernel : public scanner::BatchedKernel,
     for (auto& datum : *datumProcessed) {
       int num_people = datum.poseKeypoints.getSize(0);
       size_t size =
-          num_people > 0 ? TOTAL_KEYPOINTS * num_people * 3 * sizeof(float) : 1;
+          num_people > 0 ? (POSE_SCORES + TOTAL_KEYPOINTS * 3) * num_people * sizeof(float) : 1;
       float* kp = new float[size / sizeof(float)];
       std::memset(kp, 0, size);
       float* curr_kp = kp;
+
       for (int i = 0; i < num_people; ++i) {
+        std::memcpy(curr_kp,
+                    datum.poseScores.getPtr() + i * POSE_SCORES,
+                    POSE_SCORES * sizeof(float));
+        curr_kp += POSE_SCORES;
+
         std::memcpy(curr_kp,
                     datum.poseKeypoints.getPtr() + i * POSE_KEYPOINTS * 3,
                     POSE_KEYPOINTS * 3 * sizeof(float));

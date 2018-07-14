@@ -448,10 +448,15 @@ void save_driver(SaveInputQueue& save_work,
     args.profiler.add_interval("task", work_start, now());
 
     if (work_entry.last_in_task) {
+      auto finished_start = now();
       worker->finished();
-      output_work.push(std::make_tuple(pipeline_instance, work_entry.job_index,
+      args.profiler.add_interval("finished", finished_start, now());
+
+      auto workpush_start = now();
+      output_work.enqueue(std::make_tuple(pipeline_instance, work_entry.job_index,
                                        work_entry.task_index));
       workers.erase(job_task_id);
+      args.profiler.add_interval("workpush", workpush_start, now());
     }
   }
 
@@ -626,7 +631,8 @@ grpc::Status WorkerImpl::PokeWatchdog(grpc::ServerContext* context,
 
 grpc::Status WorkerImpl::Ping(grpc::ServerContext* context,
                               const proto::Empty* empty1,
-                              proto::Empty* empty2) {
+                              proto::PingReply* reply) {
+  reply->set_node_id(node_id_);
   return grpc::Status::OK;
 }
 
@@ -1827,6 +1833,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     pre_eval_threads[i].join();
   }
 
+  LOG(INFO) << "Exiting kernel threads";
   for (i32 kg = 0; kg < num_kernel_groups; ++kg) {
     for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
       push_exit_message(eval_work[pu][kg]);
@@ -1837,6 +1844,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     }
   }
 
+  LOG(INFO) << "Exiting post-eval threads";
   // Terminate post eval threads
   for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
     push_exit_message(eval_work[pu].back());
@@ -1846,6 +1854,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     post_eval_threads[pu].join();
   }
 
+  LOG(INFO) << "Exiting save threads";
   // Push sentinel work entries into queue to terminate coordinator thread
   push_output_eval_exit_message(output_eval_work);
   save_coordinator_thread.join();
@@ -1853,7 +1862,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   // Push sentinel work entries into queue to terminate save threads
   for (i32 i = 0; i < num_save_workers; ++i) {
     // Wait until save thread is polling on save_work
-    while(save_work[i].size() >= 0) {
+    while(save_work[i].size() > 0) {
       retired_tasks.clear();
     }
     push_save_exit_message(save_work[i]);
@@ -1861,6 +1870,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   for (i32 i = 0; i < num_save_workers; ++i) {
     save_threads[i].join();
   }
+  LOG(INFO) << "All threads are finished";
 
   // Ensure all files are flushed
   if (job_params->profiling()) {

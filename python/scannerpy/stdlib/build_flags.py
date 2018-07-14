@@ -10,7 +10,7 @@ def print_include():
     sys.stdout.write(get_include())
 
 def get_lib():
-    return os.path.abspath(os.path.join(SCRIPT_DIR, '..'))
+    return os.path.abspath(os.path.join(SCRIPT_DIR, '..', 'lib'))
 
 def print_lib():
     sys.stdout.write(get_lib())
