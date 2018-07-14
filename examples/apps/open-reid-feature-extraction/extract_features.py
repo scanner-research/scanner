@@ -1,33 +1,29 @@
-import scannerpy
 import os
-from datetime import datetime
 import sys
 import cv2
+import pickle
+import torch
+import numpy as np
+
+import scannerpy
 from scannerpy import Database, DeviceType, Job, FrameType
 
 from PIL import Image
-
 from reid import models
 from reid.utils.serialization import load_checkpoint
 from reid.feature_extraction import extract_cnn_feature
 from reid.utils.data import transforms as T
 
-from torch import nn
-
-import torch
-
-
 def init_model(model_path):
-    # model = models.create('resnet152', num_features=1024, dropout=0, num_classes=2509)
     model = models.create('resnet50', num_features=128, num_classes=216, dropout=0)
     checkpoint = load_checkpoint(model_path)
     model.load_state_dict(checkpoint['state_dict'])
-    model = nn.DataParallel(model).cuda()
+    model = torch.nn.DataParallel(model).cuda()
     return model
 
 
 @scannerpy.register_python_op(device_type=DeviceType.GPU)
-class ExtractFeatureClass(scannerpy.Kernel):
+class ExtractReIDFeature(scannerpy.Kernel):
     def __init__(self, config):
         self.model_path = config.args['model_path']
         self.width = config.args['width']
@@ -41,7 +37,7 @@ class ExtractFeatureClass(scannerpy.Kernel):
             self.normalizer,
         ])
 
-    def execute(self, frame: FrameType) -> FrameType:
+    def execute(self, frame: FrameType) -> bytes:
         trans_im = cv2.resize(frame, (self.width, self.height))
 
         image = Image.fromarray(trans_im)
@@ -49,16 +45,10 @@ class ExtractFeatureClass(scannerpy.Kernel):
         img_list = [img]
         imgs = torch.stack(img_list)
 
-        t1 = datetime.now()
-
         img_feat = extract_cnn_feature(self.model, imgs)[0]
 
-        t2 = datetime.now()
-
-        # print("extract features in ", (t2 - t1).total_seconds() * 1000, " ms.")
-        # print(img_feat)
-
-        return trans_im
+        output = pickle.dumps(img_feat)
+        return output
 
 
 if len(sys.argv) <= 2:
@@ -95,13 +85,16 @@ else:
 
 frame = db.sources.FrameColumn()
 
-resized_frame_result = db.ops.ExtractFeatureClass(frame=frame,
-                                                  model_path=openreid_model_path,
-                                                  width=128, height=256,
-                                                  device=DeviceType.GPU)
+# This is for the demo only. In practice, you should perform the human detection
+# Then, provide the frame and the bounding boxes for each person.
+# We want to extract the Open-ReID feature for each bounding boxes
+reid_features = db.ops.ExtractReIDFeature(frame=frame,
+                                          model_path=openreid_model_path,
+                                          width=128, height=256,
+                                          device=DeviceType.GPU)
 
 output = db.sinks.FrameColumn(columns={
-    'resized_frame': resized_frame_result
+    'reid_features': reid_features
 })
 
 job = Job(op_args={
@@ -111,6 +104,9 @@ job = Job(op_args={
 
 [table] = db.run(output=output, jobs=[job], force=True)
 
-table.column('resized_frame').save_mp4('resized_frame')
+# Save reid features
+output_torch_reid_features = [pickle.loads(data) for data in table.column('reid_features').load()]
+output_reid_features = [f.numpy() for f in output_torch_reid_features]
+np.save("reid_features.npy", output_reid_features)
 
 print("Finished")
