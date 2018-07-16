@@ -21,7 +21,12 @@ If these commands were successful, you should now have bash session inside the d
 
 The full set of docker configurations we provide are:
 
-- :code:`scannerresearch/scanner:cpu` - CPU-only build
-- :code:`scannerresearch/scanner:gpu-9.1-cudnn7` - CUDA 9.1, CUDNN 7
-- :code:`scannerresearch/scanner:gpu-8.0-cudnn7` - CUDA 8.0, CUDNN 7
-- :code:`scannerresearch/scanner:gpu-8.0-cudnn6` - CUDA 8.0, CUDNN 6
+- :code:`scannerresearch/scanner:cpu-VERSION` - CPU-only build
+- :code:`scannerresearch/scanner:gpu-9.1-cudnn7-VERSION` - CUDA 9.1, CUDNN 7
+- :code:`scannerresearch/scanner:gpu-8.0-cudnn7-VERSION` - CUDA 8.0, CUDNN 7
+- :code:`scannerresearch/scanner:gpu-8.0-cudnn6-VERSION` - CUDA 8.0, CUDNN 6
+
+where :code:`VERSION` is one of:
+
+- :code:`latest` - The most recent build of the master branch
+- :code:`vX.X.X` - A git tag (where X is an integer)

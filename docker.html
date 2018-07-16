@@ -63,10 +63,15 @@ docker-compose run --service-ports cpu /bin/bash
 <p>If these commands were successful, you should now have bash session inside the docker container. To start using Scanner to process videos, check out <a class="reference internal" href="getting-started.html#getting-started"><span class="std std-ref">Getting Started</span></a>.</p>
 <p>The full set of docker configurations we provide are:</p>
 <ul class="simple">
-<li><code class="code docutils literal notranslate"><span class="pre">scannerresearch/scanner:cpu</span></code> - CPU-only build</li>
-<li><code class="code docutils literal notranslate"><span class="pre">scannerresearch/scanner:gpu-9.1-cudnn7</span></code> - CUDA 9.1, CUDNN 7</li>
-<li><code class="code docutils literal notranslate"><span class="pre">scannerresearch/scanner:gpu-8.0-cudnn7</span></code> - CUDA 8.0, CUDNN 7</li>
-<li><code class="code docutils literal notranslate"><span class="pre">scannerresearch/scanner:gpu-8.0-cudnn6</span></code> - CUDA 8.0, CUDNN 6</li>
+<li><code class="code docutils literal notranslate"><span class="pre">scannerresearch/scanner:cpu-VERSION</span></code> - CPU-only build</li>
+<li><code class="code docutils literal notranslate"><span class="pre">scannerresearch/scanner:gpu-9.1-cudnn7-VERSION</span></code> - CUDA 9.1, CUDNN 7</li>
+<li><code class="code docutils literal notranslate"><span class="pre">scannerresearch/scanner:gpu-8.0-cudnn7-VERSION</span></code> - CUDA 8.0, CUDNN 7</li>
+<li><code class="code docutils literal notranslate"><span class="pre">scannerresearch/scanner:gpu-8.0-cudnn6-VERSION</span></code> - CUDA 8.0, CUDNN 6</li>
+</ul>
+<p>where <code class="code docutils literal notranslate"><span class="pre">VERSION</span></code> is one of:</p>
+<ul class="simple">
+<li><code class="code docutils literal notranslate"><span class="pre">latest</span></code> - The most recent build of the master branch</li>
+<li><code class="code docutils literal notranslate"><span class="pre">vX.X.X</span></code> - A git tag (where X is an integer)</li>
 </ul>
 </div>
 
