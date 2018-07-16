@@ -7,10 +7,11 @@ Scanner has out-of-the-box compatibility with frameworks like OpenCV and Caffe, 
 
 On MacOS, you can install Scanner using homebrew with the following commands:
 
-```
-brew tap scanner-research/homebrew-scanner
-brew install scanner
-```
+.. code-block:: bash
+
+   brew tap scanner-research/homebrew-scanner
+   brew install scanner
+
 
 .. toctree::
    :maxdepth: 1

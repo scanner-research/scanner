@@ -1,5 +1,9 @@
-Scanner on Google Kubernetes Engine
-===================================
+Scanner + Kubernetes on Google Kubernetes Engine
+================================================
+
+This document will guide you through setting up a
+[kubernetes](https://kubernetes.io/docs/concepts/overview/what-is-kubernetes/)
+cluster on GCP that is ready to process scanner jobs.
 
 Pre-requisites:
 ---------------
