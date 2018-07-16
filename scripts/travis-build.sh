@@ -15,7 +15,12 @@ set -e
 # The Travis VM isn't big enough to hold two Docker images of Scanner,
 # so we have to push and delete the CPU image before building the GPU one.
 
-if [ "$TRAVIS_BRANCH" = "master" -a "$TRAVIS_PULL_REQUEST" = "false" ]; then
+if [[ "$TRAVIS_BRANCH" = "master" ]]; then
+    TRAVIS_TAG="latest"
+fi
+
+if [[ ("$TRAVIS_BRANCH" = "master" || "$TRAVIS_BRANCH" = "$TRAVIS_TAG") && \
+          "$TRAVIS_PULL_REQUEST" = "false" ]]; then
     PUSH=0
 else
     PUSH=1
@@ -44,9 +49,9 @@ build_docker() {
     fi
 
     if [ $PUSH -eq 0 ]; then
-        docker tag $DOCKER_REPO:$1-local $DOCKER_REPO:$1
-        docker push $DOCKER_REPO:$1
-        docker rmi -f $DOCKER_REPO:$1
+        docker tag $DOCKER_REPO:$1-local $DOCKER_REPO:$1-$TRAVIS_TAG
+        docker push $DOCKER_REPO:$1-$TRAVIS_TAG
+        docker rmi -f $DOCKER_REPO:$1-$TRAVIS_TAG
     fi
 }
 
