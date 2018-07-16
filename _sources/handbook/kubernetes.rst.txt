@@ -9,5 +9,4 @@ machines that run `containers <https://www.docker.com/what-container#/package_so
 (a container is akin to a light-weight VM image).
 
 We provide a step-by-step example of getting Scanner up and running on your own
-kubernetes cluster using `Google Compute Engine <https://cloud.google.com/compute/>`__.
-This example can be found here: `<https://github.com/scanner-research/scanner/tree/master/examples/apps/kubernetes>`__
+kubernetes cluster using `Google Cloud Platform <https://github.com/scanner-research/scanner/tree/master/examples/apps/gcp_kubernetes>`__.
