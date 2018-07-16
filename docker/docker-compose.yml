@@ -1,7 +1,7 @@
 version: "2.3"
 services:
   gpu:
-    image: scannerresearch/scanner:gpu-9.1-cudnn7
+    image: scannerresearch/scanner:gpu-9.1-cudnn7-latest
     command: jupyter notebook --allow-root --ip=0.0.0.0 --port=8888
     ports:
       - "8888:8888"
@@ -9,7 +9,7 @@ services:
       - .:/app
     runtime: nvidia
   cpu:
-    image: scannerresearch/scanner:cpu
+    image: scannerresearch/scanner:cpu-latest
     command: jupyter notebook --allow-root --ip=0.0.0.0 --port=8888
     ports:
       - "8888:8888"
