@@ -1,4 +1,4 @@
-FROM scannerresearch/scanner:cpu
+FROM scannerresearch/scanner:cpu-latest
 WORKDIR /app
 
 COPY config.toml /root/.scanner/config.toml
