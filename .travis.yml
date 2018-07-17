@@ -22,6 +22,7 @@ env:
     - BUILD_TYPE=cpu
     - BUILD_TYPE=gpu-8.0-cudnn6
     - BUILD_TYPE=gpu-8.0-cudnn7
+    - BUILD_TYPE=gpu-9.0-cudnn7
     - BUILD_TYPE=gpu-9.1-cudnn7
 
 install:
