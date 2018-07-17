@@ -56,7 +56,10 @@ def flow(bufs, protobufs):
 
 def array(ty):
     def parser(buf, protobufs):
-        return np.frombuffer(buf, dtype=np.dtype(ty))
+        if buf == ' ':
+            return None
+        else:
+            return np.frombuffer(buf, dtype=np.dtype(ty))
 
     return parser
 
