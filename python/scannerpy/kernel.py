@@ -8,7 +8,7 @@ class KernelConfig(object):
         self.input_column_types = config.input_column_types
         self.output_columns = config.output_columns
         self.output_column_types = config.output_column_types
-        self.args = pickle.loads(config.args())
+        self.args = pickle.loads(config.args()) if config.args() != b'' else None
         self.node_id = config.node_id
 
 
