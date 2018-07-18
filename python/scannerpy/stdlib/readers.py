@@ -54,12 +54,16 @@ def flow(bufs, protobufs):
     return output.reshape((info.height, info.width, 2))
 
 
-def array(ty):
+def array(ty, size=None):
     def parser(buf, protobufs):
         if buf == b' ':
             return None
         else:
-            return np.frombuffer(buf, dtype=np.dtype(ty))
+            npbuf = np.frombuffer(buf, dtype=np.dtype(ty))
+            if size is not None:
+                return np.split(npbuf, npbuf.shape[0] / size)
+            else:
+                return npbuf
 
     return parser
 
