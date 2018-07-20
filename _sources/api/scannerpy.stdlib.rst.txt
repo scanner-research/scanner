@@ -6,14 +6,6 @@ This section is still being written. Send an email to apoms@cs.cmu.edu if you wa
 Submodules
 ----------
 
-scannerpy\.stdlib\.bbox\_nms\_kernel module
--------------------------------------------
-
-.. automodule:: scannerpy.stdlib.bbox_nms_kernel
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 scannerpy\.stdlib\.bboxes module
 --------------------------------
 
@@ -30,14 +22,6 @@ scannerpy\.stdlib\.build\_flags module
     :undoc-members:
     :show-inheritance:
 
-scannerpy\.stdlib\.loaders module
----------------------------------
-
-.. automodule:: scannerpy.stdlib.loaders
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 scannerpy\.stdlib\.montage module
 ---------------------------------
 
@@ -50,14 +34,6 @@ scannerpy\.stdlib\.net\_descriptor module
 -----------------------------------------
 
 .. automodule:: scannerpy.stdlib.net_descriptor
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-scannerpy\.stdlib\.parsers module
----------------------------------
-
-.. automodule:: scannerpy.stdlib.parsers
     :members:
     :undoc-members:
     :show-inheritance:
@@ -85,6 +61,15 @@ scannerpy\.stdlib\.poses module
     :members:
     :undoc-members:
     :show-inheritance:
+
+scannerpy\.stdlib\.readers module
+---------------------------------
+
+.. automodule:: scannerpy.stdlib.readers
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 
 scannerpy\.stdlib\.util module
 ------------------------------
