@@ -969,6 +969,21 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   DatabaseMetadata meta(job_params->db_meta());
   TableMetaCache table_meta(storage_, meta);
 
+  // Perform analysis on the graph to determine:
+  //
+  // - populate_analysis_info: Analayze the graph to build lookup structures to
+  //   the different types of ops in the graph (input, sampling, slice/unslice,
+  //   output) and their parameters (warmup, batch, stencil)
+  //
+  // - determine_input_rows_to_slices: When the worker receives a set of outputs
+  //   to process, it needs to know which slice those outputs are a part of in
+  //   order to determine which parameters to bind to the graph (remember that
+  //   each subsequence in a slice can have different arguments bound to the
+  //   ops in the graph).
+  //
+  // - remap_input_op_edges: Remap multiple inputs to a single input op
+  //
+  // - perform_liveness_analysis: When to retire elements (liveness analysis)
   DAGAnalysisInfo analysis_results;
   populate_analysis_info(ops, analysis_results);
   // Need slice input rows to know which slice we are in
@@ -977,6 +992,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   // Analyze op DAG to determine what inputs need to be pipped along
   // and when intermediates can be retired -- essentially liveness analysis
   perform_liveness_analysis(ops, analysis_results);
+
   // The live columns at each op index
   std::vector<std::vector<std::tuple<i32, std::string>>>& live_columns =
       analysis_results.live_columns;
@@ -1029,8 +1045,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
   // Setup op args that will be passed to Ops when processing
   // the stream for that job
-  // op_idx -> job idx -> args
-  std::map<i64, std::vector<std::vector<u8>>> op_args;
+  // op_idx -> job idx -> slice -> args
+  std::map<i64, std::vector<std::vector<std::vector<u8>>>> op_args;
   for (const auto& job : jobs) {
     for (auto& oa : job.op_args()) {
       auto& op_job_args = op_args[oa.op_index()];
@@ -1038,11 +1054,16 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       auto& sargs = op_job_args.back();
       // TODO(apoms): use real op_idx when we support multiple outputs
       // sargs[so.op_index()] =
-      sargs = std::vector<u8>(oa.op_args().begin(), oa.op_args().end());
+      for (auto op_args : oa.op_args()) {
+        sargs.emplace_back(std::vector<u8>(op_args.begin(), op_args.end()));
+      }
     }
   }
 
-  // Populate kernel_factories and kernel_configs
+  // Go through the vector of Ops, and for each Op which represents a
+  // non-special Op (i.e. has a kernel implementation) get the factory
+  // for constructing instances of that op, and create the config object
+  // that is used when instantiating that Op
   for (size_t i = 0; i < ops.size(); ++i) {
     auto& op = ops.at(i);
     const std::string& name = op.name();
@@ -1063,6 +1084,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       return false;
     }
 
+    // Make sure that there exists a kernel for this Op type which
+    // is implemented using the requested device type.
     if (!kernel_registry->has_kernel(name, requested_device_type)) {
       RESULT_ERROR(
           job_result,
@@ -1078,7 +1101,10 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
         kernel_registry->get_kernel(name, requested_device_type);
     kernel_factories.push_back(kernel_factory);
 
-    // Setup kernel config with args from Op DAG
+    // Construct the kernel config (which is passed to the kernel when it is
+    // constructed). This needs to read the Op DAG to get the serialized
+    // arguments that the user specified when declaring the Op in the Python
+    // interface. See KernelConfig class in scanner/api/kernel.h.
     KernelConfig kernel_config;
     kernel_config.node_id = node_id_;
     kernel_config.args =
@@ -1102,6 +1128,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
         kernel_config.input_column_types.push_back(input_columns[i].type());
       }
     }
+
     kernel_configs.push_back(kernel_config);
   }
 
@@ -1224,9 +1251,9 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   i32 pipeline_instances_per_node = job_params->pipeline_instances_per_node();
 
   LOG(INFO) << "Initial pipeline instances per node: " << pipeline_instances_per_node;
-  // If ki per node is -1, we set a smart default. Currently, we calculate the
-  // maximum possible kernel instances without oversubscribing any part of the
-  // pipeline, either CPU or GPU.
+  // If pipline_instances_per_node is -1, we set a smart default. Currently, we
+  // calculate the maximum possible kernel instances without oversubscribing
+  // any part of the pipeline, either CPU or GPU.
   bool has_gpu_kernel = false;
   if (pipeline_instances_per_node == -1) {
     pipeline_instances_per_node = std::numeric_limits<i32>::max();
@@ -1358,6 +1385,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
     sink_configs[0] = config;
   }
+
   // Setup sink args that will be passed to sinks when processing
   // the stream for that job
   // job idx -> op_idx -> args
@@ -1688,6 +1716,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
         continue;
       }
     }
+    // If local amount of work is less than the amount of work we want
+    // queued up, then ask the master for more work.
     i32 local_work = accepted_tasks - total_tasks_processed;
     if (local_work <
         pipeline_instances_per_node * job_params->tasks_in_queue_per_pu()) {
@@ -1726,7 +1756,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
                              new_work.output_rows().end()),
             stenciled_entry, task_stream);
 
-        // Determine which worker to allocate to
+        // Determine which pipeline instance to allocate to
         i32 target_work_queue = -1;
         i32 min_work = std::numeric_limits<i32>::max();
         for (int i = 0; i < pipeline_instances_per_node; ++i) {
@@ -1984,4 +2014,3 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
 }
 }
-

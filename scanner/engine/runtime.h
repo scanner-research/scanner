@@ -63,10 +63,18 @@ struct EvalWorkEntry {
   std::vector<bool> compressed;
 };
 
+// Contains the row indices that a Op will see for the given task
 struct TaskStream {
   i64 slice_group;
+  // This is the set of input rows that the Op needs to keep.
   std::vector<i64> valid_input_rows;
+  // This is the set of input rows it should process and produce
+  // outputs for.
   std::vector<i64> compute_input_rows;
+  // This is the set of outputs that it should pass along (those
+  // not in this set should be immediately discarded). Needed
+  // to support bounded state operations which must produce output
+  // for elements, but that are not necessary for downstream operations
   std::vector<i64> valid_output_rows;
 };
 
