@@ -6,7 +6,7 @@ if [[ "$OSTYPE" == "linux-gnu" ]]; then
     cores=$(nproc)
         # ...
 elif [[ "$OSTYPE" == "darwin"* ]]; then
-    cores=$(gnproc)
+    cores=$(sysctl -n hw.ncpu)
         # Mac OSX
 else
     # Unknown.
