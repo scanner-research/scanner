@@ -20,6 +20,7 @@
 #include "scanner/engine/table_meta_cache.h"
 #include "scanner/util/common.h"
 #include "scanner/util/queue.h"
+#include "scanner/util/thread_pool.h"
 #include "scanner/api/source.h"
 #include "scanner/api/enumerator.h"
 
@@ -62,6 +63,7 @@ class LoadWorker {
   std::vector<std::unique_ptr<Source>>
       sources_;  // Provides the implementation for reading
                  // data under the specified data sources
+  ThreadPool thread_pool_;
 
   // Continuation state
   bool first_item_;
