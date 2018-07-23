@@ -1238,7 +1238,6 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
           delete_element(encoder_handle_, row);
         }
         profiler_.add_interval("encode", encode_start, now());
-        encoder_idx++;
       } else {
         // Move data to CPU to avoid overflow on GPU
         move_if_different_address_space(
@@ -1251,6 +1250,10 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
       buffered_entry_.row_ids[i].insert(buffered_entry_.row_ids[i].end(),
                                         work_entry.row_ids[col_idx].begin(),
                                         work_entry.row_ids[col_idx].end());
+
+      if (column_type == ColumnType::Video) {
+        encoder_idx++;
+      }
     }
 
     // Delete unused columns
