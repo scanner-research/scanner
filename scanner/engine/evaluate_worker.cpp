@@ -476,8 +476,12 @@ void EvaluateWorker::new_task(i64 job_idx, i64 task_idx,
     if (kernel) {
       kernel->reset();
       // Pass new op args
-      if (arg_group_.op_args[i].size() > 0) {
-        auto& a = arg_group_.op_args[i][job_idx];
+      if (arg_group_.op_args.at(i).size() > 0) {
+        i64 slice = 0;
+        if (arg_group_.op_args.at(i).at(job_idx).size() > 1) {
+          slice = slice_group_;
+        }
+        auto& a = arg_group_.op_args[i][job_idx].at(slice_group_);
         kernel->new_stream(a);
       } else {
         kernel->new_stream({});

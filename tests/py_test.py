@@ -335,6 +335,41 @@ def test_overlapping_slice(db):
     assert num_rows == 30
 
 
+@scannerpy.register_python_op()
+class TestSliceArgs(Kernel):
+    def __init__(self, config):
+        self.protobufs = config.protobufs
+
+    def close(self):
+        pass
+
+    def new_stream(self, args):
+        self.arg = args['arg']
+
+    def execute(self, frame: FrameType) -> bytes:
+        return pickle.dumps(self.arg)
+
+
+def test_slice_args(db):
+    frame = db.sources.FrameColumn()
+    slice_frame = db.streams.Slice(frame, db.partitioner.ranges(
+        [[0, 1], [1, 2], [2, 3]]))
+    test = db.ops.TestSliceArgs(frame=slice_frame)
+    unsliced_frame = db.streams.Unslice(test)
+    output_op = db.sinks.Column(columns={'frame': unsliced_frame})
+    job = Job(op_args={
+        frame: db.table('test1').column('frame'),
+        test: [{'arg': i} for i in range(3)],
+        output_op: 'test_slicing',
+    })
+
+    tables = db.run(output_op, [job], force=True, show_progress=False)
+
+    num_rows = 0
+    for x in tables[0].column('frame').load():
+        arg = pickle.loads(x)
+
+
 def test_bounded_state(db):
     warmup = 3
 

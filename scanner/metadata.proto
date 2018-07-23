@@ -157,7 +157,8 @@ message SourceInput {
 
 message OpArgs {
   int32 op_index = 1;
-  bytes op_args = 2;
+  // Repeated to allow for slices
+  repeated bytes op_args = 2;
 }
 
 message SinkArgs {

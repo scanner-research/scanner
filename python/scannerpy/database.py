@@ -1471,17 +1471,24 @@ class Database(object):
 
                     # Encode the args
                     n = op._name
-                    if n in self._python_ops:
-                        oargs.op_args = pickle.dumps(args)
-                    else:
-                        if len(args) > 0:
-                            op_info = self._get_op_info(n)
-                            if len(op_info.protobuf_name) > 0:
-                                proto_name = op_info.protobuf_name
-                                oargs.op_args = python_to_proto(
-                                    self.protobufs, proto_name, args)
-                            else:
-                                oargs.op_args = args
+                    def serialize_args(args):
+                        if n in self._python_ops:
+                            return pickle.dumps(args)
+                        else:
+                            if len(args) > 0:
+                                op_info = self._get_op_info(n)
+                                if len(op_info.protobuf_name) > 0:
+                                    proto_name = op_info.protobuf_name
+                                    return python_to_proto(
+                                        self.protobufs, proto_name, args)
+                                else:
+                                    return args
+
+                    if not isinstance(args, list):
+                        args = [args]
+                    for arg in args:
+                        oargs.op_args.append(serialize_args(arg))
+
             if is_table_output and output_table_name is None:
                 raise ScannerException(
                     'Did not specify the output table name by binding a '

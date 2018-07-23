@@ -102,8 +102,8 @@ struct OpArgGroup {
   // Number of rows in the input domain for this op
   // Op -> Job -> slice -> rows
   std::map<i64, std::vector<std::vector<i64>>> op_input_domain_size;
-  // Op -> Job -> args
-  std::map<i64, std::vector<std::vector<u8>>> op_args;
+  // Op -> Job -> slice -> args
+  std::map<i64, std::vector<std::vector<std::vector<u8>>>> op_args;
   std::vector<std::vector<std::tuple<i32, std::string>>> live_columns;
   // Discarded after kernel use
   std::vector<std::vector<i32>> dead_columns;
@@ -112,6 +112,7 @@ struct OpArgGroup {
   // Index in columns for inputs
   std::vector<std::vector<i32>> column_mapping;
   // Stencil needed by kernels
+  // Op -> elemented need in stencil (e.g. [-1, 0, 1])
   std::vector<std::vector<i32>> kernel_stencils;
   // Batch size needed by kernels
   std::vector<i32> kernel_batch_sizes;
