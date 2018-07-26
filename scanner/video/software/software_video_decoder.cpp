@@ -30,8 +30,6 @@ extern "C" {
 #include "scanner/util/cuda.h"
 #endif
 
-#include <cassert>
-
 namespace scanner {
 namespace internal {
 
@@ -51,22 +49,15 @@ SoftwareVideoDecoder::SoftwareVideoDecoder(i32 device_id,
   av_init_packet(&packet_);
 
   codec_ = avcodec_find_decoder(AV_CODEC_ID_H264);
-  if (!codec_) {
-    fprintf(stderr, "could not find h264 decoder\n");
-    exit(EXIT_FAILURE);
-  }
+  LOG_IF(FATAL, !codec_) << "could not find h264 decoder";
 
   cc_ = avcodec_alloc_context3(codec_);
-  if (!cc_) {
-    fprintf(stderr, "could not alloc codec context");
-    exit(EXIT_FAILURE);
-  }
+  LOG_IF(FATAL, !cc_) << "could not alloc codec context";
 
   cc_->thread_count = thread_count;
 
   if (avcodec_open2(cc_, codec_, NULL) < 0) {
-    fprintf(stderr, "could not open codec\n");
-    assert(false);
+    LOG(FATAL) << "could not open codec";
   }
 }
 
@@ -148,8 +139,7 @@ bool SoftwareVideoDecoder::feed(const u8* encoded_buffer, size_t encoded_size,
   }
   if (encoded_size > 0) {
     if (av_new_packet(&packet_, encoded_size) < 0) {
-      fprintf(stderr, "could not allocate packet for feeding into decoder\n");
-      assert(false);
+      LOG(FATAL) << "Could not allocate packet size " << encoded_size << " for feeding into decoder";
     }
     memcpy(packet_.data, encoded_buffer, encoded_size);
   } else {
@@ -199,9 +189,7 @@ bool SoftwareVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
     }
   }
 
-  if (sws_context_ == NULL) {
-    LOG(FATAL) << "Could not get sws_context for rgb conversion";
-  }
+  LOG_IF(FATAL, sws_context_ == NULL) << "Could not get sws_context for rgb conversion";
 
   u8* scale_buffer = decoded_buffer;
 
@@ -210,12 +198,8 @@ bool SoftwareVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
   int required_size =
       av_image_fill_arrays(out_slices, out_linesizes, scale_buffer,
                            AV_PIX_FMT_RGB24, frame_width_, frame_height_, 1);
-  if (required_size < 0) {
-    LOG(FATAL) << "Error in av_image_fill_arrays";
-  }
-  if (required_size > decoded_size) {
-    LOG(FATAL) << "Decode buffer not large enough for image";
-  }
+  LOG_IF(FATAL, required_size < 0) << "Error in av_image_fill_arrays";
+  LOG_IF(FATAL, required_size > decoded_size) << "Decode buffer not large enough for image";
   auto scale_start = now();
   if (sws_scale(sws_context_, frame->data, frame->linesize, 0, frame->height,
                 out_slices, out_linesizes) < 0) {
@@ -326,10 +310,7 @@ void SoftwareVideoDecoder::feed_packet(bool flush) {
         if (frame->buf[0] == NULL) {
           // Must copy packet as data is stored statically
           AVFrame* cloned_frame = av_frame_clone(frame);
-          if (cloned_frame == NULL) {
-            fprintf(stderr, "could not clone frame\n");
-            assert(false);
-          }
+          LOG_IF(FATAL, cloned_frame == NULL) << "could not clone frame";
           decoded_frame_queue_.push(cloned_frame);
           av_frame_free(&frame);
         } else {
