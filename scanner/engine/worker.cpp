@@ -24,6 +24,8 @@
 #include "scanner/engine/table_meta_cache.h"
 #include "scanner/engine/python_kernel.h"
 #include "scanner/engine/dag_analysis.h"
+#include "scanner/engine/enumerator_registry.h"
+#include "scanner/engine/column_enumerator.h"
 #include "scanner/util/cuda.h"
 #include "scanner/util/glog.h"
 #include "scanner/util/grpc.h"
@@ -1797,6 +1799,59 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
         VLOG(1) << "Node " << node_id_ << " received done signal.";
         finished = true;
       } else {
+//        {
+          // Create domain samplers
+          // Op -> slice
+          std::map<i64, proto::SamplingArgsAssignment> args_assignment;
+          std::map<i64, std::vector<std::unique_ptr<DomainSampler>>> domain_samplers;
+          for (const proto::SamplingArgsAssignment& saa :
+              job.sampling_args_assignment()) {
+            if (ops.at(saa.op_index()).name() == SLICE_OP_NAME) {
+              args_assignment[saa.op_index()] = saa;
+            } else {
+              std::vector<std::unique_ptr<DomainSampler>>& samplers =
+                  domain_samplers[saa.op_index()];
+              // Assign number of rows to correct op
+              for (auto& sa : saa.sampling_args()) {
+                DomainSampler* sampler;
+                Result result = make_domain_sampler_instance(
+                    sa.sampling_function(),
+                    std::vector<u8>(sa.sampling_args().begin(),
+                                    sa.sampling_args().end()),
+                    sampler);
+                if (!result.success()) {
+                  return result;
+                }
+                samplers.emplace_back(sampler);
+              }
+            }
+          }
+
+          auto& job = jobs.at(new_work.job_index());
+          std::vector<std::unique_ptr<Enumerator>> enumerators(job.inputs_size());
+          {
+            // Instantiate enumerators to determine number of rows produced from each
+            // Source op
+            auto registry = get_enumerator_registry();
+            for (auto& source_input : job.inputs()) {
+              const std::string& source_name = ops.at(source_input.op_index()).name();
+              i32 col_idx = analysis_results.input_ops_to_first_op_columns.at(
+                  source_input.op_index());
+              EnumeratorFactory* factory = registry->get_enumerator(source_name);
+              EnumeratorConfig config;
+              size_t size = source_input.enumerator_args().size();
+              config.args = std::vector<u8>(source_input.enumerator_args().begin(),
+                                            source_input.enumerator_args().end());
+              Enumerator* e = factory->new_instance(config);
+              enumerators[col_idx].reset(e);
+              // If this is a source enumerator, we must provide table meta
+              if (auto column_enumerator = dynamic_cast<ColumnEnumerator*>(e)) {
+                column_enumerator->set_table_meta(&table_meta);
+              }
+            }
+          }
+//        }
+
         // Perform analysis on load work entry to determine upstream
         // requirements and when to discard elements.
         std::deque<TaskStream> task_stream;
