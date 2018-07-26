@@ -1,6 +1,6 @@
 # Scanner: Efficient Video Analysis at Scale [![GitHub tag](https://img.shields.io/github/tag/scanner-research/scanner.svg)](https://GitHub.com/scanner-research/scanner/tags/) [![Build Status](https://travis-ci.org/scanner-research/scanner.svg?branch=master)](https://travis-ci.org/scanner-research/scanner) #
 
-Scanner is a system for developing applications that efficiently process large video datasets. Scanner has been used for both video analysis and video snythesis tasks, such as:
+Scanner is a system for developing applications that efficiently process large video datasets. Scanner has been used for both video analysis and video synthesis tasks, such as:
 * **Labeling and data mining large video collections:** Scanner is in use at Stanford University as the compute engine for visual data mining applications that detect people, commercials, human poses, etc. in datasets as big as 70,000 hours of TV news (12 billion frames, 20 TB) or 600 feature length movies (106 million frames).  We've used Scanner to run these tasks on hundreds of GPUs or thousands of CPUs on Google Compute Engine.
 * **VR Video synthesis:** scaling the [Surround 360 VR video stitching software](https://github.com/scanner-research/Surround360) to 100's of CPUs. This application processes fourteen 2048x2048 input videos to produce 8k omidirectional stereo video output for VR display.
 
