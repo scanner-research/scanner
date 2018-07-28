@@ -20,6 +20,7 @@
 
 #include "scanner/util/common.h"
 #include "scanner/util/h264.h"
+#include "scanner/util/ffmpeg.h"
 #include "scanner/util/util.h"
 
 #include "storehouse/storage_backend.h"
@@ -55,63 +56,6 @@ namespace {
 
 const std::string BAD_VIDEOS_FILE_PATH = "bad_videos.txt";
 
-struct FFStorehouseState {
-  std::unique_ptr<RandomReadFile> file = nullptr;
-  u64 size = 0;  // total file size
-  u64 pos = 0;
-
-  u64 buffer_start = 0;
-  u64 buffer_end = 0;
-  std::vector<u8> buffer;
-};
-
-// For custom AVIOContext that loads from memory
-i32 read_packet(void* opaque, u8* buf, i32 buf_size) {
-  FFStorehouseState* fs = (FFStorehouseState*)opaque;
-  if (!(fs->buffer_start <= fs->pos && fs->pos + buf_size < fs->buffer_end)) {
-    // Not in cache
-    size_t buffer_size = 64 * 1024 * 1024;
-    fs->buffer.resize(buffer_size);
-    size_t size_read;
-    storehouse::StoreResult result;
-    EXP_BACKOFF(
-        fs->file->read(fs->pos, buffer_size, fs->buffer.data(), size_read),
-        result);
-    if (result != storehouse::StoreResult::EndOfFile) {
-      exit_on_error(result);
-    }
-
-    fs->buffer_start = fs->pos;
-    fs->buffer_end = fs->pos + size_read;
-  }
-
-  size_t size_read = std::min(
-      (size_t)buf_size, (size_t)(fs->buffer_end - fs->pos));
-  memcpy(buf, fs->buffer.data() + (fs->pos - fs->buffer_start), size_read);
-  fs->pos += size_read;
-  return static_cast<i32>(size_read);
-}
-
-i64 seek(void* opaque, i64 offset, i32 whence) {
-  FFStorehouseState* fs = (FFStorehouseState*)opaque;
-  switch (whence) {
-    case SEEK_SET:
-      assert(offset >= 0);
-      fs->pos = static_cast<u64>(offset);
-      break;
-    case SEEK_CUR:
-      fs->pos += offset;
-      break;
-    case SEEK_END:
-      fs->pos = fs->size;
-      break;
-    case AVSEEK_SIZE:
-      return fs->size;
-      break;
-  }
-  return fs->size - fs->pos;
-}
-
 struct CodecState {
   AVPacket av_packet;
   AVFrame* picture;
@@ -137,7 +81,7 @@ bool setup_video_codec(FFStorehouseState* fs, CodecState& state) {
       static_cast<u8*>(av_malloc(avio_context_buffer_size));
   state.io_context =
       avio_alloc_context(avio_context_buffer, avio_context_buffer_size, 0, fs,
-                         &read_packet, NULL, &seek);
+                         &ffmpeg_storehouse_read_packet, NULL, &ffmpeg_storehouse_seek);
   state.format_context->pb = state.io_context;
 
   // Read file header
@@ -393,25 +337,9 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
   // Setup custom buffer for libavcodec so that we can read from a storehouse
   // file instead of a posix file
   FFStorehouseState file_state{};
-  StoreResult result;
-  EXP_BACKOFF(make_unique_random_read_file(storage, path, file_state.file),
-              result);
-  if (result != StoreResult::Success) {
-    error_message = "Can not open video file";
+  if (!ffmpeg_storehouse_state_init(&file_state, storage, path, error_message)) {
     return false;
   }
-
-  EXP_BACKOFF(file_state.file->get_size(file_state.size), result);
-  if (result != StoreResult::Success) {
-    error_message = "Can not get file size";
-    return false;
-  }
-  if (file_state.size <= 0) {
-    error_message = "Can not ingest empty video file";
-    return false;
-  }
-
-  file_state.pos = 0;
 
   CodecState state;
   if (!setup_video_codec(&file_state, state)) {

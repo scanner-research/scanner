@@ -224,3 +224,16 @@ message FilesSinkStreamArgs {
   // Path to read
   repeated string paths = 1;
 }
+
+message AudioSourceArgs {
+}
+
+message AudioEnumeratorArgs {
+  string path = 1;
+  double frame_size = 2; // seconds
+}
+
+message AudioElementArgs {
+  string path = 1;
+  double frame_size = 2; // seconds
+}

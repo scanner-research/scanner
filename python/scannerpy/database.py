@@ -1374,6 +1374,8 @@ class Database(object):
                         }
                         full_args = args
                     else:
+                        if not isinstance(args, dict):
+                            raise ScannerException('Op arguments must be a dictionary, recevied: {}'.format(args))
                         full_args = {**op._args, **args}
 
                     n = op._name

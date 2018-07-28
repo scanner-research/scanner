@@ -1,6 +1,21 @@
 #!/bin/bash
+set -e
 
 PKG=scannerpy
+NO_DEPS=false
+
+while [[ $# -gt 0 ]]
+do
+key="$1"
+
+case $key in
+    -n|--no-deps)
+        NO_DEPS=true
+        shift
+        ;;
+    *)
+esac
+done
 
 if [[ "$OSTYPE" == "linux-gnu" ]]; then
     cores=$(nproc)
@@ -25,9 +40,14 @@ if make -j$cores; then
         # directories of the same name in our cwd
         pushd /tmp
         (yes | pip3 uninstall $PKG)
-        (yes | pip3 install --user $cwd/dist/*)
+        if $NO_DEPS; then
+            (yes | pip3 install --user --no-deps $cwd/dist/*);
+        else
+            (yes | pip3 install --user $cwd/dist/*);
+        fi
         popd
     fi
 else
     popd
+    exit 1
 fi
