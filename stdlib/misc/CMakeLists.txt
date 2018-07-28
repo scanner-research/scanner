@@ -10,6 +10,7 @@ set(SOURCE_FILES
   files_sink.cpp
   sql_source.cpp
   sql_sink.cpp
-  sql.cpp)
+  sql.cpp
+  audio_source.cpp)
 
 add_library(misc OBJECT ${SOURCE_FILES})
