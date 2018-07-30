@@ -19,6 +19,8 @@ case $key in
         shift
         ;;
     *)
+        shift
+        ;;
 esac
 done
 
