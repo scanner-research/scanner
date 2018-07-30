@@ -49,5 +49,4 @@ if make -j$cores; then
     fi
 else
     popd
-    exit 1
 fi
