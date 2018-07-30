@@ -3,6 +3,7 @@ set -e
 
 PKG=scannerpy
 NO_DEPS=false
+FAIL_THROUGH=false
 
 while [[ $# -gt 0 ]]
 do
@@ -11,6 +12,10 @@ key="$1"
 case $key in
     -n|--no-deps)
         NO_DEPS=true
+        shift
+        ;;
+    -f|--fail-through)
+        FAIL_THROUGH=true
         shift
         ;;
     *)
@@ -49,4 +54,7 @@ if make -j$cores; then
     fi
 else
     popd
+    if $FAIL_THROUGH; then
+        exit 1
+    fi
 fi
