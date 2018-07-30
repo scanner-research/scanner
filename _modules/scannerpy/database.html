@@ -1421,6 +1421,8 @@
                         <span class="p">}</span>
                         <span class="n">full_args</span> <span class="o">=</span> <span class="n">args</span>
                     <span class="k">else</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                            <span class="k">raise</span> <span class="n">ScannerException</span><span class="p">(</span><span class="s1">&#39;Op arguments must be a dictionary, recevied: </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">args</span><span class="p">))</span>
                         <span class="n">full_args</span> <span class="o">=</span> <span class="p">{</span><span class="o">**</span><span class="n">op</span><span class="o">.</span><span class="n">_args</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">}</span>
 
                     <span class="n">n</span> <span class="o">=</span> <span class="n">op</span><span class="o">.</span><span class="n">_name</span>
