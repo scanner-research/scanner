@@ -1656,6 +1656,11 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   std::vector<i64> allocated_work_to_queues(pipeline_instances_per_node);
   std::vector<i64> retired_work_for_queues(pipeline_instances_per_node);
   bool finished = false;
+  // This keeps track of the last time we received a "wait_for_work" message
+  // from the master. If less than 1 second have passed since this message, we
+  // shouldn't ask the master for more work to avoid overloading it.
+  const int SECONDS_TO_WAIT = 1;
+  auto last_wait_for_work_time = now() - std::chrono::seconds(SECONDS_TO_WAIT);
   while (true) {
     if (trigger_shutdown_.raised()) {
       // Abandon ship!
@@ -1720,7 +1725,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     // queued up, then ask the master for more work.
     i32 local_work = accepted_tasks - total_tasks_processed;
     if (local_work <
-        pipeline_instances_per_node * job_params->tasks_in_queue_per_pu()) {
+            pipeline_instances_per_node * job_params->tasks_in_queue_per_pu() &&
+        seconds_since(last_wait_for_work_time) > SECONDS_TO_WAIT) {
       proto::NextWorkRequest node_info;
       node_info.set_node_id(node_id_);
       node_info.set_bulk_job_id(active_bulk_job_id_);
@@ -1737,7 +1743,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       if (new_work.wait_for_work()) {
         // Waiting for more work
         VLOG(1) << "Node " << node_id_ << " received wait for work signal.";
-        std::this_thread::sleep_for(std::chrono::seconds(5));
+        last_wait_for_work_time = now();
       }
       else if (new_work.no_more_work()) {
         // No more work left
