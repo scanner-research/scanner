@@ -205,7 +205,7 @@ bool PreEvaluateWorker::yield(i32 item_size,
   entry.needs_configure = first_item ? needs_configure_ : false;
   entry.needs_reset = first_item_ ? needs_reset_ : false;
   entry.last_in_io_packet = (end_row >= total_rows_);
-  LOG(INFO) << "end row " << end_row << ", total rows " << total_rows_;
+  VLOG(2) << "end row " << end_row << ", total rows " << total_rows_;
   entry.columns.resize(work_entry.columns.size());
   entry.last_in_task = work_entry.last_in_task;
   entry.row_ids.resize(work_entry.row_ids.size());
@@ -626,7 +626,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
     i64 max_rows;
     if (arg_group_.op_input_domain_size.at(k).at(job_idx_).size() == 1) {
       // HACK(apoms): we can only do this because we guarantee that there is
-      // only one slice per pipeline 
+      // only one slice per pipeline
       max_rows = arg_group_.op_input_domain_size.at(k).at(job_idx_).at(0);
     } else {
       max_rows =

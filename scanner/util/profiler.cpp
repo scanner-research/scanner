@@ -36,6 +36,14 @@ const std::map<std::string, int64_t>& Profiler::get_counters() const {
   return counters_;
 }
 
+ProfileBlock::ProfileBlock(Profiler* profiler, std::string label) : profiler_(profiler), label_(label), start_(now()) {}
+
+ProfileBlock::~ProfileBlock() {
+  if (profiler_ != nullptr) {
+    profiler_->add_interval(label_, start_, now());
+  }
+}
+
 void write_profiler_to_file(storehouse::WriteFile* file, int64_t node,
                             std::string type_name, std::string tag,
                             int64_t worker_num, const Profiler& profiler) {

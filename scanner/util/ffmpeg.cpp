@@ -87,6 +87,8 @@ i64 ffmpeg_storehouse_seek(void* opaque, i64 offset, i32 whence) {
     case AVSEEK_SIZE:
       return fs->size;
       break;
+    default:
+      LOG(FATAL) << "Invalid seek action: " << whence;
   }
   return fs->size - fs->pos;
 }
