@@ -424,7 +424,8 @@ Result determine_input_rows_to_slices(
     DatabaseMetadata& meta, TableMetaCache& table_metas,
     const std::vector<proto::Job>& jobs,
     const std::vector<proto::Op>& ops,
-    DAGAnalysisInfo& info) {
+    DAGAnalysisInfo& info,
+    storehouse::StorageConfig* storage_config) {
   Result result;
   result.set_success(true);
   const std::vector<i32>& op_slice_level = info.op_slice_level;
@@ -491,6 +492,7 @@ Result determine_input_rows_to_slices(
         const std::string& source_name = ops.at(source_input.op_index()).name();
         EnumeratorFactory* factory = registry->get_enumerator(source_name);
         EnumeratorConfig config;
+        config.storage_config = storage_config;
         size_t size = source_input.enumerator_args().size();
         config.args =
             std::vector<u8>(source_input.enumerator_args().begin(),

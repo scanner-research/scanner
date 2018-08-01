@@ -18,6 +18,7 @@
 #include "scanner/api/kernel.h"
 #include "scanner/util/common.h"
 #include "scanner/util/profiler.h"
+#include "scanner/util/storehouse.h"
 
 #include <vector>
 
@@ -29,6 +30,7 @@ struct SinkConfig {
   std::vector<proto::ColumnType> input_column_types;
   std::vector<u8> args;  //! Byte-string of proto args if given.
   i32 node_id;
+  storehouse::StorageConfig* storage_config;
 };
 
 /**
