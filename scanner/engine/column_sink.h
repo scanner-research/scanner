@@ -18,6 +18,7 @@
 #include "storehouse/storage_backend.h"
 #include "scanner/engine/video_index_entry.h"
 #include "scanner/engine/table_meta_cache.h"
+#include "scanner/util/thread_pool.h"
 
 #include <glog/logging.h>
 #include <vector>
@@ -38,12 +39,15 @@ class ColumnSink : public Sink {
   void new_task(i32 table_id, i32 task_id,
                 std::vector<ColumnType> column_types);
 
+  void finished();
+
   void provide_column_info(
       const std::vector<bool>& compressed,
       const std::vector<FrameInfo>& frame_info);
 
  private:
   Result valid_;
+  ThreadPool thread_pool_;
   // Setup a distinct storage backend for each IO thread
   std::unique_ptr<storehouse::StorageBackend> storage_;
   // Files to write io packets to

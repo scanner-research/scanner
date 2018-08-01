@@ -453,10 +453,13 @@ void save_driver(SaveInputQueue& save_work,
       args.profiler.add_interval("finished", finished_start, now());
 
       auto workpush_start = now();
-      output_work.enqueue(std::make_tuple(pipeline_instance, work_entry.job_index,
-                                       work_entry.task_index));
-      workers.erase(job_task_id);
+      output_work.enqueue(std::make_tuple(
+          pipeline_instance, work_entry.job_index, work_entry.task_index));
       args.profiler.add_interval("workpush", workpush_start, now());
+      auto save_worker_delete_start = now();
+      workers.erase(job_task_id);
+      args.profiler.add_interval("save_worker_delete", save_worker_delete_start,
+                                 now());
     }
   }
 
