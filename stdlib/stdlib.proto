@@ -226,6 +226,7 @@ message FilesSinkStreamArgs {
 }
 
 message AudioSourceArgs {
+  double frame_size = 1; // unused parameter, enables default params on AudioEnumeratorArgs
 }
 
 message AudioEnumeratorArgs {

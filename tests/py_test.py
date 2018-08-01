@@ -1431,3 +1431,12 @@ def test_sql_insert(sql_db):
 
     cur.execute('SELECT s FROM test2')
     assert cur.fetchone()[0] == "hello world"
+
+def test_audio(db):
+    audio = db.sources.Audio(frame_size=1.0)
+    ignored = db.ops.DiscardFrame(ignore=audio)
+    output = db.sinks.Column(columns={'ignored': ignored})
+
+    (vid_path, _) = download_videos()
+    job = Job(op_args={audio: {'path': vid_path}, output: 'audio_test'})
+    db.run(output, [job], force=True)
