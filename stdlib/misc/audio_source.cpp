@@ -237,47 +237,47 @@ class AudioDecoder {
   }
 
   void decode_packet(std::vector<AVFrame*>& av_frames) {
-    // Read packets until we get one corresponding to the audio stream
-    while (true) {
-      FF_ERROR(av_read_frame(format_context_, &packet_));
-      if (packet_.stream_index == stream_->index) {
-        break;
+    while (av_frames.size() == 0) {
+      // Read packets until we get one corresponding to the audio stream
+      while (true) {
+        FF_ERROR(av_read_frame(format_context_, &packet_));
+        if (packet_.stream_index == stream_->index) {
+          break;
+        }
+        av_packet_unref(&packet_);
       }
+
+      // Give packet to decoder asynchronously
+      FF_ERROR(avcodec_send_packet(context_, &packet_));
+
+      AVFrame* av_frame = av_frame_alloc();
+      LOG_IF(FATAL, av_frame == NULL) << "could not allocate audio frame";
+
+      // Fetch frames from decoder
+      while (true) {
+        int error = avcodec_receive_frame(context_, av_frame);
+        if (error == 0) {
+          VLOG(1) << "Frame time: "
+                  << av_frame_get_best_effort_timestamp(av_frame) * time_base_
+                  << ", offending sample: " << ((f32*)av_frame->data[0])[0];
+          LOG_IF(FATAL, av_frame->nb_samples != context_->frame_size)
+            << "AVFrame had different # of samples than codec frame size";
+          // If decode succeeds, save frame to frame list
+          av_frames.push_back(av_frame);
+          // Allocate new frame
+          av_frame = av_frame_alloc();
+          LOG_IF(FATAL, av_frame == NULL) << "could not allocate audio frame";
+        } else if (error == AVERROR(EAGAIN)) {
+          // We've finished decoding frames from the current packet
+          break;
+        } else {
+          FF_ERROR(error);
+        }
+      }
+
+      av_frame_unref(av_frame);
       av_packet_unref(&packet_);
     }
-
-    // Give packet to decoder asynchronously
-    FF_ERROR(avcodec_send_packet(context_, &packet_));
-
-    AVFrame* av_frame = av_frame_alloc();
-    LOG_IF(FATAL, av_frame == NULL) << "could not allocate audio frame";
-
-    // Fetch frames from decoder
-    while (true) {
-      int error = avcodec_receive_frame(context_, av_frame);
-      if (error == 0) {
-        VLOG(1) << "Frame time: "
-                << av_frame_get_best_effort_timestamp(av_frame) * time_base_
-                << ", offending sample: " << ((f32*)av_frame->data[0])[0];
-        LOG_IF(FATAL, av_frame->nb_samples != context_->frame_size)
-            << "AVFrame had different # of samples than codec frame size";
-        // If decode succeeds, save frame to frame list
-        av_frames.push_back(av_frame);
-        // Allocate new frame
-        av_frame = av_frame_alloc();
-        LOG_IF(FATAL, av_frame == NULL) << "could not allocate audio frame";
-      } else if (error == AVERROR(EAGAIN)) {
-        // We've finished decoding frames from the current packet
-        break;
-      } else {
-        FF_ERROR(error);
-      }
-    }
-
-    av_frame_unref(av_frame);
-    av_packet_unref(&packet_);
-
-    LOG_IF(FATAL, av_frames.size() == 0) << "Failed to decode any frames";
   }
 
   std::string path_;
