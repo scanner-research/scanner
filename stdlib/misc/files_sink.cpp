@@ -75,6 +75,7 @@ class FilesSink : public Sink {
 
   void write(const BatchedElements& input_columns) override {
     // Write the data
+    auto write_start = now();
     for (size_t i = 0; i < input_columns[0].size(); ++i) {
       u64 offset = input_columns[0][i].index;
       assert(offset < paths_.size());
@@ -86,6 +87,7 @@ class FilesSink : public Sink {
 
       s_write(file.get(), input_columns[0][i].buffer, input_columns[0][i].size);
     }
+    profiler_->add_interval("files_sink:write", write_start, now());
   }
 
  private:
