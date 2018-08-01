@@ -116,6 +116,7 @@ class FilesSource : public Source {
 
   void read(const std::vector<ElementArgs>& element_args,
             std::vector<Elements>& output_columns) override {
+    auto enumerate_start = now();
     // Deserialize all ElementArgs
     std::vector<std::string> paths;
     size_t total_size = 0;
@@ -139,10 +140,12 @@ class FilesSource : public Source {
       total_size += file_size;
       sizes.push_back(file_size);
     }
+    profiler_->add_interval("files_source:read:sizes", enumerate_start, now());
 
     // Allocate a buffer for all the data
     u8* block_buffer = new_block_buffer(CPU_DEVICE, total_size, paths.size());
 
+    auto read_start = now();
     // Read the data
     u64 offset = 0;
     for (size_t i = 0; i < element_args.size(); ++i) {
@@ -158,6 +161,7 @@ class FilesSource : public Source {
 
       offset += sizes[i];
     }
+    profiler_->add_interval("files_source:read:data", read_start, now());
   }
 
  private:
