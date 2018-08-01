@@ -152,13 +152,21 @@ void PythonKernel::execute(const StenciledBatchedElements &input_columns,
               dtype_size = 8;
             }
 
-            py::buffer_info buffer(
-                frame->data, (size_t)dtype_size, dtype, 3,
-                {(long int)frame->height(), (long int)frame->width(),
-                 (long int)frame->channels()},
-                {(long int)frame->width() * frame->channels() * dtype_size,
-                 (long int)frame->channels() * dtype_size,
-                 (long int)dtype_size});
+            py::buffer_info buffer;
+            if (frame->channels() == 3) {
+              buffer = py::buffer_info(
+                                     frame->data, (size_t)dtype_size, dtype, 3,
+                                     {(long int)frame->height(), (long int)frame->width(),
+                                         (long int)frame->channels()},
+                                     {(long int)frame->width() * frame->channels() * dtype_size,
+                                         (long int)frame->channels() * dtype_size,
+                                         (long int)dtype_size});
+            } else {
+              buffer = py::buffer_info(
+                                     frame->data, (size_t)dtype_size, dtype, 1,
+                                     {(long int)frame->height()},
+                                     {(long int)dtype_size});
+            }
 
             if (frame->type == FrameType::U8) {
               col.push_back(py::object(py::array_t<u8>(buffer)));

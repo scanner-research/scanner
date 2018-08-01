@@ -59,6 +59,16 @@ class Profiler {
   std::map<std::string, int64_t> counters_;
 };
 
+class ProfileBlock {
+  public:
+  ProfileBlock(Profiler* profiler, std::string label);
+  ~ProfileBlock();
+protected:
+  Profiler* profiler_;
+  std::string label_;
+  timepoint_t start_;
+};
+
 void write_profiler_to_file(storehouse::WriteFile* file, int64_t node,
                             std::string type_name, std::string tag,
                             int64_t worker_num, const Profiler& profiler);
