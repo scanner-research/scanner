@@ -20,6 +20,8 @@ extern "C" {
 
 using storehouse::StorageBackend;
 
+// TODO(wcrichto): check whole impl for memory leaks
+
 namespace scanner {
 
 #define FF_ERROR(EXPR)                \
@@ -86,9 +88,11 @@ class AudioDecoder {
   }
 
   ~AudioDecoder() {
-    // TODO: dealloc all the libav structs
     avcodec_free_context(&context_);
-    avformat_close_input(&format_context_);
+
+    // TODO(wcrichto): vvv this causes a double free?
+    // avformat_close_input(&format_context_);
+
     av_freep(&io_context_->buffer);
     av_freep(&io_context_);
   }

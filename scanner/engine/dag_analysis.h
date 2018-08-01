@@ -119,7 +119,7 @@ Result derive_stencil_requirements(
     proto::BulkJobParameters::BoundaryCondition boundary_condition,
     i64 table_id, i64 job_idx, i64 task_idx,
     const std::vector<i64>& output_rows, LoadWorkEntry& output_entry,
-    std::deque<TaskStream>& task_streams);
+    std::deque<TaskStream>& task_streams, storehouse::StorageConfig* storage_config);
 
 // Result derive_input_rows_from_output_rows(
 //     const std::vector<proto::Job>& jobs,

@@ -1162,7 +1162,8 @@ Result derive_stencil_requirements(
     proto::BulkJobParameters::BoundaryCondition boundary_condition,
     i64 table_id, i64 job_idx, i64 task_idx,
     const std::vector<i64>& output_rows, LoadWorkEntry& output_entry,
-    std::deque<TaskStream>& task_streams) {
+    std::deque<TaskStream>& task_streams,
+    storehouse::StorageConfig* storage_config) {
   const std::map<i64, std::vector<i32>>& stencils = analysis_results.stencils;
   const std::vector<std::vector<std::tuple<i32, std::string>>>& live_columns =
       analysis_results.live_columns;
@@ -1224,6 +1225,7 @@ Result derive_stencil_requirements(
           source_input.op_index());
       EnumeratorFactory* factory = registry->get_enumerator(source_name);
       EnumeratorConfig config;
+      config.storage_config = storage_config;
       size_t size = source_input.enumerator_args().size();
       config.args = std::vector<u8>(source_input.enumerator_args().begin(),
                                     source_input.enumerator_args().end());

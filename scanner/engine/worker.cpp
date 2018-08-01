@@ -1765,7 +1765,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
             new_work.table_id(), new_work.job_index(), new_work.task_index(),
             std::vector<i64>(new_work.output_rows().begin(),
                              new_work.output_rows().end()),
-            stenciled_entry, task_stream);
+            stenciled_entry, task_stream,
+            db_params_.storage_config);
 
         // Determine which pipeline instance to allocate to
         i32 target_work_queue = -1;
