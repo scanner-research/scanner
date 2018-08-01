@@ -285,10 +285,12 @@ void PythonKernel::execute(const StenciledBatchedElements &input_columns,
 
           if (ndim == 3) {
             assert(strides[1] % strides[2] == 0);
+            u64 dest_offset = 0;
             for (int i = 0; i < shapes[0]; ++i) {
-              u64 offset = strides[0] * i;
-              memcpy(frame->data + offset, frame_data + offset,
+              u64 source_offset = strides[0] * i;
+              memcpy(frame->data + dest_offset, frame_data + source_offset,
                      shapes[2] * shapes[1] * strides[2]);
+              dest_offset += shapes[2] * shapes[1] * strides[2];
             }
           } else {
             LOG(FATAL) << "Can not support ndim != 3.";
