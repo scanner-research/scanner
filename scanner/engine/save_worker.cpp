@@ -61,9 +61,6 @@ SaveWorker::SaveWorker(const SaveWorkerArgs& args)
 }
 
 SaveWorker::~SaveWorker() {
-  for (auto& sink : sinks_) {
-    sink->finished();
-  }
 }
 
 void SaveWorker::feed(EvalWorkEntry& input_entry) {

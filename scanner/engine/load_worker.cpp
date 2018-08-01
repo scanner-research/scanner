@@ -36,8 +36,8 @@ LoadWorker::LoadWorker(const LoadWorkerArgs& args)
     profiler_(args.profiler),
     io_packet_size_(args.io_packet_size),
     work_packet_size_(args.work_packet_size),
-    thread_pool_(
-        std::min((i32)args.source_factories.size(), MAX_SOURCE_THREADS)) {
+    thread_pool_(std::max(
+        1, std::min((i32)args.source_factories.size(), MAX_SOURCE_THREADS))) {
   // Instantiate the sources and validate that it was properly constructed
   num_columns_ = 0;
   for (size_t i = 0; i < args.source_factories.size(); ++i) {
@@ -160,6 +160,7 @@ bool LoadWorker::yield(i32 item_size,
   // source serially can take ages. This is a quick hack to overlap reads
   // for pipelines with a large number of sources. The real fix is to process
   // multiple sources as different Ops in a DAG scheduler.
+  auto source_start = now();
   std::vector<std::future<void>> futures;
   for (size_t i = 0; i < sources_.size(); ++i) {
     futures.push_back(thread_pool_.enqueue(load_source, i));
@@ -168,6 +169,7 @@ bool LoadWorker::yield(i32 item_size,
   for (auto& future : futures) {
     future.wait();
   }
+  profiler_.add_interval("load_worker:read_sources", source_start, now());
 
   output_entry = eval_work_entry;
 

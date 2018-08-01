@@ -30,10 +30,16 @@ using storehouse::StoreResult;
 using storehouse::WriteFile;
 using storehouse::RandomReadFile;
 
+
 namespace scanner {
 namespace internal {
 
-ColumnSink::ColumnSink(const SinkConfig& config) : Sink(config) {
+// FIXME(apoms): This should be a configuration option
+const i32 MAX_SINK_THREADS = 16;
+
+ColumnSink::ColumnSink(const SinkConfig& config)
+  : Sink(config),
+    thread_pool_(MAX_SINK_THREADS) {
   // Deserialize ColumnSinkConfig
   scanner::proto::ColumnSinkArgs args;
   bool parsed = args.ParseFromArray(config.args.data(), config.args.size());
@@ -56,18 +62,6 @@ ColumnSink::ColumnSink(const SinkConfig& config) : Sink(config) {
 }
 
 ColumnSink::~ColumnSink() {
-  for (auto& file : output_) {
-    BACKOFF_FAIL(file->save(), "while trying to save " + file->path());
-  }
-  for (auto& file : output_metadata_) {
-    BACKOFF_FAIL(file->save(), "while trying to save " + file->path());
-  }
-  for (auto& meta : video_metadata_) {
-    write_video_metadata(storage_.get(), meta);
-  }
-  output_.clear();
-  output_metadata_.clear();
-  video_metadata_.clear();
 }
 
 void ColumnSink::new_stream(const std::vector<u8>& args) {
@@ -76,6 +70,7 @@ void ColumnSink::new_stream(const std::vector<u8>& args) {
 
 void ColumnSink::write(const BatchedElements& input_columns) {
   // Write out each output column to an individual data file
+  auto write_start = now();
   i32 video_col_idx = 0;
   for (size_t out_idx = 0; out_idx < input_columns.size(); ++out_idx) {
     u64 num_elements = static_cast<u64>(input_columns[out_idx].size());
@@ -202,19 +197,11 @@ void ColumnSink::write(const BatchedElements& input_columns) {
 
     profiler_->increment("io_write", size_written);
   }
+  profiler_->add_interval("column_sink:write", write_start, now());
 }
 
 void ColumnSink::new_task(i32 table_id, i32 task_id,
                           std::vector<ColumnType> column_types) {
-  for (auto& file : output_) {
-    BACKOFF_FAIL(file->save(), "while trying to save " + file->path());
-  }
-  for (auto& file : output_metadata_) {
-    BACKOFF_FAIL(file->save(), "while trying to save " + file->path());
-  }
-  for (auto& meta : video_metadata_) {
-    write_video_metadata(storage_.get(), meta);
-  }
   output_.clear();
   output_metadata_.clear();
   video_metadata_.clear();
@@ -247,6 +234,34 @@ void ColumnSink::new_task(i32 table_id, i32 task_id,
       video_descriptor.set_item_id(task_id);
     }
   }
+}
+
+void ColumnSink::finished() {
+  auto finished_start = now();
+  auto save_file = [&](std::unique_ptr<storehouse::WriteFile>& file) {
+    BACKOFF_FAIL(file->save(), "while trying to save " + file->path());
+  };
+
+  std::vector<std::future<void>> futures;
+  for (auto& file : output_) {
+    futures.push_back(thread_pool_.enqueue(save_file, std::ref(file)));
+  }
+  for (auto& file : output_metadata_) {
+    futures.push_back(thread_pool_.enqueue(save_file, std::ref(file)));
+  }
+
+  auto save_metadata = [&](VideoMetadata& meta) {
+    write_video_metadata(storage_.get(), meta);
+  };
+  for (auto& meta : video_metadata_) {
+    futures.push_back(thread_pool_.enqueue(save_metadata, std::ref(meta)));
+  }
+
+  for (auto& future : futures) {
+    future.wait();
+  }
+
+  profiler_->add_interval("column_sink:finished", finished_start, now());
 }
 
 void ColumnSink::provide_column_info(const std::vector<bool>& compressed,
