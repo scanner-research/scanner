@@ -990,7 +990,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   DAGAnalysisInfo analysis_results;
   populate_analysis_info(ops, analysis_results);
   // Need slice input rows to know which slice we are in
-  determine_input_rows_to_slices(meta, table_meta, jobs, ops, analysis_results);
+  determine_input_rows_to_slices(meta, table_meta, jobs, ops, analysis_results, db_params_.storage_config);
   remap_input_op_edges(ops, analysis_results);
   // Analyze op DAG to determine what inputs need to be pipped along
   // and when intermediates can be retired -- essentially liveness analysis
@@ -1350,6 +1350,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
       auto& out_cols = source_factory->output_columns();
       SourceConfig config;
+      config.storage_config = db_params_.storage_config;
       for (auto& col : out_cols) {
         config.output_columns.push_back(col.name());
         config.output_column_types.push_back(col.type());
@@ -1377,6 +1378,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
     auto& in_cols = sink_factory->input_columns();
     SinkConfig config;
+    config.storage_config = db_params_.storage_config;
     for (auto& col : in_cols) {
       config.input_columns.push_back(col.name());
       config.input_column_types.push_back(col.type());

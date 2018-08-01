@@ -19,7 +19,6 @@ extern "C" {
 }
 
 using storehouse::StorageBackend;
-using storehouse::StorageConfig;
 
 namespace scanner {
 
@@ -33,7 +32,7 @@ namespace scanner {
 
 class AudioDecoder {
  public:
-  AudioDecoder(std::string& path, StorageBackend* storage, Profiler* profiler)
+  AudioDecoder(std::string& path, std::shared_ptr<StorageBackend> storage, Profiler* profiler)
     : path_(path), storage_(storage), profiler_(profiler) {
     ProfileBlock _block(profiler_, "decode_setup");
 
@@ -42,7 +41,7 @@ class AudioDecoder {
 
     // Initialize ffmpeg reader object
     std::string error_message;
-    if (!ffmpeg_storehouse_state_init(&file_state_, storage_, path_,
+    if (!ffmpeg_storehouse_state_init(&file_state_, storage_.get(), path_,
                                       error_message)) {
       LOG(FATAL) << error_message;
     }
@@ -62,8 +61,6 @@ class AudioDecoder {
 
     // Get metadata
     FF_ERROR(avformat_find_stream_info(format_context_, NULL));
-
-    // av_dump_format(format_context_, 0, NULL, 0);
 
     // Find index of audio stream
     i32 stream_index = av_find_best_stream(format_context_, AVMEDIA_TYPE_AUDIO,
@@ -90,6 +87,10 @@ class AudioDecoder {
 
   ~AudioDecoder() {
     // TODO: dealloc all the libav structs
+    avcodec_free_context(&context_);
+    avformat_close_input(&format_context_);
+    av_freep(&io_context_->buffer);
+    av_freep(&io_context_);
   }
 
   double duration() {
@@ -189,7 +190,6 @@ class AudioDecoder {
 
  private:
   void seek(f64 time) {
-    // LOG(INFO) << "seek " << time;
     i32 sample_rate = context_->sample_rate;
     i32 source_frame_size_samples = context_->frame_size;
 
@@ -242,8 +242,6 @@ class AudioDecoder {
       av_packet_unref(&packet_);
     }
 
-    // VLOG(1) << "Packet size: " << packet_ byte: " << (int)packet_.data[100];
-
     // Give packet to decoder asynchronously
     FF_ERROR(avcodec_send_packet(context_, &packet_));
 
@@ -279,7 +277,7 @@ class AudioDecoder {
   }
 
   std::string path_;
-  StorageBackend* storage_;
+  std::shared_ptr<StorageBackend> storage_;
   FFStorehouseState file_state_;
   u8* avio_context_buffer_;
   AVFormatContext* format_context_;
@@ -301,10 +299,9 @@ class AudioEnumerator : public Enumerator {
       return;
     }
 
-    StorageBackend* storage =
-        StorageBackend::make_from_config(StorageConfig::make_posix_config());
+    storage_.reset(StorageBackend::make_from_config(config.storage_config));
     std::string path = args_.path();
-    decoder_ = std::make_unique<AudioDecoder>(path, storage, nullptr);
+    decoder_ = std::make_unique<AudioDecoder>(path, storage_, nullptr);
   }
 
   i64 total_elements() override {
@@ -330,6 +327,7 @@ class AudioEnumerator : public Enumerator {
   Result valid_;
   scanner::proto::AudioEnumeratorArgs args_;
   std::unique_ptr<AudioDecoder> decoder_;
+  std::shared_ptr<StorageBackend> storage_;
 };
 
 class AudioSource : public Source {
@@ -340,6 +338,8 @@ class AudioSource : public Source {
       RESULT_ERROR(&valid_, "Could not parse AudioSourceArgs");
       return;
     }
+
+    storage_.reset(StorageBackend::make_from_config(config.storage_config));
   }
 
   void read(const std::vector<ElementArgs>& element_args,
@@ -362,17 +362,17 @@ class AudioSource : public Source {
       frame_size = a.frame_size();
     }
 
-    StorageBackend* storage =
-        StorageBackend::make_from_config(StorageConfig::make_posix_config());
-
+    // Create a new decoder if the cached one doesn't exist or was for a different video
     if (!decoder_ || last_path_ != path) {
-      decoder_.reset(new AudioDecoder(path, storage, profiler_));
+      decoder_.reset(new AudioDecoder(path, storage_, profiler_));
       last_path_ = path;
     }
 
+    // Decode the requested frames
     std::vector<Frame*> frames;
     decoder_->decode(row_ids, frame_size, frames);
 
+    // Insert them into the output stream
     for (Frame* frame : frames) {
       insert_frame(output_columns[0], frame);
     }
@@ -383,6 +383,7 @@ class AudioSource : public Source {
   scanner::proto::AudioSourceArgs args_;
   std::string last_path_;
   std::unique_ptr<AudioDecoder> decoder_;
+  std::shared_ptr<StorageBackend> storage_;
 };
 
 REGISTER_ENUMERATOR(Audio, AudioEnumerator)

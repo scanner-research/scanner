@@ -90,7 +90,8 @@ Result determine_input_rows_to_slices(
     DatabaseMetadata& meta, TableMetaCache& table_metas,
     const std::vector<proto::Job>& jobs,
     const std::vector<proto::Op>& ops,
-    DAGAnalysisInfo& info);
+    DAGAnalysisInfo& info,
+    storehouse::StorageConfig* storage_config);
 
 Result derive_slice_final_output_rows(
     const proto::Job& job,

@@ -17,6 +17,7 @@
 
 #include "scanner/util/common.h"
 #include "scanner/util/profiler.h"
+#include "scanner/util/storehouse.h"
 
 #include <vector>
 
@@ -27,6 +28,7 @@ namespace scanner {
  */
 struct EnumeratorConfig {
   std::vector<u8> args;  //! Byte-string of proto args if given.
+  storehouse::StorageConfig* storage_config;
 };
 
 struct ElementArgs {
