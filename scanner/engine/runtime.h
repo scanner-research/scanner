@@ -65,6 +65,26 @@ struct EvalWorkEntry {
 
 // Contains the row indices that a Op will see for the given task
 struct TaskStream {
+  enum TaskStatus {
+    READY,      // This element can be assigned to any worker right now.
+    ASSIGNED,   // This element is assigned to a worker and currently being processed.
+    DONE,       // This element is done. We keep it here for future dependents' use.
+    WAITING     // The computation that computes this element depends on elements that
+                // are not yet available. Therefore it cannot be assigned to a worker.
+  };
+  TaskStatus status = WAITING;
+
+  // The index of current Op
+  i64 op_idx;
+
+  // This is the set of input ops that this task depends on
+  // Op -> Previous Op
+  std::vector<i64> dependencies;
+
+  // This is the set of output ops that depends on this task
+  // Op -> Next Op
+  std::vector<i64> inverse_dependencies;
+
   i64 slice_group;
   // This is the set of input rows that the Op needs to keep.
   std::vector<i64> valid_input_rows;
@@ -76,6 +96,8 @@ struct TaskStream {
   // to support bounded state operations which must produce output
   // for elements, but that are not necessary for downstream operations
   std::vector<i64> valid_output_rows;
+
+  i32 reference_count = 0;
 };
 
 using LoadInputQueue =

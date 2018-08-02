@@ -580,7 +580,7 @@ Result determine_input_rows_to_slices(
       }
       // Check if we are done
       if (ops[op_idx].is_sink()) {
-        // Should always be at slice level 0
+        // Should always be at slice level 0, because it's sink op!
         assert(slice_group_outputs.size() == 1);
         total_output_rows.push_back(slice_group_outputs.at(0));
         success = true;
@@ -617,6 +617,7 @@ Result determine_input_rows_to_slices(
 
       // Check if this is a slice op
       if (slice_ops.count(op_idx) > 0) {
+        // NOTE(swjz): Maximum 1 layer of slice?
         assert(op_slice_level.at(op_idx) == 1);
         assert(slice_group_outputs.size() == 1);
         // Create Partitioner to enumerate slices
@@ -1151,6 +1152,8 @@ void perform_liveness_analysis(const std::vector<proto::Op>& ops,
       i32 parent_index = eval_input.op_index();
       const std::string& col = eval_input.column();
       i32 col_index = -1;
+      // find which column is the input of this Op
+      // note that k is the index of prev_columns, or live_columns[i - 1]
       for (i32 k = 0; k < (i32)prev_columns.size(); ++k) {
         const std::tuple<i32, std::string>& live_input = prev_columns[k];
         if (parent_index == std::get<0>(live_input) &&
@@ -1177,6 +1180,8 @@ Result derive_stencil_requirements(
   const std::map<i64, std::vector<i32>>& stencils = analysis_results.stencils;
   const std::vector<std::vector<std::tuple<i32, std::string>>>& live_columns =
       analysis_results.live_columns;
+  const std::vector<std::vector<std::tuple<i32, std::string>>>& column_mapping =
+      analysis_results.column_mapping;
 
   output_entry.set_table_id(table_id);
   output_entry.set_job_index(job_idx);
@@ -1302,6 +1307,7 @@ Result derive_stencil_requirements(
     // Initialize output rows
     required_output_rows_at_op.at(num_ops - 1) =
         std::set<i64>(output_rows.begin(), output_rows.end());
+    task_streams.resize(num_ops);
     // For each kernel, derive the minimal required upstream elements
     for (i64 op_idx = num_ops - 1; op_idx >= 0; --op_idx) {
       auto& op = ops.at(op_idx);
@@ -1534,17 +1540,26 @@ Result derive_stencil_requirements(
       }
       VLOG(3) << "Valid outputs: " << st;
 
-      TaskStream s;
-      s.slice_group = slice_group;
-      s.valid_input_rows = new_rows;
-      s.compute_input_rows = compute_rows;
-      s.valid_output_rows = downstream_rows;
-      task_streams.push_front(s);
+      TaskStream& s = task_streams.at(op_idx);
+      s.op_idx = op_idx;
+      // Get rid of input stream since this is already captured by the load samples
+      if (op_idx >= 1) {
+        for (i32 index : column_mapping[op_idx]) {
+          s.dependencies.push_back(std::get<0>(live_columns[op_idx - 1][index]));
+          s.reference_count++;
+          TaskStream& s_dependent = task_streams.at(std::get<0>(live_columns[op_idx - 1][index]));
+          s_dependent.inverse_dependencies.push_back(op_idx);
+        }
+        s.slice_group = slice_group;
+        s.valid_input_rows = new_rows;
+        s.compute_input_rows = compute_rows;
+        s.valid_output_rows = downstream_rows;
+      } else if (op_idx == 0) {
+        // Source Op doesn't need any dependencies!
+        s.status = TaskStream::READY;
+      }
     }
   }
-
-  // Get rid of input stream since this is already captured by the load samples
-  task_streams.pop_front();
 
   for (size_t i = 0; i < enumerators.size(); ++i) {
     auto out_arg = output_entry.add_source_args();

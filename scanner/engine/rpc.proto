@@ -82,8 +82,8 @@ message GetJobStatusReply {
   bool finished = 1;
   Result result = 2;
 
-  int32 tasks_done = 3;
-  int32 total_tasks = 4;
+  int32 ops_done = 3;
+  int32 total_ops = 4;
 
   int32 jobs_done = 5;
   int32 jobs_failed = 6;
@@ -204,14 +204,15 @@ message NextWorkRequest {
 }
 
 message NextWorkReply {
-  int32 table_id = 1;
-  int32 job_index = 2;
-  int32 task_index = 3;
+  int64 table_id = 1;
+  int64 job_index = 2;
+  int64 op_index = 7;
+  int64 task_index = 3;
   repeated int64 output_rows = 4 [packed=true];
   bool wait_for_work = 5;
   bool no_more_work = 6;
+  bytes data = 8;
 }
-
 
 message FinishedWorkRequest {
   int32 node_id = 1;
@@ -219,7 +220,9 @@ message FinishedWorkRequest {
 
   int64 job_id = 3;
   int64 task_id = 4;
+  int64 op_id = 6;
   int64 num_rows = 5;
+  bytes data = 7;
 }
 
 message FinishedJobRequest {
