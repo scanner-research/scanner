@@ -70,3 +70,17 @@ python3 setup.py bdist_wheel && \
 twine upload -u 'wcrichto' -p '${PYPI_PASS}' dist/*
 "
 fi
+
+# Tell Scannertools to rebuild
+request_body='{
+"request": {
+"branch":"master"
+}}'
+
+curl -s -X POST \
+   -H "Content-Type: application/json" \
+   -H "Accept: application/json" \
+   -H "Travis-API-Version: 3" \
+   -H "Authorization: token $TRAVIS_TOKEN" \
+   -d "$request_body" \
+   "https://api.travis-ci.org/repo/scanner-research%2Fscannertools/requests"
