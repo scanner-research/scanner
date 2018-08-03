@@ -64,6 +64,7 @@ struct EvalWorkEntry {
 };
 
 // Contains the row indices that a Op will see for the given task
+// TODO(swjz): this is not a stream of tasks anymore. maybe change name?
 struct TaskStream {
   enum TaskStatus {
     READY,      // This element can be assigned to any worker right now.

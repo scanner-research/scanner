@@ -24,8 +24,6 @@
 #include "scanner/engine/table_meta_cache.h"
 #include "scanner/engine/python_kernel.h"
 #include "scanner/engine/dag_analysis.h"
-#include "scanner/engine/enumerator_registry.h"
-#include "scanner/engine/column_enumerator.h"
 #include "scanner/util/cuda.h"
 #include "scanner/util/glog.h"
 #include "scanner/util/grpc.h"
@@ -1019,11 +1017,14 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   std::vector<std::vector<i32>> column_mapping =
       analysis_results.column_mapping;
 
+
+  // TODO(swjz): only sink op should do this
   // Read final output columns for use in post-evaluate worker
   // (needed for determining column types)
   std::vector<Column> final_output_columns(
       job_params->output_columns().begin(),
       job_params->output_columns().end());
+  // Read compression options from job_params
   std::vector<ColumnCompressionOptions> final_compression_options;
   for (auto& opts : job_params->compression()) {
     ColumnCompressionOptions o;
@@ -1074,6 +1075,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     }
   }
 
+  // TODO(swjz): Worker should only instantiate specific kernel
   // Go through the vector of Ops, and for each Op which represents a
   // non-special Op (i.e. has a kernel implementation) get the factory
   // for constructing instances of that op, and create the config object
@@ -1136,7 +1138,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       auto input = op.inputs(i);
       kernel_config.input_columns.push_back(input.column());
       if (input_columns.size() == 0) {
-        // We ccan have 0 columns in op info if variadic arguments
+        // We can have 0 columns in op info if variadic arguments
         kernel_config.input_column_types.push_back(ColumnType::Other);
       } else {
         kernel_config.input_column_types.push_back(input_columns[i].type());
@@ -1162,6 +1164,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     }
   }
 
+  // TODO(swjz): The kernel groups should no longer be there anymore
   // Break up kernels into groups that run on the same device
   std::vector<OpArgGroup> groups;
   if (!kernel_factories.empty()) {
@@ -1262,7 +1265,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   i32 num_kernel_groups = static_cast<i32>(groups.size());
   assert(num_kernel_groups > 0);  // is this actually necessary?
 
-  i32 pipeline_instances_per_node = job_params->pipeline_instances_per_node();
+  // NOTE(swjz): I set the pipeline_instances_per_node = 1 here for now
+  i32 pipeline_instances_per_node = 1;
 
   LOG(INFO) << "Initial pipeline instances per node: " << pipeline_instances_per_node;
   // If pipline_instances_per_node is -1, we set a smart default. Currently, we
@@ -1349,6 +1353,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     }
   }
 
+  // TODO(swjz): Only sink Op should do this
   // Setup sink factories and sink configs that will be used
   // to instantiate save worker instances
   std::vector<SinkFactory*> sink_factories;
@@ -1435,6 +1440,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   std::vector<SaveInputQueue> save_work(db_params_.num_save_workers);
   SaveOutputQueue retired_tasks;
 
+  // TODO(swjz): Only source Op should do this.
+  // TODO(swjz): Other Ops should load data from master via grpc NextWorkReply
   // Setup load workers
   i32 num_load_workers = db_params_.num_load_workers;
   std::vector<Profiler> load_thread_profilers;
@@ -1639,6 +1646,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
         std::ref(*std::get<1>(post_eval_queues[pu])), post_eval_args[pu]);
   }
 
+  // TODO(swjz): Only sink Op should do this.
+  // TODO(swjz): Other Ops should send data back to master via grpc.
   // Setup save coordinator
   std::thread save_coordinator_thread(
       save_coordinator, std::ref(output_eval_work), std::ref(save_work));
@@ -1736,6 +1745,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       params.set_job_id(std::get<1>(task_retired));
       params.set_task_id(std::get<2>(task_retired));
 
+      // TODO(swjz): We should also send data to master via grpc if not sink Op
+
       proto::Empty empty;
       grpc::Status status;
       GRPC_BACKOFF(master_->FinishedWork(&ctx, params, &empty), status);
@@ -1782,6 +1793,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
       proto::NextWorkReply new_work;
       grpc::Status status;
+      // TODO(swjz): We should also receive data from master via grpc if not source Op
       GRPC_BACKOFF(master_->NextWork(&ctx, node_info, &new_work), status);
       if (!status.ok()) {
         RESULT_ERROR(job_result,
@@ -1799,59 +1811,6 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
         VLOG(1) << "Node " << node_id_ << " received done signal.";
         finished = true;
       } else {
-//        {
-          // Create domain samplers
-          // Op -> slice
-          std::map<i64, proto::SamplingArgsAssignment> args_assignment;
-          std::map<i64, std::vector<std::unique_ptr<DomainSampler>>> domain_samplers;
-          for (const proto::SamplingArgsAssignment& saa :
-              job.sampling_args_assignment()) {
-            if (ops.at(saa.op_index()).name() == SLICE_OP_NAME) {
-              args_assignment[saa.op_index()] = saa;
-            } else {
-              std::vector<std::unique_ptr<DomainSampler>>& samplers =
-                  domain_samplers[saa.op_index()];
-              // Assign number of rows to correct op
-              for (auto& sa : saa.sampling_args()) {
-                DomainSampler* sampler;
-                Result result = make_domain_sampler_instance(
-                    sa.sampling_function(),
-                    std::vector<u8>(sa.sampling_args().begin(),
-                                    sa.sampling_args().end()),
-                    sampler);
-                if (!result.success()) {
-                  return result;
-                }
-                samplers.emplace_back(sampler);
-              }
-            }
-          }
-
-          auto& job = jobs.at(new_work.job_index());
-          std::vector<std::unique_ptr<Enumerator>> enumerators(job.inputs_size());
-          {
-            // Instantiate enumerators to determine number of rows produced from each
-            // Source op
-            auto registry = get_enumerator_registry();
-            for (auto& source_input : job.inputs()) {
-              const std::string& source_name = ops.at(source_input.op_index()).name();
-              i32 col_idx = analysis_results.input_ops_to_first_op_columns.at(
-                  source_input.op_index());
-              EnumeratorFactory* factory = registry->get_enumerator(source_name);
-              EnumeratorConfig config;
-              size_t size = source_input.enumerator_args().size();
-              config.args = std::vector<u8>(source_input.enumerator_args().begin(),
-                                            source_input.enumerator_args().end());
-              Enumerator* e = factory->new_instance(config);
-              enumerators[col_idx].reset(e);
-              // If this is a source enumerator, we must provide table meta
-              if (auto column_enumerator = dynamic_cast<ColumnEnumerator*>(e)) {
-                column_enumerator->set_table_meta(&table_meta);
-              }
-            }
-          }
-//        }
-
         // Perform analysis on load work entry to determine upstream
         // requirements and when to discard elements.
         std::deque<TaskStream> task_stream;
@@ -1876,6 +1835,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
             target_work_queue = i;
           }
         }
+        // TODO(swjz): We shuold only do this for the first (source) Op.
         load_work.push(
             std::make_tuple(target_work_queue, task_stream, stenciled_entry));
         allocated_work_to_queues[target_work_queue]++;
