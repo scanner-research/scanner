@@ -625,17 +625,11 @@ grpc::Status WorkerImpl::Shutdown(grpc::ServerContext* context,
   return grpc::Status::OK;
 }
 
-grpc::Status WorkerImpl::PokeWatchdog(grpc::ServerContext* context,
-                                      const proto::Empty* empty,
-                                      proto::Empty* result) {
-  watchdog_awake_ = true;
-  return grpc::Status::OK;
-}
-
 grpc::Status WorkerImpl::Ping(grpc::ServerContext* context,
                               const proto::Empty* empty1,
                               proto::PingReply* reply) {
   reply->set_node_id(node_id_);
+  watchdog_awake_ = true;
   return grpc::Status::OK;
 }
 

@@ -147,6 +147,9 @@ class Database(object):
         self._start_cluster = start_cluster
         self._workers_started = False
         self._enable_watchdog = enable_watchdog
+        # Worker always has watchdog enabled to determine when master
+        # connection has failed
+        self._enable_worker_watchdog = True
         self._prefetch_table_metadata = prefetch_table_metadata
         self._no_workers_timeout = no_workers_timeout
         self._debug = debug
@@ -709,7 +712,7 @@ class Database(object):
                     port=str(int(self.config.worker_port) + i),
                     config=self.config,
                     db=self._db,
-                    watchdog=self._enable_watchdog,
+                    watchdog=self._enable_worker_watchdog,
                     machine_params=machine_params)
         else:
             pickled_config = pickle.dumps(self.config, 0).decode()
@@ -733,7 +736,7 @@ class Database(object):
                             worker_cmd.format(
                                 master=self._master_address,
                                 config=pickled_config,
-                                watchdog=self._enable_watchdog,
+                                watchdog=self._enable_worker_watchdog,
                                 worker_port=w.partition(':')[2]),
                             nohup=True))
                 except Exception as e:
@@ -1703,6 +1706,14 @@ def start_worker(master_address: str,
     Database
       A cpp database instance.
     """
+
+    # Worker always has watchdog enabled to determine when master connection
+    # has failed
+    if not watchdog:
+        print(('Forcing worker to enable watchdog. Watchdog must be enabled to '
+               'detect if worker has disconnected from master.'),
+              file=sys.stderr)
+        watchdog = True
 
     if num_workers is not None:
         with ProcessPoolExecutor(max_workers=num_workers) as executor:

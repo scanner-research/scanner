@@ -67,7 +67,11 @@ MasterServerImpl::MasterServerImpl(DatabaseParameters& params, const std::string
   // Perform database consistency checks on startup
   recover_and_init_database();
 
+  // Ping workers every 10 seconds to make sure they are alive
+  start_worker_pinger();
+
   start_job_processor();
+
   VLOG(1) << "Master created.";
 }
 
@@ -1198,56 +1202,6 @@ void MasterServerImpl::PokeWatchdogHandler(
   pool_->enqueue([this, call]() {
     VLOG(2) << "Master received PokeWatchdog.";
     watchdog_awake_ = true;
-
-    std::map<i32, proto::Worker::Stub*> ws;
-    {
-      std::unique_lock<std::mutex> lk(work_mutex_);
-      for (auto& kv : workers_) {
-        i32 worker_id = kv.first;
-        auto& worker = kv.second;
-        if (!worker->active) continue;
-
-        ws.insert({worker_id, worker->stub.get()});
-      }
-    }
-
-    std::vector<grpc::ClientContext> contexts(ws.size());
-    std::vector<grpc::Status> statuses(ws.size());
-    std::vector<proto::Empty> results(ws.size());
-    std::vector<std::unique_ptr<grpc::ClientAsyncResponseReader<proto::Empty>>>
-        rpcs(ws.size());
-    grpc::CompletionQueue cq;
-    int i = 0;
-    for (auto& kv : ws) {
-      i64 id = kv.first;
-      auto& worker = kv.second;
-      proto::Empty em;
-
-      // Set timeout for PokeWatchdog call
-      u32 timeout = POKE_WATCHDOG_WORKER_TIMEOUT;
-      std::chrono::system_clock::time_point deadline =
-          std::chrono::system_clock::now() + std::chrono::seconds(timeout);
-      contexts[i].set_deadline(deadline);
-
-      rpcs[i] = worker->AsyncPokeWatchdog(&contexts[i], em, &cq);
-      rpcs[i]->Finish(&results[i], &statuses[i], (void*)id);
-      i++;
-      VLOG(3) << "Master sending PokeWatchdog to worker " << id;
-    }
-    for (int i = 0; i < ws.size(); ++i) {
-      void* got_tag;
-      bool ok = false;
-      GPR_ASSERT(cq.Next(&got_tag, &ok));
-      // GPR_ASSERT((i64)got_tag < workers_.size());
-      i64 worker_id = (i64)got_tag;
-      if (!ok) {
-        LOG(WARNING) << "Could not poke worker " << worker_id << "!";
-      }
-      VLOG(3) << "Master successfully sent PokeWatchdog to worker "
-              << worker_id;
-    }
-    cq.Shutdown();
-
     REQUEST_RPC(PokeWatchdog, proto::Empty, proto::Empty);
     call->Respond(grpc::Status::OK);
   });
@@ -1718,9 +1672,6 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
     state->unstarted_workers.clear();
   }
 
-  // Ping workers every 10 seconds to make sure they are alive
-  start_worker_pinger();
-
   // Wait for all workers to finish
   VLOG(1) << "Waiting for workers to finish";
 
@@ -1851,9 +1802,6 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
   std::fflush(NULL);
   sync();
 
-  // No need to check status of workers anymore
-  stop_worker_pinger();
-
   // Update job metadata with new # of nodes
   {
     std::unique_lock<std::mutex> lk(work_mutex_);
@@ -1872,12 +1820,15 @@ void MasterServerImpl::start_worker_pinger() {
   VLOG(1) << "Starting worker pinger";
   pinger_active_ = true;
   pinger_thread_ = std::thread([this]() {
-    std::shared_ptr<BulkJob> state;
-    {
-      std::unique_lock<std::mutex> l(work_mutex_);
-      state = bulk_jobs_state_.at(active_bulk_job_id_);
-    }
     while (pinger_active_) {
+      std::shared_ptr<BulkJob> state;
+      {
+        std::unique_lock<std::mutex> l(work_mutex_);
+        if (active_bulk_job_) {
+          state = bulk_jobs_state_.at(active_bulk_job_id_);
+        }
+      }
+
       std::map<i32, proto::Worker::Stub*> ws;
       {
         std::unique_lock<std::mutex> lk(work_mutex_);
@@ -1890,41 +1841,73 @@ void MasterServerImpl::start_worker_pinger() {
         }
       }
 
-      VLOG(2) << "Master sending Ping.";
-      for (auto& kv : ws) {
-        i32 worker_id = kv.first;
-        auto& worker = kv.second;
+      struct RequestData {
+        grpc::ClientContext context;
+        grpc::Status status;
+        proto::PingReply reply;
+        std::unique_ptr<grpc::ClientAsyncResponseReader<proto::PingReply>> rpc;
+      };
+      std::map<i32, RequestData> requests;
 
-        grpc::ClientContext ctx;
+      grpc::CompletionQueue cq;
+      int i = 0;
+      for (auto& kv : ws) {
+        i64 id = kv.first;
+        auto& worker = kv.second;
+        proto::Empty em;
+
+        RequestData& request_data = requests[id];
+
         // Set timeout for Ping call
         u32 timeout = PING_WORKER_TIMEOUT;
         std::chrono::system_clock::time_point deadline =
             std::chrono::system_clock::now() + std::chrono::seconds(timeout);
-        ctx.set_deadline(deadline);
+        request_data.context.set_deadline(deadline);
 
-        proto::Empty empty1;
-        proto::PingReply reply;
-        grpc::Status status = worker->Ping(&ctx, empty1, &reply);
-        if (!status.ok() || reply.node_id() != worker_id) {
-          VLOG(3) << "Master failed to Ping worker " << worker_id;
-          // Worker not responding, increment ping count
-          i64 num_failed_pings = ++workers_[worker_id]->failed_pings;
-          const i64 FAILED_PINGS_BEFORE_REMOVAL = 3;
-          if (num_failed_pings >= FAILED_PINGS_BEFORE_REMOVAL ||
-              reply.node_id() != worker_id) {
-            // remove it from active workers
-            LOG(WARNING) << "Worker " << worker_id
-                         << " did not respond to Ping. "
-                         << "Removing worker from active list.";
-            std::unique_lock<std::mutex> lk(work_mutex_);
-            remove_worker(worker_id);
-            state->num_failed_workers++;
+        request_data.rpc = worker->AsyncPing(&request_data.context, em, &cq);
+        request_data.rpc->Finish(&request_data.reply, &request_data.status,
+                                 (void*)id);
+        i++;
+        VLOG(3) << "Master sending Ping to worker " << id;
+      }
+      for (int i = 0; i < ws.size(); ++i) {
+        void* got_tag;
+        bool ok = false;
+        GPR_ASSERT(cq.Next(&got_tag, &ok));
+        i64 worker_id = (i64)got_tag;
+
+        if (requests.count(worker_id) > 0) {
+          RequestData& request_data = requests.at(worker_id);
+          if (!request_data.status.ok() ||
+              request_data.reply.node_id() != worker_id) {
+            VLOG(3) << "Master failed to Ping worker " << worker_id;
+            // Worker not responding, increment ping count
+            i64 num_failed_pings = ++workers_[worker_id]->failed_pings;
+            const i64 FAILED_PINGS_BEFORE_REMOVAL = 3;
+            if (num_failed_pings >= FAILED_PINGS_BEFORE_REMOVAL ||
+                request_data.reply.node_id() != worker_id) {
+              // remove it from active workers
+              LOG(WARNING) << "Worker " << worker_id
+                           << " did not respond to Ping. "
+                           << "Removing worker from active list.";
+              std::unique_lock<std::mutex> lk(work_mutex_);
+              remove_worker(worker_id);
+              if (state.get()) {
+                state->num_failed_workers++;
+              }
+            }
+          } else {
+            VLOG(3) << "Master successfully Pinged worker " << worker_id;
+            workers_[worker_id]->failed_pings = 0;
           }
         } else {
-          VLOG(3) << "Master successfully Pinged worker " << worker_id;
-          workers_[worker_id]->failed_pings = 0;
+          LOG(WARNING) << "Got invalid Ping response with tag for non-existent "
+                          "worker id "
+                       << worker_id << "!";
         }
       }
+      cq.Shutdown();
+
       // Sleep for 5 seconds or wake up if the job has finished before then
       std::unique_lock<std::mutex> lk(pinger_wake_mutex_);
       pinger_wake_cv_.wait_for(lk, std::chrono::seconds(5),
