@@ -211,7 +211,6 @@ message NextWorkReply {
   repeated int64 output_rows = 4 [packed=true];
   bool wait_for_work = 5;
   bool no_more_work = 6;
-  bytes data = 8;
 }
 
 message FinishedWorkRequest {
@@ -222,7 +221,6 @@ message FinishedWorkRequest {
   int64 task_id = 4;
   int64 op_id = 6;
   int64 num_rows = 5;
-  bytes data = 7;
 }
 
 message FinishedJobRequest {
