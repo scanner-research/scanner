@@ -320,17 +320,24 @@ void read_other_column(StorageBackend* storage, Profiler& profiler,
     BACKOFF_FAIL(file->get_size(file_size),
                  "while trying to get size for " + metadata_path);
 
-    // Read number of elements in file
+    // Read entire metadata file at once
+    std::vector<u8> metadata_data(file_size);
     u64 pos = 0;
+    s_read(file.get(), metadata_data.data(), file_size, pos);
+
+    // Read number of elements in file
+    pos = 0;
     while (pos < file_size) {
-      u64 elements = s_read<u64>(file.get(), pos);
+      u64 elements = *reinterpret_cast<u64*>(metadata_data.data() + pos);
+      pos += sizeof(u64);
 
       // Read element sizes from work item file header
       size_t prev_size = element_sizes.size();
       element_sizes.resize(prev_size + elements);
-      s_read(file.get(),
-             reinterpret_cast<u8*>(element_sizes.data() + prev_size),
-             elements * sizeof(i64), pos);
+      memcpy(element_sizes.data() + prev_size,
+             metadata_data.data() + pos,
+             elements * sizeof(i64));
+      pos += elements * sizeof(i64);
 
       num_elements += elements;
     }
