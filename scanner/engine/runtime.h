@@ -64,7 +64,6 @@ struct EvalWorkEntry {
 };
 
 // Contains the row indices that a Op will see for the given task
-// TODO(swjz): this is not a stream of tasks anymore. maybe change name?
 struct TaskStream {
   enum TaskStatus {
     READY,      // This element can be assigned to any worker right now.
@@ -78,27 +77,32 @@ struct TaskStream {
   // The index of current Op
   i64 op_idx;
 
-  // This is the set of input ops that this task depends on
-  // Op -> Previous Op
-  std::vector<i64> dependencies;
+  // The id of tasks that the current task depend on
+  std::set<i64> source_task;
 
-  // This is the set of output ops that depends on this task
-  // Op -> Next Op
-  std::vector<i64> inverse_dependencies;
+  // The id of tasks that depend on the current task
+  std::set<i64> waiting_task;
+
+  // If the launch_count turns to 0, this task is ready to launch.
+  i64 launch_count;
+
+  // If the free_count turns to 0, this task can be retired.
+  i64 free_count;
 
   i64 slice_group;
+
   // This is the set of input rows that the Op needs to keep.
   std::vector<i64> valid_input_rows;
+
   // This is the set of input rows it should process and produce
   // outputs for.
   std::vector<i64> compute_input_rows;
+
   // This is the set of outputs that it should pass along (those
   // not in this set should be immediately discarded). Needed
   // to support bounded state operations which must produce output
   // for elements, but that are not necessary for downstream operations
   std::vector<i64> valid_output_rows;
-
-  i32 reference_count = 0;
 };
 
 using LoadInputQueue =
