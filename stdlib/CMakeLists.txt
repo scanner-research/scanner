@@ -118,7 +118,7 @@ target_link_libraries(scanner_stdlib PUBLIC
   ${Boost_LIBRARIES})
 
 if(APPLE)
-  target_link_libraries(scanner_stdlib PRIVATE "-Wl,-rpath,@loader_path/lib")
+  target_link_libraries(scanner_stdlib PRIVATE "-Wl,-rpath,@loader_path")
 elseif(UNIX)
-  target_link_libraries(scanner_stdlib PRIVATE "-Wl,-rpath,$ORIGIN/lib")
+  target_link_libraries(scanner_stdlib PRIVATE "-Wl,-rpath,$ORIGIN")
 endif()

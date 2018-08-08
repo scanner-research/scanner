@@ -53,7 +53,6 @@ MasterServerImpl::MasterServerImpl(DatabaseParameters& params, const std::string
 
   {
     // HACK(apoms): to fix this issue: https://github.com/pybind/pybind11/issues/1364
-    py::gil_scoped_acquire acquire;
     pybind11::get_shared_data("");
   }
 
