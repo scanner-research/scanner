@@ -224,14 +224,7 @@ class Column(object):
                 and self._video_descriptor.codec_type ==
                 self._db.protobufs.VideoDescriptor.H264):
             png_table_name = self._db._png_dump_prefix.format(
-                self._table.name())
-            if self._db.has_table(png_table_name):
-                png_table = self._db.table(png_table_name)
-                if rows is None and \
-                   png_table.num_rows() == self._table.num_rows() and \
-                   png_table._descriptor.timestamp > \
-                   self._table._descriptor.timestamp:
-                    return png_table.column('img').load(readers.image)
+                self._table.name(), self._name)
             pair = [(self._table.name(), png_table_name)]
             op_args = {}
             frame = self._db.sources.FrameColumn()
