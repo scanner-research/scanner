@@ -44,6 +44,7 @@ namespace internal {
 struct EvalWorkEntry {
   i64 table_id;
   i64 job_index;
+  i64 bulk_task_index;
   i64 task_index;
   std::vector<std::vector<i64>> row_ids;
   BatchedElements columns;
@@ -78,10 +79,10 @@ struct TaskStream {
   i64 op_idx;
 
   // The id of tasks that the current task depend on
-  std::set<i64> source_task;
+  std::set<i64> source_tasks;
 
   // The id of tasks that depend on the current task
-  std::set<i64> waiting_task;
+  std::set<i64> waiting_tasks;
 
   // If the launch_count turns to 0, this task is ready to launch.
   i64 launch_count;

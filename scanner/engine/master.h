@@ -249,9 +249,9 @@ class MasterServerImpl final : public proto::Master::Service {
     // Total number of jobs
     i64 num_jobs = -1;
     // Next task index in the current job
-    i64 next_task = 0;
-    // The number of tasks in the current job
-    i64 num_tasks = -1;
+    i64 next_bulk_task = 0;
+    // The number of bulk tasks in the current job
+    i64 num_bulk_tasks = -1;
     // All job task output rows
     // Job -> Task -> task output rows
     std::vector<std::vector<std::vector<i64>>> job_tasks;
@@ -279,9 +279,9 @@ class MasterServerImpl final : public proto::Master::Service {
     // (Worker id, job_id, task_id) -> start_time
     std::map<std::tuple<i64, i64, i64>, double> worker_job_tasks_starts;
     // Tracks number of times a task has been failed so that a job can be
-    // removed if it is causing consistent failures job_id -> task_id -> op_id
-    // num_failures
-    std::map<i64, std::map<i64, i64, i64>> job_tasks_num_failures;
+    // removed if it is causing consistent failures job_id -> task_id ->
+    // bulk_task_id -> num_failures
+    std::map<i64, std::map<std::tuple<i64, i64>, i64>> job_tasks_num_failures;
     // Tracks the jobs that have failed too many times and should be ignored
     std::set<i64> blacklisted_jobs;
 
