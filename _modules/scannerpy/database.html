@@ -213,7 +213,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_db_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">db_path</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_storage</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">storage</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_cached_db_metadata</span> <span class="o">=</span> <span class="kc">None</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_png_dump_prefix</span> <span class="o">=</span> <span class="s1">&#39;__png_dump_</span><span class="si">{:s}</span><span class="s1">&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_png_dump_prefix</span> <span class="o">=</span> <span class="s1">&#39;__png_dump_</span><span class="si">{:s}</span><span class="s1">_</span><span class="si">{:s}</span><span class="s1">&#39;</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">ops</span> <span class="o">=</span> <span class="n">OpGenerator</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">sources</span> <span class="o">=</span> <span class="n">SourceGenerator</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
