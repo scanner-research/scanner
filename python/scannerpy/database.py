@@ -166,7 +166,7 @@ class Database(object):
         self._db_path = self.config.db_path
         self._storage = self.config.storage
         self._cached_db_metadata = None
-        self._png_dump_prefix = '__png_dump_{:s}'
+        self._png_dump_prefix = '__png_dump_{:s}_{:s}'
 
         self.ops = OpGenerator(self)
         self.sources = SourceGenerator(self)
