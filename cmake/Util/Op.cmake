@@ -46,7 +46,14 @@ function(build_op)
       OUTPUT_VARIABLE SCANNER_LIB_PATH
       COMMAND
       python3 -c "import scannerpy.stdlib.build_flags as b; b.print_lib()")
-    target_link_libraries(${args_LIB_NAME} PUBLIC "${SCANNER_LIB_PATH}/libscanner.so")
+
+    if(APPLE)
+      target_link_libraries(${args_LIB_NAME} PUBLIC
+        "${SCANNER_LIB_PATH}/libscanner.dylib")
+    else()
+      target_link_libraries(${args_LIB_NAME} PUBLIC
+        "${SCANNER_LIB_PATH}/libscanner.so")
+    endif()
 
     execute_process(
       OUTPUT_VARIABLE BUILD_FLAGS
