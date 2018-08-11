@@ -138,6 +138,7 @@ class Database(object):
                  prefetch_table_metadata: bool = True,
                  no_workers_timeout: float = 30,
                  grpc_timeout: float = 30,
+                 new_job_retries_limit: int = 5,
                  machine_params = None):
         if config:
             self.config = config
@@ -154,6 +155,7 @@ class Database(object):
         self._no_workers_timeout = no_workers_timeout
         self._debug = debug
         self._grpc_timeout = grpc_timeout
+        self._new_job_retries_limit = new_job_retries_limit
         self._machine_params = machine_params
         if debug is None:
             self._debug = (master is None and workers is None)
@@ -623,7 +625,7 @@ class Database(object):
                 self._master_conn = None
                 res = self._bindings.start_master(
                     self._db, self.config.master_port, SCRIPT_DIR, self._enable_watchdog,
-                    self._no_workers_timeout).success
+                    self._no_workers_timeout, self._new_job_retries_limit).success
                 assert res
                 res = self._connect_to_master()
                 if not res:

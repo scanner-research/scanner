@@ -30,12 +30,12 @@ namespace scanner {
 
   proto::Result start_master_wrapper(Database& db, const std::string& port,
                                      const std::string& python_dir, bool watchdog,
-                                     i64 no_workers_timeout) {
+                                     i64 no_workers_timeout, i32 new_job_retries_limit) {
     // HACK(apoms): we don't call the GIL release here because the db methods are
     // in a different module and we can't release the GIL until they have initialized
     // the builtins. To fix this issue: https://github.com/pybind/pybind11/issues/1364
     return db.start_master(default_machine_params(), port, python_dir, watchdog,
-                           no_workers_timeout);
+                           no_workers_timeout, new_job_retries_limit);
   }
 
   proto::Result start_worker_wrapper(Database& db, const std::string& params_s,
