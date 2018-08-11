@@ -98,6 +98,7 @@ struct DatabaseParameters {
   std::vector<i32> gpu_ids;
   i64 no_workers_timeout; // in seconds
   std::string python_dir;
+  i32 new_job_retries_limit;
 };
 
 class MasterServerImpl;

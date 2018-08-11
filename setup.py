@@ -143,7 +143,7 @@ module1 = Extension(
 
 setup(
     name='scannerpy',
-    version='0.2.15',
+    version='0.2.16',
     description='Efficient video analysis at scale',
     long_description='',
     url='https://github.com/scanner-research/scanner',

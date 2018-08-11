@@ -2010,7 +2010,7 @@ void MasterServerImpl::start_job_on_workers(const std::vector<i32>& worker_ids) 
       } else if (status.error_code() == grpc::StatusCode::UNAVAILABLE) {
         // We should retry this request
         i32 retries = retry_attempts[worker_id]++;
-        if (retries > 5) {
+        if (retries > db_params_.new_job_retries_limit) {
           // Already retried too many times
           LOG(WARNING) << "Worker " << worker_id << " timed out for NewJob: ("
                        << status.error_code() << "): " << status.error_message();

@@ -60,6 +60,7 @@ internal::DatabaseParameters machine_params_to_db_params(
   db.num_save_workers = params.num_save_workers;
   db.gpu_ids = params.gpu_ids;
   db.no_workers_timeout = 30;
+  db.new_job_retries_limit = 5;
   return db;
 }
 }
@@ -103,7 +104,8 @@ Result Database::start_master(const MachineParameters& machine_params,
                               const std::string& port,
                               const std::string& python_dir,
                               bool watchdog,
-                              i64 no_workers_timeout) {
+                              i64 no_workers_timeout,
+                              i32 new_job_retries_limit) {
   if (master_server_ != nullptr) {
     LOG(WARNING) << "Master already started";
     Result result;
@@ -114,6 +116,7 @@ Result Database::start_master(const MachineParameters& machine_params,
       machine_params_to_db_params(machine_params, storage_config_, db_path_);
   params.no_workers_timeout = no_workers_timeout;
   params.python_dir = python_dir;
+  params.new_job_retries_limit = new_job_retries_limit;
 
   master_server_.reset(scanner::internal::get_master_service(params, port));
   master_server_->run();
