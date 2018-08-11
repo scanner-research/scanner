@@ -1578,7 +1578,8 @@ def start_master(port: int = None,
                  config_path: str = None,
                  block: bool = False,
                  watchdog: bool = True,
-                 no_workers_timeout: float = 30):
+                 no_workers_timeout: float = 30,
+                 new_job_retries_limit: int = 5):
     r""" Start a master server instance on this node.
 
     Parameters
@@ -1620,7 +1621,8 @@ def start_master(port: int = None,
     db = bindings.Database(config.storage_config, config.db_path,
                            (config.master_address + ':' + port))
     result = bindings.start_master(db, port, SCRIPT_DIR, watchdog,
-                                   no_workers_timeout)
+                                   no_workers_timeout,
+                                   new_job_retries_limit)
     if not result.success():
         raise ScannerException('Failed to start master: {}'.format(
             result.msg()))
