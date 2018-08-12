@@ -1,10 +1,12 @@
 # Scanner: Efficient Video Analysis at Scale [![GitHub tag](https://img.shields.io/github/tag/scanner-research/scanner.svg)](https://GitHub.com/scanner-research/scanner/tags/) [![Build Status](https://travis-ci.org/scanner-research/scanner.svg?branch=master)](https://travis-ci.org/scanner-research/scanner) #
 
 Scanner is a system for developing applications that efficiently process large video datasets. Scanner has been used for both video analysis and video synthesis tasks, such as:
-* **Labeling and data mining large video collections:** Scanner is in use at Stanford University as the compute engine for visual data mining applications that detect people, commercials, human poses, etc. in datasets as big as 70,000 hours of TV news (12 billion frames, 20 TB) or 600 feature length movies (106 million frames).  We've used Scanner to run these tasks on hundreds of GPUs or thousands of CPUs on Google Compute Engine.
-* **VR Video synthesis:** scaling the [Surround 360 VR video stitching software](https://github.com/scanner-research/Surround360) to 100's of CPUs. This application processes fourteen 2048x2048 input videos to produce 8k omidirectional stereo video output for VR display.
+* **Labeling and data mining large video collections:** Scanner is in use at Stanford University as the compute engine for visual data mining applications that detect faces, commercials, human poses, etc. in datasets as big as 70,000 hours of TV news (12 billion frames, 20 TB) or 600 feature length movies (106 million frames).  We've used Scanner to run these tasks on hundreds of GPUs or thousands of CPUs on Google Compute Engine.
+* **VR Video synthesis:** Scanner is use at Facebook to scale the [Surround 360 VR video stitching software](https://github.com/scanner-research/Surround360) to hundreds of CPUs. This application processes fourteen 2048x2048 input videos to produce 8k omidirectional stereo video output for VR display.
 
 To learn more about Scanner, see the documentation below, check out the [various example applications](https://github.com/scanner-research/scanner/tree/master/examples), or read the SIGGRAPH 2018 Technical Paper: "[Scanner: Efficient Video Analysis at Scale](http://graphics.stanford.edu/papers/scanner/scanner_sig18.pdf)".
+
+For easy access to off-the-shelf pipelines like face detection and optical flow built using Scanner, check out our [scannertools](https://github.com/scanner-research/scannertools) library.
 
 ## Key Features
 
@@ -12,7 +14,7 @@ Scanner's key features include:
 
 * **Video processing computations as dataflow graphs:** Like many modern ML frameworks, Scanner structures video analysis tasks as dataflow graphs whose nodes produce and consume sequences of per-frame data. Scanner's embodiment of the dataflow model includes operators useful for video processing tasks such as sparse frame sampling (e.g., "frames known to contain a face"), sliding window frame access (e.g., stencils for temporal smoothing), and stateful processing across frames (e.g., tracking).
 
-* **Videos as logical tables:** To simplify the management of and access to large-numbers of videos, Scanner represents video collections and the pixel-level products of video frame analysis (e.g., flow fields, depth maps, activations) as tables in a data store. Scanner's data store features first-class support for video frame column types to facilitate key performance optimizations, such as storing video in compressed form and providing fast access to sparse lists of video frames. 
+* **Videos as logical tables:** To simplify the management of and access to large-numbers of videos, Scanner represents video collections and the pixel-level products of video frame analysis (e.g., flow fields, depth maps, activations) as tables in a data store. Scanner's data store features first-class support for video frame column types to facilitate key performance optimizations, such as storing video in compressed form and providing fast access to sparse lists of video frames.
 
 * **First-class support for GPU acceleration:** Since many video processing algorithms benefit from GPU acceleration, Scanner provides first-class support for writing dataflow graph operations that utilize GPU execution. Scanner also leverages specialized GPU hardware for video decoding when available.
 
