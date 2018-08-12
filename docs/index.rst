@@ -16,7 +16,7 @@ Scanner is a system for developing applications that efficiently process large v
 To learn more about Scanner, see the documentation below or read the SIGGRAPH
 2018 Technical Paper: `"Scanner: Efficient Video Analysis at Scale" <http://graphics.stanford.edu/papers/scanner/scanner_sig18.pdf>`__ by Poms, Crichton, Hanrahan, and Fatahalian.
 
-For easy access to off-the-shelf pipelines like face detection and optical flow built using Scanner, check out our `scannertools <https://github.com/scanner-research/scannertools>`__ library.
+For easy access to off-the-shelf pipelines built using Scanner like face detection and optical flow, check out our `scannertools <https://github.com/scanner-research/scannertools>`__ library.
 
 Key Features
 ------------
