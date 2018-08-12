@@ -7,24 +7,16 @@
 
 ===========================
 
-.. raw:: html
-
-   <a href="https://travis-ci.org/scanner-research/scanner">
-       <img
-           alt="https://secure.travis-ci.org/scanner-research/scanner.svg?branch=master"
-           src="https://secure.travis-ci.org/scanner-research/scanner.svg?branch=master"
-       />
-   </a>
-
-
 Scanner is a system for developing applications that efficiently process large video datasets. Scanner applications can run on a multi-core laptop, a server packed with multiple GPUs, or a large number of machines in the cloud. Scanner has been used for:
 
-- **Labeling and data mining large video collections:** Scanner is in use at Stanford University as the compute engine for visual data mining applications that detect people, commercials, human poses, etc. in datasets as big as 70,000 hours of TV news (12 billion frames, 20 TB) or 600 feature length movies (106 million frames).
+- **Labeling and data mining large video collections:** Scanner is in use at Stanford University as the compute engine for visual data mining applications that detect faces, commercials, human poses, etc. in datasets as big as 70,000 hours of TV news (12 billion frames, 20 TB) or 600 feature length movies (106 million frames).
 
-- **VR Video synthesis:** scaling the `Surround 360 VR video stitching software <https://github.com/scanner-research/Surround360>`__, which processes fourteen 2048x2048 input videos to produce 8k stereo video output.
+- **VR Video synthesis:** Scanner is in use at Facebook to scale the `Surround 360 VR video stitching software <https://github.com/scanner-research/Surround360>`__, which processes fourteen 2048x2048 input videos to produce 8k stereo video output.
 
 To learn more about Scanner, see the documentation below or read the SIGGRAPH
 2018 Technical Paper: `"Scanner: Efficient Video Analysis at Scale" <http://graphics.stanford.edu/papers/scanner/scanner_sig18.pdf>`__ by Poms, Crichton, Hanrahan, and Fatahalian.
+
+For easy access to off-the-shelf pipelines like face detection and optical flow built using Scanner, check out our `scannertools <https://github.com/scanner-research/scannertools>`__ library.
 
 Key Features
 ------------
@@ -33,7 +25,7 @@ Scanner's key features include:
 
 - **Video processing computations as dataflow graphs**.  Like many modern ML frameworks, Scanner structures video analysis tasks as dataflow graphs whose nodes produce and consume sequences of per-frame data. Scanner's embodiment of the dataflow model includes operators useful for video processing tasks such as sparse frame sampling (e.g., "frames known to contain a face"), sliding window frame access (e.g., stencils for temporal smoothing), and stateful processing across frames (e.g., tracking).
 
-- **Videos as logical tables** To simplify the management of and access to large-numbers of videos, Scanner represents video collections and the pixel-level products of video frame analysis (e.g., flow fields, depth maps, activations) as tables in a data store. Scanner's data store features first-class support for video frame column types to facilitate key performance optimizations, such as storing video in compressed form and providing fast access to sparse lists of video frames. 
+- **Videos as logical tables** To simplify the management of and access to large-numbers of videos, Scanner represents video collections and the pixel-level products of video frame analysis (e.g., flow fields, depth maps, activations) as tables in a data store. Scanner's data store features first-class support for video frame column types to facilitate key performance optimizations, such as storing video in compressed form and providing fast access to sparse lists of video frames.
 
 - **First-class support for GPU acceleration:** Since many video processing algorithms benefit from GPU acceleration, Scanner provides first-class support for writing dataflow graph operations that utilize GPU execution. Scanner also leverages specialized GPU hardware for video decoding when available.
 
