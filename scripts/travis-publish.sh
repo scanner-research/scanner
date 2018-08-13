@@ -3,7 +3,7 @@
 set -e
 
 # Exit if this is not the master branch
-if ! [ "$TRAVIS_BRANCH" = "master" -a "$TRAVIS_PULL_REQUEST" = "false" ]; then
+if ! [ "$TRAVIS_BRANCH" = "master" -a "$TRAVIS_PULL_REQUEST" = "false" -a "$BUILD_TYPE" = "cpu"]; then
     exit 0
 fi
 
@@ -60,16 +60,6 @@ git commit -m \"Automated documentation build for changeset ${CHANGESET}.\"
 git push origin gh-pages
 cd -
 "
-
-# Publish Python package if on a new tag
-if [ -n "$TRAVIS_TAG" ];
-then
-    docker run $DOCKER_REPO:gpu /bin/bash -c "
-pip3 install twine && \
-python3 setup.py bdist_wheel && \
-twine upload -u 'wcrichto' -p '${PYPI_PASS}' dist/*
-"
-fi
 
 # Tell Scannertools to rebuild
 request_body='{
