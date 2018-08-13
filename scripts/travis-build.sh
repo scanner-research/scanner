@@ -59,6 +59,6 @@ if [ $PUSH -eq 0 ]; then
     yes | docker login -u="$DOCKER_USER" -p="$DOCKER_PASS"
 fi
 
-build_docker $BUILD_TYPE
+travis_retry build_docker $BUILD_TYPE
 
 exit $?
