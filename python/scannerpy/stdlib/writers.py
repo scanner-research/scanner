@@ -12,6 +12,6 @@ def bboxes(buf, protobufs):
 
 def poses(poses, protobufs):
     if len(poses) == 0:
-        return b' '
+        return b'\0'
     else:
         return b''.join([pose.keypoints.tobytes() for pose in poses])
