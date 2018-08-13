@@ -26,5 +26,5 @@ install:
 - sudo apt-get update
 - sudo apt-get install -y doxygen graphviz
 - pip3 install requests[security] --upgrade
-script: "./scripts/travis-build.sh"
-after_success: "./scripts/travis-publish.sh"
+script: "travis_retry ./scripts/travis-build.sh"
+after_success: "travis_retry ./scripts/travis-publish.sh"
