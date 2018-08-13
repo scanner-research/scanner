@@ -15,7 +15,7 @@ COMMIT_EMAIL="wcrichto@cs.stanford.edu"
 CHANGESET=$(git rev-parse --verify HEAD)
 
 # Install python package for autodoc
-travis_retry docker run $DOCKER_REPO:cpu-local /bin/bash -c "
+docker run $DOCKER_REPO:cpu-local /bin/bash -c "
 cd /opt/scanner
 git config --global user.name \"${COMMIT_USER}\"
 git config --global user.email \"${COMMIT_EMAIL}\"
@@ -64,7 +64,7 @@ cd -
 # Publish Python package if on a new tag
 if [ -n "$TRAVIS_TAG" ];
 then
-    travis_retry docker run $DOCKER_REPO:gpu /bin/bash -c "
+    docker run $DOCKER_REPO:gpu /bin/bash -c "
 pip3 install twine && \
 python3 setup.py bdist_wheel && \
 twine upload -u 'wcrichto' -p '${PYPI_PASS}' dist/*
