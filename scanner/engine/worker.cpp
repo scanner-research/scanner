@@ -90,7 +90,7 @@ void load_driver(LoadInputQueue& load_work,
 
     VLOG(2) << "Load (N/PU: " << args.node_id << "/" << args.worker_id
             << "): processing job task (" << load_work_entry.job_index() << ", "
-            << load_work_entry.task_index() << ")";
+            << load_work_entry.bulk_task_index() << ")";
 
     auto work_start = now();
 
@@ -116,7 +116,7 @@ void load_driver(LoadInputQueue& load_work,
     profiler.add_interval("task", work_start, now());
     VLOG(2) << "Load (N/PU: " << args.node_id << "/" << args.worker_id
             << "): finished job task (" << load_work_entry.job_index() << ", "
-            << load_work_entry.task_index() << "), pushed to worker "
+            << load_work_entry.bulk_task_index() << "), pushed to worker "
             << output_queue_idx;
   }
   VLOG(1) << "Load (N/PU: " << args.node_id << "/" << args.worker_id
@@ -1018,7 +1018,6 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       analysis_results.column_mapping;
 
 
-  // TODO(swjz): only sink op should do this
   // Read final output columns for use in post-evaluate worker
   // (needed for determining column types)
   std::vector<Column> final_output_columns(
@@ -1164,7 +1163,6 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     }
   }
 
-  // TODO(swjz): The kernel groups should no longer be there anymore
   // Break up kernels into groups that run on the same device
   std::vector<OpArgGroup> groups;
   if (!kernel_factories.empty()) {
@@ -1180,10 +1178,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
         last_device_type = factory->get_device_type();
         first_op = false;
       }
-      if (factory != nullptr &&
-          factory->get_device_type() != last_device_type) {
-        // Does not use the same device as previous kernel, so push into new
-        // group
+      // NOTE(swjz): Each kernel is divided into one single group
+      if (factory != nullptr) {
         last_device_type = factory->get_device_type();
         groups.emplace_back();
       }
@@ -1353,7 +1349,6 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     }
   }
 
-  // TODO(swjz): Only sink Op should do this
   // Setup sink factories and sink configs that will be used
   // to instantiate save worker instances
   std::vector<SinkFactory*> sink_factories;
@@ -1441,7 +1436,6 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   SaveOutputQueue retired_tasks;
 
   // TODO(swjz): Only source Op should do this.
-  // TODO(swjz): Other Ops should load data from master via grpc NextWorkReply
   // Setup load workers
   i32 num_load_workers = db_params_.num_load_workers;
   std::vector<Profiler> load_thread_profilers;
@@ -1450,18 +1444,18 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     load_thread_profilers.emplace_back(Profiler(base_time));
   }
   std::vector<std::thread> load_threads;
-  for (i32 i = 0; i < num_load_workers; ++i) {
-    LoadWorkerArgs args{
-        // Uniform arguments
-        node_id_, table_meta,
-        // Per worker arguments
-        i, db_params_.storage_config, std::ref(load_thread_profilers[i]),
-        std::ref(load_results[i]), io_packet_size, work_packet_size,
-        source_factories, source_configs};
-
-    load_threads.emplace_back(load_driver, std::ref(load_work),
-                              std::ref(initial_eval_work), args);
-  }
+//  for (i32 i = 0; i < num_load_workers; ++i) {
+//    LoadWorkerArgs args{
+//        // Uniform arguments
+//        node_id_, table_meta,
+//        // Per worker arguments
+//        i, db_params_.storage_config, std::ref(load_thread_profilers[i]),
+//        std::ref(load_results[i]), io_packet_size, work_packet_size,
+//        source_factories, source_configs};
+//
+//    load_threads.emplace_back(load_driver, std::ref(load_work),
+//                              std::ref(initial_eval_work), args);
+//  }
 
   // Setup evaluate workers
   std::vector<std::vector<Profiler>> eval_profilers(
@@ -1627,54 +1621,53 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   std::vector<std::thread> pre_eval_threads;
   std::vector<std::vector<std::thread>> eval_threads;
   std::vector<std::thread> post_eval_threads;
-  for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
-    // Pre thread
-    pre_eval_threads.emplace_back(
-        pre_evaluate_driver, std::ref(*std::get<0>(pre_eval_queues[pu])),
-        std::ref(*std::get<1>(pre_eval_queues[pu])), pre_eval_args[pu]);
-    // Op threads
-    eval_threads.emplace_back();
-    std::vector<std::thread>& threads = eval_threads.back();
-    for (i32 kg = 0; kg < num_kernel_groups; ++kg) {
-      threads.emplace_back(
-          evaluate_driver, std::ref(*std::get<0>(eval_queues[pu][kg])),
-          std::ref(*std::get<1>(eval_queues[pu][kg])), eval_args[pu][kg]);
-    }
-    // Post threads
-    post_eval_threads.emplace_back(
-        post_evaluate_driver, std::ref(*std::get<0>(post_eval_queues[pu])),
-        std::ref(*std::get<1>(post_eval_queues[pu])), post_eval_args[pu]);
-  }
+//  for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
+//    // Pre thread
+//    pre_eval_threads.emplace_back(
+//        pre_evaluate_driver, std::ref(*std::get<0>(pre_eval_queues[pu])),
+//        std::ref(*std::get<1>(pre_eval_queues[pu])), pre_eval_args[pu]);
+//    // Op threads
+//    eval_threads.emplace_back();
+//    std::vector<std::thread>& threads = eval_threads.back();
+//    for (i32 kg = 0; kg < num_kernel_groups; ++kg) {
+//      threads.emplace_back(
+//          evaluate_driver, std::ref(*std::get<0>(eval_queues[pu][kg])),
+//          std::ref(*std::get<1>(eval_queues[pu][kg])), eval_args[pu][kg]);
+//    }
+//    // Post threads
+//    post_eval_threads.emplace_back(
+//        post_evaluate_driver, std::ref(*std::get<0>(post_eval_queues[pu])),
+//        std::ref(*std::get<1>(post_eval_queues[pu])), post_eval_args[pu]);
+//  }
 
   // TODO(swjz): Only sink Op should do this.
-  // TODO(swjz): Other Ops should send data back to master via grpc.
   // Setup save coordinator
-  std::thread save_coordinator_thread(
-      save_coordinator, std::ref(output_eval_work), std::ref(save_work));
+//  std::thread save_coordinator_thread(
+//      save_coordinator, std::ref(output_eval_work), std::ref(save_work));
 
   // Setup save workers
   i32 num_save_workers = db_params_.num_save_workers;
   std::vector<Profiler> save_thread_profilers;
   // TODO: check load and save worker results
   std::vector<proto::Result> save_results(num_save_workers);
-  for (i32 i = 0; i < num_save_workers; ++i) {
-    save_thread_profilers.emplace_back(Profiler(base_time));
-  }
+//  for (i32 i = 0; i < num_save_workers; ++i) {
+//    save_thread_profilers.emplace_back(Profiler(base_time));
+//  }
   std::vector<std::thread> save_threads;
-  for (i32 i = 0; i < num_save_workers; ++i) {
-    SaveWorkerArgs args{// Uniform arguments
-                        node_id_,
-                        std::ref(sink_args),
-
-                        // Per worker arguments
-                        i, db_params_.storage_config,
-                        sink_factories, sink_configs,
-                        std::ref(save_thread_profilers[i]),
-                        std::ref(save_results[i])};
-
-    save_threads.emplace_back(save_driver, std::ref(save_work[i]),
-                              std::ref(retired_tasks), args);
-  }
+//  for (i32 i = 0; i < num_save_workers; ++i) {
+//    SaveWorkerArgs args{// Uniform arguments
+//                        node_id_,
+//                        std::ref(sink_args),
+//
+//                        // Per worker arguments
+//                        i, db_params_.storage_config,
+//                        sink_factories, sink_configs,
+//                        std::ref(save_thread_profilers[i]),
+//                        std::ref(save_results[i])};
+//
+//    save_threads.emplace_back(save_driver, std::ref(save_work[i]),
+//                              std::ref(retired_tasks), args);
+//  }
 
   profiler.add_interval("process_job:create_pipelines", pipeline_create_start, now());
 
@@ -1745,8 +1738,6 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       params.set_job_id(std::get<1>(task_retired));
       params.set_task_id(std::get<2>(task_retired));
 
-      // TODO(swjz): We should also send data to master via grpc if not sink Op
-
       proto::Empty empty;
       grpc::Status status;
       GRPC_BACKOFF(master_->FinishedWork(&ctx, params, &empty), status);
@@ -1793,7 +1784,6 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
       proto::NextWorkReply new_work;
       grpc::Status status;
-      // TODO(swjz): We should also receive data from master via grpc if not source Op
       GRPC_BACKOFF(master_->NextWork(&ctx, node_info, &new_work), status);
       if (!status.ok()) {
         RESULT_ERROR(job_result,
@@ -1813,12 +1803,23 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       } else {
         // Perform analysis on load work entry to determine upstream
         // requirements and when to discard elements.
-        std::deque<TaskStream> task_stream;
+        // NOTE(swjz): Set it to a fixed number for now.
+        std::map<i64, i64> task_size_per_op;
+        for (i64 i=0; i<ops.size(); i++) {
+          task_size_per_op[i] = new_work.output_rows().size();
+        }
+
+        i64 table_id = new_work.table_id();
+        i64 job_id = new_work.job_index();
+        i64 bulk_task_id = new_work.bulk_task_index();
+        i64 task_id = new_work.task_index();
+        std::map<i64, TaskStream>& task_streams = task_stream_map[bulk_task_id];
         LoadWorkEntry stenciled_entry;
+
         derive_stencil_requirements(
             meta, table_meta, jobs.at(new_work.job_index()), ops,
             analysis_results, job_params->boundary_condition(),
-            new_work.table_id(), new_work.job_index(), new_work.task_index(),
+            table_id, job_id,
             std::vector<i64>(new_work.output_rows().begin(),
                              new_work.output_rows().end()),
             stenciled_entry, task_stream,
@@ -1835,11 +1836,141 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
             target_work_queue = i;
           }
         }
-        // TODO(swjz): We shuold only do this for the first (source) Op.
-        load_work.push(
-            std::make_tuple(target_work_queue, task_stream, stenciled_entry));
+
+        // TODO(swjz): If first Op
+        // TODO(swjz): load work & pre evaluate
+
+        // load_driver:
+        Profiler dummy_profiler = Profiler(now());
+        if (task_streams[task_id].op_idx == 0) {
+          proto::Result load_worker_result;
+          LoadWorkerArgs load_worker_args {
+              // Uniform arguments
+              node_id_, table_meta,
+              // Per worker arguments
+              0, db_params_.storage_config, std::ref(dummy_profiler),
+              load_worker_result, io_packet_size, work_packet_size,
+              source_factories, source_configs
+          };
+          LoadWorker load_worker(load_worker_args);
+          load_worker.feed(stenciled_entry);
+          i32 io_packet_size = INT_MAX; // Ignore io packet size for now
+          i32 output_queue_idx = 0;
+          EvalWorkEntry load_output_entry;
+          load_worker.yield(io_packet_size, load_output_entry);
+          load_output_entry.first = true;
+          load_output_entry.last_in_task = true;
+
+          i32 work_packet_size = INT_MAX; // Ignore work packet size for now
+          PreEvaluateWorkerArgs pre_evaluate_worker_args {
+              // Uniform arguments
+              node_id_, num_cpus, num_cpus,
+              job_params->work_packet_size(),
+
+              // Per worker arguments
+              0, CPU_DEVICE, dummy_profiler,
+          };
+          PreEvaluateWorker pre_evaluate_worker(pre_evaluate_worker_args);
+          EvalWorkEntry pre_evaluate_input_entry = load_output_entry;
+          pre_evaluate_worker.feed(pre_evaluate_input_entry, pre_evaluate_input_entry.first);
+          EvalWorkEntry pre_evaluate_output_entry;
+          pre_evaluate_worker.yield(work_packet_size, pre_evaluate_output_entry);
+
+          eval_map[bulk_task_id][task_id] = pre_evaluate_output_entry;
+        }
+        // If sink Op, post evaluate & save work
+        else if (ops.at(task_streams[task_id].op_idx).is_sink()) {
+          // post_evaluate_driver()
+          EvalWorkEntry post_evaluate_input_entry;
+          post_evaluate_input_entry = eval_map[bulk_task_id][task_id];
+
+          PostEvaluateWorkerArgs post_evaluate_worker_args {
+              // Uniform arguments
+              node_id_,
+
+              // Per worker arguments
+              0, dummy_profiler, column_mapping.back(),
+              final_output_columns, final_compression_options,
+          };
+          PostEvaluateWorker post_evaluate_worker(post_evaluate_worker_args);
+
+          post_evaluate_worker.feed(post_evaluate_input_entry);
+          EvalWorkEntry post_evaluate_output_entry;
+          post_evaluate_worker.yield(post_evaluate_output_entry);
+
+
+          // save_driver()
+          SaveWorkerArgs save_worker_args {
+              node_id_,
+              std::ref(sink_args),
+
+              // Per worker arguments
+              0, db_params_.storage_config,
+              sink_factories, sink_configs,
+              std::ref(save_thread_profilers[0]),
+              std::ref(save_results[0])};
+
+          EvalWorkEntry save_driver_input_entry = post_evaluate_output_entry;
+
+
+          SaveWorker save_worker(save_worker_args);
+          save_worker.new_task(save_driver_input_entry.job_index, save_driver_input_entry.task_index,
+                               save_driver_input_entry.table_id, save_driver_input_entry.column_types);
+          save_worker.feed(save_driver_input_entry);
+          save_worker.finished();
+        }
+        // Non-source/sink Op
+        else {
+          TaskStream task_stream = task_streams[task_id];
+          i32 op_idx = task_stream.op_idx;
+
+          // fill in EvalWorkEntry manually
+          EvalWorkEntry evaluate_input_entry;
+          evaluate_input_entry.table_id = table_id;
+          evaluate_input_entry.job_index = job_id;
+          evaluate_input_entry.task_index = task_id;
+          evaluate_input_entry.needs_configure = false; // hardcode by swjz
+          evaluate_input_entry.needs_reset = false; // hardcode by swjz
+          evaluate_input_entry.last_in_io_packet = true;
+          evaluate_input_entry.last_in_task = true;
+          for (i64 source_task : task_stream.source_tasks) {
+            for (auto& column : eval_map[bulk_task_id][source_task].columns) {
+              evaluate_input_entry.columns.push_back(column);
+              evaluate_input_entry.column_handles.push_back(CPU_DEVICE);
+              evaluate_input_entry.row_ids.emplace_back();
+              std::vector<i64>& row_ids = evaluate_input_entry.row_ids.back();
+              row_ids.insert(row_ids.end(),
+                             task_stream.valid_input_rows.begin(),
+                             task_stream.valid_input_rows.end());
+            }
+          }
+          // Now evaluate_input_entry is ready to go!
+
+          proto::Result evaluate_worker_result;
+          EvaluateWorkerArgs evaluate_worker_args {
+              // Uniform arguments
+              node_id_, startup_lock, startup_cv, startup_count,
+
+              // Per worker arguments
+              // NOTE(swjz): there is only one group if we use CPU only
+              0, op_idx, groups[op_idx], job_params->boundary_condition(),
+              dummy_profiler, evaluate_worker_result
+          };
+          EvaluateWorker evaluate_worker(evaluate_worker_args);
+          std::vector<TaskStream> task_stream_vector;
+          task_stream_vector.push_back(task_stream);
+          evaluate_worker.new_task(job_id, task_id, task_stream_vector);
+
+          // the evaluate_input_entry here should contain all dependency data
+          evaluate_worker.feed(evaluate_input_entry);
+          EvalWorkEntry evaluate_output_entry;
+          evaluate_worker.yield(work_packet_size, evaluate_output_entry);
+          eval_map[bulk_task_id][task_id] = evaluate_output_entry;
+        }
+
         allocated_work_to_queues[target_work_queue]++;
         accepted_tasks++;
+        retired_tasks.enqueue(std::make_tuple(0, job_id, task_id));
       }
     }
 
@@ -1926,7 +2057,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
   for (i32 i = 0; i < num_load_workers; ++i) {
     // Wait until all load threads have finished
-    load_threads[i].join();
+//    load_threads[i].join();
   }
 
   // Push sentinel work entries into queue to terminate eval threads
@@ -1941,7 +2072,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   for (i32 i = 0; i < pipeline_instances_per_node; ++i) {
     // Wait until pre eval has finished
     LOG(INFO) << "Pre join " << i;
-    pre_eval_threads[i].join();
+//    pre_eval_threads[i].join();
   }
 
   LOG(INFO) << "Exiting kernel threads";
@@ -1951,7 +2082,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     }
     for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
       // Wait until eval has finished
-      eval_threads[pu][kg].join();
+//      eval_threads[pu][kg].join();
     }
   }
 
@@ -1962,13 +2093,13 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   }
   for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
     // Wait until eval has finished
-    post_eval_threads[pu].join();
+//    post_eval_threads[pu].join();
   }
 
   LOG(INFO) << "Exiting save threads";
   // Push sentinel work entries into queue to terminate coordinator thread
   push_output_eval_exit_message(output_eval_work);
-  save_coordinator_thread.join();
+//  save_coordinator_thread.join();
 
   // Push sentinel work entries into queue to terminate save threads
   for (i32 i = 0; i < num_save_workers; ++i) {
@@ -1979,7 +2110,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     push_save_exit_message(save_work[i]);
   }
   for (i32 i = 0; i < num_save_workers; ++i) {
-    save_threads[i].join();
+//    save_threads[i].join();
   }
   LOG(INFO) << "All threads are finished";
 
@@ -2081,8 +2212,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   u8 save_worker_count = num_save_workers;
   s_write(profiler_output.get(), save_worker_count);
   for (i32 i = 0; i < num_save_workers; ++i) {
-    write_profiler_to_file(profiler_output.get(), out_rank, "save", "", i,
-                           save_thread_profilers[i]);
+//    write_profiler_to_file(profiler_output.get(), out_rank, "save", "", i,
+//                           save_thread_profilers[i]);
   }
 
   BACKOFF_FAIL(profiler_output->save(),

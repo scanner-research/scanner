@@ -1173,19 +1173,18 @@ Result derive_stencil_requirements(
     const proto::Job& job, const std::vector<proto::Op>& ops,
     const DAGAnalysisInfo& analysis_results,
     proto::BulkJobParameters::BoundaryCondition boundary_condition,
-    i64 table_id, i64 job_idx, i64 task_idx,
+    i64 table_id, i64 job_idx,
     const std::vector<i64>& output_rows, LoadWorkEntry& output_entry,
     std::deque<TaskStream>& task_streams,
     storehouse::StorageConfig* storage_config) {
   const std::map<i64, std::vector<i32>>& stencils = analysis_results.stencils;
   const std::vector<std::vector<std::tuple<i32, std::string>>>& live_columns =
       analysis_results.live_columns;
-  const std::vector<std::vector<std::tuple<i32, std::string>>>& column_mapping =
+  const std::vector<std::vector<i32>>& column_mapping =
       analysis_results.column_mapping;
 
   output_entry.set_table_id(table_id);
   output_entry.set_job_index(job_idx);
-  output_entry.set_task_index(task_idx);
 
   i64 num_ops = ops.size();
 
@@ -1202,6 +1201,10 @@ Result derive_stencil_requirements(
   const std::map<i64, bool>& unbounded_state_ops =
       analysis_results.unbounded_state_ops;
   const std::map<i64, i32>& warmup_sizes = analysis_results.warmup_sizes;
+
+  // Op -> Output Row -> Task
+  std::map<i64, std::map<i64, i64>> op_row_task_map;
+
   // Create domain samplers
   // Op -> slice
   std::map<i64, proto::SamplingArgsAssignment> args_assignment;
@@ -1304,17 +1307,35 @@ Result derive_stencil_requirements(
   // Walk up the Ops to derive upstream rows
   i32 slice_group = 0;
   {
+    i64 task_idx = 0;
     // Initialize output rows
     required_output_rows_at_op.at(num_ops - 1) =
         std::set<i64>(output_rows.begin(), output_rows.end());
-    task_streams.resize(num_ops);
+//    task_streams.resize(num_ops);
+
     // For each kernel, derive the minimal required upstream elements
     for (i64 op_idx = num_ops - 1; op_idx >= 0; --op_idx) {
       auto& op = ops.at(op_idx);
-      std::vector<i64> downstream_rows(
+      std::vector<i64> downstream_op_rows(
           required_output_rows_at_op.at(op_idx).begin(),
           required_output_rows_at_op.at(op_idx).end());
-      std::sort(downstream_rows.begin(), downstream_rows.end());
+      std::sort(downstream_op_rows.begin(), downstream_op_rows.end());
+
+      // Split work on each Op into tasks, with maximum size of task_size_per_op
+      i64 task_size = task_size_per_op[op_idx];
+      i64 num_tasks_per_op = (required_output_rows_at_op[op_idx].size() - 1) / task_size + 1;
+
+      i64 num_tasks_before_op = task_idx;
+
+      for (i64 task_idx_within_op = 0; task_idx_within_op < num_tasks_per_op; ++task_idx_within_op) {
+      task_idx = task_idx_within_op + num_tasks_before_op;
+
+      // Downstream rows for this task only
+      auto row_begin = downstream_op_rows.begin() + task_size * task_idx_within_op;
+      auto row_end = task_idx_within_op == num_tasks_per_op - 1 ? downstream_op_rows.end() :
+                     downstream_op_rows.begin() + task_size * (task_idx_within_op + 1);
+      std::vector<i64> downstream_rows(row_begin, row_end);
+
       std::vector<i64> compute_rows;
       // Determine which upstream rows are needed for the requested output rows
       std::vector<i64> new_rows;
@@ -1540,23 +1561,42 @@ Result derive_stencil_requirements(
       }
       VLOG(3) << "Valid outputs: " << st;
 
-      TaskStream& s = task_streams.at(op_idx);
-      s.op_idx = op_idx;
+      TaskStream& s = task_streams[task_idx];
+      for (i64 row : downstream_rows) {
+        op_row_task_map[op_idx][row] = task_idx;
+      }
+
       // Get rid of input stream since this is already captured by the load samples
-      if (op_idx >= 1) {
-        for (i32 index : column_mapping[op_idx]) {
-          s.dependencies.push_back(std::get<0>(live_columns[op_idx - 1][index]));
-          s.reference_count++;
-          TaskStream& s_dependent = task_streams.at(std::get<0>(live_columns[op_idx - 1][index]));
-          s_dependent.inverse_dependencies.push_back(op_idx);
-        }
-        s.slice_group = slice_group;
-        s.valid_input_rows = new_rows;
-        s.compute_input_rows = compute_rows;
-        s.valid_output_rows = downstream_rows;
-      } else if (op_idx == 0) {
+      s.op_idx = op_idx;
+      s.slice_group = slice_group;
+      s.valid_input_rows = new_rows;
+      s.compute_input_rows = compute_rows;
+      s.valid_output_rows = downstream_rows;
+      if (op_idx == 0) {
         // Source Op doesn't need any dependencies!
         s.status = TaskStream::READY;
+      }
+      }
+    }
+
+    // Set task dependencies
+    i64 task_size = task_idx;
+
+    for (i64 task_id = 0; task_id < task_size; ++task_id) {
+      TaskStream& this_task = task_streams.at(task_id);
+      i64 op_idx = this_task.op_idx;
+      if (op_idx >= 1) {
+        for (i64 row : this_task.valid_input_rows) {
+          for (i32 index : column_mapping[op_idx]) {
+            i64 source_op_idx = std::get<0>(live_columns[op_idx - 1][index]);
+            i64 source_task_idx = op_row_task_map[source_op_idx][row];
+            this_task.source_tasks.insert(source_task_idx);
+            this_task.launch_count++;
+            TaskStream& source_task = task_streams.at(source_task_idx);
+            source_task.waiting_tasks.insert(task_id);
+            source_task.free_count++;
+          }
+        }
       }
     }
   }

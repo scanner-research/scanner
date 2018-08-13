@@ -249,9 +249,9 @@ class MasterServerImpl final : public proto::Master::Service {
     // Total number of jobs
     i64 num_jobs = -1;
     // Next task index in the current job
-    i64 next_bulk_task = 0;
+    i64 next_task = 0;
     // The number of bulk tasks in the current job
-    i64 num_bulk_tasks = -1;
+    i64 num_tasks = -1;
     // All job task output rows
     // Job -> Task -> task output rows
     std::vector<std::vector<std::vector<i64>>> job_tasks;

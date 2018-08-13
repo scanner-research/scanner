@@ -933,21 +933,21 @@ void MasterServerImpl::NextWorkHandler(
       // If we have no more samples for this task, try and get another task
 
       // This if-condition means that all tasks in this job are finished
-      if (state->next_bulk_task == state->num_bulk_tasks) {
+      if (state->next_task == state->num_tasks) {
         // Check if there are any unfinished jobs left
         if (state->next_job < state->num_jobs && state->task_result.success()) {
-          state->next_bulk_task = 0;
-          // Set num_bulk_tasks to how many bulk tasks are there in the next job
-          state->num_bulk_tasks = state->job_bulk_tasks.at(state->next_job).size();
+          state->next_task = 0;
+          // Set num_tasks to how many tasks are there in the next job
+          state->num_tasks = state->job_tasks.at(state->next_job).size();
           state->next_job++;
-          VLOG(1) << "Bulk Tasks left: "
-                  << state->total_bulk_tasks - state->total_bulk_tasks_used;
+          VLOG(1) << "Tasks left: "
+                  << state->total_tasks - state->total_tasks_used;
         }
       }
 
       // Create more work if possible
       // This if-condition means that this job is not finished yet (more tasks to go!)
-      if (state->next_bulk_task < state->num_bulk_tasks) {
+      if (state->next_task < state->num_tasks) {
         // Create a new task
         i64 current_job = state->next_job - 1;
         i64 current_task = state->next_task;
@@ -976,7 +976,7 @@ void MasterServerImpl::NextWorkHandler(
     std::tuple<i64, i64> job_task_id = state->to_assign_job_tasks.back();
     state->to_assign_job_tasks.pop_back();
 
-    assert(state->next_bulk_task <= state->num_bulk_tasks);
+    assert(state->next_task <= state->num_tasks);
 
     i64 job_idx;
     i64 bulk_task_idx;
@@ -999,7 +999,7 @@ void MasterServerImpl::NextWorkHandler(
     new_work->set_job_index(job_idx);
     new_work->set_bulk_task_index(bulk_task_idx);
     new_work->set_task_index(task_idx);
-    const auto& task_rows = state->job_bulk_tasks.at(job_idx).at(bulk_task_idx);
+    const auto& task_rows = state->task_streams.at(task_idx).valid_output_rows;
     for (i64 r : task_rows) {
       new_work->add_output_rows(r);
     }
@@ -1072,15 +1072,6 @@ void MasterServerImpl::FinishedWorkHandler(
 
     i64 active_job = state->next_job - 1;
 
-    // Iterate all tasks in the bulk task to find whether the bulk task is finished.
-    bool bulk_task_done = true;
-    for (auto& kv : task_streams) {
-      if (kv.second.status != TaskStream::DONE) {
-        bulk_task_done = false;
-        break;
-      }
-    }
-
     // If job was blacklisted, then we have already updated total tasks
     // used to reflect that and we should ignore it
     bool not_blacklisted = state->blacklisted_jobs.count(job_id) == 0;
@@ -1095,7 +1086,7 @@ void MasterServerImpl::FinishedWorkHandler(
       state->total_tasks_used++;
       state->tasks_used_per_job[job_id]++;
 
-      if (state->bulk_tasks_used_per_job[job_id] == state->job_bulk_tasks[job_id].size()) {
+      if (state->tasks_used_per_job[job_id] == state->job_tasks[job_id].size()) {
         if (state->dag_info.is_table_output) {
           i32 tid = state->job_uncommitted_tables[job_id];
           meta_.commit_table(tid);
@@ -1109,7 +1100,7 @@ void MasterServerImpl::FinishedWorkHandler(
       }
     }
 
-    if (state->total_bulk_tasks_used == state->total_bulk_tasks) {
+    if (state->total_tasks_used == state->total_tasks) {
       VLOG(1) << "Master FinishedWork triggered finished!";
       assert(state->next_job == state->num_jobs);
       {
@@ -1242,8 +1233,8 @@ void MasterServerImpl::GetJobStatusHandler(
     } else {
       reply->set_finished(false);
 
-      reply->set_bulk_tasks_done(state->total_bulk_tasks_used);
-      reply->set_total_bulk_tasks(state->total_bulk_tasks);
+      reply->set_bulk_tasks_done(state->total_tasks_used);
+      reply->set_total_bulk_tasks(state->total_tasks);
 
       reply->set_jobs_done(state->next_job - 1);
       reply->set_jobs_failed(0);
@@ -1390,7 +1381,7 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
   new_job_call_->Respond(grpc::Status::OK);
 
   auto finished_fn = [this, state, job_result]() {
-    state->total_bulk_tasks_used = 0;
+    state->total_tasks_used = 0;
     state->job_result.CopyFrom(*job_result);
     {
       std::unique_lock<std::mutex> lock(finished_mutex_);
@@ -1552,7 +1543,7 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
   // Job -> task -> rows
   i32 total_tasks_temp = 0;
   for (size_t i = 0; i < jobs.size(); ++i) {
-    state->bulk_tasks_used_per_job.push_back(0);
+    state->tasks_used_per_job.push_back(0);
 
     auto& slice_input_rows = state->slice_input_rows_per_job[i];
     i64 total_output_rows = state->total_output_rows_per_job[i];
@@ -1583,8 +1574,8 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
       }
     }
     assert(partition_boundaries.back() == total_output_rows);
-    state->job_bulk_tasks.emplace_back();
-    auto& tasks = state->job_bulk_tasks.back();
+    state->job_tasks.emplace_back();
+    auto& tasks = state->job_tasks.back();
     for (i64 pi = 0; pi < partition_boundaries.size() - 1; ++pi) {
       tasks.emplace_back();
       auto& task_rows = tasks.back();
@@ -1597,7 +1588,7 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
       total_tasks_temp++;
     }
   }
-  state->total_bulk_tasks = total_tasks_temp;
+  state->total_tasks = total_tasks_temp;
 
   if (!job_result->success()) {
     // No database changes made at this point, so just return
@@ -1628,12 +1619,6 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
   std::vector<std::vector<i32>> column_mapping =
       dag_info.column_mapping;
 
-  // NOTE(swjz): assume that we only have one job for now
-
-
-
-  // NOTE(swjz): Don't support splitting work into tasks or slicing for now
-
   // Write out database metadata so that workers can read it
   write_bulk_job_metadata(storage_, BulkJobMetadata(job_descriptor));
 
@@ -1659,7 +1644,7 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
 
       i64 total_rows = 0;
       std::vector<i64> end_rows;
-      auto& tasks = state->job_bulk_tasks.at(job_idx);
+      auto& tasks = state->job_tasks.at(job_idx);
       for (i64 task_id = 0; task_id < tasks.size(); ++task_id) {
         i64 task_rows = tasks.at(task_id).size();
         total_rows += task_rows;
@@ -1676,10 +1661,33 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
     table_metas_->write_megafile();
   }
 
+
+  // NOTE(swjz): Assume the output rows are 0 to total_output_rows_per_job[0]
+  std::vector<i64> output_rows;
+  for (i64 i=0; i<state->total_output_rows_per_job[0]; ++i) {
+    output_rows.push_back(i);
+  }
+
+
+  // NOTE(swjz): Set it to a fixed number for now.
+  for (i64 i=0; i<ops.size(); i++) {
+    state->task_size_per_op[i] = output_rows.size();
+  }
+
+  // NOTE(swjz): assume that we only have one job for now
+
+  LoadWorkEntry stenciled_entry;
+  derive_stencil_requirements(
+      meta_, *table_metas_, jobs.at(0), ops,
+      state->dag_info, job_params_.boundary_condition(),
+      state->job_to_table_id.at(0), 0,
+      output_rows, stenciled_entry, state->task_size_per_op,
+      state->task_streams);
+
   // Setup initial task sampler
   state->task_result.set_success(true);
-  state->next_bulk_task = 0;
-  state->num_bulk_tasks = 0;
+  state->next_task = 0;
+  state->num_tasks = 0;
   state->next_job = 0;
   state->num_jobs = jobs.size();
 
@@ -2195,7 +2203,7 @@ void MasterServerImpl::blacklist_job(i64 job_id) {
   VLOG(1) << "Blacklisted job " << job_id;
 
   // Check if blacklisting job finished the bulk job
-  if (state->total_bulk_tasks_used == state->total_bulk_tasks) {
+  if (state->total_tasks_used == state->total_tasks) {
     VLOG(1) << "Master blacklisting job triggered finished!";
     assert(state->next_job == state->num_jobs);
     {

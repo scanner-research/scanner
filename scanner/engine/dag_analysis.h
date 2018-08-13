@@ -117,7 +117,7 @@ Result derive_stencil_requirements(
     const proto::Job& job, const std::vector<proto::Op>& ops,
     const DAGAnalysisInfo& analysis_results,
     proto::BulkJobParameters::BoundaryCondition boundary_condition,
-    i64 table_id, i64 job_idx, i64 task_idx,
+    i64 table_id, i64 job_idx,
     const std::vector<i64>& output_rows, LoadWorkEntry& output_entry,
     std::deque<TaskStream>& task_streams, storehouse::StorageConfig* storage_config);
 
