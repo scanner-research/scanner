@@ -143,7 +143,7 @@ class OpenPoseKernel : public scanner::BatchedKernel,
     for (auto& datum : *datumProcessed) {
       int num_people = datum.poseKeypoints.getSize(0);
       size_t size =
-          num_people > 0 ? (POSE_SCORES + TOTAL_KEYPOINTS * 3) * num_people * sizeof(float) : 1;
+          num_people > 0 ? (POSE_SCORES + TOTAL_KEYPOINTS * 3) * num_people * sizeof(float) : 1 * sizeof(float);
       float* kp = new float[size / sizeof(float)];
       std::memset(kp, 0, size);
       float* curr_kp = kp;
