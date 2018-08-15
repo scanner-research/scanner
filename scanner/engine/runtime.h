@@ -44,7 +44,6 @@ namespace internal {
 struct EvalWorkEntry {
   i64 table_id;
   i64 job_index;
-  i64 bulk_task_index;
   i64 task_index;
   std::vector<std::vector<i64>> row_ids;
   BatchedElements columns;

@@ -90,7 +90,7 @@ void load_driver(LoadInputQueue& load_work,
 
     VLOG(2) << "Load (N/PU: " << args.node_id << "/" << args.worker_id
             << "): processing job task (" << load_work_entry.job_index() << ", "
-            << load_work_entry.bulk_task_index() << ")";
+            << load_work_entry.task_index() << ")";
 
     auto work_start = now();
 
@@ -116,7 +116,7 @@ void load_driver(LoadInputQueue& load_work,
     profiler.add_interval("task", work_start, now());
     VLOG(2) << "Load (N/PU: " << args.node_id << "/" << args.worker_id
             << "): finished job task (" << load_work_entry.job_index() << ", "
-            << load_work_entry.bulk_task_index() << "), pushed to worker "
+            << load_work_entry.task_index() << "), pushed to worker "
             << output_queue_idx;
   }
   VLOG(1) << "Load (N/PU: " << args.node_id << "/" << args.worker_id
@@ -1811,15 +1811,12 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
         i64 table_id = new_work.table_id();
         i64 job_id = new_work.job_index();
-        i64 bulk_task_id = new_work.bulk_task_index();
         i64 task_id = new_work.task_index();
-        std::map<i64, TaskStream>& task_streams = task_stream_map[bulk_task_id];
         LoadWorkEntry stenciled_entry;
 
         derive_stencil_requirements(
             meta, table_meta, jobs.at(new_work.job_index()), ops,
-            analysis_results, job_params->boundary_condition(),
-            table_id, job_id,
+            analysis_results, job_params->boundary_condition(), job_id,
             std::vector<i64>(new_work.output_rows().begin(),
                              new_work.output_rows().end()),
             stenciled_entry, task_stream,
@@ -1842,7 +1839,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
         // load_driver:
         Profiler dummy_profiler = Profiler(now());
-        if (task_streams[task_id].op_idx == 0) {
+        if (task_stream_map[task_id].op_idx == 0) {
           proto::Result load_worker_result;
           LoadWorkerArgs load_worker_args {
               // Uniform arguments
@@ -1876,13 +1873,16 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           EvalWorkEntry pre_evaluate_output_entry;
           pre_evaluate_worker.yield(work_packet_size, pre_evaluate_output_entry);
 
-          eval_map[bulk_task_id][task_id] = pre_evaluate_output_entry;
+          eval_map[task_id] = pre_evaluate_output_entry;
         }
         // If sink Op, post evaluate & save work
-        else if (ops.at(task_streams[task_id].op_idx).is_sink()) {
+        else if (ops.at(task_stream_map[task_id].op_idx).is_sink()) {
           // post_evaluate_driver()
           EvalWorkEntry post_evaluate_input_entry;
-          post_evaluate_input_entry = eval_map[bulk_task_id][task_id];
+          TaskStream task_stream = task_stream_map[task_id];
+          assert(task_stream.source_tasks.size() == 1);
+          i64 source_task_id = *(task_stream.source_tasks.begin());
+          post_evaluate_input_entry = eval_map[source_task_id];
 
           PostEvaluateWorkerArgs post_evaluate_worker_args {
               // Uniform arguments
@@ -1898,8 +1898,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           EvalWorkEntry post_evaluate_output_entry;
           post_evaluate_worker.yield(post_evaluate_output_entry);
 
-
           // save_driver()
+          proto::Result save_worker_result;
           SaveWorkerArgs save_worker_args {
               node_id_,
               std::ref(sink_args),
@@ -1907,21 +1907,22 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
               // Per worker arguments
               0, db_params_.storage_config,
               sink_factories, sink_configs,
-              std::ref(save_thread_profilers[0]),
-              std::ref(save_results[0])};
+              std::ref(dummy_profiler),
+              std::ref(save_worker_result)
+          };
 
           EvalWorkEntry save_driver_input_entry = post_evaluate_output_entry;
 
-
           SaveWorker save_worker(save_worker_args);
-          save_worker.new_task(save_driver_input_entry.job_index, save_driver_input_entry.task_index,
+          // NOTE(swjz): Force the task_id of SaveWorker to be 0 for now.
+          save_worker.new_task(save_driver_input_entry.job_index, 0,
                                save_driver_input_entry.table_id, save_driver_input_entry.column_types);
           save_worker.feed(save_driver_input_entry);
           save_worker.finished();
         }
-        // Non-source/sink Op
+        // Regular (non-source/sink) Op
         else {
-          TaskStream task_stream = task_streams[task_id];
+          TaskStream task_stream = task_stream_map[task_id];
           i32 op_idx = task_stream.op_idx;
 
           // fill in EvalWorkEntry manually
@@ -1934,7 +1935,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           evaluate_input_entry.last_in_io_packet = true;
           evaluate_input_entry.last_in_task = true;
           for (i64 source_task : task_stream.source_tasks) {
-            for (auto& column : eval_map[bulk_task_id][source_task].columns) {
+            for (auto& column : eval_map[source_task].columns) {
               evaluate_input_entry.columns.push_back(column);
               evaluate_input_entry.column_handles.push_back(CPU_DEVICE);
               evaluate_input_entry.row_ids.emplace_back();
@@ -1965,7 +1966,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           evaluate_worker.feed(evaluate_input_entry);
           EvalWorkEntry evaluate_output_entry;
           evaluate_worker.yield(work_packet_size, evaluate_output_entry);
-          eval_map[bulk_task_id][task_id] = evaluate_output_entry;
+          eval_map[task_id] = evaluate_output_entry;
         }
 
         allocated_work_to_queues[target_work_queue]++;

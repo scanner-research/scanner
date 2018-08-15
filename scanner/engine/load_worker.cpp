@@ -86,7 +86,7 @@ bool LoadWorker::yield(i32 item_size,
   EvalWorkEntry eval_work_entry;
   eval_work_entry.table_id = load_work_entry.table_id();
   eval_work_entry.job_index = load_work_entry.job_index();
-  eval_work_entry.bulk_task_index = load_work_entry.bulk_task_index();
+  eval_work_entry.task_index = load_work_entry.task_index();
 
   eval_work_entry.columns.resize(sources_.size());
 

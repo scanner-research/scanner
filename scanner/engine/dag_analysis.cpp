@@ -1172,8 +1172,7 @@ Result derive_stencil_requirements(
     const DatabaseMetadata& meta, TableMetaCache& table_meta,
     const proto::Job& job, const std::vector<proto::Op>& ops,
     const DAGAnalysisInfo& analysis_results,
-    proto::BulkJobParameters::BoundaryCondition boundary_condition,
-    i64 table_id, i64 job_idx,
+    proto::BulkJobParameters::BoundaryCondition boundary_condition, i64 job_idx,
     const std::vector<i64>& output_rows, LoadWorkEntry& output_entry,
     std::deque<TaskStream>& task_streams,
     storehouse::StorageConfig* storage_config) {
@@ -1183,7 +1182,8 @@ Result derive_stencil_requirements(
   const std::vector<std::vector<i32>>& column_mapping =
       analysis_results.column_mapping;
 
-  output_entry.set_table_id(table_id);
+  // FIXME(swjz): Don't set table id in derive_stencil_requirements() for now
+//  output_entry.set_table_id(table_id);
   output_entry.set_job_index(job_idx);
 
   i64 num_ops = ops.size();
@@ -1307,7 +1307,8 @@ Result derive_stencil_requirements(
   // Walk up the Ops to derive upstream rows
   i32 slice_group = 0;
   {
-    i64 task_idx = 0;
+    // Initialize task_idx at sentinel place
+    i64 task_idx = -1;
     // Initialize output rows
     required_output_rows_at_op.at(num_ops - 1) =
         std::set<i64>(output_rows.begin(), output_rows.end());
@@ -1325,7 +1326,7 @@ Result derive_stencil_requirements(
       i64 task_size = task_size_per_op[op_idx];
       i64 num_tasks_per_op = (required_output_rows_at_op[op_idx].size() - 1) / task_size + 1;
 
-      i64 num_tasks_before_op = task_idx;
+      i64 num_tasks_before_op = task_idx + 1;
 
       for (i64 task_idx_within_op = 0; task_idx_within_op < num_tasks_per_op; ++task_idx_within_op) {
       task_idx = task_idx_within_op + num_tasks_before_op;
@@ -1590,11 +1591,20 @@ Result derive_stencil_requirements(
           for (i32 index : column_mapping[op_idx]) {
             i64 source_op_idx = std::get<0>(live_columns[op_idx - 1][index]);
             i64 source_task_idx = op_row_task_map[source_op_idx][row];
-            this_task.source_tasks.insert(source_task_idx);
-            this_task.launch_count++;
+            if (this_task.source_tasks.find(source_task_idx) ==
+                this_task.source_tasks.end()) {
+              // Source task has not been inserted yet
+              this_task.source_tasks.insert(source_task_idx);
+              this_task.launch_count++;
+            }
+
             TaskStream& source_task = task_streams.at(source_task_idx);
-            source_task.waiting_tasks.insert(task_id);
-            source_task.free_count++;
+            if (source_task.waiting_tasks.find(task_id) ==
+                source_task.waiting_tasks.end()) {
+              // Waiting task has not been inserted yet
+              source_task.waiting_tasks.insert(task_id);
+              source_task.free_count++;
+            }
           }
         }
       }
