@@ -238,7 +238,7 @@ class MasterServerImpl final : public proto::Master::Service {
     std::map<i64, i64> job_to_table_id;
     // Slice input rows for each job at each slice op
     std::vector<std::map<i64, i64>> slice_input_rows_per_job;
-    // Output rows for each job
+    // Number of output rows for each job
     std::vector<i64> total_output_rows_per_job;
 
     //============================================================================

@@ -978,9 +978,7 @@ void MasterServerImpl::NextWorkHandler(
 
     assert(state->next_task <= state->num_tasks);
 
-    i64 job_idx;
-    i64 task_idx;
-    std::tie(job_idx, task_idx) = job_task_id;
+
 
     // If the job was blacklisted, then we throw it away
     if (state->blacklisted_jobs.count(job_idx) > 0) {
@@ -997,7 +995,7 @@ void MasterServerImpl::NextWorkHandler(
     }
     new_work->set_job_index(job_idx);
     new_work->set_task_index(task_idx);
-    const auto& task_rows = state->task_streams.at(task_idx).valid_output_rows;
+    const auto& task_rows = state->task_streams[job_idx][task_idx].valid_output_rows;
     for (i64 r : task_rows) {
       new_work->add_output_rows(r);
     }
@@ -1561,39 +1559,41 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
   std::vector<std::vector<i32>> column_mapping =
       dag_info.column_mapping;
 
-  // NOTE(swjz): assume that we only have one job for now
-  // NOTE(swjz): Assume the output rows are 0 to total_output_rows_per_job[0]
-  std::vector<i64> output_rows;
-  for (i64 i=0; i<state->total_output_rows_per_job[0]; ++i) {
-    output_rows.push_back(i);
+  // Job -> Rows
+  std::vector<std::vector<i64>> output_rows;
+  output_rows.resize(jobs.size());
+  for (size_t job_idx = 0; job_idx < jobs.size(); ++job_idx) {
+    // NOTE(swjz): Assume the output rows are 0 to total_output_rows_per_job[job_id]
+    for (size_t j = 0; j < state->total_output_rows_per_job[job_idx]; ++j) {
+      output_rows[job_idx].push_back(j);
+    }
   }
 
   // NOTE(swjz): Set it to a fixed number for now.
   for (i64 i=0; i<ops.size(); i++) {
-    state->task_size_per_op[i] = output_rows.size();
+    state->task_size_per_op[i] = output_rows[0].size();
   }
 
-  // NOTE(swjz): assume that we only have one job for now
+  state->task_streams.resize(jobs.size());
+  for (size_t job_idx = 0; job_idx < jobs.size(); ++job_idx) {
+    LoadWorkEntry dummy_stenciled_entry;
+    derive_stencil_requirements(
+        meta_, *table_metas_, jobs.at(job_idx), ops,
+        state->dag_info, job_params_.boundary_condition(), job_idx,
+        output_rows[job_idx], dummy_stenciled_entry, state->task_size_per_op,
+        state->task_streams[job_idx]);
+    state->total_tasks += state->task_streams[job_idx].size();
 
-  LoadWorkEntry stenciled_entry;
-  derive_stencil_requirements(
-      meta_, *table_metas_, jobs.at(0), ops,
-      state->dag_info, job_params_.boundary_condition(), 0,
-      output_rows, stenciled_entry, state->task_size_per_op,
-      state->task_streams);
-  state->total_tasks = state->task_streams.size();
-
-  for (size_t i = 0; i < jobs.size(); ++i) {
     state->tasks_used_per_job.push_back(0);
     state->job_tasks.emplace_back();
     // Task -> task output rows
     std::vector<std::vector<i64>>& task_rows = state->job_tasks.back();
-    for (size_t j = 0; j < state->task_streams.size(); ++j) {
+    for (size_t j = 0; j < state->task_streams[job_idx].size(); ++j) {
       task_rows.emplace_back();
       std::vector<i64>& task_output_rows = task_rows.back();
       task_output_rows.insert(task_output_rows.end(),
-          state->task_streams[j].valid_output_rows.begin(),
-          state->task_streams[j].valid_output_rows.end());
+          state->task_streams[job_idx][j].valid_output_rows.begin(),
+          state->task_streams[job_idx][j].valid_output_rows.end());
     }
   }
 
