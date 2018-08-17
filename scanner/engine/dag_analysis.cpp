@@ -1312,7 +1312,6 @@ Result derive_stencil_requirements(
     // Initialize output rows
     required_output_rows_at_op.at(num_ops - 1) =
         std::set<i64>(output_rows.begin(), output_rows.end());
-//    task_streams.resize(num_ops);
 
     // For each kernel, derive the minimal required upstream elements
     for (i64 op_idx = num_ops - 1; op_idx >= 0; --op_idx) {

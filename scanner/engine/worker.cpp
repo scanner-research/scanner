@@ -1803,10 +1803,16 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       } else {
         // Perform analysis on load work entry to determine upstream
         // requirements and when to discard elements.
-        // NOTE(swjz): Set it to a fixed number for now.
+        // NOTE(swjz): Set task sizes for all ops to io_packet_size for now
         std::map<i64, i64> task_size_per_op;
         for (i64 i=0; i<ops.size(); i++) {
-          task_size_per_op[i] = new_work.output_rows().size();
+          // Force all rows as one single task for sink/source op
+          if (ops.at(i).is_source() || i >= ops.size() - 2) {
+            // Force all rows as one single task for sink op
+            task_size_per_op[i] = new_work.output_rows().size();
+          } else {
+            task_size_per_op[i] = io_packet_size;
+          }
         }
 
         i64 table_id = new_work.table_id();
