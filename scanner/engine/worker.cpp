@@ -1181,8 +1181,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       // NOTE(swjz): Each kernel is divided into one single group
       if (factory != nullptr) {
         last_device_type = factory->get_device_type();
-        groups.emplace_back();
       }
+      groups.emplace_back();
       auto& op_group = groups.back().op_names;
       auto& op_source = groups.back().is_source;
       auto& op_sampling = groups.back().sampling_args;
@@ -1807,12 +1807,12 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
         std::map<i64, i64> task_size_per_op;
         for (i64 i=0; i<ops.size(); i++) {
           // Force all rows as one single task for sink/source op
-          if (ops.at(i).is_source() || i >= ops.size() - 2) {
+//          if (ops.at(i).is_source() || i >= ops.size() - 2) {
             // Force all rows as one single task for sink op
             task_size_per_op[i] = new_work.output_rows().size();
-          } else {
-            task_size_per_op[i] = io_packet_size;
-          }
+//          } else {
+//            task_size_per_op[i] = io_packet_size;
+//          }
         }
 
         i64 table_id = new_work.table_id();
@@ -1820,7 +1820,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
         i64 task_id = new_work.task_index();
         LoadWorkEntry stenciled_entry;
 
-        derive_stencil_requirements(
+        // All we need from this is task_stream_map. Might also use grpc to get from master
+        derive_stencil_requirements_master(
             meta, table_meta, jobs.at(new_work.job_index()), ops,
             analysis_results, job_params->boundary_condition(), job_id,
             std::vector<i64>(new_work.output_rows().begin(),
@@ -1839,9 +1840,6 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
             target_work_queue = i;
           }
         }
-
-        // TODO(swjz): If first Op
-        // TODO(swjz): load work & pre evaluate
 
         // load_driver:
         Profiler dummy_profiler = Profiler(now());
@@ -1881,14 +1879,35 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
           eval_map[task_id] = pre_evaluate_output_entry;
         }
+        else if (ops.at(task_stream_map[task_id].op_idx).is_source()) {
+          // this source op was remapped. do nothing.
+        }
         // If sink Op, post evaluate & save work
         else if (ops.at(task_stream_map[task_id].op_idx).is_sink()) {
           // post_evaluate_driver()
           EvalWorkEntry post_evaluate_input_entry;
           TaskStream task_stream = task_stream_map[task_id];
-          assert(task_stream.source_tasks.size() == 1);
-          i64 source_task_id = *(task_stream.source_tasks.begin());
-          post_evaluate_input_entry = eval_map[source_task_id];
+
+          // fill in EvalWorkEntry manually
+          EvalWorkEntry evaluate_input_entry;
+          post_evaluate_input_entry.table_id = table_id;
+          post_evaluate_input_entry.job_index = job_id;
+          post_evaluate_input_entry.task_index = task_id;
+          post_evaluate_input_entry.needs_configure = false; // hardcode by swjz
+          post_evaluate_input_entry.needs_reset = false; // hardcode by swjz
+          post_evaluate_input_entry.last_in_io_packet = true;
+          post_evaluate_input_entry.last_in_task = true;
+          for (i64 source_task : task_stream.source_tasks) {
+            for (auto& column : eval_map[source_task].columns) {
+              post_evaluate_input_entry.columns.push_back(column);
+              post_evaluate_input_entry.column_handles.push_back(CPU_DEVICE);
+              post_evaluate_input_entry.row_ids.emplace_back();
+              std::vector<i64>& row_ids = post_evaluate_input_entry.row_ids.back();
+              row_ids.insert(row_ids.end(),
+                             task_stream.valid_input_rows.begin(),
+                             task_stream.valid_input_rows.end());
+            }
+          }
 
           PostEvaluateWorkerArgs post_evaluate_worker_args {
               // Uniform arguments
@@ -1904,6 +1923,24 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           EvalWorkEntry post_evaluate_output_entry;
           post_evaluate_worker.yield(post_evaluate_output_entry);
 
+          EvalWorkEntry save_driver_input_entry = post_evaluate_output_entry;
+          save_driver_input_entry.columns.clear();
+          save_driver_input_entry.column_handles.clear();
+          save_driver_input_entry.row_ids.clear();
+
+          // Only keep the last columns because we dropped liveness_analysis
+          i32 num_sink_col = final_output_columns.size();
+          VLOG(1) << "Output columns: " << num_sink_col;
+          for (i32 i=num_sink_col-1; i>=0; --i) {
+            i32 total_num_columns = post_evaluate_output_entry.columns.size();
+            auto this_column = post_evaluate_output_entry.columns[total_num_columns - i - 1];
+            auto this_column_handle = post_evaluate_output_entry.column_handles[total_num_columns - i - 1];
+            auto this_row_ids = post_evaluate_output_entry.row_ids[total_num_columns - i - 1];
+            save_driver_input_entry.columns.push_back(this_column);
+            save_driver_input_entry.column_handles.push_back(this_column_handle);
+            save_driver_input_entry.row_ids.push_back(this_row_ids);
+          }
+
           // save_driver()
           proto::Result save_worker_result;
           SaveWorkerArgs save_worker_args {
@@ -1917,7 +1954,6 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
               std::ref(save_worker_result)
           };
 
-          EvalWorkEntry save_driver_input_entry = post_evaluate_output_entry;
 
           SaveWorker save_worker(save_worker_args);
           // NOTE(swjz): Force the task_id of SaveWorker to be 0 for now.

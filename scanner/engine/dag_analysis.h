@@ -112,7 +112,7 @@ void remap_input_op_edges(std::vector<proto::Op>& ops,
 void perform_liveness_analysis(const std::vector<proto::Op>& ops,
                                DAGAnalysisInfo& info);
 
-Result derive_stencil_requirements(
+Result derive_stencil_requirements_master(
     const DatabaseMetadata& meta, TableMetaCache& table_meta,
     const proto::Job& job, const std::vector<proto::Op>& ops,
     const DAGAnalysisInfo& analysis_results,
@@ -120,6 +120,15 @@ Result derive_stencil_requirements(
     i64 job_idx,
     const std::vector<i64>& output_rows, LoadWorkEntry& output_entry,
     std::deque<TaskStream>& task_streams, storehouse::StorageConfig* storage_config);
+
+Result derive_stencil_requirements_worker(
+    const DatabaseMetadata& meta, TableMetaCache& table_meta,
+    const proto::Job& job, const std::vector<proto::Op>& ops,
+    const DAGAnalysisInfo& analysis_results,
+    proto::BulkJobParameters::BoundaryCondition boundary_condition,
+    i64 table_id, i64 job_idx,
+    const std::vector<i64>& output_rows, LoadWorkEntry& output_entry,
+    std::map<i64, i64>& task_size_per_op);
 
 // Result derive_input_rows_from_output_rows(
 //     const std::vector<proto::Job>& jobs,

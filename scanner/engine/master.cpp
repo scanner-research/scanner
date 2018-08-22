@@ -938,7 +938,7 @@ void MasterServerImpl::NextWorkHandler(
         if (state->next_job < state->num_jobs && state->task_result.success()) {
           state->next_task = 0;
           // Set num_tasks to how many tasks are there in the next job
-          state->num_tasks = state->job_tasks.at(state->next_job).size();
+          state->num_tasks = state->tasks_per_job[state->next_job];
           state->next_job++;
           VLOG(1) << "Tasks left: "
                   << state->total_tasks - state->total_tasks_used;
@@ -996,9 +996,6 @@ void MasterServerImpl::NextWorkHandler(
     new_work->set_job_index(job_idx);
     new_work->set_task_index(task_idx);
     const auto& task_rows = state->task_streams[job_idx][task_idx].valid_output_rows;
-//    for (i64 r : task_rows) {
-//      new_work->add_output_rows(r);
-//    }
     for (i64 r : state->job_output_rows[job_idx]) {
       new_work->add_output_rows(r);
     }
@@ -1084,7 +1081,7 @@ void MasterServerImpl::FinishedWorkHandler(
       state->total_tasks_used++;
       state->tasks_used_per_job[job_id]++;
 
-      if (state->tasks_used_per_job[job_id] == state->job_tasks[job_id].size()) {
+      if (state->tasks_used_per_job[job_id] == state->tasks_per_job[job_id]) {
         if (state->dag_info.is_table_output) {
           i32 tid = state->job_uncommitted_tables[job_id];
           meta_.commit_table(tid);
@@ -1574,37 +1571,27 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
   state->task_size_per_op.resize(jobs.size());
   for (size_t job_idx = 0; job_idx < jobs.size(); ++job_idx) {
     for (i64 i=0; i<ops.size(); i++) {
-      if (ops.at(i).is_source() || i >= ops.size() - 2) {
+//      if (ops.at(i).is_source() || i >= ops.size() - 2) {
         // Force all rows as one single task for sink/source op
         state->task_size_per_op[job_idx][i] = state->job_output_rows[job_idx].size();
-      } else {
-        state->task_size_per_op[job_idx][i] = io_packet_size;
-      }
+//      } else {
+//        state->task_size_per_op[job_idx][i] = io_packet_size;
+//      }
     }
   }
 
   state->task_streams.resize(jobs.size());
   for (size_t job_idx = 0; job_idx < jobs.size(); ++job_idx) {
-    LoadWorkEntry dummy_stenciled_entry;
-    derive_stencil_requirements(
+    derive_stencil_requirements_master(
         meta_, *table_metas_, jobs.at(job_idx), ops,
         state->dag_info, job_params_.boundary_condition(), job_idx,
-        state->job_output_rows[job_idx], dummy_stenciled_entry,
+        state->job_output_rows[job_idx],
         state->task_size_per_op[job_idx],
         state->task_streams[job_idx]);
     state->total_tasks += state->task_streams[job_idx].size();
 
     state->tasks_used_per_job.push_back(0);
-    state->job_tasks.emplace_back();
-    // Task -> task output rows
-    std::vector<std::vector<i64>>& task_rows = state->job_tasks.back();
-    for (size_t j = 0; j < state->task_streams[job_idx].size(); ++j) {
-      task_rows.emplace_back();
-      std::vector<i64>& task_output_rows = task_rows.back();
-      task_output_rows.insert(task_output_rows.end(),
-          state->task_streams[job_idx][j].valid_output_rows.begin(),
-          state->task_streams[job_idx][j].valid_output_rows.end());
-    }
+    state->tasks_per_job.push_back(state->task_streams[job_idx].size());
   }
 
   // Write out database metadata so that workers can read it
