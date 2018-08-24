@@ -21,11 +21,18 @@ def get_cmake():
 def print_cmake():
     sys.stdout.write(get_cmake())
 
-def get_flags():
+def get_compile_flags():
     return (
-        '-std=c++11 -I{include} -L{libdir} -lscanner'.format(
-            include=get_include(),
+        '-std=c++11 -I{include}'.format(
+            include=get_include()))
+
+def get_link_flags():
+    return (
+        '-L{libdir} -lscanner'.format(
             libdir=get_lib()))
 
-def print_flags():
-    sys.stdout.write(get_flags())
+def print_compile_flags():
+    sys.stdout.write(get_compile_flags())
+
+def print_link_flags():
+    sys.stdout.write(get_link_flags())
