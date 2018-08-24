@@ -58,9 +58,17 @@ function(build_op)
     execute_process(
       OUTPUT_VARIABLE BUILD_FLAGS
       COMMAND
-      python3 -c "import scannerpy.stdlib.build_flags as b; b.print_flags()")
+      python3 -c "import scannerpy.stdlib.build_flags as b; b.print_compile_flags()")
     set_target_properties(
       ${args_LIB_NAME} PROPERTIES
       COMPILE_FLAGS "${BUILD_FLAGS}")
+
+    execute_process(
+      OUTPUT_VARIABLE LINK_FLAGS
+      COMMAND
+      python3 -c "import scannerpy.stdlib.build_flags as b; b.print_link_flags()")
+    set_target_properties(
+      ${args_LIB_NAME} PROPERTIES
+      LINK_FLAGS "${LINK_FLAGS}")
   endif()
 endfunction()
