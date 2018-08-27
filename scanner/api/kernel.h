@@ -437,8 +437,7 @@ class KernelBuilder {
 
  private:
   std::string name_;
-  KernelConstructorFn constructor_;
-  KernelDetermineOutputsFn determine_outputs_;
+  KernelConstructor constructor_;
   DeviceType device_type_;
   i32 num_devices_;
   std::map<std::string, DeviceType> input_devices_;
