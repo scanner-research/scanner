@@ -213,31 +213,10 @@ class StenciledBatchedKernel : public BaseKernel {
   virtual ~StenciledBatchedKernel(){};
 
   /**
-   * @brief Checks if kernel arguments are valid.
-   *
-   * Only useful if your kernel has its own custom Protobuf arguments.
-   */
-  virtual void validate(proto::Result* result) { result->set_success(true); }
-
-  /**
-   * @brief Resets ops when about to receive non-consecutive inputs.
-   *
-   * Scanner tries to run ops on consecutive blocks of inputs to
-   * maximize the accuracy of stateful algorithms like video trackers.
-   * However, when the runtime provides an op with a non-consecutive
-   * input (because of work imbalance or other reasons), it will call reset
-   * to allow the op to reset its state.
-   */
-  virtual void reset(){};
-
-  /**
    * @brief For internal use
    **/
   virtual void execute_kernel(const StenciledBatchedElements& input_columns,
                               BatchedElements& output_columns) override;
-
-  //! Do not call this function.
-  virtual void set_profiler(Profiler* profiler) { profiler_ = profiler; }
 
  protected:
   /**
@@ -452,13 +431,14 @@ class KernelBuilder {
 
   KernelBuilder& batch(i32 preferred_batch_size = 1) {
     can_batch_ = true;
-    preferred_batch_size = preferred_batch_size;
+    preferred_batch_size_ = preferred_batch_size;
     return *this;
   }
 
  private:
   std::string name_;
-  KernelConstructor constructor_;
+  KernelConstructorFn constructor_;
+  KernelDetermineOutputsFn determine_outputs_;
   DeviceType device_type_;
   i32 num_devices_;
   std::map<std::string, DeviceType> input_devices_;
