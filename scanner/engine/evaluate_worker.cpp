@@ -849,7 +849,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
       i64 row_end = row_start + producible_elements;
 
       // First build mapping from row number to element in the cache
-      std::vector<std::unordered_map<i32, Element>> cache_row_maps;
+      std::vector<std::unordered_map<i64, Element>> cache_row_maps;
       for (size_t i = 0; i < input_column_idx.size(); ++i) {
         cache_row_maps.emplace_back();
         auto& row_map = cache_row_maps[i];
@@ -913,7 +913,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
               unused_outputs[unused_outputs.size() - 1 - y];
           Elements& column = output_columns[unused_col_idx];
           for (Element& element : column) {
-//            delete_element(current_output_handles[unused_col_idx], element);
+            delete_element(current_output_handles[unused_col_idx], element);
           }
           output_columns.erase(output_columns.begin() + unused_col_idx);
         }
@@ -1125,7 +1125,7 @@ void EvaluateWorker::clear_stencil_cache() {
       while (!cache_deque.empty()) {
         assert(!kernel_cache_devices.empty());
         Element element = cache_deque.back();
-//        delete_element(kernel_cache_devices[i], element);
+        delete_element(kernel_cache_devices[i], element);
         cache_deque.pop_back();
       }
     }
@@ -1298,7 +1298,7 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
         continue;
       }
       for (i32 b = 0; b < work_entry.columns[i].size(); ++b) {
-//        delete_element(work_entry.column_handles[i], work_entry.columns[i][b]);
+        delete_element(work_entry.column_handles[i], work_entry.columns[i][b]);
       }
     }
   }

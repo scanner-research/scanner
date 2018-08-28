@@ -91,6 +91,12 @@ struct TaskStream {
 
   i64 slice_group;
 
+  // Source task -> Rows
+  // The mapping from source task id to row ids
+  // With this map, we can merge multiple columns from different tasks
+  // to one column if these tasks come from the same op
+  std::map<i64, std::set<i64>> source_task_to_rows;
+
   // This is the set of input rows that the Op needs to keep.
   std::vector<i64> valid_input_rows;
 

@@ -1806,13 +1806,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
         // NOTE(swjz): Set task sizes for all ops to io_packet_size for now
         std::map<i64, i64> task_size_per_op;
         for (i64 i=0; i<ops.size(); i++) {
-          // Force all rows as one single task for sink/source op
-//          if (ops.at(i).is_source() || i >= ops.size() - 2) {
-            // Force all rows as one single task for sink op
-            task_size_per_op[i] = new_work.output_rows().size();
-//          } else {
-//            task_size_per_op[i] = io_packet_size;
-//          }
+          task_size_per_op[i] = io_packet_size;
         }
 
         i64 table_id = new_work.table_id();
@@ -1897,17 +1891,72 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           post_evaluate_input_entry.needs_reset = false; // hardcode by swjz
           post_evaluate_input_entry.last_in_io_packet = true;
           post_evaluate_input_entry.last_in_task = true;
+          // Op -> Elements
+          std::map<i64, Elements> op_to_elements;
+          // Op -> Device Handle
+          std::map<i64, DeviceHandle> op_to_handle;
+          // Op -> Rows
+          std::map<i64, std::vector<i64>> op_to_row_ids;
           for (i64 source_task : task_stream.source_tasks) {
-            for (auto& column : eval_map[source_task].columns) {
-              post_evaluate_input_entry.columns.push_back(column);
-              post_evaluate_input_entry.column_handles.push_back(CPU_DEVICE);
-              post_evaluate_input_entry.row_ids.emplace_back();
-              std::vector<i64>& row_ids = post_evaluate_input_entry.row_ids.back();
-              row_ids.insert(row_ids.end(),
-                             task_stream.valid_input_rows.begin(),
-                             task_stream.valid_input_rows.end());
+            const TaskStream& source_task_stream = task_stream_map.at(source_task);
+            if (source_task_stream.op_idx == 0) {
+              // The source task is a source Op. It might have multiple input columns
+              // because we remapped input columns. So we skip merging process below.
+              post_evaluate_input_entry.columns.insert(post_evaluate_input_entry.columns.end(),
+                                                       eval_map[source_task].columns.begin(),
+                                                       eval_map[source_task].columns.end());
+              post_evaluate_input_entry.column_handles.insert(post_evaluate_input_entry.column_handles.end(),
+                                                       eval_map[source_task].column_handles.begin(),
+                                                       eval_map[source_task].column_handles.end());
+              post_evaluate_input_entry.row_ids.insert(post_evaluate_input_entry.row_ids.end(),
+                                                       eval_map[source_task].row_ids.begin(),
+                                                       eval_map[source_task].row_ids.end());
+            } else {
+              // We merge multiple columns from different tasks to one column
+              // if these tasks come from the same op
+              for (size_t col_id = 0; col_id < eval_map[source_task].columns.size(); ++col_id) {
+                auto& column = eval_map[source_task].columns[col_id];
+                op_to_handle[source_task_stream.op_idx] = CPU_DEVICE;
+                op_to_row_ids[source_task_stream.op_idx].insert(
+                    op_to_row_ids[source_task_stream.op_idx].end(),
+                    task_stream.source_task_to_rows.at(source_task).begin(),
+                    task_stream.source_task_to_rows.at(source_task).end());
+
+                for (auto& row_id : task_stream.source_task_to_rows.at(source_task)) {
+                  for (size_t r = 0; r < eval_map[source_task].row_ids[col_id].size(); ++r) {
+                    // Only need the columns that cover required row ids
+                    if (row_id == eval_map[source_task].row_ids[col_id][r]) {
+                      op_to_elements[source_task_stream.op_idx].push_back(column[r]);
+                    }
+                  }
+                }
+              }
             }
           }
+
+          for (auto& kv : op_to_elements) {
+            post_evaluate_input_entry.columns.push_back(kv.second);
+            post_evaluate_input_entry.column_handles.push_back(op_to_handle.at(kv.first));
+            post_evaluate_input_entry.row_ids.push_back(op_to_row_ids.at(kv.first));
+          }
+
+          // Only keep the last columns because we dropped liveness_analysis
+          i32 num_sink_col = final_output_columns.size();
+          VLOG(1) << "Output columns: " << num_sink_col;
+
+          assert(num_sink_col <= post_evaluate_input_entry.columns.size());
+
+          post_evaluate_input_entry.columns = BatchedElements(
+              post_evaluate_input_entry.columns.end() - num_sink_col,
+              post_evaluate_input_entry.columns.end());
+
+          post_evaluate_input_entry.column_handles = std::vector<DeviceHandle>(
+              post_evaluate_input_entry.column_handles.end() - num_sink_col,
+              post_evaluate_input_entry.column_handles.end());
+
+          post_evaluate_input_entry.row_ids = std::vector<std::vector<i64>>(
+              post_evaluate_input_entry.row_ids.end() - num_sink_col,
+              post_evaluate_input_entry.row_ids.end());
 
           PostEvaluateWorkerArgs post_evaluate_worker_args {
               // Uniform arguments
@@ -1924,22 +1973,6 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           post_evaluate_worker.yield(post_evaluate_output_entry);
 
           EvalWorkEntry save_driver_input_entry = post_evaluate_output_entry;
-          save_driver_input_entry.columns.clear();
-          save_driver_input_entry.column_handles.clear();
-          save_driver_input_entry.row_ids.clear();
-
-          // Only keep the last columns because we dropped liveness_analysis
-          i32 num_sink_col = final_output_columns.size();
-          VLOG(1) << "Output columns: " << num_sink_col;
-          for (i32 i=num_sink_col-1; i>=0; --i) {
-            i32 total_num_columns = post_evaluate_output_entry.columns.size();
-            auto this_column = post_evaluate_output_entry.columns[total_num_columns - i - 1];
-            auto this_column_handle = post_evaluate_output_entry.column_handles[total_num_columns - i - 1];
-            auto this_row_ids = post_evaluate_output_entry.row_ids[total_num_columns - i - 1];
-            save_driver_input_entry.columns.push_back(this_column);
-            save_driver_input_entry.column_handles.push_back(this_column_handle);
-            save_driver_input_entry.row_ids.push_back(this_row_ids);
-          }
 
           // save_driver()
           proto::Result save_worker_result;
@@ -1964,7 +1997,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
         }
         // Regular (non-source/sink) Op
         else {
-          TaskStream task_stream = task_stream_map[task_id];
+          const TaskStream& task_stream = task_stream_map[task_id];
           i32 op_idx = task_stream.op_idx;
 
           // fill in EvalWorkEntry manually
@@ -1976,16 +2009,37 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           evaluate_input_entry.needs_reset = false; // hardcode by swjz
           evaluate_input_entry.last_in_io_packet = true;
           evaluate_input_entry.last_in_task = true;
+          // Op -> Column
+          std::map<i64, Elements> op_to_column;
+          // Op -> Device Handle
+          std::map<i64, DeviceHandle> op_to_handle;
+          // Op -> Rows
+          std::map<i64, std::vector<i64>> op_to_row_ids;
           for (i64 source_task : task_stream.source_tasks) {
-            for (auto& column : eval_map[source_task].columns) {
-              evaluate_input_entry.columns.push_back(column);
-              evaluate_input_entry.column_handles.push_back(CPU_DEVICE);
-              evaluate_input_entry.row_ids.emplace_back();
-              std::vector<i64>& row_ids = evaluate_input_entry.row_ids.back();
-              row_ids.insert(row_ids.end(),
-                             task_stream.valid_input_rows.begin(),
-                             task_stream.valid_input_rows.end());
+            // If two or more source tasks are running the same op.
+            // we should merge them to one single column
+            const TaskStream& source_task_stream = task_stream_map.at(source_task);
+            for (size_t col_id = 0; col_id < eval_map[source_task].columns.size(); ++col_id) {
+              auto& column = eval_map[source_task].columns[col_id];
+              op_to_handle[source_task_stream.op_idx] = CPU_DEVICE;
+              op_to_row_ids[source_task_stream.op_idx].insert(
+                  op_to_row_ids[source_task_stream.op_idx].end(),
+                  task_stream.source_task_to_rows.at(source_task).begin(),
+                  task_stream.source_task_to_rows.at(source_task).end());
+
+              for (auto& row_id : task_stream.source_task_to_rows.at(source_task)) {
+                for (size_t r = 0; r < eval_map[source_task].row_ids[col_id].size(); ++r) {
+                  if (row_id == eval_map[source_task].row_ids[col_id][r]) {
+                    op_to_column[source_task_stream.op_idx].push_back(column[r]);
+                  }
+                }
+              }
             }
+          }
+          for (auto& kv : op_to_column) {
+            evaluate_input_entry.columns.push_back(kv.second);
+            evaluate_input_entry.column_handles.push_back(op_to_handle.at(kv.first));
+            evaluate_input_entry.row_ids.push_back(op_to_row_ids.at(kv.first));
           }
           // Now evaluate_input_entry is ready to go!
 

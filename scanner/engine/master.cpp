@@ -1530,16 +1530,9 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
     return false;
   }
 
-  if (!job_result->success()) {
-    // No database changes made at this point, so just return
-    finished_fn();
-    return false;
-  }
-
+  VLOG(1) << "Building tasks";
   // Setup table metadata cache for use in other operations
   populate_analysis_info(ops, dag_info);
-  // Need slice input rows to know which slice we are in
-  determine_input_rows_to_slices(meta_, *table_metas_, jobs, ops, dag_info);
   remap_input_op_edges(ops, dag_info);
   // Analyze op DAG to determine what inputs need to be pipped along
   // and when intermediates can be retired -- essentially liveness analysis
@@ -1571,21 +1564,19 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
   state->task_size_per_op.resize(jobs.size());
   for (size_t job_idx = 0; job_idx < jobs.size(); ++job_idx) {
     for (i64 i=0; i<ops.size(); i++) {
-//      if (ops.at(i).is_source() || i >= ops.size() - 2) {
-        // Force all rows as one single task for sink/source op
-        state->task_size_per_op[job_idx][i] = state->job_output_rows[job_idx].size();
-//      } else {
-//        state->task_size_per_op[job_idx][i] = io_packet_size;
-//      }
+      state->task_size_per_op[job_idx][i] = io_packet_size;
     }
   }
 
   state->task_streams.resize(jobs.size());
   for (size_t job_idx = 0; job_idx < jobs.size(); ++job_idx) {
-    derive_stencil_requirements_master(
+    LoadWorkEntry dummy_load_entry;
+    derive_stencil_requirements(
         meta_, *table_metas_, jobs.at(job_idx), ops,
-        state->dag_info, job_params_.boundary_condition(), job_idx,
+        state->dag_info, job_params_.boundary_condition(),
+        state->job_to_table_id[job_idx], job_idx,
         state->job_output_rows[job_idx],
+        dummy_load_entry,
         state->task_size_per_op[job_idx],
         state->task_streams[job_idx]);
     state->total_tasks += state->task_streams[job_idx].size();
