@@ -2090,20 +2090,20 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
             } else {
               // We merge multiple columns from different tasks to one column
               // if these tasks come from the same op
-              for (size_t col_id = 0; col_id < eval_map_at_source_task.columns.size(); ++col_id) {
-                auto& column = eval_map_at_source_task.columns[col_id];
-                op_to_handle[source_task_stream.op_idx] = CPU_DEVICE;
-                op_to_row_ids[source_task_stream.op_idx].insert(
-                    op_to_row_ids[source_task_stream.op_idx].end(),
-                    task_stream.source_task_to_rows.at(source_task).begin(),
-                    task_stream.source_task_to_rows.at(source_task).end());
+              // Assume this source task only has one output column, it must be the last one
+              size_t col_id = eval_map_at_source_task.columns.size() - 1;
+              auto& column = eval_map_at_source_task.columns[col_id];
+              op_to_handle[source_task_stream.op_idx] = CPU_DEVICE;
+              op_to_row_ids[source_task_stream.op_idx].insert(
+                  op_to_row_ids[source_task_stream.op_idx].end(),
+                  task_stream.source_task_to_rows.at(source_task).begin(),
+                  task_stream.source_task_to_rows.at(source_task).end());
 
-                for (auto& row_id : task_stream.source_task_to_rows.at(source_task)) {
-                  for (size_t r = 0; r < eval_map_at_source_task.row_ids[col_id].size(); ++r) {
-                    // Only need the columns that cover required row ids
-                    if (row_id == eval_map_at_source_task.row_ids[col_id][r]) {
-                      op_to_elements[source_task_stream.op_idx].push_back(column[r]);
-                    }
+              for (auto& row_id : task_stream.source_task_to_rows.at(source_task)) {
+                for (size_t r = 0; r < eval_map_at_source_task.row_ids[col_id].size(); ++r) {
+                  // Only need the columns that cover required row ids
+                  if (row_id == eval_map_at_source_task.row_ids[col_id][r]) {
+                    op_to_elements[source_task_stream.op_idx].push_back(column[r]);
                   }
                 }
               }
@@ -2216,20 +2216,20 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
             } else {
               // We merge multiple columns from different tasks to one column
               // if these tasks come from the same op
-              for (size_t col_id = 0; col_id < eval_map_at_source_task.columns.size(); ++col_id) {
-                auto& column = eval_map_at_source_task.columns[col_id];
-                op_to_handle[source_task_stream.op_idx] = CPU_DEVICE;
-                op_to_row_ids[source_task_stream.op_idx].insert(
-                    op_to_row_ids[source_task_stream.op_idx].end(),
-                    task_stream.source_task_to_rows.at(source_task).begin(),
-                    task_stream.source_task_to_rows.at(source_task).end());
+              // Assume this source task only has one output column, it must be the last one
+              size_t col_id = eval_map_at_source_task.columns.size() - 1;
+              auto& column = eval_map_at_source_task.columns[col_id];
+              op_to_handle[source_task_stream.op_idx] = CPU_DEVICE;
+              op_to_row_ids[source_task_stream.op_idx].insert(
+                  op_to_row_ids[source_task_stream.op_idx].end(),
+                  task_stream.source_task_to_rows.at(source_task).begin(),
+                  task_stream.source_task_to_rows.at(source_task).end());
 
-                for (auto& row_id : task_stream.source_task_to_rows.at(source_task)) {
-                  for (size_t r = 0; r < eval_map_at_source_task.row_ids[col_id].size(); ++r) {
-                    // Only need the columns that cover required row ids
-                    if (row_id == eval_map_at_source_task.row_ids[col_id][r]) {
-                      op_to_elements[source_task_stream.op_idx].push_back(column[r]);
-                    }
+              for (auto& row_id : task_stream.source_task_to_rows.at(source_task)) {
+                for (size_t r = 0; r < eval_map_at_source_task.row_ids[col_id].size(); ++r) {
+                  // Only need the columns that cover required row ids
+                  if (row_id == eval_map_at_source_task.row_ids[col_id][r]) {
+                    op_to_elements[source_task_stream.op_idx].push_back(column[r]);
                   }
                 }
               }
