@@ -477,7 +477,7 @@ WorkerImpl::WorkerImpl(DatabaseParameters& db_params,
     worker_port_(worker_port) {
   init_glog("scanner_worker");
 
-  VLOG(1) << "Creating worker";
+  LOG(INFO) << "Creating worker";
 
   {
     // HACK(apoms): to fix this issue: https://github.com/pybind/pybind11/issues/1364
@@ -494,17 +494,17 @@ WorkerImpl::WorkerImpl(DatabaseParameters& db_params,
   // google::protobuf::io::CodedInputStream::SetTotalBytesLimit(67108864 * 4,
   //                                                            67108864 * 2);
 
-  VLOG(1) << "Create master stub";
+  LOG(INFO) << "Create master stub";
   master_ = proto::Master::NewStub(
       grpc::CreateChannel(master_address, grpc::InsecureChannelCredentials()));
-  VLOG(1) << "Finish master stub";
+  LOG(INFO) << "Finish master stub";
 
   storage_ =
       storehouse::StorageBackend::make_from_config(db_params_.storage_config);
 
   // Processes jobs in the background
   start_job_processor();
-  VLOG(1) << "Worker created.";
+  LOG(INFO) << "Worker created.";
 
   std::stringstream resource_ss;
   resource_ss << "Resources: ";
@@ -545,7 +545,7 @@ WorkerImpl::~WorkerImpl() {
 grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
                                 const proto::BulkJobParameters* job_params,
                                 proto::Result* job_result) {
-  VLOG(1) << "Worker " << node_id_ << " received NewJob";
+  LOG(INFO) << "Worker " << node_id_ << " received NewJob";
   // Ensure that only one job is running at a time and that the worker
   // is in idle mode before transitioning to job start
   State state = state_.get();
@@ -663,7 +663,7 @@ void WorkerImpl::start_watchdog(grpc::Server* server, bool enable_timeout,
 Result WorkerImpl::register_with_master() {
   assert(state_.get() == State::INITIALIZING);
 
-  VLOG(1) << "Worker try to register with master";
+  LOG(INFO) << "Worker try to register with master";
 
   proto::WorkerParams worker_info;
   worker_info.set_port(worker_port_);
@@ -688,7 +688,7 @@ Result WorkerImpl::register_with_master() {
     return result;
   }
 
-  VLOG(1) << "Worker registered with master";
+  LOG(INFO) << "Worker registered with master";
 
   node_id_ = registration.node_id();
 
@@ -713,13 +713,13 @@ void WorkerImpl::try_unregister() {
                    << "): " << status.error_message();
       return;
     }
-    VLOG(1) << "Worker unregistered from master server.";
+    LOG(INFO) << "Worker unregistered from master server.";
   }
 }
 
 void WorkerImpl::load_op(const proto::OpPath* op_path) {
   std::string so_path = op_path->path();
-  VLOG(1) << "Worker " << node_id_ << " loading Op library: " << so_path;
+  LOG(INFO) << "Worker " << node_id_ << " loading Op library: " << so_path;
 
   auto l = std::string("__stdlib").size();
   if (so_path.substr(0, l) == "__stdlib") {
@@ -766,7 +766,7 @@ void WorkerImpl::register_op(const proto::OpRegistration* op_registration) {
                             has_bounded_state, warmup, has_unbounded_state, "");
   OpRegistry* registry = get_op_registry();
   registry->add_op(name, info);
-  VLOG(1) << "Worker " << node_id_ << " registering Op: " << name;
+  LOG(INFO) << "Worker " << node_id_ << " registering Op: " << name;
 }
 
 void WorkerImpl::register_python_kernel(const proto::PythonKernelRegistration* python_kernel) {
@@ -811,7 +811,7 @@ void WorkerImpl::register_python_kernel(const proto::PythonKernelRegistration* p
   // Register the kernel
   KernelRegistry* registry = get_kernel_registry();
   registry->add_kernel(op_name, factory);
-  VLOG(1) << "Worker " << node_id_ << " registering Python Kernel: " << op_name;
+  LOG(INFO) << "Worker " << node_id_ << " registering Python Kernel: " << op_name;
 }
 
 void WorkerImpl::start_job_processor() {
@@ -1662,13 +1662,13 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   while (true) {
     if (trigger_shutdown_.raised()) {
       // Abandon ship!
-      VLOG(1) << "Worker " << node_id_ << " received shutdown while in NewJob";
+      LOG(INFO) << "Worker " << node_id_ << " received shutdown while in NewJob";
       RESULT_ERROR(job_result, "Worker %d shutdown while processing NewJob",
                    node_id_);
       break;
     }
     if (!job_result->success()) {
-      VLOG(1) << "Worker " << node_id_ << " in error, stopping.";
+      LOG(INFO) << "Worker " << node_id_ << " in error, stopping.";
       break;
     }
     // We batch up retired tasks to avoid sync overhead
@@ -1925,17 +1925,17 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   u64 max_mem_used = max_memory_allocated(CPU_DEVICE);
   u64 current_mem_used = current_memory_allocated(CPU_DEVICE);
   const auto& allocations = allocator_allocations(CPU_DEVICE);
-  VLOG(1) << "Max memory allocated:     " << max_mem_used / (1024 * 1024)
+  LOG(INFO) << "Max memory allocated:     " << max_mem_used / (1024 * 1024)
           << " MBs";
-  VLOG(1) << "Current memory allocated: " << current_mem_used / (1024 * 1024)
+  LOG(INFO) << "Current memory allocated: " << current_mem_used / (1024 * 1024)
           << " MBs";
   if (num_load_workers > 0) {
     load_thread_profilers[0].increment("max_memory_used", max_mem_used);
     load_thread_profilers[0].increment("current_memory_used", current_mem_used);
   }
-  VLOG(2) << "Leaked allocations: ";
+  VLOG(1) << "Leaked allocations: ";
   for (const auto& alloc : allocations) {
-    VLOG(2) << alloc.call_file << ":" << alloc.call_line << ": refs "
+    VLOG(1) << alloc.call_file << ":" << alloc.call_line << ": refs "
             << alloc.refs << ", size " << alloc.size;
   }
 
@@ -2012,7 +2012,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
   finished_fn();
 
-  VLOG(1) << "Worker " << node_id_ << " finished job";
+  LOG(INFO) << "Worker " << node_id_ << " finished job";
 
   return true;
 }
