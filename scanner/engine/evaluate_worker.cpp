@@ -145,6 +145,8 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
 
       if (work_entry.columns[c].size() > 0) {
         if (!work_entry.inplace_video[c]) {
+          LOG_IF(FATAL, !decoders_[media_col_idx])
+            << "Decoder is not allocated. Likely mixed inplace/non-inplace in the same bulk job launch.";
           decoders_[media_col_idx]->initialize(args);
         } else {
           // Translate into encoded data
@@ -172,6 +174,8 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
           if (args.size() > 0) {
             std::vector<u8> metadata(args.back().metadata().begin(),
                                      args.back().metadata().end());
+            LOG_IF(FATAL, !inplace_decoders_[media_col_idx])
+              << "Inplace decoder is not allocated. Likely mixed inplace/non-inplace in the same bulk job launch.";
             inplace_decoders_[media_col_idx]->initialize(encoded_data,
                                                          metadata);
           }
