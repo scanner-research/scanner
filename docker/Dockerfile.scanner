@@ -19,6 +19,7 @@ RUN cd /opt/scanner && \
           -D BUILD_OPENFACE_OPS=OFF \
           -D BUILD_TESTS=ON \
           -D BUILD_CUDA=${gpu} \
+          -D CMAKE_BUILD_TYPE=RelWithDebinfo \
           .. && \
     cd .. && \
     (yes | pip3 uninstall grpcio protobuf) && \
