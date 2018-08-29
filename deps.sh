@@ -579,7 +579,7 @@ if [[ $INSTALL_PYBIND == true ]] && [[ ! -f $BUILD_DIR/pybind.done ]] ; then
     git clone -b v2.2.2 https://github.com/pybind/pybind11 --depth 1 && \
         cd pybind11 && \
         mkdir build && cd build && \
-        cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX -DPYBIND11_TEST=Off && \
+        cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX -DPYBIND11_TEST=Off -DCMAKE_BUILD_TYPE=RelWithDebInfo && \
         make install -j${cores} && cd ../../ && \
         touch $BUILD_DIR/pybind.done \
             || { echo 'Installing pybind failed!' ; exit 1; }
@@ -593,10 +593,10 @@ if [[ $INSTALL_STOREHOUSE == true ]] && [[ ! -f $BUILD_DIR/storehouse.done ]] ; 
     git clone https://github.com/scanner-research/storehouse && \
         cd storehouse && git checkout 42fe7016b74e67ce792bae6590deff2605a4d525 && \
         cd thirdparty && mkdir build && cd build && \
-        cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX && \
+        cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX -DCMAKE_BUILD_TYPE=RelWithDebInfo && \
         make -j${cores} && cd ../../ && \
         mkdir build && cd build && \
-        cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX && \
+        cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX -DCMAKE_BUILD_TYPE=RelWithDebInfo && \
         make install -j${cores} && cd .. && ./build.sh && \
         touch $BUILD_DIR/storehouse.done \
             || { echo 'Installing storehouse failed!' ; exit 1; }
@@ -628,7 +628,7 @@ if [[ $INSTALL_HWANG == true ]] && [[ ! -f $BUILD_DIR/hwang.done ]] ; then
              --with-protobuf $INSTALL_PREFIX \
              --cores ${cores} && \
         mkdir -p build && cd build && \
-        cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX -DBUILD_CUDA=$USE_GPU && \
+        cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX -DBUILD_CUDA=$USE_GPU && \
         make install -j${cores} && cd .. && ./build.sh && \
         touch $BUILD_DIR/hwang.done \
             || { echo 'Installing hwang failed!' ; exit 1; }
@@ -734,7 +734,7 @@ if [[ $INSTALL_OPENPOSE == true ]] && [[ ! -f $BUILD_DIR/openpose.done ]] && \
     if [[ $HAVE_GPU == false ]]; then
         EXTRA_FLAGS="-DGPU_MODE=CPU_ONLY"
     fi
-        
+
     cd $BUILD_DIR
     rm -rf openpose
     git clone -b v1.3.0 https://github.com/CMU-Perceptual-Computing-Lab/openpose --depth 1 && \
