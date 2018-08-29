@@ -27,6 +27,7 @@
 #include "scanner/util/cuda.h"
 #include "scanner/util/glog.h"
 #include "scanner/util/grpc.h"
+#include "scanner/util/fs.h"
 
 #include <arpa/inet.h>
 #include <grpc/grpc_posix.h>
@@ -66,6 +67,135 @@ inline bool operator==(const MemoryPoolConfig& lhs,
 inline bool operator!=(const MemoryPoolConfig& lhs,
                        const MemoryPoolConfig& rhs) {
   return !(lhs == rhs);
+}
+
+// This function parses EvalWorkEntry struct to protocol buffer format
+void evalworkentry_to_proto(const EvalWorkEntry& input, proto::EvalWorkEntry& output) {
+  output.set_table_id(input.table_id);
+  output.set_job_index(input.job_index);
+  output.set_task_index(input.task_index);
+  for (const std::vector<i64>& col_row_ids : input.row_ids) {
+    proto::ColumnRowIds* col_row_ids_proto = output.add_col_row_ids();
+    for (const i64& row_id : col_row_ids) {
+      col_row_ids_proto->add_row_ids(row_id);
+    }
+  }
+  for (const Elements& elements : input.columns) {
+    proto::Elements* elements_proto = output.add_columns();
+    for (const Element& element : elements) {
+      proto::Element* element_proto = elements_proto->add_element();
+      element_proto->set_size(element.size);
+      std::vector<u8> buffer {element.buffer, element.buffer + element.size};
+      element_proto->set_buffer(buffer.data(), buffer.size());
+      element_proto->set_index(element.index);
+      element_proto->set_is_frame(element.is_frame);
+    }
+  }
+  for (const DeviceHandle& column_handle : input.column_handles) {
+    proto::DeviceHandle* column_handle_proto = output.add_column_handles();
+    column_handle_proto->set_id(column_handle.id);
+    column_handle_proto->set_type(column_handle.type);
+  }
+  for (const bool inplace_video_option : input.inplace_video) {
+    output.add_inplace_video(inplace_video_option);
+  }
+  for (const ColumnType& column_type : input.column_types) {
+    output.add_column_types(column_type);
+  }
+  output.set_needs_configure(input.needs_configure);
+  output.set_needs_reset(input.needs_reset);
+  output.set_last_in_io_packet(input.last_in_io_packet);
+  for (const proto::VideoDescriptor::VideoCodecType& video_encoding_type : input.video_encoding_type) {
+    if (video_encoding_type == proto::VideoDescriptor::RAW) {
+      output.add_video_encoding_type(proto::EvalWorkEntry::RAW);
+    } else if (video_encoding_type == proto::VideoDescriptor::H264) {
+      output.add_video_encoding_type(proto::EvalWorkEntry::H264);
+    }
+  }
+  output.set_first(input.first);
+  output.set_last_in_task(input.last_in_task);
+  for (const FrameInfo& frame_size : input.frame_sizes) {
+    proto::FrameInfo* frame_size_proto = output.add_frame_sizes();
+    frame_size_proto->set_type(frame_size.type);
+    for (i32 shape : frame_size.shape) {
+      frame_size_proto->add_shape(shape);
+    }
+  }
+  for (const bool compressed : input.compressed) {
+    output.add_compressed(compressed);
+  }
+}
+
+// This function parses protocol buffer format to EvalWorkEntry struct
+void proto_to_evalworkentry(const proto::EvalWorkEntry& input, EvalWorkEntry& output) {
+  output.table_id = input.table_id();
+  output.job_index = input.job_index();
+  output.task_index = input.task_index();
+  for (int i=0; i<input.col_row_ids_size(); ++i) {
+    output.row_ids.emplace_back();
+    std::vector<i64>& col_row_ids = output.row_ids.back();
+    const proto::ColumnRowIds& col_row_ids_proto = input.col_row_ids(i);
+    for (int j=0; j<col_row_ids_proto.row_ids_size(); ++j) {
+      col_row_ids.push_back(col_row_ids_proto.row_ids(j));
+    }
+  }
+  for (int i=0; i<input.columns_size(); ++i) {
+    output.columns.emplace_back();
+    Elements& elements = output.columns.back();
+    const proto::Elements& elements_proto = input.columns(i);
+    for (int j=0; j<elements_proto.element_size(); ++j) {
+      elements.emplace_back();
+      Element& element = elements.back();
+      auto& element_proto = elements_proto.element(j);
+      if (element_proto.size() > 0) {
+        element.buffer = new_buffer(CPU_DEVICE, element_proto.size());
+        memcpy_buffer(element.buffer, CPU_DEVICE, (u8*)element_proto.buffer().c_str(),
+            CPU_DEVICE, element_proto.size());
+      }
+      element.size = element_proto.size();
+      element.is_frame = element_proto.is_frame();
+      element.index = element_proto.index();
+    }
+  }
+  for (int i=0; i<input.column_handles_size(); ++i) {
+    output.column_handles.emplace_back();
+    DeviceHandle& column_handle = output.column_handles.back();
+    const proto::DeviceHandle& column_handle_proto = input.column_handles(i);
+    column_handle.id = column_handle_proto.id();
+    column_handle.type = column_handle_proto.type();
+  }
+  for (int i=0; i<input.inplace_video_size(); ++i) {
+    output.inplace_video.push_back(input.inplace_video(i));
+  }
+  for (int i=0; i<input.column_types_size(); ++i) {
+    output.column_types.push_back(input.column_types(i));
+  }
+  output.needs_configure = input.needs_configure();
+  output.needs_reset = input.needs_reset();
+  output.last_in_io_packet = input.last_in_io_packet();
+  for (int i=0; i<input.video_encoding_type_size(); ++i) {
+    output.video_encoding_type.emplace_back();
+    proto::VideoDescriptor::VideoCodecType& video_encoding_type =
+        output.video_encoding_type.back();
+    if (input.video_encoding_type(i) == proto::EvalWorkEntry::RAW) {
+      video_encoding_type = proto::VideoDescriptor::RAW;
+    } else if (input.video_encoding_type(i) == proto::EvalWorkEntry::H264) {
+      video_encoding_type = proto::VideoDescriptor::H264;
+    }
+  }
+  output.first = input.first();
+  output.last_in_task = input.last_in_task();
+  for (int i=0; i<input.frame_sizes_size(); ++i) {
+    output.frame_sizes.emplace_back();
+    FrameInfo& frame_sizes = output.frame_sizes.back();
+    frame_sizes.type = input.frame_sizes(i).type();
+    for (int j=0; j<input.frame_sizes(i).shape_size(); ++j) {
+      frame_sizes.shape[j] = input.frame_sizes(i).shape(j);
+    }
+  }
+  for (int i=0; i<input.compressed_size(); ++i) {
+    output.compressed.push_back(input.compressed(i));
+  }
 }
 
 void load_driver(LoadInputQueue& load_work,
@@ -1812,6 +1942,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
         i64 table_id = new_work.table_id();
         i64 job_id = new_work.job_index();
         i64 task_id = new_work.task_index();
+        i32 bulk_job_id = meta.get_bulk_job_id(job_params->job_name());
         LoadWorkEntry stenciled_entry;
 
         // All we need from this is task_stream_map. Might also use grpc to get from master
@@ -1871,7 +2002,21 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           EvalWorkEntry pre_evaluate_output_entry;
           pre_evaluate_worker.yield(work_packet_size, pre_evaluate_output_entry);
 
-          eval_map[task_id] = pre_evaluate_output_entry;
+          std::string eval_map_file_name = eval_map_path(bulk_job_id, task_id);
+          std::unique_ptr<WriteFile> eval_map_output;
+          BACKOFF_FAIL(
+              make_unique_write_file(storage_, eval_map_file_name, eval_map_output),
+              "while trying to make write file for " + eval_map_file_name);
+
+          proto::EvalWorkEntry pre_output_proto;
+          evalworkentry_to_proto(pre_evaluate_output_entry, pre_output_proto);
+          size_t serialized_size = pre_output_proto.ByteSizeLong();
+
+          std::vector<u8> eval_map_bytes;
+          eval_map_bytes.resize(serialized_size);
+          pre_output_proto.SerializeToArray(eval_map_bytes.data(), serialized_size);
+
+          s_write(eval_map_output.get(), eval_map_bytes.data(), serialized_size);
         }
         else if (ops.at(task_stream_map[task_id].op_idx).is_source()) {
           // this source op was remapped. do nothing.
@@ -1898,24 +2043,32 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           // Op -> Rows
           std::map<i64, std::vector<i64>> op_to_row_ids;
           for (i64 source_task : task_stream.source_tasks) {
+            // The file name of eval_map[source_task]
+            std::string eval_map_file_name = eval_map_path(bulk_job_id, source_task);
+            std::vector<u8> eval_map_bytes = read_entire_file(eval_map_file_name);
+            proto::EvalWorkEntry post_input_proto;
+            post_input_proto.ParseFromArray(eval_map_bytes.data(), eval_map_bytes.size());
+            EvalWorkEntry eval_map_at_source_task;
+            proto_to_evalworkentry(post_input_proto, eval_map_at_source_task);
+
             const TaskStream& source_task_stream = task_stream_map.at(source_task);
             if (source_task_stream.op_idx == 0) {
               // The source task is a source Op. It might have multiple input columns
               // because we remapped input columns. So we skip merging process below.
               post_evaluate_input_entry.columns.insert(post_evaluate_input_entry.columns.end(),
-                                                       eval_map[source_task].columns.begin(),
-                                                       eval_map[source_task].columns.end());
+                                                       eval_map_at_source_task.columns.begin(),
+                                                       eval_map_at_source_task.columns.end());
               post_evaluate_input_entry.column_handles.insert(post_evaluate_input_entry.column_handles.end(),
-                                                       eval_map[source_task].column_handles.begin(),
-                                                       eval_map[source_task].column_handles.end());
+                                                       eval_map_at_source_task.column_handles.begin(),
+                                                       eval_map_at_source_task.column_handles.end());
               post_evaluate_input_entry.row_ids.insert(post_evaluate_input_entry.row_ids.end(),
-                                                       eval_map[source_task].row_ids.begin(),
-                                                       eval_map[source_task].row_ids.end());
+                                                       eval_map_at_source_task.row_ids.begin(),
+                                                       eval_map_at_source_task.row_ids.end());
             } else {
               // We merge multiple columns from different tasks to one column
               // if these tasks come from the same op
-              for (size_t col_id = 0; col_id < eval_map[source_task].columns.size(); ++col_id) {
-                auto& column = eval_map[source_task].columns[col_id];
+              for (size_t col_id = 0; col_id < eval_map_at_source_task.columns.size(); ++col_id) {
+                auto& column = eval_map_at_source_task.columns[col_id];
                 op_to_handle[source_task_stream.op_idx] = CPU_DEVICE;
                 op_to_row_ids[source_task_stream.op_idx].insert(
                     op_to_row_ids[source_task_stream.op_idx].end(),
@@ -1923,9 +2076,9 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
                     task_stream.source_task_to_rows.at(source_task).end());
 
                 for (auto& row_id : task_stream.source_task_to_rows.at(source_task)) {
-                  for (size_t r = 0; r < eval_map[source_task].row_ids[col_id].size(); ++r) {
+                  for (size_t r = 0; r < eval_map_at_source_task.row_ids[col_id].size(); ++r) {
                     // Only need the columns that cover required row ids
-                    if (row_id == eval_map[source_task].row_ids[col_id][r]) {
+                    if (row_id == eval_map_at_source_task.row_ids[col_id][r]) {
                       op_to_elements[source_task_stream.op_idx].push_back(column[r]);
                     }
                   }
@@ -2009,34 +2162,57 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           evaluate_input_entry.needs_reset = false; // hardcode by swjz
           evaluate_input_entry.last_in_io_packet = true;
           evaluate_input_entry.last_in_task = true;
-          // Op -> Column
-          std::map<i64, Elements> op_to_column;
+          // Op -> Elements
+          std::map<i64, Elements> op_to_elements;
           // Op -> Device Handle
           std::map<i64, DeviceHandle> op_to_handle;
           // Op -> Rows
           std::map<i64, std::vector<i64>> op_to_row_ids;
           for (i64 source_task : task_stream.source_tasks) {
-            // If two or more source tasks are running the same op.
-            // we should merge them to one single column
-            const TaskStream& source_task_stream = task_stream_map.at(source_task);
-            for (size_t col_id = 0; col_id < eval_map[source_task].columns.size(); ++col_id) {
-              auto& column = eval_map[source_task].columns[col_id];
-              op_to_handle[source_task_stream.op_idx] = CPU_DEVICE;
-              op_to_row_ids[source_task_stream.op_idx].insert(
-                  op_to_row_ids[source_task_stream.op_idx].end(),
-                  task_stream.source_task_to_rows.at(source_task).begin(),
-                  task_stream.source_task_to_rows.at(source_task).end());
+            // The file name of eval_map[source_task]
+            std::string eval_map_file_name = eval_map_path(bulk_job_id, source_task);
+            std::vector<u8> eval_map_bytes = read_entire_file(eval_map_file_name);
+            proto::EvalWorkEntry evaluate_input_proto;
+            evaluate_input_proto.ParseFromArray(eval_map_bytes.data(), eval_map_bytes.size());
+            EvalWorkEntry eval_map_at_source_task;
+            proto_to_evalworkentry(evaluate_input_proto, eval_map_at_source_task);
 
-              for (auto& row_id : task_stream.source_task_to_rows.at(source_task)) {
-                for (size_t r = 0; r < eval_map[source_task].row_ids[col_id].size(); ++r) {
-                  if (row_id == eval_map[source_task].row_ids[col_id][r]) {
-                    op_to_column[source_task_stream.op_idx].push_back(column[r]);
+            const TaskStream& source_task_stream = task_stream_map.at(source_task);
+            if (source_task_stream.op_idx == 0) {
+              // The source task is a source Op. It might have multiple input columns
+              // because we remapped input columns. So we skip merging process below.
+              evaluate_input_entry.columns.insert(evaluate_input_entry.columns.end(),
+                                                  eval_map_at_source_task.columns.begin(),
+                                                  eval_map_at_source_task.columns.end());
+              evaluate_input_entry.column_handles.insert(evaluate_input_entry.column_handles.end(),
+                                                         eval_map_at_source_task.column_handles.begin(),
+                                                         eval_map_at_source_task.column_handles.end());
+              evaluate_input_entry.row_ids.insert(evaluate_input_entry.row_ids.end(),
+                                                  eval_map_at_source_task.row_ids.begin(),
+                                                  eval_map_at_source_task.row_ids.end());
+            } else {
+              // We merge multiple columns from different tasks to one column
+              // if these tasks come from the same op
+              for (size_t col_id = 0; col_id < eval_map_at_source_task.columns.size(); ++col_id) {
+                auto& column = eval_map_at_source_task.columns[col_id];
+                op_to_handle[source_task_stream.op_idx] = CPU_DEVICE;
+                op_to_row_ids[source_task_stream.op_idx].insert(
+                    op_to_row_ids[source_task_stream.op_idx].end(),
+                    task_stream.source_task_to_rows.at(source_task).begin(),
+                    task_stream.source_task_to_rows.at(source_task).end());
+
+                for (auto& row_id : task_stream.source_task_to_rows.at(source_task)) {
+                  for (size_t r = 0; r < eval_map_at_source_task.row_ids[col_id].size(); ++r) {
+                    // Only need the columns that cover required row ids
+                    if (row_id == eval_map_at_source_task.row_ids[col_id][r]) {
+                      op_to_elements[source_task_stream.op_idx].push_back(column[r]);
+                    }
                   }
                 }
               }
             }
           }
-          for (auto& kv : op_to_column) {
+          for (auto& kv : op_to_elements) {
             evaluate_input_entry.columns.push_back(kv.second);
             evaluate_input_entry.column_handles.push_back(op_to_handle.at(kv.first));
             evaluate_input_entry.row_ids.push_back(op_to_row_ids.at(kv.first));
@@ -2062,7 +2238,22 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           evaluate_worker.feed(evaluate_input_entry);
           EvalWorkEntry evaluate_output_entry;
           evaluate_worker.yield(work_packet_size, evaluate_output_entry);
-          eval_map[task_id] = evaluate_output_entry;
+
+          std::string eval_map_file_name = eval_map_path(bulk_job_id, task_id);
+          std::unique_ptr<WriteFile> eval_map_output;
+          BACKOFF_FAIL(
+              make_unique_write_file(storage_, eval_map_file_name, eval_map_output),
+              "while trying to make write file for " + eval_map_file_name);
+
+          proto::EvalWorkEntry evaluate_output_proto;
+          evalworkentry_to_proto(evaluate_output_entry, evaluate_output_proto);
+          size_t serialized_size = evaluate_output_proto.ByteSizeLong();
+
+          std::vector<u8> eval_map_bytes;
+          eval_map_bytes.resize(serialized_size);
+          evaluate_output_proto.SerializeToArray(eval_map_bytes.data(), serialized_size);
+
+          s_write(eval_map_output.get(), eval_map_bytes.data(), serialized_size);
         }
 
         allocated_work_to_queues[target_work_queue]++;
