@@ -241,6 +241,9 @@ message Element {
   uint64 size = 2;
   bool is_frame = 3;
   int64 index = 4;
+  // 5 and 6 only filled when is_frame == true
+  repeated int32 shape = 5;
+  FrameType type = 6;
 }
 
 message Elements {

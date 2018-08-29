@@ -85,8 +85,18 @@ void evalworkentry_to_proto(const EvalWorkEntry& input, proto::EvalWorkEntry& ou
     for (const Element& element : elements) {
       proto::Element* element_proto = elements_proto->add_element();
       element_proto->set_size(element.size);
-      std::vector<u8> buffer {element.buffer, element.buffer + element.size};
-      element_proto->set_buffer(buffer.data(), buffer.size());
+      if (element.is_frame) {
+        const Frame* frame = element.as_const_frame();
+        std::vector<u8> buffer {frame->data, frame->data + element.size};
+        element_proto->set_buffer(buffer.data(), buffer.size());
+        for (i32 shape : frame->shape) {
+          element_proto->add_shape(shape);
+        }
+        element_proto->set_type(frame->type);
+      } else {
+        std::vector<u8> buffer {element.buffer, element.buffer + element.size};
+        element_proto->set_buffer(buffer.data(), buffer.size());
+      }
       element_proto->set_index(element.index);
       element_proto->set_is_frame(element.is_frame);
     }
@@ -148,9 +158,22 @@ void proto_to_evalworkentry(const proto::EvalWorkEntry& input, EvalWorkEntry& ou
       Element& element = elements.back();
       auto& element_proto = elements_proto.element(j);
       if (element_proto.size() > 0) {
-        element.buffer = new_buffer(CPU_DEVICE, element_proto.size());
-        memcpy_buffer(element.buffer, CPU_DEVICE, (u8*)element_proto.buffer().c_str(),
-            CPU_DEVICE, element_proto.size());
+        if (element_proto.is_frame()) {
+          FrameInfo info{};
+          for (int i=0; i<element_proto.shape_size(); ++i) {
+            info.shape[i] = element_proto.shape(i);
+          }
+          info.type = element_proto.type();
+          u8* buffer = new_buffer(CPU_DEVICE, element_proto.size());;
+          memcpy_buffer(buffer, CPU_DEVICE, (u8*)element_proto.buffer().c_str(),
+                        CPU_DEVICE, element_proto.size());
+          Frame* frame = new Frame(info, buffer);
+          element.buffer = (u8*)frame;
+        } else {
+          element.buffer = new_buffer(CPU_DEVICE, element_proto.size());
+          memcpy_buffer(element.buffer, CPU_DEVICE, (u8*)element_proto.buffer().c_str(),
+              CPU_DEVICE, element_proto.size());
+        }
       }
       element.size = element_proto.size();
       element.is_frame = element_proto.is_frame();
