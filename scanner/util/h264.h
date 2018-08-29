@@ -193,7 +193,7 @@ inline bool parse_sps(GetBitsState& gb, SPS& info) {
       return false;
     }
   }
-  VLOG(1) << "profile idc " << (i32)info.profile_idc;
+  VLOG(2) << "profile idc " << (i32)info.profile_idc;
   // log2_max_frame_num_minus4
   info.log2_max_frame_num = get_ue_golomb(gb) + 4;
   // pic_order_cnt_type
@@ -396,42 +396,42 @@ inline bool is_new_access_unit(std::map<u32, SPS>& sps_map,
   SPS& curr_sps = sps_map.at(curr.sps_id);
   PPS& curr_pps = pps_map.at(curr.pps_id);
   if (curr.nal_unit_type != 5 && curr.frame_num != prev.frame_num) {
-    VLOG(1) << "frame num";
+    VLOG(2) << "frame num";
     return true;
   } else if (prev.pps_id != curr.pps_id) {
-    VLOG(1) << "pps";
+    VLOG(2) << "pps";
     return true;
   } else if (prev.field_pic_flag != curr.field_pic_flag) {
-    VLOG(1) << "field pic";
+    VLOG(2) << "field pic";
     return true;
   } else if ((prev.bottom_field_flag != -1 && curr.bottom_field_flag != -1) &&
              prev.bottom_field_flag != curr.bottom_field_flag) {
-    VLOG(1) << "bottom field";
+    VLOG(2) << "bottom field";
     return true;
   } else if ((prev.nal_ref_idc == 0 || curr.nal_ref_idc == 0) &&
              prev.nal_ref_idc != curr.nal_ref_idc) {
-    VLOG(1) << "nal ref";
+    VLOG(2) << "nal ref";
     return true;
   } else if ((prev_sps.poc_type == 0 && curr_sps.poc_type == 0) &&
              (prev.pic_order_cnt_lsb != curr.pic_order_cnt_lsb ||
               prev.delta_pic_order_cnt_bottom !=
                   curr.delta_pic_order_cnt_bottom)) {
-    VLOG(1) << "poc type 0: " << prev.pic_order_cnt_lsb << " vs. "
+    VLOG(2) << "poc type 0: " << prev.pic_order_cnt_lsb << " vs. "
             << curr.pic_order_cnt_lsb << ", " << prev.delta_pic_order_cnt_bottom
             << " vs. " << curr.delta_pic_order_cnt_bottom;
     return true;
   } else if ((prev_sps.poc_type == 1 && curr_sps.poc_type == 1) &&
              (prev.delta_pic_order_cnt[0] != curr.delta_pic_order_cnt[0] ||
               prev.delta_pic_order_cnt[1] != curr.delta_pic_order_cnt[1])) {
-    VLOG(1) << "poc type 1";
+    VLOG(2) << "poc type 1";
     return true;
   } else if ((prev.nal_unit_type == 5 || curr.nal_unit_type == 5) &&
              prev.nal_unit_type != curr.nal_unit_type) {
-    VLOG(1) << "nal unit type";
+    VLOG(2) << "nal unit type";
     return true;
   } else if ((prev.nal_unit_type == 5 && curr.nal_unit_type == 5) &&
              prev.idr_pic_id != curr.idr_pic_id) {
-    VLOG(1) << "idr";
+    VLOG(2) << "idr";
     return true;
   }
   return false;

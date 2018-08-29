@@ -127,7 +127,7 @@ void DecoderAutomata::get_frames(u8* buffer, i32 num_frames) {
       {
         std::unique_lock<std::mutex> lk(feeder_mutex_);
         feeder_waiting_ = false;
-        LOG(INFO) << "waking feeder!";
+        VLOG(2) << "waking feeder!";
       }
       wake_feeder_.notify_one();
     }
