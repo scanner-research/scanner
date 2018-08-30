@@ -950,7 +950,6 @@ void MasterServerImpl::NextWorkHandler(
       if (state->next_task < state->num_tasks) {
         // Create a new task
         i64 current_job = state->next_job - 1;
-        i64 current_task = state->next_task;
 
         auto jt = std::make_tuple(current_job, current_task);
         state->active_job_tasks.insert(jt);
@@ -976,7 +975,7 @@ void MasterServerImpl::NextWorkHandler(
     std::tuple<i64, i64> job_task_id = state->to_assign_job_tasks.back();
     state->to_assign_job_tasks.pop_back();
 
-    assert(state->next_task <= state->num_tasks);
+    assert(state->next_task <= state->num_tasks && state->next_task >= 0);
 
 
 
@@ -1080,6 +1079,8 @@ void MasterServerImpl::FinishedWorkHandler(
 
       state->total_tasks_used++;
       state->tasks_used_per_job[job_id]++;
+      VLOG(1) << "One task finished! Tasks left: "
+              << state->total_tasks - state->total_tasks_used;
 
       if (state->tasks_used_per_job[job_id] == state->tasks_per_job[job_id]) {
         if (state->dag_info.is_table_output) {
