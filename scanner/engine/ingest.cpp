@@ -16,6 +16,7 @@
 #include "scanner/api/database.h"
 #include "scanner/api/frame.h"
 #include "scanner/engine/metadata.h"
+#include "scanner/engine/table_meta_cache.h"
 #include "scanner/video/h264_byte_stream_index_creator.h"
 
 #include "scanner/util/common.h"
@@ -210,6 +211,7 @@ bool parse_video_inplace(storehouse::StorageBackend* storage,
   u64 offset = 0;
   u64 size_to_read = 1024;
   while (!index_creator.is_done()) {
+    VLOG(2) << "Reading " << size_to_read << " bytes";
     std::vector<u8> data(size_to_read);
     size_t size_read;
     EXP_BACKOFF(
@@ -928,10 +930,19 @@ Result ingest_videos(storehouse::StorageConfig* storage_config,
     RESULT_ERROR(&result, "All videos failed to ingest properly");
   }
 
+
   if (result.success()) {
     // Save the db metadata
+    LOG(INFO) << "Writing database metadata";
     internal::write_database_metadata(storage.get(), meta);
+
+    // Create the table megafile
+    LOG(INFO) << "Writing table megafile";
+    TableMetaCache table_metas(storage.get(), meta);
+    table_metas.prefetch(meta.table_names());
+    table_metas.write_megafile();
   }
+
   return result;
 }
 

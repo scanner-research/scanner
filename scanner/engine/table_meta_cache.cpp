@@ -72,8 +72,7 @@ void TableMetaCache::prefetch(const std::vector<std::string>& table_names) {
   auto load_table_meta = [&](const std::string& table_name) {
     i32 table_id = meta_.get_table_id(table_name);
     if (meta_.table_is_committed(table_id)) {
-      std::string table_path = TableMetadata::descriptor_path(table_id);
-      update(read_table_metadata(storage_, table_path));
+      memoized_read(table_id);
     }
   };
 
