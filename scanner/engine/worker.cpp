@@ -2068,7 +2068,12 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           for (i64 source_task : task_stream.source_tasks) {
             // The file name of eval_map[source_task]
             std::string eval_map_file_name = eval_map_path(bulk_job_id, source_task);
-            std::vector<u8> eval_map_bytes = read_entire_file(eval_map_file_name);
+            std::unique_ptr<RandomReadFile> eval_map_input;
+            BACKOFF_FAIL(
+                make_unique_random_read_file(storage_, eval_map_file_name, eval_map_input),
+                "while trying to make read file for " + eval_map_file_name);
+            u64 pos = 0;
+            std::vector<u8> eval_map_bytes = storehouse::read_entire_file(eval_map_input.get(), pos);
             proto::EvalWorkEntry post_input_proto;
             post_input_proto.ParseFromArray(eval_map_bytes.data(), eval_map_bytes.size());
             EvalWorkEntry eval_map_at_source_task;
@@ -2194,7 +2199,12 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           for (i64 source_task : task_stream.source_tasks) {
             // The file name of eval_map[source_task]
             std::string eval_map_file_name = eval_map_path(bulk_job_id, source_task);
-            std::vector<u8> eval_map_bytes = read_entire_file(eval_map_file_name);
+            std::unique_ptr<RandomReadFile> eval_map_input;
+            BACKOFF_FAIL(
+                make_unique_random_read_file(storage_, eval_map_file_name, eval_map_input),
+                "while trying to make read file for " + eval_map_file_name);
+            u64 pos = 0;
+            std::vector<u8> eval_map_bytes = storehouse::read_entire_file(eval_map_input.get(), pos);
             proto::EvalWorkEntry evaluate_input_proto;
             evaluate_input_proto.ParseFromArray(eval_map_bytes.data(), eval_map_bytes.size());
             EvalWorkEntry eval_map_at_source_task;
