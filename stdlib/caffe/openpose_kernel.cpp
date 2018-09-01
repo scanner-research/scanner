@@ -72,9 +72,14 @@ class OpenPoseKernel : public scanner::BatchedKernel,
       model_dir = args.model_directory();
     }
 
+    int input_resolution = -1;
+    if (device_ == CPU_DEVICE) {
+      input_resolution = 656;
+    }
+
     const op::WrapperStructPose wrapperStructPose{
         true,
-        {-1, 368},
+        {input_resolution, 368},
         {-1, -1},
         op::ScaleMode::ZeroToOne,
         device_.type == DeviceType::GPU ? 1 : 0,
