@@ -591,7 +591,8 @@ if [[ $INSTALL_STOREHOUSE == true ]] && [[ ! -f $BUILD_DIR/storehouse.done ]] ; 
     cd $BUILD_DIR
     rm -fr storehouse
     git clone https://github.com/scanner-research/storehouse && \
-        cd storehouse && git checkout 42fe7016b74e67ce792bae6590deff2605a4d525 && \
+        cd storehouse && \
+        git checkout v0.6.2 && \
         cd thirdparty && mkdir build && cd build && \
         cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX -DCMAKE_BUILD_TYPE=RelWithDebInfo && \
         make -j${cores} && cd ../../ && \
