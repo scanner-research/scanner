@@ -3,6 +3,7 @@
 #include "scanner/engine/op_registry.h"
 #include "scanner/engine/dag_analysis.h"
 #include "scanner/util/cuda.h"
+#include "hwang/common.h"
 
 #include <google/protobuf/io/coded_stream.h>
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
