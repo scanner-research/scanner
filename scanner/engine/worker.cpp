@@ -87,7 +87,7 @@ void evalworkentry_to_proto(const EvalWorkEntry& input, proto::EvalWorkEntry& ou
       element_proto->set_size(element.size);
       if (element.is_frame) {
         const Frame* frame = element.as_const_frame();
-        std::vector<u8> buffer {frame->data, frame->data + element.size};
+        std::vector<u8> buffer {frame->data, frame->data + frame->size()};
         element_proto->set_buffer(buffer.data(), buffer.size());
         for (i32 shape : frame->shape) {
           element_proto->add_shape(shape);
@@ -150,6 +150,8 @@ void proto_to_evalworkentry(const proto::EvalWorkEntry& input, EvalWorkEntry& ou
     }
   }
   for (int i=0; i<input.columns_size(); ++i) {
+    bool is_allocated = false;
+    u8* frame_buffer = nullptr;
     output.columns.emplace_back();
     Elements& elements = output.columns.back();
     const proto::Elements& elements_proto = input.columns(i);
@@ -160,15 +162,25 @@ void proto_to_evalworkentry(const proto::EvalWorkEntry& input, EvalWorkEntry& ou
       if (element_proto.size() > 0) {
         if (element_proto.is_frame()) {
           FrameInfo info{};
-          for (int i=0; i<element_proto.shape_size(); ++i) {
-            info.shape[i] = element_proto.shape(i);
+          for (int k=0; k<element_proto.shape_size(); ++k) {
+            info.shape[k] = element_proto.shape(k);
           }
           info.type = element_proto.type();
-          u8* buffer = new_buffer(CPU_DEVICE, element_proto.size());;
-          memcpy_buffer(buffer, CPU_DEVICE, (u8*)element_proto.buffer().c_str(),
-                        CPU_DEVICE, element_proto.size());
-          Frame* frame = new Frame(info, buffer);
-          element.buffer = (u8*)frame;
+
+          // Here we assume that either all elements, or no element
+          // in this column are frames
+          if (!is_allocated) {
+            is_allocated = true;
+            // The frame_buffer here is essentially frame->data() rather than Element.buffer
+            VLOG(1) << "Allocating buffer of size " << info.size() * elements_proto.element_size();
+            frame_buffer = new_block_buffer(CPU_DEVICE, info.size() * elements_proto.element_size(),
+                                            elements_proto.element_size());
+          }
+          u8* this_frame_buffer = frame_buffer + j * info.size();
+          memcpy_buffer(this_frame_buffer, CPU_DEVICE, (u8*)element_proto.buffer().c_str(),
+              CPU_DEVICE, info.size());
+          Frame* frame = new Frame(info, this_frame_buffer);
+          element.buffer = reinterpret_cast<u8*>(frame);
         } else {
           element.buffer = new_buffer(CPU_DEVICE, element_proto.size());
           memcpy_buffer(element.buffer, CPU_DEVICE, (u8*)element_proto.buffer().c_str(),
@@ -1803,9 +1815,9 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   std::vector<Profiler> save_thread_profilers;
   // TODO: check load and save worker results
   std::vector<proto::Result> save_results(num_save_workers);
-//  for (i32 i = 0; i < num_save_workers; ++i) {
-//    save_thread_profilers.emplace_back(Profiler(base_time));
-//  }
+  for (i32 i = 0; i < num_save_workers; ++i) {
+    save_thread_profilers.emplace_back(Profiler(base_time));
+  }
   std::vector<std::thread> save_threads;
 //  for (i32 i = 0; i < num_save_workers; ++i) {
 //    SaveWorkerArgs args{// Uniform arguments
@@ -1997,7 +2009,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
               // Uniform arguments
               node_id_, table_meta,
               // Per worker arguments
-              0, db_params_.storage_config, std::ref(dummy_profiler),
+              0, db_params_.storage_config, std::ref(load_thread_profilers[0]),
               load_worker_result, io_packet_size, work_packet_size,
               source_factories, source_configs
           };
@@ -2017,7 +2029,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
               job_params->work_packet_size(),
 
               // Per worker arguments
-              0, CPU_DEVICE, dummy_profiler,
+              0, CPU_DEVICE, eval_profilers[0][0],
           };
           PreEvaluateWorker pre_evaluate_worker(pre_evaluate_worker_args);
           EvalWorkEntry pre_evaluate_input_entry = load_output_entry;
@@ -2065,6 +2077,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           std::map<i64, DeviceHandle> op_to_handle;
           // Op -> Rows
           std::map<i64, std::vector<i64>> op_to_row_ids;
+          std::vector<EvalWorkEntry> eval_work_entries;
           for (i64 source_task : task_stream.source_tasks) {
             // The file name of eval_map[source_task]
             std::string eval_map_file_name = eval_map_path(bulk_job_id, source_task);
@@ -2076,7 +2089,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
             std::vector<u8> eval_map_bytes = storehouse::read_entire_file(eval_map_input.get(), pos);
             proto::EvalWorkEntry post_input_proto;
             post_input_proto.ParseFromArray(eval_map_bytes.data(), eval_map_bytes.size());
-            EvalWorkEntry eval_map_at_source_task;
+            eval_work_entries.emplace_back();
+            EvalWorkEntry& eval_map_at_source_task = eval_work_entries.back();
             proto_to_evalworkentry(post_input_proto, eval_map_at_source_task);
 
             const TaskStream& source_task_stream = task_stream_map.at(source_task);
@@ -2144,7 +2158,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
               node_id_,
 
               // Per worker arguments
-              0, dummy_profiler, column_mapping.back(),
+              0, std::ref(eval_profilers[0].back()), column_mapping.back(),
               final_output_columns, final_compression_options,
           };
           PostEvaluateWorker post_evaluate_worker(post_evaluate_worker_args);
@@ -2164,7 +2178,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
               // Per worker arguments
               0, db_params_.storage_config,
               sink_factories, sink_configs,
-              std::ref(dummy_profiler),
+              std::ref(save_thread_profilers[0]),
               std::ref(save_worker_result)
           };
 
@@ -2196,6 +2210,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           std::map<i64, DeviceHandle> op_to_handle;
           // Op -> Rows
           std::map<i64, std::vector<i64>> op_to_row_ids;
+          std::vector<EvalWorkEntry> eval_work_entries;
           for (i64 source_task : task_stream.source_tasks) {
             // The file name of eval_map[source_task]
             std::string eval_map_file_name = eval_map_path(bulk_job_id, source_task);
@@ -2207,7 +2222,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
             std::vector<u8> eval_map_bytes = storehouse::read_entire_file(eval_map_input.get(), pos);
             proto::EvalWorkEntry evaluate_input_proto;
             evaluate_input_proto.ParseFromArray(eval_map_bytes.data(), eval_map_bytes.size());
-            EvalWorkEntry eval_map_at_source_task;
+            eval_work_entries.emplace_back();
+            EvalWorkEntry& eval_map_at_source_task = eval_work_entries.back();
             proto_to_evalworkentry(evaluate_input_proto, eval_map_at_source_task);
 
             const TaskStream& source_task_stream = task_stream_map.at(source_task);
@@ -2260,7 +2276,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
               // Per worker arguments
               // NOTE(swjz): there is only one group if we use CPU only
               0, op_idx, groups[op_idx], job_params->boundary_condition(),
-              dummy_profiler, evaluate_worker_result
+              eval_profilers[0][1], evaluate_worker_result
           };
           EvaluateWorker evaluate_worker(evaluate_worker_args);
           std::vector<TaskStream> task_stream_vector;
@@ -2533,8 +2549,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   u8 save_worker_count = num_save_workers;
   s_write(profiler_output.get(), save_worker_count);
   for (i32 i = 0; i < num_save_workers; ++i) {
-//    write_profiler_to_file(profiler_output.get(), out_rank, "save", "", i,
-//                           save_thread_profilers[i]);
+    write_profiler_to_file(profiler_output.get(), out_rank, "save", "", i,
+                           save_thread_profilers[i]);
   }
 
   BACKOFF_FAIL(profiler_output->save(),
