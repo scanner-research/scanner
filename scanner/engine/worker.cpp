@@ -1438,6 +1438,10 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       pipeline_instances_per_node);
   std::vector<std::vector<proto::Result>> eval_results(
       pipeline_instances_per_node);
+  std::vector<proto::Result> pre_eval_results(pipeline_instances_per_node);
+  for (auto& result : pre_eval_results) {
+    result.set_success(true);
+  }
 
   std::vector<std::tuple<EvalQueue*, EvalQueue*>> pre_eval_queues;
   std::vector<PreEvaluateWorkerArgs> pre_eval_args;
@@ -1562,6 +1566,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
           // Per worker arguments
           ki, decoder_type, eval_thread_profilers.front(),
+          std::ref(pre_eval_results[ki])
       });
     }
 
@@ -1779,6 +1784,18 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       }
     }
 
+    // Check for errors in pre-evaluate worker
+    for (size_t i = 0; i < pre_eval_results.size(); ++i) {
+      auto& result = pre_eval_results[i];
+      if (!result.success()) {
+        LOG(WARNING) << "(N/KI: " << node_id_ << "/" << i << ") "
+                     << "pre-evaluate returned error result: " << result.msg();
+        job_result->set_success(false);
+        job_result->set_msg(result.msg());
+        goto leave_loop;
+      }
+    }
+    // Check for errors in evaluate worker
     for (size_t i = 0; i < eval_results.size(); ++i) {
       for (size_t j = 0; j < eval_results[i].size(); ++j) {
         auto& result = eval_results[i][j];
