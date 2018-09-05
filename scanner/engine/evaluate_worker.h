@@ -46,6 +46,7 @@ struct PreEvaluateWorkerArgs {
   i32 worker_id;
   DeviceHandle device_handle;
   Profiler& profiler;
+  proto::Result& result;
 };
 
 class PreEvaluateWorker {
@@ -66,6 +67,7 @@ class PreEvaluateWorker {
   const i32 decoder_cpus_;
 
   Profiler& profiler_;
+  Result& result_;
 
   i32 last_job_idx_ = -1;
 
