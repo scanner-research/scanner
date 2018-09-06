@@ -110,7 +110,9 @@ class Profiler:
                                        ('eval',
                                         worker_profiler_groups['eval']),
                                        ('save',
-                                        worker_profiler_groups['save'])]:
+                                        worker_profiler_groups['save']),
+                                       ('scheduler',
+                                        worker_profiler_groups['scheduler'])]:
                 for i, prof in enumerate(profs):
                     tid = next_tid
                     next_tid += 1

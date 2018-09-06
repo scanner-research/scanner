@@ -70,7 +70,10 @@ inline bool operator!=(const MemoryPoolConfig& lhs,
 }
 
 // This function parses EvalWorkEntry struct to protocol buffer format
-void evalworkentry_to_proto(const EvalWorkEntry& input, proto::EvalWorkEntry& output) {
+void evalworkentry_to_proto(const EvalWorkEntry& input, proto::EvalWorkEntry& output,
+    Profiler& profiler) {
+  auto parse_start = now();
+
   output.set_table_id(input.table_id);
   output.set_job_index(input.job_index);
   output.set_task_index(input.task_index);
@@ -87,7 +90,9 @@ void evalworkentry_to_proto(const EvalWorkEntry& input, proto::EvalWorkEntry& ou
       element_proto->set_size(element.size);
       if (element.is_frame) {
         const Frame* frame = element.as_const_frame();
+        auto create_buffer_start = now();
         std::vector<u8> buffer {frame->data, frame->data + frame->size()};
+        profiler.add_interval("create_buffer", create_buffer_start, now());
         element_proto->set_buffer(buffer.data(), buffer.size());
         for (i32 shape : frame->shape) {
           element_proto->add_shape(shape);
@@ -134,10 +139,14 @@ void evalworkentry_to_proto(const EvalWorkEntry& input, proto::EvalWorkEntry& ou
   for (const bool compressed : input.compressed) {
     output.add_compressed(compressed);
   }
+
+  profiler.add_interval("eval_to_proto", parse_start, now());
 }
 
 // This function parses protocol buffer format to EvalWorkEntry struct
-void proto_to_evalworkentry(const proto::EvalWorkEntry& input, EvalWorkEntry& output) {
+void proto_to_evalworkentry(const proto::EvalWorkEntry& input, EvalWorkEntry& output,
+    Profiler& profiler) {
+  auto parse_start = now();
   output.table_id = input.table_id();
   output.job_index = input.job_index();
   output.task_index = input.task_index();
@@ -171,20 +180,26 @@ void proto_to_evalworkentry(const proto::EvalWorkEntry& input, EvalWorkEntry& ou
           // in this column are frames
           if (!is_allocated) {
             is_allocated = true;
+            auto allocate_start = now();
             // The frame_buffer here is essentially frame->data() rather than Element.buffer
             VLOG(1) << "Allocating buffer of size " << info.size() * elements_proto.element_size();
             frame_buffer = new_block_buffer(CPU_DEVICE, info.size() * elements_proto.element_size(),
                                             elements_proto.element_size());
+            profiler.add_interval("allocation", allocate_start, now());
           }
           u8* this_frame_buffer = frame_buffer + j * info.size();
+          auto memcpy_start = now();
           memcpy_buffer(this_frame_buffer, CPU_DEVICE, (u8*)element_proto.buffer().c_str(),
               CPU_DEVICE, info.size());
+          profiler.add_interval("memcpy_frame", memcpy_start, now());
           Frame* frame = new Frame(info, this_frame_buffer);
           element.buffer = reinterpret_cast<u8*>(frame);
         } else {
           element.buffer = new_buffer(CPU_DEVICE, element_proto.size());
+          auto memcpy_start = now();
           memcpy_buffer(element.buffer, CPU_DEVICE, (u8*)element_proto.buffer().c_str(),
               CPU_DEVICE, element_proto.size());
+          profiler.add_interval("memcpy", memcpy_start, now());
         }
       }
       element.size = element_proto.size();
@@ -231,6 +246,8 @@ void proto_to_evalworkentry(const proto::EvalWorkEntry& input, EvalWorkEntry& ou
   for (int i=0; i<input.compressed_size(); ++i) {
     output.compressed.push_back(input.compressed(i));
   }
+
+  profiler.add_interval("proto_to_eval", parse_start, now());
 }
 
 void load_driver(LoadInputQueue& load_work,
@@ -2044,14 +2061,16 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
               "while trying to make write file for " + eval_map_file_name);
 
           proto::EvalWorkEntry pre_output_proto;
-          evalworkentry_to_proto(pre_evaluate_output_entry, pre_output_proto);
+          evalworkentry_to_proto(pre_evaluate_output_entry, pre_output_proto, scheduler_profiler);
           size_t serialized_size = pre_output_proto.ByteSizeLong();
 
           std::vector<u8> eval_map_bytes;
           eval_map_bytes.resize(serialized_size);
           pre_output_proto.SerializeToArray(eval_map_bytes.data(), serialized_size);
 
+          auto write_start = now();
           s_write(eval_map_output.get(), eval_map_bytes.data(), serialized_size);
+          scheduler_profiler.add_interval("write", write_start, now());
         }
         else if (ops.at(task_stream_map[task_id].op_idx).is_source()) {
           // this source op was remapped. do nothing.
@@ -2086,12 +2105,14 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
                 make_unique_random_read_file(storage_, eval_map_file_name, eval_map_input),
                 "while trying to make read file for " + eval_map_file_name);
             u64 pos = 0;
+            auto read_start = now();
             std::vector<u8> eval_map_bytes = storehouse::read_entire_file(eval_map_input.get(), pos);
+            scheduler_profiler.add_interval("read", read_start, now());
             proto::EvalWorkEntry post_input_proto;
             post_input_proto.ParseFromArray(eval_map_bytes.data(), eval_map_bytes.size());
             eval_work_entries.emplace_back();
             EvalWorkEntry& eval_map_at_source_task = eval_work_entries.back();
-            proto_to_evalworkentry(post_input_proto, eval_map_at_source_task);
+            proto_to_evalworkentry(post_input_proto, eval_map_at_source_task, scheduler_profiler);
 
             const TaskStream& source_task_stream = task_stream_map.at(source_task);
             if (source_task_stream.op_idx == 0) {
@@ -2158,7 +2179,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
               node_id_,
 
               // Per worker arguments
-              0, std::ref(eval_profilers[0].back()), column_mapping.back(),
+              0, eval_profilers[0][2], column_mapping.back(),
               final_output_columns, final_compression_options,
           };
           PostEvaluateWorker post_evaluate_worker(post_evaluate_worker_args);
@@ -2224,7 +2245,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
             evaluate_input_proto.ParseFromArray(eval_map_bytes.data(), eval_map_bytes.size());
             eval_work_entries.emplace_back();
             EvalWorkEntry& eval_map_at_source_task = eval_work_entries.back();
-            proto_to_evalworkentry(evaluate_input_proto, eval_map_at_source_task);
+            proto_to_evalworkentry(evaluate_input_proto, eval_map_at_source_task, scheduler_profiler);
 
             const TaskStream& source_task_stream = task_stream_map.at(source_task);
             if (source_task_stream.op_idx == 0) {
@@ -2295,14 +2316,25 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
               "while trying to make write file for " + eval_map_file_name);
 
           proto::EvalWorkEntry evaluate_output_proto;
-          evalworkentry_to_proto(evaluate_output_entry, evaluate_output_proto);
+          evalworkentry_to_proto(evaluate_output_entry, evaluate_output_proto, scheduler_profiler);
           size_t serialized_size = evaluate_output_proto.ByteSizeLong();
 
           std::vector<u8> eval_map_bytes;
           eval_map_bytes.resize(serialized_size);
           evaluate_output_proto.SerializeToArray(eval_map_bytes.data(), serialized_size);
 
+          auto write_start = now();
           s_write(eval_map_output.get(), eval_map_bytes.data(), serialized_size);
+          scheduler_profiler.add_interval("write", write_start, now());
+
+          // Since it has been serialized, we delete it from memory
+          for (auto& eval_work_entry : eval_work_entries) {
+            for (auto& column : eval_work_entry.columns) {
+              for (auto& element : column) {
+                delete_element(CPU_DEVICE, element);
+              }
+            }
+          }
         }
 
         allocated_work_to_queues[target_work_queue]++;
@@ -2552,6 +2584,10 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     write_profiler_to_file(profiler_output.get(), out_rank, "save", "", i,
                            save_thread_profilers[i]);
   }
+  u8 scheduler_count = 1;
+  s_write(profiler_output.get(), scheduler_count);
+  write_profiler_to_file(profiler_output.get(), out_rank, "scheduler", "", 0,
+                         scheduler_profiler);
 
   BACKOFF_FAIL(profiler_output->save(),
                "while trying to save " + profiler_output->path());
