@@ -243,15 +243,17 @@
       </ul></li>
       <li><a href="api/scannerpy.html#scannerpy.database.Database.get_active_jobs">get_active_jobs() (scannerpy.database.Database method)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/scannerpy.stdlib.html#scannerpy.stdlib.build_flags.get_cmake">get_cmake() (in module scannerpy.stdlib.build_flags)</a>
 </li>
-      <li><a href="api/scannerpy.stdlib.html#scannerpy.stdlib.build_flags.get_flags">get_flags() (in module scannerpy.stdlib.build_flags)</a>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/scannerpy.stdlib.html#scannerpy.stdlib.build_flags.get_compile_flags">get_compile_flags() (in module scannerpy.stdlib.build_flags)</a>
 </li>
       <li><a href="api/scannerpy.stdlib.html#scannerpy.stdlib.build_flags.get_include">get_include() (in module scannerpy.stdlib.build_flags)</a>
 </li>
       <li><a href="api/scannerpy.stdlib.html#scannerpy.stdlib.build_flags.get_lib">get_lib() (in module scannerpy.stdlib.build_flags)</a>
+</li>
+      <li><a href="api/scannerpy.stdlib.html#scannerpy.stdlib.build_flags.get_link_flags">get_link_flags() (in module scannerpy.stdlib.build_flags)</a>
 </li>
       <li><a href="api/scannerpy.html#scannerpy.common.DeviceType.GPU">GPU (scannerpy.common.DeviceType attribute)</a>
 </li>
@@ -469,11 +471,13 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/scannerpy.stdlib.html#scannerpy.stdlib.build_flags.print_cmake">print_cmake() (in module scannerpy.stdlib.build_flags)</a>
 </li>
-      <li><a href="api/scannerpy.stdlib.html#scannerpy.stdlib.build_flags.print_flags">print_flags() (in module scannerpy.stdlib.build_flags)</a>
+      <li><a href="api/scannerpy.stdlib.html#scannerpy.stdlib.build_flags.print_compile_flags">print_compile_flags() (in module scannerpy.stdlib.build_flags)</a>
 </li>
       <li><a href="api/scannerpy.stdlib.html#scannerpy.stdlib.build_flags.print_include">print_include() (in module scannerpy.stdlib.build_flags)</a>
 </li>
       <li><a href="api/scannerpy.stdlib.html#scannerpy.stdlib.build_flags.print_lib">print_lib() (in module scannerpy.stdlib.build_flags)</a>
+</li>
+      <li><a href="api/scannerpy.stdlib.html#scannerpy.stdlib.build_flags.print_link_flags">print_link_flags() (in module scannerpy.stdlib.build_flags)</a>
 </li>
       <li><a href="api/scannerpy.html#scannerpy.profiler.Profiler">Profiler (class in scannerpy.profiler)</a>
 </li>
@@ -805,8 +809,9 @@
 <a href="https://github.com/scanner-research/scanner" class="gh-btn" target="_blank" style="margin-bottom: 5px; display: inline-block;"> <span class="gh-text">View on GitHub</span> </a>
 <iframe src="https://ghbtns.com/github-btn.html?user=scanner-research&repo=scanner&type=star&count=true&v=2"
   allowtransparency="true" frameborder="0" scrolling="0" width="170px" height="20px"></iframe>
-<a href="https://travis-ci.org/scanner-research/scanner" style="margin-top:5px;">
+<a href="https://travis-ci.org/scanner-research/scanner">
   <img
+     style="margin-top:5px;"
      alt="https://secure.travis-ci.org/scanner-research/scanner.svg?branch=master"
      src="https://secure.travis-ci.org/scanner-research/scanner.svg?branch=master"
      />
@@ -882,7 +887,7 @@
     </div>
   <div class="footer">
     &copy; Copyright 2018, Alex Poms, Will Crichton.
-    Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.7.6.
+    Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.7.9.
   </div>
   
   </body>

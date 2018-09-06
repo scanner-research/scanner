@@ -75,8 +75,8 @@
 <dd></dd></dl>
 
 <dl class="function">
-<dt id="scannerpy.stdlib.build_flags.get_flags">
-<code class="descclassname">scannerpy.stdlib.build_flags.</code><code class="descname">get_flags</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/build_flags.html#get_flags"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.build_flags.get_flags" title="Permalink to this definition">¶</a></dt>
+<dt id="scannerpy.stdlib.build_flags.get_compile_flags">
+<code class="descclassname">scannerpy.stdlib.build_flags.</code><code class="descname">get_compile_flags</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/build_flags.html#get_compile_flags"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.build_flags.get_compile_flags" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="function">
@@ -90,13 +90,18 @@
 <dd></dd></dl>
 
 <dl class="function">
+<dt id="scannerpy.stdlib.build_flags.get_link_flags">
+<code class="descclassname">scannerpy.stdlib.build_flags.</code><code class="descname">get_link_flags</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/build_flags.html#get_link_flags"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.build_flags.get_link_flags" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
 <dt id="scannerpy.stdlib.build_flags.print_cmake">
 <code class="descclassname">scannerpy.stdlib.build_flags.</code><code class="descname">print_cmake</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/build_flags.html#print_cmake"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.build_flags.print_cmake" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="function">
-<dt id="scannerpy.stdlib.build_flags.print_flags">
-<code class="descclassname">scannerpy.stdlib.build_flags.</code><code class="descname">print_flags</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/build_flags.html#print_flags"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.build_flags.print_flags" title="Permalink to this definition">¶</a></dt>
+<dt id="scannerpy.stdlib.build_flags.print_compile_flags">
+<code class="descclassname">scannerpy.stdlib.build_flags.</code><code class="descname">print_compile_flags</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/build_flags.html#print_compile_flags"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.build_flags.print_compile_flags" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="function">
@@ -107,6 +112,11 @@
 <dl class="function">
 <dt id="scannerpy.stdlib.build_flags.print_lib">
 <code class="descclassname">scannerpy.stdlib.build_flags.</code><code class="descname">print_lib</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/build_flags.html#print_lib"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.build_flags.print_lib" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="scannerpy.stdlib.build_flags.print_link_flags">
+<code class="descclassname">scannerpy.stdlib.build_flags.</code><code class="descname">print_link_flags</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/stdlib/build_flags.html#print_link_flags"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.stdlib.build_flags.print_link_flags" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </div>
@@ -581,8 +591,9 @@
 <a href="https://github.com/scanner-research/scanner" class="gh-btn" target="_blank" style="margin-bottom: 5px; display: inline-block;"> <span class="gh-text">View on GitHub</span> </a>
 <iframe src="https://ghbtns.com/github-btn.html?user=scanner-research&repo=scanner&type=star&count=true&v=2"
   allowtransparency="true" frameborder="0" scrolling="0" width="170px" height="20px"></iframe>
-<a href="https://travis-ci.org/scanner-research/scanner" style="margin-top:5px;">
+<a href="https://travis-ci.org/scanner-research/scanner">
   <img
+     style="margin-top:5px;"
      alt="https://secure.travis-ci.org/scanner-research/scanner.svg?branch=master"
      src="https://secure.travis-ci.org/scanner-research/scanner.svg?branch=master"
      />
@@ -658,7 +669,7 @@
     </div>
   <div class="footer">
     &copy; Copyright 2018, Alex Poms, Will Crichton.
-    Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.7.6.
+    Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.7.9.
   </div>
   
   </body>

@@ -80,8 +80,10 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_profilers</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">num_nodes</span><span class="p">):</span>
             <span class="n">path</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">/jobs/</span><span class="si">{}</span><span class="s1">/profile_</span><span class="si">{}</span><span class="s1">.bin&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">db</span><span class="o">.</span><span class="n">_db_path</span><span class="p">,</span> <span class="n">job_id</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span>
-            <span class="n">time</span><span class="p">,</span> <span class="n">profs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_profiler_file</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_profilers</span><span class="p">[</span><span class="n">n</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">time</span><span class="p">,</span> <span class="n">profs</span><span class="p">)</span>
+            <span class="n">file_info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_storage</span><span class="o">.</span><span class="n">get_file_info</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">file_info</span><span class="o">.</span><span class="n">file_exists</span><span class="p">:</span>
+                <span class="n">time</span><span class="p">,</span> <span class="n">profs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_profiler_file</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_profilers</span><span class="p">[</span><span class="n">n</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">time</span><span class="p">,</span> <span class="n">profs</span><span class="p">)</span>
 
 <div class="viewcode-block" id="Profiler.write_trace"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.profiler.Profiler.write_trace">[docs]</a>    <span class="k">def</span> <span class="nf">write_trace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -322,8 +324,9 @@
 <a href="https://github.com/scanner-research/scanner" class="gh-btn" target="_blank" style="margin-bottom: 5px; display: inline-block;"> <span class="gh-text">View on GitHub</span> </a>
 <iframe src="https://ghbtns.com/github-btn.html?user=scanner-research&repo=scanner&type=star&count=true&v=2"
   allowtransparency="true" frameborder="0" scrolling="0" width="170px" height="20px"></iframe>
-<a href="https://travis-ci.org/scanner-research/scanner" style="margin-top:5px;">
+<a href="https://travis-ci.org/scanner-research/scanner">
   <img
+     style="margin-top:5px;"
      alt="https://secure.travis-ci.org/scanner-research/scanner.svg?branch=master"
      src="https://secure.travis-ci.org/scanner-research/scanner.svg?branch=master"
      />
@@ -401,7 +404,7 @@
     </div>
   <div class="footer">
     &copy; Copyright 2018, Alex Poms, Will Crichton.
-    Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.7.6.
+    Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.7.9.
   </div>
   
   </body>

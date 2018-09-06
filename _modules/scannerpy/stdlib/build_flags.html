@@ -68,14 +68,21 @@
 <div class="viewcode-block" id="print_cmake"><a class="viewcode-back" href="../../../api/scannerpy.stdlib.html#scannerpy.stdlib.build_flags.print_cmake">[docs]</a><span class="k">def</span> <span class="nf">print_cmake</span><span class="p">():</span>
     <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">get_cmake</span><span class="p">())</span></div>
 
-<div class="viewcode-block" id="get_flags"><a class="viewcode-back" href="../../../api/scannerpy.stdlib.html#scannerpy.stdlib.build_flags.get_flags">[docs]</a><span class="k">def</span> <span class="nf">get_flags</span><span class="p">():</span>
+<div class="viewcode-block" id="get_compile_flags"><a class="viewcode-back" href="../../../api/scannerpy.stdlib.html#scannerpy.stdlib.build_flags.get_compile_flags">[docs]</a><span class="k">def</span> <span class="nf">get_compile_flags</span><span class="p">():</span>
     <span class="k">return</span> <span class="p">(</span>
-        <span class="s1">&#39;-std=c++11 -I</span><span class="si">{include}</span><span class="s1"> -L</span><span class="si">{libdir}</span><span class="s1"> -lscanner&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
-            <span class="n">include</span><span class="o">=</span><span class="n">get_include</span><span class="p">(),</span>
+        <span class="s1">&#39;-std=c++11 -I</span><span class="si">{include}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="n">include</span><span class="o">=</span><span class="n">get_include</span><span class="p">()))</span></div>
+
+<div class="viewcode-block" id="get_link_flags"><a class="viewcode-back" href="../../../api/scannerpy.stdlib.html#scannerpy.stdlib.build_flags.get_link_flags">[docs]</a><span class="k">def</span> <span class="nf">get_link_flags</span><span class="p">():</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="s1">&#39;-L</span><span class="si">{libdir}</span><span class="s1"> -lscanner&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
             <span class="n">libdir</span><span class="o">=</span><span class="n">get_lib</span><span class="p">()))</span></div>
 
-<div class="viewcode-block" id="print_flags"><a class="viewcode-back" href="../../../api/scannerpy.stdlib.html#scannerpy.stdlib.build_flags.print_flags">[docs]</a><span class="k">def</span> <span class="nf">print_flags</span><span class="p">():</span>
-    <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">get_flags</span><span class="p">())</span></div>
+<div class="viewcode-block" id="print_compile_flags"><a class="viewcode-back" href="../../../api/scannerpy.stdlib.html#scannerpy.stdlib.build_flags.print_compile_flags">[docs]</a><span class="k">def</span> <span class="nf">print_compile_flags</span><span class="p">():</span>
+    <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">get_compile_flags</span><span class="p">())</span></div>
+
+<div class="viewcode-block" id="print_link_flags"><a class="viewcode-back" href="../../../api/scannerpy.stdlib.html#scannerpy.stdlib.build_flags.print_link_flags">[docs]</a><span class="k">def</span> <span class="nf">print_link_flags</span><span class="p">():</span>
+    <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">get_link_flags</span><span class="p">())</span></div>
 </pre></div>
 
           </div>
@@ -131,8 +138,9 @@
 <a href="https://github.com/scanner-research/scanner" class="gh-btn" target="_blank" style="margin-bottom: 5px; display: inline-block;"> <span class="gh-text">View on GitHub</span> </a>
 <iframe src="https://ghbtns.com/github-btn.html?user=scanner-research&repo=scanner&type=star&count=true&v=2"
   allowtransparency="true" frameborder="0" scrolling="0" width="170px" height="20px"></iframe>
-<a href="https://travis-ci.org/scanner-research/scanner" style="margin-top:5px;">
+<a href="https://travis-ci.org/scanner-research/scanner">
   <img
+     style="margin-top:5px;"
      alt="https://secure.travis-ci.org/scanner-research/scanner.svg?branch=master"
      src="https://secure.travis-ci.org/scanner-research/scanner.svg?branch=master"
      />
@@ -210,7 +218,7 @@
     </div>
   <div class="footer">
     &copy; Copyright 2018, Alex Poms, Will Crichton.
-    Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.7.6.
+    Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.7.9.
   </div>
   
   </body>
