@@ -1325,7 +1325,7 @@ Result derive_stencil_requirements(
 
       // Split work on each Op into tasks, with maximum size of task_size_per_op
       i64 task_size;
-      if (op.is_source() || op.is_sink() || is_builtin_op(op.name())) {
+      if (op.is_sink() || is_builtin_op(op.name())) {
         // Force the task_size to be all input rows if it is a source/sink/bulit-in op
         task_size = downstream_op_rows.size();
       } else {
