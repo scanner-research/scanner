@@ -225,6 +225,8 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">protobufs</span> <span class="o">=</span> <span class="n">ProtobufGenerator</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_op_cache</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_python_ops</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_enumerator_info_cache</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sink_info_cache</span> <span class="o">=</span> <span class="p">{}</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">_workers</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_worker_conns</span> <span class="o">=</span> <span class="kc">None</span>
@@ -427,6 +429,9 @@
         <span class="k">return</span> <span class="n">source_info</span>
 
     <span class="k">def</span> <span class="nf">_get_enumerator_info</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">enumerator_name</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">enumerator_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_enumerator_info_cache</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_enumerator_info_cache</span><span class="p">[</span><span class="n">enumerator_name</span><span class="p">]</span>
+
         <span class="n">enumerator_info_args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">protobufs</span><span class="o">.</span><span class="n">EnumeratorInfoArgs</span><span class="p">()</span>
         <span class="n">enumerator_info_args</span><span class="o">.</span><span class="n">enumerator_name</span> <span class="o">=</span> <span class="n">enumerator_name</span>
 
@@ -436,9 +441,14 @@
         <span class="k">if</span> <span class="ow">not</span> <span class="n">enumerator_info</span><span class="o">.</span><span class="n">result</span><span class="o">.</span><span class="n">success</span><span class="p">:</span>
             <span class="k">raise</span> <span class="n">ScannerException</span><span class="p">(</span><span class="n">enumerator_info</span><span class="o">.</span><span class="n">result</span><span class="o">.</span><span class="n">msg</span><span class="p">)</span>
 
+        <span class="bp">self</span><span class="o">.</span><span class="n">_enumerator_info_cache</span><span class="p">[</span><span class="n">enumerator_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">enumerator_info</span>
+
         <span class="k">return</span> <span class="n">enumerator_info</span>
 
     <span class="k">def</span> <span class="nf">_get_sink_info</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sink_name</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">sink_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sink_info_cache</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sink_info_cache</span><span class="p">[</span><span class="n">sink_name</span><span class="p">]</span>
+
         <span class="n">sink_info_args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">protobufs</span><span class="o">.</span><span class="n">SinkInfoArgs</span><span class="p">()</span>
         <span class="n">sink_info_args</span><span class="o">.</span><span class="n">sink_name</span> <span class="o">=</span> <span class="n">sink_name</span>
 
@@ -447,6 +457,8 @@
 
         <span class="k">if</span> <span class="ow">not</span> <span class="n">sink_info</span><span class="o">.</span><span class="n">result</span><span class="o">.</span><span class="n">success</span><span class="p">:</span>
             <span class="k">raise</span> <span class="n">ScannerException</span><span class="p">(</span><span class="n">sink_info</span><span class="o">.</span><span class="n">result</span><span class="o">.</span><span class="n">msg</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sink_info_cache</span><span class="p">[</span><span class="n">sink_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">sink_info</span>
 
         <span class="k">return</span> <span class="n">sink_info</span>
 
