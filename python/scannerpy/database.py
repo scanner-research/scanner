@@ -178,6 +178,8 @@ class Database(object):
         self.protobufs = ProtobufGenerator(self.config)
         self._op_cache = {}
         self._python_ops = set()
+        self._enumerator_info_cache = {}
+        self._sink_info_cache = {}
 
         self._workers = {}
         self._worker_conns = None
@@ -380,6 +382,9 @@ class Database(object):
         return source_info
 
     def _get_enumerator_info(self, enumerator_name):
+        if enumerator_name in self._enumerator_info_cache:
+            return self._enumerator_info_cache[enumerator_name]
+
         enumerator_info_args = self.protobufs.EnumeratorInfoArgs()
         enumerator_info_args.enumerator_name = enumerator_name
 
@@ -389,9 +394,14 @@ class Database(object):
         if not enumerator_info.result.success:
             raise ScannerException(enumerator_info.result.msg)
 
+        self._enumerator_info_cache[enumerator_name] = enumerator_info
+
         return enumerator_info
 
     def _get_sink_info(self, sink_name):
+        if sink_name in self._sink_info_cache:
+            return self._sink_info_cache[sink_name]
+
         sink_info_args = self.protobufs.SinkInfoArgs()
         sink_info_args.sink_name = sink_name
 
@@ -400,6 +410,8 @@ class Database(object):
 
         if not sink_info.result.success:
             raise ScannerException(sink_info.result.msg)
+
+        self._sink_info_cache[sink_name] = sink_info
 
         return sink_info
 
