@@ -71,7 +71,7 @@ inline bool operator!=(const MemoryPoolConfig& lhs,
 
 // This function parses EvalWorkEntry struct to protocol buffer format
 void evalworkentry_to_proto(const EvalWorkEntry& input, proto::EvalWorkEntry& output,
-    Profiler& profiler) {
+    Profiler& profiler, const DeviceHandle& device_handle) {
   auto parse_start = now();
 
   output.set_table_id(input.table_id);
@@ -99,7 +99,9 @@ void evalworkentry_to_proto(const EvalWorkEntry& input, proto::EvalWorkEntry& ou
         }
         element_proto->set_type(frame->type);
       } else {
-        std::vector<u8> buffer {element.buffer, element.buffer + element.size};
+        std::vector<u8> buffer;
+        buffer.resize(element.size);
+        memcpy_buffer(buffer.data(), CPU_DEVICE, element.buffer, device_handle, element.size);
         element_proto->set_buffer(buffer.data(), buffer.size());
       }
       element_proto->set_index(element.index);
@@ -145,7 +147,7 @@ void evalworkentry_to_proto(const EvalWorkEntry& input, proto::EvalWorkEntry& ou
 
 // This function parses protocol buffer format to EvalWorkEntry struct
 void proto_to_evalworkentry(const proto::EvalWorkEntry& input, EvalWorkEntry& output,
-    Profiler& profiler) {
+    Profiler& profiler, const DeviceHandle& device_handle) {
   auto parse_start = now();
   output.table_id = input.table_id();
   output.job_index = input.job_index();
@@ -183,21 +185,21 @@ void proto_to_evalworkentry(const proto::EvalWorkEntry& input, EvalWorkEntry& ou
             auto allocate_start = now();
             // The frame_buffer here is essentially frame->data() rather than Element.buffer
             VLOG(1) << "Allocating buffer of size " << info.size() * elements_proto.element_size();
-            frame_buffer = new_block_buffer(CPU_DEVICE, info.size() * elements_proto.element_size(),
+            frame_buffer = new_block_buffer(device_handle, info.size() * elements_proto.element_size(),
                                             elements_proto.element_size());
             profiler.add_interval("allocation", allocate_start, now());
           }
           u8* this_frame_buffer = frame_buffer + j * info.size();
           auto memcpy_start = now();
-          memcpy_buffer(this_frame_buffer, CPU_DEVICE, (u8*)element_proto.buffer().c_str(),
+          memcpy_buffer(this_frame_buffer, device_handle, (u8*)element_proto.buffer().c_str(),
               CPU_DEVICE, info.size());
           profiler.add_interval("memcpy_frame", memcpy_start, now());
           Frame* frame = new Frame(info, this_frame_buffer);
           element.buffer = reinterpret_cast<u8*>(frame);
         } else {
-          element.buffer = new_buffer(CPU_DEVICE, element_proto.size());
+          element.buffer = new_buffer(device_handle, element_proto.size());
           auto memcpy_start = now();
-          memcpy_buffer(element.buffer, CPU_DEVICE, (u8*)element_proto.buffer().c_str(),
+          memcpy_buffer(element.buffer, device_handle, (u8*)element_proto.buffer().c_str(),
               CPU_DEVICE, element_proto.size());
           profiler.add_interval("memcpy", memcpy_start, now());
         }
@@ -2021,6 +2023,14 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           }
         }
 
+        DeviceHandle device_handle;
+        if (ops.at(task_stream_map[task_id].op_idx).device_type() == proto::CPU) {
+          device_handle = CPU_DEVICE;
+        } else if (ops.at(task_stream_map[task_id].op_idx).device_type() == proto::GPU) {
+          // FIXME: Support only one GPU for now
+          device_handle = {DeviceType::GPU, 0};
+        }
+
         // load_driver:
         if (task_stream_map[task_id].op_idx == 0) {
           proto::Result load_worker_result;
@@ -2048,7 +2058,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
               job_params->work_packet_size(),
 
               // Per worker arguments
-              0, CPU_DEVICE, eval_profilers[0][0],
+              0, CPU_DEVICE, eval_profilers[0][0],  // Use CPU to decode for now
           };
 
           auto pre_start = now();
@@ -2067,7 +2077,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
           proto::EvalWorkEntry pre_output_proto;
           auto serialize_start = now();
-          evalworkentry_to_proto(pre_evaluate_output_entry, pre_output_proto, scheduler_profiler);
+          evalworkentry_to_proto(pre_evaluate_output_entry, pre_output_proto,
+              scheduler_profiler, device_handle);
           scheduler_profiler.add_interval("serialize", serialize_start, now());
           size_t serialized_size = pre_output_proto.ByteSizeLong();
 
@@ -2107,7 +2118,6 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           std::map<i64, DeviceHandle> op_to_handle;
           // Op -> Rows
           std::map<i64, std::vector<i64>> op_to_row_ids;
-          std::vector<EvalWorkEntry> eval_work_entries;
           auto grab_source_start = now();
           for (i64 source_task : task_stream.source_tasks) {
             // The file name of eval_map[source_task]
@@ -2122,11 +2132,16 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
             scheduler_profiler.add_interval("read", read_start, now());
             proto::EvalWorkEntry post_input_proto;
             post_input_proto.ParseFromArray(eval_map_bytes.data(), eval_map_bytes.size());
-            eval_work_entries.emplace_back();
-            EvalWorkEntry& eval_map_at_source_task = eval_work_entries.back();
-            proto_to_evalworkentry(post_input_proto, eval_map_at_source_task, scheduler_profiler);
+            EvalWorkEntry eval_map_at_source_task;
 
             const TaskStream& source_task_stream = task_stream_map.at(source_task);
+            if (ops.at(source_task_stream.op_idx).device_type() == proto::CPU) {
+              proto_to_evalworkentry(post_input_proto, eval_map_at_source_task,
+                                     scheduler_profiler, CPU_DEVICE);
+            } else if (ops.at(source_task_stream.op_idx).device_type() == proto::GPU) {
+              proto_to_evalworkentry(post_input_proto, eval_map_at_source_task,
+                                     scheduler_profiler, {DeviceType::GPU, 0});
+            }
             if (source_task_stream.op_idx == 0) {
               // The source task is a source Op. It might have multiple input columns
               // because we remapped input columns. So we skip merging process below.
@@ -2145,7 +2160,11 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
               // Assume this source task only has one output column, it must be the last one
               size_t col_id = eval_map_at_source_task.columns.size() - 1;
               auto& column = eval_map_at_source_task.columns[col_id];
-              op_to_handle[source_task_stream.op_idx] = CPU_DEVICE;
+              if (ops.at(source_task_stream.op_idx).device_type() == proto::CPU) {
+                op_to_handle[source_task_stream.op_idx] = CPU_DEVICE;
+              } else if (ops.at(source_task_stream.op_idx).device_type() == proto::GPU) {
+                op_to_handle[source_task_stream.op_idx] = {DeviceType::GPU, 0};
+              }
               op_to_row_ids[source_task_stream.op_idx].insert(
                   op_to_row_ids[source_task_stream.op_idx].end(),
                   task_stream.source_task_to_rows.at(source_task).begin(),
@@ -2250,7 +2269,6 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           std::map<i64, DeviceHandle> op_to_handle;
           // Op -> Rows
           std::map<i64, std::vector<i64>> op_to_row_ids;
-          std::vector<EvalWorkEntry> eval_work_entries;
 
           auto grab_source_start = now();
           for (i64 source_task : task_stream.source_tasks) {
@@ -2264,11 +2282,16 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
             std::vector<u8> eval_map_bytes = storehouse::read_entire_file(eval_map_input.get(), pos);
             proto::EvalWorkEntry evaluate_input_proto;
             evaluate_input_proto.ParseFromArray(eval_map_bytes.data(), eval_map_bytes.size());
-            eval_work_entries.emplace_back();
-            EvalWorkEntry& eval_map_at_source_task = eval_work_entries.back();
-            proto_to_evalworkentry(evaluate_input_proto, eval_map_at_source_task, scheduler_profiler);
+            EvalWorkEntry eval_map_at_source_task;
 
             const TaskStream& source_task_stream = task_stream_map.at(source_task);
+            if (ops.at(source_task_stream.op_idx).device_type() == proto::CPU) {
+              proto_to_evalworkentry(evaluate_input_proto, eval_map_at_source_task,
+                                     scheduler_profiler, CPU_DEVICE);
+            } else if (ops.at(source_task_stream.op_idx).device_type() == proto::GPU) {
+              proto_to_evalworkentry(evaluate_input_proto, eval_map_at_source_task,
+                                     scheduler_profiler, {DeviceType::GPU, 0});
+            }
             if (source_task_stream.op_idx == 0) {
               // The source task is a source Op. It might have multiple input columns
               // because we remapped input columns. So we skip merging process below.
@@ -2287,7 +2310,12 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
               // Assume this source task only has one output column, it must be the last one
               size_t col_id = eval_map_at_source_task.columns.size() - 1;
               auto& column = eval_map_at_source_task.columns[col_id];
-              op_to_handle[source_task_stream.op_idx] = CPU_DEVICE;
+              if (ops.at(source_task_stream.op_idx).device_type() == proto::CPU) {
+                op_to_handle[source_task_stream.op_idx] = CPU_DEVICE;
+              } else if (ops.at(source_task_stream.op_idx).device_type() == proto::GPU) {
+                op_to_handle[source_task_stream.op_idx] = {DeviceType::GPU, 0};
+              }
+
               op_to_row_ids[source_task_stream.op_idx].insert(
                   op_to_row_ids[source_task_stream.op_idx].end(),
                   task_stream.source_task_to_rows.at(source_task).begin(),
@@ -2342,7 +2370,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
           proto::EvalWorkEntry evaluate_output_proto;
           auto serialize_start = now();
-          evalworkentry_to_proto(evaluate_output_entry, evaluate_output_proto, scheduler_profiler);
+          evalworkentry_to_proto(evaluate_output_entry, evaluate_output_proto,
+              scheduler_profiler, device_handle);
           scheduler_profiler.add_interval("serialize", serialize_start, now());
           size_t serialized_size = evaluate_output_proto.ByteSizeLong();
 
@@ -2357,15 +2386,6 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           auto write_start = now();
           s_write(eval_map_output.get(), eval_map_bytes.data(), serialized_size);
           scheduler_profiler.add_interval("write", write_start, now());
-
-          // Since it has been serialized, we delete it from memory
-          for (auto& eval_work_entry : eval_work_entries) {
-            for (auto& column : eval_work_entry.columns) {
-              for (auto& element : column) {
-                delete_element(CPU_DEVICE, element);
-              }
-            }
-          }
         }
 
         allocated_work_to_queues[target_work_queue]++;
