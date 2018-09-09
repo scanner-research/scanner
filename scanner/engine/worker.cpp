@@ -71,7 +71,7 @@ inline bool operator!=(const MemoryPoolConfig& lhs,
 
 // This function parses EvalWorkEntry struct to protocol buffer format
 void evalworkentry_to_proto(const EvalWorkEntry& input, proto::EvalWorkEntry& output,
-    Profiler& profiler, const DeviceHandle& device_handle) {
+    Profiler& profiler) {
   auto parse_start = now();
 
   output.set_table_id(input.table_id);
@@ -83,7 +83,9 @@ void evalworkentry_to_proto(const EvalWorkEntry& input, proto::EvalWorkEntry& ou
       col_row_ids_proto->add_row_ids(row_id);
     }
   }
-  for (const Elements& elements : input.columns) {
+  for (auto i = 0; i < input.columns.size(); ++i) {
+    const Elements& elements = input.columns.at(i);
+    const DeviceHandle& handle = input.column_handles.at(i);
     proto::Elements* elements_proto = output.add_columns();
     for (const Element& element : elements) {
       proto::Element* element_proto = elements_proto->add_element();
@@ -91,7 +93,9 @@ void evalworkentry_to_proto(const EvalWorkEntry& input, proto::EvalWorkEntry& ou
       if (element.is_frame) {
         const Frame* frame = element.as_const_frame();
         auto create_buffer_start = now();
-        std::vector<u8> buffer {frame->data, frame->data + frame->size()};
+        std::vector<u8> buffer;
+        buffer.resize(frame->size());
+        memcpy_buffer(buffer.data(), CPU_DEVICE, frame->data, handle, frame->size());
         profiler.add_interval("create_buffer", create_buffer_start, now());
         element_proto->set_buffer(buffer.data(), buffer.size());
         for (i32 shape : frame->shape) {
@@ -101,7 +105,7 @@ void evalworkentry_to_proto(const EvalWorkEntry& input, proto::EvalWorkEntry& ou
       } else {
         std::vector<u8> buffer;
         buffer.resize(element.size);
-        memcpy_buffer(buffer.data(), CPU_DEVICE, element.buffer, device_handle, element.size);
+        memcpy_buffer(buffer.data(), CPU_DEVICE, element.buffer, handle, element.size);
         element_proto->set_buffer(buffer.data(), buffer.size());
       }
       element_proto->set_index(element.index);
@@ -147,7 +151,7 @@ void evalworkentry_to_proto(const EvalWorkEntry& input, proto::EvalWorkEntry& ou
 
 // This function parses protocol buffer format to EvalWorkEntry struct
 void proto_to_evalworkentry(const proto::EvalWorkEntry& input, EvalWorkEntry& output,
-    Profiler& profiler, const DeviceHandle& device_handle) {
+    Profiler& profiler, const DeviceHandle& handle) {
   auto parse_start = now();
   output.table_id = input.table_id();
   output.job_index = input.job_index();
@@ -160,11 +164,21 @@ void proto_to_evalworkentry(const proto::EvalWorkEntry& input, EvalWorkEntry& ou
       col_row_ids.push_back(col_row_ids_proto.row_ids(j));
     }
   }
+  for (int i=0; i<input.column_handles_size(); ++i) {
+    output.column_handles.emplace_back();
+    DeviceHandle& column_handle = output.column_handles.back();
+    const proto::DeviceHandle& column_handle_proto = input.column_handles(i);
+    // NOTE(swjz): Since the handle of previous output might not be the real handle
+    // this task uses here, we force the input handle of this task to be the real one
+    column_handle.id = handle.id;
+    column_handle.type = handle.type;
+  }
   for (int i=0; i<input.columns_size(); ++i) {
     bool is_allocated = false;
     u8* frame_buffer = nullptr;
     output.columns.emplace_back();
     Elements& elements = output.columns.back();
+//    const DeviceHandle& handle = output.column_handles.at(i);
     const proto::Elements& elements_proto = input.columns(i);
     for (int j=0; j<elements_proto.element_size(); ++j) {
       elements.emplace_back();
@@ -185,21 +199,21 @@ void proto_to_evalworkentry(const proto::EvalWorkEntry& input, EvalWorkEntry& ou
             auto allocate_start = now();
             // The frame_buffer here is essentially frame->data() rather than Element.buffer
             VLOG(1) << "Allocating buffer of size " << info.size() * elements_proto.element_size();
-            frame_buffer = new_block_buffer(device_handle, info.size() * elements_proto.element_size(),
+            frame_buffer = new_block_buffer(handle, info.size() * elements_proto.element_size(),
                                             elements_proto.element_size());
             profiler.add_interval("allocation", allocate_start, now());
           }
           u8* this_frame_buffer = frame_buffer + j * info.size();
           auto memcpy_start = now();
-          memcpy_buffer(this_frame_buffer, device_handle, (u8*)element_proto.buffer().c_str(),
+          memcpy_buffer(this_frame_buffer, handle, (u8*)element_proto.buffer().c_str(),
               CPU_DEVICE, info.size());
           profiler.add_interval("memcpy_frame", memcpy_start, now());
           Frame* frame = new Frame(info, this_frame_buffer);
           element.buffer = reinterpret_cast<u8*>(frame);
         } else {
-          element.buffer = new_buffer(device_handle, element_proto.size());
+          element.buffer = new_buffer(handle, element_proto.size());
           auto memcpy_start = now();
-          memcpy_buffer(element.buffer, device_handle, (u8*)element_proto.buffer().c_str(),
+          memcpy_buffer(element.buffer, handle, (u8*)element_proto.buffer().c_str(),
               CPU_DEVICE, element_proto.size());
           profiler.add_interval("memcpy", memcpy_start, now());
         }
@@ -208,13 +222,6 @@ void proto_to_evalworkentry(const proto::EvalWorkEntry& input, EvalWorkEntry& ou
       element.is_frame = element_proto.is_frame();
       element.index = element_proto.index();
     }
-  }
-  for (int i=0; i<input.column_handles_size(); ++i) {
-    output.column_handles.emplace_back();
-    DeviceHandle& column_handle = output.column_handles.back();
-    const proto::DeviceHandle& column_handle_proto = input.column_handles(i);
-    column_handle.id = column_handle_proto.id();
-    column_handle.type = column_handle_proto.type();
   }
   for (int i=0; i<input.inplace_video_size(); ++i) {
     output.inplace_video.push_back(input.inplace_video(i));
@@ -2078,7 +2085,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           proto::EvalWorkEntry pre_output_proto;
           auto serialize_start = now();
           evalworkentry_to_proto(pre_evaluate_output_entry, pre_output_proto,
-              scheduler_profiler, device_handle);
+              scheduler_profiler);
           scheduler_profiler.add_interval("serialize", serialize_start, now());
           size_t serialized_size = pre_output_proto.ByteSizeLong();
 
@@ -2093,6 +2100,13 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           auto write_start = now();
           s_write(eval_map_output.get(), eval_map_bytes.data(), serialized_size);
           scheduler_profiler.add_interval("write", write_start, now());
+
+          // Since it has been serialized, we delete it from memory
+          for (auto& column : pre_evaluate_output_entry.columns) {
+            for (auto& element : column) {
+              delete_element(device_handle, element);
+            }
+          }
         }
         else if (ops.at(task_stream_map[task_id].op_idx).is_source()) {
           // this source op was remapped. do nothing.
@@ -2135,36 +2149,35 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
             EvalWorkEntry eval_map_at_source_task;
 
             const TaskStream& source_task_stream = task_stream_map.at(source_task);
+            DeviceHandle source_handle;
             if (ops.at(source_task_stream.op_idx).device_type() == proto::CPU) {
-              proto_to_evalworkentry(post_input_proto, eval_map_at_source_task,
-                                     scheduler_profiler, CPU_DEVICE);
+              source_handle = CPU_DEVICE;
             } else if (ops.at(source_task_stream.op_idx).device_type() == proto::GPU) {
-              proto_to_evalworkentry(post_input_proto, eval_map_at_source_task,
-                                     scheduler_profiler, {DeviceType::GPU, 0});
+              source_handle = {DeviceType::GPU, 0};
             }
+            proto_to_evalworkentry(post_input_proto, eval_map_at_source_task,
+                                   scheduler_profiler, device_handle);
             if (source_task_stream.op_idx == 0) {
               // The source task is a source Op. It might have multiple input columns
               // because we remapped input columns. So we skip merging process below.
+              auto eval_work_entry = std::move(eval_map_at_source_task);
               post_evaluate_input_entry.columns.insert(post_evaluate_input_entry.columns.end(),
-                                                       eval_map_at_source_task.columns.begin(),
-                                                       eval_map_at_source_task.columns.end());
+                                                       eval_work_entry.columns.begin(),
+                                                       eval_work_entry.columns.end());
               post_evaluate_input_entry.column_handles.insert(post_evaluate_input_entry.column_handles.end(),
-                                                       eval_map_at_source_task.column_handles.begin(),
-                                                       eval_map_at_source_task.column_handles.end());
+                                                              eval_work_entry.column_handles.begin(),
+                                                              eval_work_entry.column_handles.end());
               post_evaluate_input_entry.row_ids.insert(post_evaluate_input_entry.row_ids.end(),
-                                                       eval_map_at_source_task.row_ids.begin(),
-                                                       eval_map_at_source_task.row_ids.end());
+                                                       eval_work_entry.row_ids.begin(),
+                                                       eval_work_entry.row_ids.end());
             } else {
               // We merge multiple columns from different tasks to one column
               // if these tasks come from the same op
               // Assume this source task only has one output column, it must be the last one
               size_t col_id = eval_map_at_source_task.columns.size() - 1;
               auto& column = eval_map_at_source_task.columns[col_id];
-              if (ops.at(source_task_stream.op_idx).device_type() == proto::CPU) {
-                op_to_handle[source_task_stream.op_idx] = CPU_DEVICE;
-              } else if (ops.at(source_task_stream.op_idx).device_type() == proto::GPU) {
-                op_to_handle[source_task_stream.op_idx] = {DeviceType::GPU, 0};
-              }
+              auto& handle = eval_map_at_source_task.column_handles.at(col_id);
+              op_to_handle[source_task_stream.op_idx] = source_handle;
               op_to_row_ids[source_task_stream.op_idx].insert(
                   op_to_row_ids[source_task_stream.op_idx].end(),
                   task_stream.source_task_to_rows.at(source_task).begin(),
@@ -2174,11 +2187,21 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
                 for (size_t r = 0; r < eval_map_at_source_task.row_ids[col_id].size(); ++r) {
                   // Only need the columns that cover required row ids
                   if (row_id == eval_map_at_source_task.row_ids[col_id][r]) {
+//                    add_element_ref(handle, column[r]);
                     op_to_elements[source_task_stream.op_idx].push_back(column[r]);
                   }
                 }
               }
             }
+
+//            // Since it has been used, we delete it from memory
+//            for (auto i = 0; i < eval_map_at_source_task.columns.size(); ++i) {
+//              auto& column = eval_map_at_source_task.columns.at(i);
+//              auto& handle = eval_map_at_source_task.column_handles.at(i);
+//              for (auto& element : column) {
+//                delete_element(handle, element);
+//              }
+//            }
           }
 
           for (auto& kv : op_to_elements) {
@@ -2195,17 +2218,29 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
           assert(num_sink_col <= post_evaluate_input_entry.columns.size());
 
-          post_evaluate_input_entry.columns = BatchedElements(
-              post_evaluate_input_entry.columns.end() - num_sink_col,
-              post_evaluate_input_entry.columns.end());
+          // Since it is not used, we delete it from memory
+          for (auto column = post_evaluate_input_entry.columns.begin();
+               column < post_evaluate_input_entry.columns.begin() +
+               post_evaluate_input_entry.columns.size() - num_sink_col; ++column) {
+            for (auto& element : *column) {
+              delete_element(CPU_DEVICE, element);
+            }
+          }
 
-          post_evaluate_input_entry.column_handles = std::vector<DeviceHandle>(
-              post_evaluate_input_entry.column_handles.end() - num_sink_col,
-              post_evaluate_input_entry.column_handles.end());
+          post_evaluate_input_entry.columns.erase(
+              post_evaluate_input_entry.columns.begin(),
+              post_evaluate_input_entry.columns.begin() +
+              post_evaluate_input_entry.columns.size() - num_sink_col);
 
-          post_evaluate_input_entry.row_ids = std::vector<std::vector<i64>>(
-              post_evaluate_input_entry.row_ids.end() - num_sink_col,
-              post_evaluate_input_entry.row_ids.end());
+          post_evaluate_input_entry.column_handles.erase(
+              post_evaluate_input_entry.column_handles.begin(),
+              post_evaluate_input_entry.column_handles.begin() +
+              post_evaluate_input_entry.column_handles.size() - num_sink_col);
+
+          post_evaluate_input_entry.row_ids.erase(
+              post_evaluate_input_entry.row_ids.begin(),
+              post_evaluate_input_entry.row_ids.begin() +
+              post_evaluate_input_entry.row_ids.size() -  num_sink_col);
 
           auto post_start = now();
           PostEvaluateWorkerArgs post_evaluate_worker_args {
@@ -2285,37 +2320,36 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
             EvalWorkEntry eval_map_at_source_task;
 
             const TaskStream& source_task_stream = task_stream_map.at(source_task);
+            DeviceHandle source_handle;
             if (ops.at(source_task_stream.op_idx).device_type() == proto::CPU) {
-              proto_to_evalworkentry(evaluate_input_proto, eval_map_at_source_task,
-                                     scheduler_profiler, CPU_DEVICE);
+              source_handle = CPU_DEVICE;
             } else if (ops.at(source_task_stream.op_idx).device_type() == proto::GPU) {
-              proto_to_evalworkentry(evaluate_input_proto, eval_map_at_source_task,
-                                     scheduler_profiler, {DeviceType::GPU, 0});
+              source_handle = {DeviceType::GPU, 0};
             }
+            proto_to_evalworkentry(evaluate_input_proto, eval_map_at_source_task,
+                                   scheduler_profiler, device_handle);
             if (source_task_stream.op_idx == 0) {
               // The source task is a source Op. It might have multiple input columns
               // because we remapped input columns. So we skip merging process below.
+              auto eval_work_entry = std::move(eval_map_at_source_task);
               evaluate_input_entry.columns.insert(evaluate_input_entry.columns.end(),
-                                                  eval_map_at_source_task.columns.begin(),
-                                                  eval_map_at_source_task.columns.end());
+                                                  eval_work_entry.columns.begin(),
+                                                  eval_work_entry.columns.end());
               evaluate_input_entry.column_handles.insert(evaluate_input_entry.column_handles.end(),
-                                                         eval_map_at_source_task.column_handles.begin(),
-                                                         eval_map_at_source_task.column_handles.end());
+                                                         eval_work_entry.column_handles.begin(),
+                                                         eval_work_entry.column_handles.end());
               evaluate_input_entry.row_ids.insert(evaluate_input_entry.row_ids.end(),
-                                                  eval_map_at_source_task.row_ids.begin(),
-                                                  eval_map_at_source_task.row_ids.end());
+                                                  eval_work_entry.row_ids.begin(),
+                                                  eval_work_entry.row_ids.end());
             } else {
               // We merge multiple columns from different tasks to one column
               // if these tasks come from the same op
               // Assume this source task only has one output column, it must be the last one
               size_t col_id = eval_map_at_source_task.columns.size() - 1;
               auto& column = eval_map_at_source_task.columns[col_id];
-              if (ops.at(source_task_stream.op_idx).device_type() == proto::CPU) {
-                op_to_handle[source_task_stream.op_idx] = CPU_DEVICE;
-              } else if (ops.at(source_task_stream.op_idx).device_type() == proto::GPU) {
-                op_to_handle[source_task_stream.op_idx] = {DeviceType::GPU, 0};
-              }
-
+              auto& handle = eval_map_at_source_task.column_handles.at(col_id);
+              // All source task data have been transferred to device_handle
+              op_to_handle[source_task_stream.op_idx] = device_handle;
               op_to_row_ids[source_task_stream.op_idx].insert(
                   op_to_row_ids[source_task_stream.op_idx].end(),
                   task_stream.source_task_to_rows.at(source_task).begin(),
@@ -2325,12 +2359,23 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
                 for (size_t r = 0; r < eval_map_at_source_task.row_ids[col_id].size(); ++r) {
                   // Only need the columns that cover required row ids
                   if (row_id == eval_map_at_source_task.row_ids[col_id][r]) {
+//                    add_element_ref(handle, column[r]);
                     op_to_elements[source_task_stream.op_idx].push_back(column[r]);
                   }
                 }
               }
             }
+
+//            // Since it has been used, we delete it from memory
+//            for (auto i = 0; i < eval_map_at_source_task.columns.size(); ++i) {
+//              auto& column = eval_map_at_source_task.columns.at(i);
+//              auto& handle = eval_map_at_source_task.column_handles.at(i);
+//              for (auto& element : column) {
+//                delete_element(handle, element);
+//              }
+//            }
           }
+
           for (auto& kv : op_to_elements) {
             evaluate_input_entry.columns.push_back(kv.second);
             evaluate_input_entry.column_handles.push_back(op_to_handle.at(kv.first));
@@ -2371,7 +2416,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           proto::EvalWorkEntry evaluate_output_proto;
           auto serialize_start = now();
           evalworkentry_to_proto(evaluate_output_entry, evaluate_output_proto,
-              scheduler_profiler, device_handle);
+              scheduler_profiler);
           scheduler_profiler.add_interval("serialize", serialize_start, now());
           size_t serialized_size = evaluate_output_proto.ByteSizeLong();
 
@@ -2386,6 +2431,15 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           auto write_start = now();
           s_write(eval_map_output.get(), eval_map_bytes.data(), serialized_size);
           scheduler_profiler.add_interval("write", write_start, now());
+
+          // Since it has been serialized, we delete it from memory
+          for (auto i = 0; i < evaluate_output_entry.columns.size(); ++i) {
+            auto& column = evaluate_output_entry.columns.at(i);
+            auto& handle = evaluate_output_entry.column_handles.at(i);
+            for (auto &element : column) {
+              delete_element(handle, element);
+            }
+          }
         }
 
         allocated_work_to_queues[target_work_queue]++;
