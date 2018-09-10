@@ -2040,6 +2040,9 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
         // load_driver:
         if (task_stream_map[task_id].op_idx == 0) {
+          i64 row_start = task_stream_map[task_id].valid_output_rows.at(0);
+          i64 row_end = task_stream_map[task_id].valid_output_rows.back() + 1;
+
           proto::Result load_worker_result;
           LoadWorkerArgs load_worker_args {
               // Uniform arguments
@@ -2051,10 +2054,9 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           };
           LoadWorker load_worker(load_worker_args);
           load_worker.feed(stenciled_entry);
-          i32 io_packet_size = INT_MAX; // Ignore io packet size for now
           i32 output_queue_idx = 0;
           EvalWorkEntry load_output_entry;
-          load_worker.yield(io_packet_size, load_output_entry);
+          load_worker.yield(task_size_per_op[0], load_output_entry, row_start, row_end);
           load_output_entry.first = true;
           load_output_entry.last_in_task = true;
 
@@ -2073,7 +2075,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           EvalWorkEntry pre_evaluate_input_entry = load_output_entry;
           pre_evaluate_worker.feed(pre_evaluate_input_entry, pre_evaluate_input_entry.first);
           EvalWorkEntry pre_evaluate_output_entry;
-          pre_evaluate_worker.yield(work_packet_size, pre_evaluate_output_entry);
+          pre_evaluate_worker.yield(task_size_per_op[0], pre_evaluate_output_entry);
           scheduler_profiler.add_interval("pre", pre_start, now());
 
           std::string eval_map_file_name = eval_map_path(bulk_job_id, task_id);
@@ -2344,7 +2346,9 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
             } else {
               // We merge multiple columns from different tasks to one column
               // if these tasks come from the same op
-              // Assume this source task only has one output column, it must be the last one
+              // FIXME(swjz): Take the last one if source task has more than one output columns
+              // This happens because we did not delete unused columns in evaluate_worker.cpp
+//              assert(eval_map_at_source_task.columns.size() == 1);
               size_t col_id = eval_map_at_source_task.columns.size() - 1;
               auto& column = eval_map_at_source_task.columns[col_id];
               auto& handle = eval_map_at_source_task.column_handles.at(col_id);

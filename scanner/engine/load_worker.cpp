@@ -75,7 +75,8 @@ void LoadWorker::feed(LoadWorkEntry& input_entry) {
 }
 
 bool LoadWorker::yield(i32 item_size,
-                       EvalWorkEntry& output_entry) {
+                       EvalWorkEntry& output_entry,
+                       i64 row_start_, i64 row_end_) {
   LoadWorkEntry& load_work_entry = entry_;
 
   // Ignoring item size for now and just yielding one IO item at a time
@@ -102,8 +103,9 @@ bool LoadWorker::yield(i32 item_size,
     const auto& source_args = load_work_entry.source_args(i);
 
     i64 total_rows = source_args.args_size();
-    i64 row_start = current_row_;
-    i64 row_end = std::min(current_row_ + item_size, total_rows);
+    i64 row_start = row_start_ == -1 ? current_row_ : row_start_;
+    i64 row_end = row_end_ == -1 ?
+        std::min(current_row_ + item_size, total_rows) : row_end_;
 
     // Determine what the input and output row ids are for an item_size
     // group of rows

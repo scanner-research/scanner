@@ -48,7 +48,8 @@ class LoadWorker {
 
   void feed(LoadWorkEntry& input_entry);
 
-  bool yield(i32 item_size, EvalWorkEntry& output_entry);
+  bool yield(i32 item_size, EvalWorkEntry& output_entry,
+      i64 row_start = -1, i64 row_end = -1);
 
   bool done();
 
