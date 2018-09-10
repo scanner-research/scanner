@@ -2040,8 +2040,12 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
         // load_driver:
         if (task_stream_map[task_id].op_idx == 0) {
+          // FIXME(swjz): The row_start here is actually how many rows are loaded by
+          // other tasks before this one. If the rows are not continuous or not starting
+          // from zero, this code fails because it assumes that the number wanted is
+          // the first row id in its list.
           i64 row_start = task_stream_map[task_id].valid_output_rows.at(0);
-          i64 row_end = task_stream_map[task_id].valid_output_rows.back() + 1;
+          i64 row_end = row_start + task_stream_map[task_id].valid_output_rows.size();
 
           proto::Result load_worker_result;
           LoadWorkerArgs load_worker_args {
@@ -2179,7 +2183,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
               size_t col_id = eval_map_at_source_task.columns.size() - 1;
               auto& column = eval_map_at_source_task.columns[col_id];
               auto& handle = eval_map_at_source_task.column_handles.at(col_id);
-              op_to_handle[source_task_stream.op_idx] = source_handle;
+              // All source task data have been transferred to device_handle
+              op_to_handle[source_task_stream.op_idx] = device_handle;
               op_to_row_ids[source_task_stream.op_idx].insert(
                   op_to_row_ids[source_task_stream.op_idx].end(),
                   task_stream.source_task_to_rows.at(source_task).begin(),
