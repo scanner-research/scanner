@@ -1234,7 +1234,7 @@
             <span class="n">req</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_grpc_timeout</span><span class="p">))</span>
         <span class="k">return</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">reply</span><span class="o">.</span><span class="n">active_bulk_jobs</span><span class="p">]</span></div>
 
-<div class="viewcode-block" id="Database.wait_on_job"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.database.Database.wait_on_job">[docs]</a>    <span class="k">def</span> <span class="nf">wait_on_job</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bulk_job_id</span><span class="p">,</span> <span class="n">show_progress</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<div class="viewcode-block" id="Database.wait_on_job_gen"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.database.Database.wait_on_job_gen">[docs]</a>    <span class="k">def</span> <span class="nf">wait_on_job_gen</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bulk_job_id</span><span class="p">,</span> <span class="n">show_progress</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
         <span class="n">pbar</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="n">total_tasks</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="n">last_task_count</span> <span class="o">=</span> <span class="mi">0</span>
@@ -1280,11 +1280,22 @@
                         <span class="k">if</span> <span class="n">num_workers_failed</span> <span class="o">&lt;</span> <span class="mi">2</span> <span class="k">else</span> <span class="s1">&#39;workers&#39;</span><span class="p">,</span> <span class="n">time_str</span><span class="p">))</span>
                 <span class="n">last_jobs_failed</span> <span class="o">=</span> <span class="n">job_status</span><span class="o">.</span><span class="n">jobs_failed</span>
                 <span class="n">last_failed_workers</span> <span class="o">=</span> <span class="n">job_status</span><span class="o">.</span><span class="n">failed_workers</span>
-            <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+            <span class="k">yield</span>
 
         <span class="k">if</span> <span class="n">pbar</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">pbar</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 
+        <span class="k">yield</span> <span class="n">job_status</span>
+        <span class="k">return</span></div>
+
+<div class="viewcode-block" id="Database.wait_on_job"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.database.Database.wait_on_job">[docs]</a>    <span class="k">def</span> <span class="nf">wait_on_job</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">gen</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wait_on_job_gen</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">job_status</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">gen</span><span class="p">)</span>
+                <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">StopIteration</span><span class="p">:</span>
+                <span class="k">break</span>
         <span class="k">return</span> <span class="n">job_status</span></div>
 
 <div class="viewcode-block" id="Database.bulk_fetch_video_metadata"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.database.Database.bulk_fetch_video_metadata">[docs]</a>    <span class="k">def</span> <span class="nf">bulk_fetch_video_metadata</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tables</span><span class="p">):</span>
@@ -1308,7 +1319,8 @@
             <span class="n">load_sparsity_threshold</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8</span><span class="p">,</span>
             <span class="n">tasks_in_queue_per_pu</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span><span class="p">,</span>
             <span class="n">task_timeout</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
-            <span class="n">checkpoint_frequency</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1000</span><span class="p">):</span>
+            <span class="n">checkpoint_frequency</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1000</span><span class="p">,</span>
+            <span class="n">detach</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
         <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Runs a collection of jobs.</span>
 
 <span class="sd">        Parameters</span>
@@ -1604,18 +1616,21 @@
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_workers_started</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_start_cluster</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">start_workers</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_worker_paths</span><span class="p">)</span>
 
+        <span class="c1"># Invalidate db metadata because of job run</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cached_db_metadata</span> <span class="o">=</span> <span class="kc">None</span>
+
         <span class="c1"># Run the job</span>
         <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_try_rpc</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_master</span><span class="o">.</span><span class="n">NewJob</span><span class="p">(</span>
             <span class="n">job_params</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_grpc_timeout</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">detach</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
 
         <span class="n">bulk_job_id</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">bulk_job_id</span>
         <span class="n">job_status</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wait_on_job</span><span class="p">(</span><span class="n">bulk_job_id</span><span class="p">,</span> <span class="n">show_progress</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="ow">not</span> <span class="n">job_status</span><span class="o">.</span><span class="n">result</span><span class="o">.</span><span class="n">success</span><span class="p">:</span>
             <span class="k">raise</span> <span class="n">ScannerException</span><span class="p">(</span><span class="n">job_status</span><span class="o">.</span><span class="n">result</span><span class="o">.</span><span class="n">msg</span><span class="p">)</span>
-
-        <span class="c1"># Invalidate db metadata because of job run</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_cached_db_metadata</span> <span class="o">=</span> <span class="kc">None</span>
 
         <span class="n">db_meta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load_db_metadata</span><span class="p">()</span>
         <span class="n">job_id</span> <span class="o">=</span> <span class="kc">None</span>
