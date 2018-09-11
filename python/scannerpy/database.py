@@ -1582,7 +1582,7 @@ class Database(object):
         job_status = self.wait_on_job(bulk_job_id, show_progress)
 
         if not job_status.result.success:
-            raise ScannerException(joob_status.result.msg)
+            raise ScannerException(job_status.result.msg)
 
         db_meta = self._load_db_metadata()
         job_id = None
