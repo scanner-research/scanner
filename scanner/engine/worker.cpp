@@ -1977,7 +1977,9 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
       proto::NextWorkReply new_work;
       grpc::Status status;
+      auto next_work = now();
       GRPC_BACKOFF(master_->NextWork(&ctx, node_info, &new_work), status);
+      scheduler_profiler.add_interval("nextwork", next_work, now());
       if (!status.ok()) {
         RESULT_ERROR(job_result,
                      "Worker %d could not get next work from master", node_id_);
