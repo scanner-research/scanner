@@ -1246,6 +1246,7 @@ class Database(object):
         while True:
             try:
                 job_status = next(gen)
+                time.sleep(1.0)
             except StopIteration:
                 break
         return job_status
