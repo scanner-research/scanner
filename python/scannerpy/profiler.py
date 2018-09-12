@@ -33,8 +33,10 @@ class Profiler:
         self._profilers = {}
         for n in range(job.num_nodes):
             path = '{}/jobs/{}/profile_{}.bin'.format(db._db_path, job_id, n)
-            time, profs = self._parse_profiler_file(path)
-            self._profilers[n] = (time, profs)
+            file_info = self._storage.get_file_info(path)
+            if file_info.file_exists:
+                time, profs = self._parse_profiler_file(path)
+                self._profilers[n] = (time, profs)
 
     def write_trace(self, path: str):
         """
