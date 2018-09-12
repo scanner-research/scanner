@@ -1678,8 +1678,9 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       // millisecond. This solves a problem where this thread would busywait and
       // decrease performance in compute-bound apps.
       std::tuple<i32, i64, i64> task_retired;
-      retired_tasks.wait_dequeue_timed(task_retired, 1000); // 1 ms
-      batched_retired_tasks.push_back(task_retired);
+      if (retired_tasks.wait_dequeue_timed(task_retired, 1000 /* 1 ms */)) {
+        batched_retired_tasks.push_back(task_retired);
+      }
     }
     while (retired_tasks.size() > 0) {
       // Pull retired tasks
