@@ -178,6 +178,8 @@ class Database(object):
         self.protobufs = ProtobufGenerator(self.config)
         self._op_cache = {}
         self._python_ops = set()
+        self._enumerator_info_cache = {}
+        self._sink_info_cache = {}
 
         self._workers = {}
         self._worker_conns = None
@@ -380,6 +382,9 @@ class Database(object):
         return source_info
 
     def _get_enumerator_info(self, enumerator_name):
+        if enumerator_name in self._enumerator_info_cache:
+            return self._enumerator_info_cache[enumerator_name]
+
         enumerator_info_args = self.protobufs.EnumeratorInfoArgs()
         enumerator_info_args.enumerator_name = enumerator_name
 
@@ -389,9 +394,14 @@ class Database(object):
         if not enumerator_info.result.success:
             raise ScannerException(enumerator_info.result.msg)
 
+        self._enumerator_info_cache[enumerator_name] = enumerator_info
+
         return enumerator_info
 
     def _get_sink_info(self, sink_name):
+        if sink_name in self._sink_info_cache:
+            return self._sink_info_cache[sink_name]
+
         sink_info_args = self.protobufs.SinkInfoArgs()
         sink_info_args.sink_name = sink_name
 
@@ -400,6 +410,8 @@ class Database(object):
 
         if not sink_info.result.success:
             raise ScannerException(sink_info.result.msg)
+
+        self._sink_info_cache[sink_name] = sink_info
 
         return sink_info
 
@@ -1175,7 +1187,7 @@ class Database(object):
             req, timeout=self._grpc_timeout))
         return [x for x in reply.active_bulk_jobs]
 
-    def wait_on_job(self, bulk_job_id, show_progress=True):
+    def wait_on_job_gen(self, bulk_job_id, show_progress=True):
         pbar = None
         total_tasks = None
         last_task_count = 0
@@ -1221,11 +1233,22 @@ class Database(object):
                         if num_workers_failed < 2 else 'workers', time_str))
                 last_jobs_failed = job_status.jobs_failed
                 last_failed_workers = job_status.failed_workers
-            time.sleep(1.0)
+            yield
 
         if pbar is not None:
             pbar.close()
 
+        yield job_status
+        return
+
+    def wait_on_job(self, *args, **kwargs):
+        gen = self.wait_on_job_gen(*args, **kwargs)
+        while True:
+            try:
+                job_status = next(gen)
+                time.sleep(1.0)
+            except StopIteration:
+                break
         return job_status
 
     def bulk_fetch_video_metadata(self, tables):
@@ -1249,7 +1272,8 @@ class Database(object):
             load_sparsity_threshold: int = 8,
             tasks_in_queue_per_pu: int = 4,
             task_timeout: int = 0,
-            checkpoint_frequency: int = 1000):
+            checkpoint_frequency: int = 1000,
+            detach: bool = False):
         r"""Runs a collection of jobs.
 
         Parameters
@@ -1545,18 +1569,21 @@ class Database(object):
         if not self._workers_started and self._start_cluster:
             self.start_workers(self._worker_paths)
 
+        # Invalidate db metadata because of job run
+        self._cached_db_metadata = None
+
         # Run the job
         result = self._try_rpc(lambda: self._master.NewJob(
             job_params, timeout=self._grpc_timeout))
+
+        if detach:
+            return None
 
         bulk_job_id = result.bulk_job_id
         job_status = self.wait_on_job(bulk_job_id, show_progress)
 
         if not job_status.result.success:
             raise ScannerException(job_status.result.msg)
-
-        # Invalidate db metadata because of job run
-        self._cached_db_metadata = None
 
         db_meta = self._load_db_metadata()
         job_id = None

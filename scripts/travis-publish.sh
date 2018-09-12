@@ -3,7 +3,7 @@
 set -e
 
 # Exit if this is not the master branch
-if ! [ "$TRAVIS_BRANCH" = "master" -a "$TRAVIS_PULL_REQUEST" = "false" -a "$BUILD_TYPE" = "cpu"]; then
+if ! [ "$TRAVIS_BRANCH" = "master" -a "$TRAVIS_PULL_REQUEST" = "false" -a "$BUILD_TYPE" = "cpu" ]; then
     exit 0
 fi
 
