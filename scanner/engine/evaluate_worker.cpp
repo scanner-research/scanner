@@ -3,6 +3,7 @@
 #include "scanner/engine/op_registry.h"
 #include "scanner/engine/dag_analysis.h"
 #include "scanner/util/cuda.h"
+#include "hwang/common.h"
 
 #include <google/protobuf/io/coded_stream.h>
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
@@ -17,8 +18,8 @@ PreEvaluateWorker::PreEvaluateWorker(const PreEvaluateWorkerArgs& args)
     device_handle_(args.device_handle),
     num_cpus_(args.num_cpus),
     decoder_cpus_(args.decoder_cpus),
-    profiler_(args.profiler) {
-}
+    profiler_(args.profiler),
+    result_(args.result) {}
 
 PreEvaluateWorker::~PreEvaluateWorker() {
   for (auto& encoded_data : decode_args_) {
@@ -175,9 +176,17 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
             std::vector<u8> metadata(args.back().metadata().begin(),
                                      args.back().metadata().end());
             LOG_IF(FATAL, !inplace_decoders_[media_col_idx])
-              << "Inplace decoder is not allocated. Likely mixed inplace/non-inplace in the same bulk job launch.";
-            inplace_decoders_[media_col_idx]->initialize(encoded_data,
-                                                         metadata);
+                << "Inplace decoder is not allocated. Likely mixed "
+                   "inplace/non-inplace in the same bulk job launch.";
+            hwang::Result result = inplace_decoders_[media_col_idx]->initialize(
+                encoded_data, metadata);
+            if (!result.ok) {
+              result_.set_msg(result.message);
+              result_.set_success(result.ok);
+              LOG(ERROR) << "Inplace decoder initialize failed: "
+                         << result.message;
+              THREAD_RETURN_SUCCESS();
+            }
           }
         }
       }
@@ -234,7 +243,15 @@ bool PreEvaluateWorker::yield(i32 item_size,
           if (!work_entry.inplace_video[c]) {
             decoders_[media_col_idx]->get_frames(buffer, num_rows);
           } else {
-            inplace_decoders_[media_col_idx]->get_frames(buffer, num_rows);
+            hwang::Result result =
+                inplace_decoders_[media_col_idx]->get_frames(buffer, num_rows);
+            if (!result.ok) {
+              result_.set_msg(result.message);
+              result_.set_success(result.ok);
+              LOG(ERROR) << "Inplace decoder get_frames failed: "
+                         << result.message;
+              THREAD_RETURN_SUCCESS();
+            }
           }
           for (i64 n = 0; n < num_rows; ++n) {
             insert_frame(entry.columns[c],
