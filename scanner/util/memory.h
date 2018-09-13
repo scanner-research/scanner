@@ -71,6 +71,6 @@ u64 current_memory_allocated(DeviceHandle device);
 
 u64 max_memory_allocated(DeviceHandle device);
 
-const std::vector<Allocation> allocator_allocations(DeviceHandle device);
+const std::vector<Allocation>& allocator_allocations(DeviceHandle device);
 
 }
