@@ -1,6 +1,11 @@
+from scannerpy import Database, Job, DeviceType, FrameType
 import scannerpy
-from scannerpy import Database, Job, DeviceType
 import cv2
+import sys
+import os
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/..')
+import util
 
 ################################################################################
 # This tutorial shows how to write and use new Ops in Python.                  #
@@ -74,7 +79,7 @@ output = db.sinks.FrameColumn(columns={'frame1': resized_frame_fn,
 
 job = Job(op_args={
     frame: input_table.column('frame'),
-    output_op: 'example_python_op'
+    output: 'example_python_op'
 })
 
 [table] = db.run(output=output, jobs=[job], force=True)

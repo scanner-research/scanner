@@ -50,9 +50,9 @@ job = Job(op_args={
     output: 'example_resize'
 })
 
-#[table] = db.run(output=output, jobs=[job], force=True)
+[table] = db.run(output=output, jobs=[job], force=True)
 
-#table.column('frame').save_mp4('02_device_resize')
+table.column('frame').save_mp4('02_device_resize')
 
 videos.append('02_device_resize.mp4')
 
@@ -84,9 +84,9 @@ job = Job(op_args={
     output: 'example_batch_resize'
 })
 
-#[table] = db.run(output=output, jobs=[job], force=True)
+[table] = db.run(output=output, jobs=[job], force=True)
 
-#table.column('frame').save_mp4('02_batch_resize')
+table.column('frame').save_mp4('02_batch_resize')
 
 videos.append('02_batch_resize.mp4')
 
@@ -102,8 +102,9 @@ videos.append('02_batch_resize.mp4')
 def optical_flow(config, frame: Sequence[FrameType]) -> FrameType:
     gray1 = cv2.cvtColor(frame[0], cv2.COLOR_BGR2GRAY)
     gray2 = cv2.cvtColor(frame[1], cv2.COLOR_BGR2GRAY)
-    return cv2.calcOpticalFlowFarneback(gray1, gray2, None, 0.5, 3, 15, 3, 5,
+    flow = cv2.calcOpticalFlowFarneback(gray1, gray2, None, 0.5, 3, 15, 3, 5,
                                         1.2, 0)
+    return flow
 
 
 # This op visualizes the flow field by converting it into an rgb image
@@ -132,9 +133,9 @@ job = Job(op_args={
     output: 'example_flow'
 })
 
-#[table] = db.run(output=output, jobs=[job], force=True)
+[table] = db.run(output=output, jobs=[job], force=True)
 
-#table.column('flow_viz').save_mp4('02_flow')
+table.column('flow_viz').save_mp4('02_flow')
 
 videos.append('02_flow.mp4')
 
@@ -182,11 +183,12 @@ class BackgroundSubtraction(scannerpy.Kernel):
 # should be considered reasonable.
 
 # First, we download a static camera video from youtube
-subprocess.check_call(
-    'youtube-dl -f 137 \'https://youtu.be/cVHqFqNz7eM\' -o test.mp4',
-    shell=True)
-[static_table], _ = db.ingest_videos([('static_video', 'test.mp4')],
-                                    force=True)
+# subprocess.check_call(
+#     'youtube-dl -f 137 \'https://youtu.be/cVHqFqNz7eM\' -o test.mp4',
+#     shell=True)
+# [static_table], _ = db.ingest_videos([('static_video', 'test.mp4')],
+#                                     force=True)
+static_table = input_table
 
 # Then we perform background subtraction and indicate we need 60 prior
 # frames to produce correct output
@@ -195,7 +197,7 @@ masked_frame = db.ops.BackgroundSubtraction(frame=frame,
                                             alpha=0.05, threshold=0.05,
                                             bounded_state=60)
 # Here, we say that we only want the outputs for this range of frames
-sampled_frame = db.streams.Range(masked_frame, 5760, 6360)
+sampled_frame = db.streams.Range(masked_frame, 0, 120)
 output = db.sinks.Column(columns={'frame': sampled_frame})
 job = Job(op_args={
     frame: static_table.column('frame'),
