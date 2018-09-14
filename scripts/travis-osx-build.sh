@@ -93,8 +93,6 @@ build_osx() {
     fi
 }
 
-yes | docker login -u="$DOCKER_USER" -p="$DOCKER_PASS"
-
 build_osx 
 
 exit $?
