@@ -33,7 +33,7 @@ build_osx() {
     brew tap scanner-research/homebrew-scanner
     brew install scanner --only-dependencies
 
-    bash ./deps.sh -a -ng \
+    sudo bash ./deps.sh -a -ng \
          --prefix /usr/local \
          --with-ffmpeg /usr/local \
          --with-opencv /usr/local \
@@ -56,6 +56,9 @@ build_osx() {
     bash ./build.sh
     pip3 install grpcio==1.14.0
     pip3 install grpcio==3.6.0
+
+    # Test the build
+    python3 -c "import scannerpy; scannerpy.Database()"
 
     if [ $PUSH -eq 0 ]; then
         git config --global user.name \"${COMMIT_USER}\"
@@ -86,6 +89,10 @@ build_osx() {
         cd /usr/local/Homebrew/Library/Taps/scanner-research/homebrew-scanner/Formula
         sed -i "s/  url */  url \"$URL\"/g" scanner.rb
         sed -i "s/  sha256 */  sha256 \"$SHA256\"/g" scanner.rb
+
+        # Test new homebrew version
+
+        brew reinstall --verbose --debug scanner
 
         # Push new homebrew version
         git commit -m "Automated update for Scanner version $TRAVIS_TAG"
