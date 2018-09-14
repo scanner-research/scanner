@@ -78,7 +78,10 @@ class Table:
 
     def num_rows(self):
         self._need_descriptor()
-        return self._descriptor.end_rows[-1]
+        if len(self._descriptor.end_rows) > 0:
+            return self._descriptor.end_rows[-1]
+        else:
+            return 0
 
     def _parse_index(self, bufs, db):
         return struct.unpack("=Q", bufs[0])[0]
