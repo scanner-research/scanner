@@ -28,16 +28,10 @@ fi
 
 build_docker() {
     # We add -local to make sure it doesn't run the remote image if the build fails.
-    if [ "$1" = "cpu" ]
-    then
+    if [ "$1" = "cpu" ]; then
         docker build -t $DOCKER_REPO:$1-local . \
                --build-arg gpu=OFF --build-arg tag=cpu --build-arg deps_opt='' \
                -f docker/Dockerfile.scanner
-
-        # We run the tests as non-root user because Postgres test uses initdb which requires not being root
-        docker run $DOCKER_REPO:$1-local /bin/bash \
-               -c "adduser --disabled-password --gecos \"\" user && (yes | pip3 uninstall grpcio protobuf) && chmod -R 777 /opt/scanner && su -c \"cd /opt/scanner/dist && (yes | pip3 install --user *) && cd /opt/scanner/build && CTEST_OUTPUT_ON_FAILURE=1 make test ARGS='-V'\" user"
-        docker rm $(docker ps -a -f status=exited -q)
     else
         # Parse gpu build type
         local TAG=$1
@@ -48,16 +42,18 @@ build_docker() {
                -f docker/Dockerfile.scanner
     fi
 
-    if [ $PUSH -eq 0 ]; then
+    if [ "$TRAVIS_BUILD_STAGE_NAME" = "Test Build" ]; then
+        docker tag $DOCKER_REPO:$1-local $DOCKER_TEST_REPO:$1-$TRAVIS_BUILD_NUMBER
+        docker push $DOCKER_TEST_REPO:$1-$TRAVIS_BUILD_NUMBER
+        docker rmi -f $DOCKER_TEST_REPO:$1-$TRAVIS_BUILD_NUMBER
+    elif [ $PUSH -eq 0 ]; then
         docker tag $DOCKER_REPO:$1-local $DOCKER_REPO:$1-$TRAVIS_TAG
         docker push $DOCKER_REPO:$1-$TRAVIS_TAG
         docker rmi -f $DOCKER_REPO:$1-$TRAVIS_TAG
     fi
 }
 
-if [ $PUSH -eq 0 ]; then
-    yes | docker login -u="$DOCKER_USER" -p="$DOCKER_PASS"
-fi
+yes | docker login -u="$DOCKER_USER" -p="$DOCKER_PASS"
 
 build_docker $BUILD_TYPE
 
