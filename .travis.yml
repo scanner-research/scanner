@@ -31,6 +31,7 @@ jobs:
       env: BUILD_TYPE=cpu
     - stage: build
       script: "travis_retry ./scripts/travis-build.sh"
+      after_success: "travis_retry ./scripts/travis-publish.sh"
       env:
         - BUILD_TYPE=cpu
     - stage: build
@@ -49,5 +50,3 @@ jobs:
       script: "travis_retry ./scripts/travis-build.sh"
       env:
         - BUILD_TYPE=gpu-9.1-cudnn7
-script: 
-after_success: "travis_retry ./scripts/travis-publish.sh"
