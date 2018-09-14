@@ -344,6 +344,7 @@
             <span class="s1">&#39;-i &quot;concat:</span><span class="si">{input_files:s}</span><span class="s1">&quot; &#39;</span>  <span class="c1"># concatenate the h264 files</span>
             <span class="s1">&#39;-c:v libx264 &#39;</span>
             <span class="s1">&#39;-filter:v &quot;setpts=N&quot; &#39;</span>  <span class="c1"># h264 does not have pts&#39; in it</span>
+            <span class="s1">&#39;-loglevel panic &#39;</span>
             <span class="s1">&#39;</span><span class="si">{extra_args:s}</span><span class="s1">&#39;</span>
             <span class="s1">&#39;</span><span class="si">{output_name:s}</span><span class="s1">.mp4&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
                 <span class="n">input_files</span><span class="o">=</span><span class="n">files</span><span class="p">,</span>
