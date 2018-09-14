@@ -27,7 +27,7 @@ fi
 
 build_osx() {
     # Need python3
-    brew install python
+    brew outdated python || brew upgrade python
 
     # Install Scanner depenendencies
     brew tap scanner-research/homebrew-scanner
