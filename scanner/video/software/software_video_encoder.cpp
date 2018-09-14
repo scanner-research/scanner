@@ -56,6 +56,7 @@ SoftwareVideoEncoder::SoftwareVideoEncoder(i32 device_id,
     was_reset_(false),
     frame_id_(0),
     frame_(nullptr) {
+  av_log_set_level(AV_LOG_PANIC);
   avcodec_register_all();
 
   codec_ = avcodec_find_encoder(AV_CODEC_ID_H264);
