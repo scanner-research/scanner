@@ -297,6 +297,7 @@ class Column(object):
             '-i "concat:{input_files:s}" '  # concatenate the h264 files
             '-c:v libx264 '
             '-filter:v "setpts=N" '  # h264 does not have pts' in it
+            '-loglevel panic '
             '{extra_args:s}'
             '{output_name:s}.mp4'.format(
                 input_files=files,
