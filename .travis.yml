@@ -10,6 +10,7 @@ addons:
     - docker-ce
 env:
   global:
+  - BUILD_TYPE=cpu
   - DOCKER_REPO=scannerresearch/scanner
   - DOCKER_TEST_REPO=scannerresearch/test-builds
   - DOCKER_EMAIL=wcrichto@cs.stanford.edu
@@ -25,10 +26,15 @@ jobs:
   include:
     - stage: "Test build"
       script: "travis_retry ./scripts/travis-build.sh"
-      env: BUILD_TYPE=cpu
     - stage: test
       script: "travis_retry ./scripts/travis-test.sh"
-      env: BUILD_TYPE=cpu
+      env: TEST_TYPE=cpp 
+    - stage: test
+      script: "travis_retry ./scripts/travis-test.sh"
+      env: TEST_TYPE=tutorials 
+    - stage: test
+      script: "travis_retry ./scripts/travis-test.sh"
+      env: TEST_TYPE=integration 
     - stage: build
       script: "travis_retry ./scripts/travis-build.sh"
       after_success: "travis_retry ./scripts/travis-publish.sh"
