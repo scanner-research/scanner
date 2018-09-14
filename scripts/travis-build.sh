@@ -42,7 +42,8 @@ build_docker() {
                -f docker/Dockerfile.scanner
     fi
 
-    if [ "$TRAVIS_BUILD_STAGE_NAME" = "Test Build" ]; then
+    echo "$TRAVIS_BUILD_STAGE_NAME"
+    if [ "$TRAVIS_BUILD_STAGE_NAME" = "Test build" ]; then
         docker tag $DOCKER_REPO:$1-local $DOCKER_TEST_REPO:$1-$TRAVIS_BUILD_NUMBER
         docker push $DOCKER_TEST_REPO:$1-$TRAVIS_BUILD_NUMBER
         docker rmi -f $DOCKER_TEST_REPO:$1-$TRAVIS_BUILD_NUMBER

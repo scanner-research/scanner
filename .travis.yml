@@ -23,7 +23,7 @@ install:
 - pip3 install requests[security] --upgrade
 jobs:
   include:
-    - stage: "Test Build"
+    - stage: "Test build"
       script: "travis_retry ./scripts/travis-build.sh"
       env: BUILD_TYPE=cpu
     - stage: test
