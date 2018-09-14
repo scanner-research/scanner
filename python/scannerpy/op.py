@@ -279,11 +279,6 @@ def register_python_op(name: str = None,
                          ))
                 typ = typ.__args__[0]
 
-            if typ == param.empty:
-                raise ScannerException(
-                    ('No type annotation specified for input {:s}. Must '
-                     'specify an annotation of "bytes" or "FrameType".')
-                    .format(param_name))
             if typ == bytes:
                 column_type = ColumnType.Blob
             elif typ == FrameType:
@@ -313,6 +308,12 @@ def register_python_op(name: str = None,
                         ('Variadic positional inputs (*args) are not supported '
                          'when used with other inputs.'))
                 break
+
+            if param.annotation == param.empty:
+                raise ScannerException(
+                    ('No type annotation specified for input {:s}. Must '
+                     'specify an annotation of "bytes" or "FrameType".')
+                    .format(param_name))
 
             typ = param.annotation
             column_type = parse_annotation_to_column_type(typ, is_input=True)
@@ -346,6 +347,7 @@ def register_python_op(name: str = None,
             raise ScannerException(
                 ('Ellipsis tuples not supported for return type.'))
 
+        # Parse the return types into Scanner column types
         for i, typ in enumerate(tuple_params):
             column_type = parse_annotation_to_column_type(typ)
             output_columns.append(('ret{:d}'.format(i), column_type))
