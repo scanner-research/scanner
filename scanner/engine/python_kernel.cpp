@@ -153,19 +153,23 @@ void PythonKernel::execute(const StenciledBatchedElements &input_columns,
             }
 
             py::buffer_info buffer;
-            if (frame->channels() == 3) {
+            if (frame->shape[2] > 0) {
               buffer = py::buffer_info(
-                                     frame->data, (size_t)dtype_size, dtype, 3,
-                                     {(long int)frame->height(), (long int)frame->width(),
-                                         (long int)frame->channels()},
-                                     {(long int)frame->width() * frame->channels() * dtype_size,
-                                         (long int)frame->channels() * dtype_size,
-                                         (long int)dtype_size});
+                  frame->data, (size_t)dtype_size, dtype, 3,
+                  {(long int)frame->shape[0], (long int)frame->shape[1],
+                   (long int)frame->shape[2]},
+                  {(long int)frame->shape[1] * frame->shape[2] * dtype_size,
+                   (long int)frame->shape[2] * dtype_size,
+                   (long int)dtype_size});
+            } else if (frame->shape[1] > 0) {
+              buffer = py::buffer_info(
+                  frame->data, (size_t)dtype_size, dtype, 2,
+                  {(long int)frame->shape[0], (long int)frame->shape[1]},
+                  {(long int)frame->shape[1] * dtype_size, (long int)dtype_size});
             } else {
-              buffer = py::buffer_info(
-                                     frame->data, (size_t)dtype_size, dtype, 1,
-                                     {(long int)frame->height()},
-                                     {(long int)dtype_size});
+              buffer = py::buffer_info(frame->data, (size_t)dtype_size, dtype,
+                                       1, {(long int)frame->shape[0]},
+                                       {(long int)dtype_size});
             }
 
             if (frame->type == FrameType::U8) {
@@ -292,8 +296,18 @@ void PythonKernel::execute(const StenciledBatchedElements &input_columns,
                      shapes[2] * shapes[1] * strides[2]);
               dest_offset += shapes[2] * shapes[1] * strides[2];
             }
+          } else if (ndim == 2) {
+            u64 dest_offset = 0;
+            for (int i = 0; i < shapes[0]; ++i) {
+              u64 source_offset = strides[0] * i;
+              memcpy(frame->data + dest_offset, frame_data + source_offset,
+                     shapes[1] * strides[1]);
+              dest_offset += shapes[1] * strides[1];
+            }
+          } else if (ndim == 1) {
+            memcpy(frame->data, frame_data, shapes[0] * strides[0]);
           } else {
-            LOG(FATAL) << "Can not support ndim != 3.";
+            LOG(FATAL) << "Do not support ndim > 3.";
           }
           insert_frame(output_columns[j], frame);
         }
