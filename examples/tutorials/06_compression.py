@@ -16,9 +16,9 @@ db = Database()
 # as compressed video.
 def make_blurred_frame():
     frame = db.sources.FrameColumn()
-
     blurred_frame = db.ops.Blur(frame=frame, kernel_size=3, sigma=0.5)
-    return frame, blurred_frame
+    sampled_frame = db.streams.Range(blurred_frame, 0, 30)
+    return frame, sampled_frame
 
 
 # By default, if an Op outputs a frame with 3 channels with type uint8,

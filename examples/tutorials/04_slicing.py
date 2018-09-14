@@ -7,12 +7,22 @@ from scannerpy import Database, Job, FrameType
 from scannerpy.stdlib import readers
 from typing import Sequence
 
+import sys
+import os.path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/..')
+import util
+
 ################################################################################
 # This tutorial shows how to slice streams into sub streams to limit           #
 # dependencies between frames.                                                 #
 ################################################################################
 
 db = Database()
+
+example_video_path = util.download_video()
+[input_table], _ = db.ingest_videos([('example', example_video_path)],
+                                    force=True)
+
 frame = db.sources.FrameColumn()
 
 # When working with bounded or unbounded stateful operations, it is sometimes
@@ -59,21 +69,19 @@ class BackgroundSubtraction(scannerpy.Kernel):
 
 
 # First, we download the static camera video from youtube
-subprocess.check_call(
-    'youtube-dl -f 137 \'https://youtu.be/cVHqFqNz7eM\' -o test.mp4',
-    shell=True)
-[static_table], _ = db.ingest_videos([('static_video', 'test.mp4')],
-                                    force=True)
+# subprocess.check_call(
+#     'youtube-dl -f 137 \'https://youtu.be/cVHqFqNz7eM\' -o test.mp4',
+#     shell=True)
+# [static_table], _ = db.ingest_videos([('static_video', 'test.mp4')],
+#                                     force=True)
+static_table = input_table
 
 frame = db.sources.FrameColumn()
 
-# We know that there are scene change at frames 5100, 5400, and 5730, To tell
+# Imagine that there are scene changes at frames 1100, 1200, and 1500, To tell
 # scanner that we do not want background subtraction to cross these boundaries,
-# we can create a 'partitioner' which splits the input. For demonstration, we
-# are going to split into only two sequences (5100, 5350) and (5400, 5830).
-scene_partitions = db.partitioner.ranges([(5100, 5350), (5400, 5830)])
-# Since the second sequence (5400, 5830) has a scene change in it at frame 5730,
-# we will see smearing in the output video.
+# we can create a 'partitioner' which splits the input. 
+scene_partitions = db.partitioner.ranges([(1100, 1200), (1200, 1500)])
 
 # Now we slice the input frame sequence into these two partitions using a
 # slice operation
@@ -100,13 +108,6 @@ table.column('frame').save_mp4('04_masked')
 
 videos = []
 videos.append('04_masked.mp4')
-
-# If you look at around 10 seconds in the output video, you should see a
-# sharp transition in the output at the same time as the scene changes. This
-# transition is the first cut we introduced using the slicing operator at frame
-# 5350. If you look at 23 seconds, you should see smearing as the video changes
-# scenes without a cut. This smearing is because we didn't introduce a cut at
-# the right place in the second sequence (5400, 5830).
 
 print('Finished! The following videos were written: {:s}'
       .format(', '.join(videos)))

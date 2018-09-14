@@ -39,7 +39,7 @@ for frame_hists in video_hists:
     assert len(frame_hists) == 3
     assert frame_hists[0].shape[0] == 16
     num_rows += 1
-assert num_rows == db.table('example').num_rows() / 8
+assert num_rows == round(db.table('example').num_rows() / 8)
 
 # Here's some examples of other sampling modes.
 # Range takes a specific subset of a video. Here, it runs over all frames
