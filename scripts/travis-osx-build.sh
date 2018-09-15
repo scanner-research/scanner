@@ -55,7 +55,7 @@ build_osx() {
     pip3 install grpcio==1.12.0
     bash ./build.sh
     pip3 install grpcio==1.14.0
-    pip3 install grpcio==3.6.0
+    pip3 install protobuf==3.6.0
 
     # Test the build
     python3 -c "import scannerpy; scannerpy.Database()"
