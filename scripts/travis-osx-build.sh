@@ -52,13 +52,15 @@ build_osx() {
     make -j
 
     cd ..
-    pip3 install grpcio==1.12.0
+    yes | pip3 install grpcio==1.12.0
     bash ./build.sh
-    pip3 install grpcio==1.14.0
-    pip3 install protobuf==3.6.0
+    yes | pip3 install grpcio==1.14.0
+    yes | pip3 install protobuf==3.6.0
 
     # Test the build
-    python3 -c "import scannerpy; scannerpy.Database()"
+    yes | python3 -c "import scannerpy; scannerpy.Database()"
+
+    yes | pip3 uninstall scannerpy
 
     if [ $PUSH -eq 0 ]; then
         git config --global user.name "${COMMIT_USER}"
@@ -93,6 +95,8 @@ build_osx() {
         # Test new homebrew version
 
         brew reinstall --verbose --debug scanner
+
+        yes | python3 -c "import scannerpy; scannerpy.Database()"
 
         # Push new homebrew version
         git commit -m "Automated update for Scanner version $TRAVIS_TAG"
