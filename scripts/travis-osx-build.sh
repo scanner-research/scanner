@@ -44,7 +44,7 @@ build_osx() {
          --with-pybind /usr/local \
          --with-libpqxx /usr/local \
          --with-storehouse /usr/local \
-         --with-hwang /usr/local \
+         --with-hwang /usr/local
 
     echo /usr/local/include/Halide*
 
