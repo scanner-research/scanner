@@ -561,8 +561,9 @@ if [[ $INSTALL_HALIDE == true ]] && [[ ! -f $BUILD_DIR/halide.done ]] ; then
             tar -zxf $TAR_NAME && \
             cp Generator.h halide/include && \
             mkdir -p $INSTALL_PREFIX/lib && \
-            chmod -R 644 halide/* && \
-            chmod -R 755 halide/bin/* && \
+            find halide -type f -exec chmod 644 {} + && \
+            find halide -type d -exec chmod 755 {} + && \
+            find halide/bin -type f -exec chmod 755 {} + && \
             cp -r halide/bin/* $INSTALL_PREFIX/lib && \
             rm -r halide/bin && \
             cp -r halide/* $INSTALL_PREFIX && \
