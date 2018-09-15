@@ -46,9 +46,7 @@ build_osx() {
          --with-storehouse /usr/local \
          --with-hwang /usr/local
 
-    echo /usr/local/include/Halide*
-
-    mkdir build
+    mkdir -p build
     cd build
     cmake ..
     make -j
@@ -63,8 +61,8 @@ build_osx() {
     python3 -c "import scannerpy; scannerpy.Database()"
 
     if [ $PUSH -eq 0 ]; then
-        git config --global user.name \"${COMMIT_USER}\"
-        git config --global user.email \"${COMMIT_EMAIL}\"
+        git config --global user.name "${COMMIT_USER}"
+        git config --global user.email "${COMMIT_EMAIL}"
 
         # Unencrypt ssh key
         mkdir -p ~/.ssh/
@@ -77,7 +75,7 @@ build_osx() {
         ls -lah .travis
         ls -lah ~/.ssh/
 
-        eval \`ssh-agent -s\`
+        eval `ssh-agent -s`
         ssh-add
         rm -fr ~/.ssh/known_hosts
         ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
