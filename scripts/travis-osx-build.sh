@@ -46,6 +46,8 @@ build_osx() {
          --with-storehouse /usr/local \
          --with-hwang /usr/local \
 
+    echo /usr/local/include/Halide*
+
     mkdir build
     cd build
     cmake ..
