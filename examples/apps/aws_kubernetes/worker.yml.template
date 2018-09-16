@@ -1,0 +1,47 @@
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: scanner-worker
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: scanner-worker
+    spec:
+      containers:
+        - name: scanner-worker
+          image: <REPO_NAME>
+          imagePullPolicy: Always
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - SYS_ADMIN
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aws-storage-key
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aws-storage-key
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: GLOG_logtostderr
+              value: '1'
+            - name: GLOG_minloglevel
+              value: '0'
+            - name: GLOG_v
+              value: '2'
+          resources:
+            requests:
+              cpu: 35.0
+          volumeMounts:
+            - name: scanner-config
+              mountPath: /root/.scanner/
+      volumes:
+       - name: scanner-config
+         configMap:
+           name: scanner-configmap
