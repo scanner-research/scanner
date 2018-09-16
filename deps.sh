@@ -556,8 +556,8 @@ if [[ $INSTALL_HALIDE == true ]] && [[ ! -f $BUILD_DIR/halide.done ]] ; then
                 || { echo 'Installing Halide failed!' ; exit 1; }
     elif [[ "$OSTYPE" == "darwin"* ]]; then
         TAR_NAME=halide-mac-64-trunk-46d8e9e0cdae456489f1eddfd6d829956fc3c843.tgz
-        wget https://github.com/halide/Halide/releases/download/release_2018_02_15/$TAR_NAME && \
-            wget https://raw.githubusercontent.com/halide/Halide/release_2018_02_15/src/Generator.h && \
+        wget --retry-on-http-error=403 https://github.com/halide/Halide/releases/download/release_2018_02_15/$TAR_NAME && \
+            wget --retry-on-http-error=403 https://raw.githubusercontent.com/halide/Halide/release_2018_02_15/src/Generator.h && \
             tar -zxf $TAR_NAME && \
             cp Generator.h halide/include && \
             mkdir -p $INSTALL_PREFIX/lib && \
