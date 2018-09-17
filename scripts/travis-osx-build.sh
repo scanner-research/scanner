@@ -89,8 +89,8 @@ build_osx() {
 
         # Go to scanner homebrew directory to update url and sha256
         cd /usr/local/Homebrew/Library/Taps/scanner-research/homebrew-scanner/Formula
-        sed -i "" "s/  url .*/  url \"$URL\"/g" scanner.rb
-        sed -i "" "s/  sha256 .*/  sha256 \"$SHA256\"/g" scanner.rb
+        sed -i "" "s|  url .*|  url \"$URL\"|g" scanner.rb
+        sed -i "" "s|  sha256 .*|  sha256 \"$SHA256\"|g" scanner.rb
 
         # Test new homebrew version
 
