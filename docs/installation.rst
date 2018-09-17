@@ -11,6 +11,7 @@ On MacOS, you can install Scanner using homebrew with the following commands:
 
    brew tap scanner-research/homebrew-scanner
    brew install scanner
+   pip3 install scannerpy
 
 
 .. toctree::
