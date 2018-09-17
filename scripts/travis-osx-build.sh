@@ -85,7 +85,7 @@ build_osx() {
         # Pull down tar.gz to get sha256
         export URL=https://github.com/scanner-research/scanner/archive/$TRAVIS_TAG.tar.gz
         wget $URL
-        export SHA256=$(shasum -a 256 $TRAVIS_TAG.tar.gz)
+        export SHA256=$(shasum -a 256 $TRAVIS_TAG.tar.gz | awk '{ print $1 }')
 
         # Go to scanner homebrew directory to update url and sha256
         cd /usr/local/Homebrew/Library/Taps/scanner-research/homebrew-scanner/Formula
