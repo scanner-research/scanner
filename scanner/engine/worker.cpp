@@ -827,8 +827,14 @@ void WorkerImpl::start_job_processor() {
       if (trigger_shutdown_.raised()) break;
       // Start processing job
       bool result = process_job(&job_params_, &job_result_);
-      // Set to idle if we finished without a shutdown
-      state_.test_and_set(RUNNING_JOB, IDLE);
+      if (!result) {
+        try_unregister();
+        state_.set(INITIALIZING);
+        register_with_master();
+      } else {
+        // Set to idle if we finished without a shutdown
+        state_.test_and_set(RUNNING_JOB, IDLE);
+      }
     }
   });
 }
