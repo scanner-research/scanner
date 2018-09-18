@@ -94,7 +94,14 @@ build_osx() {
 
         # Test new homebrew version
 
-        brew reinstall --verbose --debug scanner
+        # Since the previous Scanner installation installs files to /usr/local (such as
+        # halide, gtest, gmock headers), the install will return a non-zero exit code
+        # indicating it failed to link. We capture that error here and then rely on
+        # brew link --overwrite to deal with the linking issue. If the package failed to
+        # install, brew link should fail as well.
+        ERR=$(brew reinstall --verbose --debug scanner)
+        brew link --overwrite scanner
+        pip3 install scannerpy
 
         yes | python3 -c "import scannerpy; scannerpy.Database()"
 
