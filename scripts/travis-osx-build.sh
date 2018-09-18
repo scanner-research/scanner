@@ -99,10 +99,10 @@ build_osx() {
         # indicating it failed to link. We capture that error here and then rely on
         # brew link --overwrite to deal with the linking issue. If the package failed to
         # install, brew link should fail as well.
-        brew uninstall --force scanner | true
-        brew cleanup --force -s scanner | true
-        brew install --verbose --debug scanner | true
-        brew link --overwrite scanner | true
+        brew uninstall --force scanner || true
+        brew cleanup -s scanner || true
+        brew install --verbose --debug scanner || true
+        brew link --overwrite scanner || true
         pip3 install scannerpy
 
         yes | python3 -c "import scannerpy; scannerpy.Database()"
