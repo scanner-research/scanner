@@ -25,6 +25,9 @@ else
     PUSH=1
 fi
 
+COMMIT_USER="Formula Builder"
+COMMIT_EMAIL="wcrichto@cs.stanford.edu"
+
 build_osx() {
     # Need python3
     brew outdated python || brew upgrade python
