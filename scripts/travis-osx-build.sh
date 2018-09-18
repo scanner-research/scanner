@@ -114,6 +114,7 @@ build_osx() {
         yes | python3 -c "import scannerpy; scannerpy.Database()"
 
         # Push new homebrew version
+        git add scanner.rb
         git commit -m "Automated update for Scanner version $TRAVIS_TAG"
         git push
     fi
