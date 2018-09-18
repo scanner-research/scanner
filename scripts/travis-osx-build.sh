@@ -94,6 +94,9 @@ build_osx() {
 
         # Test new homebrew version
 
+        # Take ownership of /usr/local
+        sudo chown -R $(whoami) $(brew --prefix)/*
+
         # Since the previous Scanner installation installs files to /usr/local (such as
         # halide, gtest, gmock headers), the install will return a non-zero exit code
         # indicating it failed to link. We capture that error here and then rely on
