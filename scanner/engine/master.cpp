@@ -446,7 +446,7 @@ void MasterServerImpl::IngestVideosHandler(
 
 void MasterServerImpl::RegisterWorkerHandler(
     MCall<proto::WorkerParams, proto::Registration>* call) {
-  pool_->enqueue([this, call]() {
+  pool_->enqueue_front([this, call]() {
     std::unique_lock<std::mutex> lk(work_mutex_);
     auto worker_info = &call->request;
     auto registration = &call->reply;
@@ -482,7 +482,7 @@ void MasterServerImpl::RegisterWorkerHandler(
 
 void MasterServerImpl::UnregisterWorkerHandler(
     MCall<proto::UnregisterWorkerRequest, proto::Empty>* call) {
-  pool_->enqueue([this, call]() {
+  pool_->enqueue_front([this, call]() {
     std::unique_lock<std::mutex> lk(work_mutex_);
     auto request = &call->request;
 
@@ -1113,7 +1113,7 @@ void MasterServerImpl::GetJobStatusHandler(
     MCall<proto::GetJobStatusRequest, proto::GetJobStatusReply>* call) {
   VLOG(3) << "Master received GetJobStatus command";
 
-  pool_->enqueue([this, call]() {
+  pool_->enqueue_front([this, call]() {
     std::unique_lock<std::mutex> l(work_mutex_);
     std::unique_lock<std::mutex> lock(active_mutex_);
     auto request = &call->request;
@@ -1172,7 +1172,7 @@ void MasterServerImpl::GetJobsHandler(
     MCall<proto::GetJobsRequest, proto::GetJobsReply>* call) {
   VLOG(3) << "Master received GetJobs command";
 
-  pool_->enqueue([this, call]() {
+  pool_->enqueue_front([this, call]() {
     std::unique_lock<std::mutex> l(work_mutex_);
     std::unique_lock<std::mutex> lock(active_mutex_);
 
@@ -1198,7 +1198,7 @@ void MasterServerImpl::PingHandler(
 
 void MasterServerImpl::PokeWatchdogHandler(
     MCall<proto::Empty, proto::Empty>* call) {
-  pool_->enqueue([this, call]() {
+  pool_->enqueue_front([this, call]() {
     VLOG(2) << "Master received PokeWatchdog.";
     watchdog_awake_ = true;
     REQUEST_RPC(PokeWatchdog, proto::Empty, proto::Empty);
