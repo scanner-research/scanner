@@ -96,6 +96,7 @@ build_osx() {
         sed -i "" "s|  sha256 .*|  sha256 \"$SHA256\"|g" scanner.rb
 
         # Test new homebrew version
+        git remote set-url origin git@github.com:scanner-research/homebrew-scanner.git
 
         # Take ownership of /usr/local
         sudo chown -R $(whoami) $(brew --prefix)/*
