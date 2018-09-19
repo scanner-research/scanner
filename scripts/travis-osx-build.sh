@@ -72,10 +72,10 @@ build_osx() {
         # Unencrypt ssh key
         mkdir -p ~/.ssh/
         chmod 0700 ~/.ssh/
-        openssl aes-256-cbc -K $encrypted_519f11e8a6d4_key -iv $encrypted_519f11e8a6d4_iv -in .travis/travisci_rsa.enc -out .travis/travisci_rsa -d
-        chmod 0600 .travis/travisci_rsa
-        cp .travis/travisci_rsa ~/.ssh/id_rsa
-        cp .travis/travisci_rsa.pub ~/.ssh/id_rsa.pub
+        openssl aes-256-cbc -K $encrypted_dcacf980e2dd_key -iv $encrypted_dcacf980e2dd_iv -in .travis/travisci_rsa_brew.enc -out .travis/travisci_rsa_brew -d
+        chmod 0600 .travis/travisci_rsa_brew
+        cp .travis/travisci_rsa_brew ~/.ssh/id_rsa
+        cp .travis/travisci_rsa_brew.pub ~/.ssh/id_rsa.pub
         chmod 0744 ~/.ssh/id_rsa.pub
         ls -lah .travis
         ls -lah ~/.ssh/
