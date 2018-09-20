@@ -472,6 +472,9 @@ void MasterServerImpl::RegisterWorkerHandler(
     std::unique_lock<std::mutex> lock(active_mutex_);
     if (active_bulk_job_) {
       auto& state = bulk_jobs_state_.at(active_bulk_job_id_);
+      state->worker_histories[node_id].start_time = now();
+      state->worker_histories[node_id].tasks_assigned = 0;
+      state->worker_histories[node_id].tasks_retired = 0;
       state->unstarted_workers.push_back(node_id);
     }
 
@@ -1660,15 +1663,20 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
   // Send new job command to workers
   VLOG(1) << "Sending new job command to workers";
   {
-    std::unique_lock<std::mutex> lk(work_mutex_);
     std::vector<i32> worker_ids;
-    for (auto& kv : workers_) {
-      if (kv.second->active) {
-        worker_ids.push_back(kv.first);
+    {
+      std::unique_lock<std::mutex> lk(work_mutex_);
+      for (auto& kv : workers_) {
+        if (kv.second->active) {
+          worker_ids.push_back(kv.first);
+        }
       }
     }
     start_job_on_workers(worker_ids);
-    state->unstarted_workers.clear();
+    {
+      std::unique_lock<std::mutex> lk(work_mutex_);
+      state->unstarted_workers.clear();
+    }
   }
 
   // Wait for all workers to finish
@@ -1757,9 +1765,9 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
     }
     // Check if we have unstarted workers and start them if so
     {
-      std::unique_lock<std::mutex> lk(work_mutex_);
-      if (!state->unstarted_workers.empty()) {
-        // Update locals
+      std::vector<i32> worker_ids;
+      {
+        std::unique_lock<std::mutex> lk(work_mutex_);
         for (i32 wid : state->unstarted_workers) {
           const std::string& address = workers_.at(wid)->address;
           std::vector<std::string> split_addr = split(address, ':');
@@ -1768,10 +1776,17 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
             local_totals_[sans_port] = 0;
           }
           local_totals_[sans_port] += 1;
+          worker_ids.push_back(wid);
         }
-        start_job_on_workers(state->unstarted_workers);
       }
-      state->unstarted_workers.clear();
+
+      if (!worker_ids.empty()) {
+        start_job_on_workers(worker_ids);
+      }
+      {
+        std::unique_lock<std::mutex> lk(work_mutex_);
+        state->unstarted_workers.clear();
+      }
     }
     std::this_thread::yield();
   }
@@ -1927,11 +1942,19 @@ void MasterServerImpl::stop_worker_pinger() {
 }
 
 void MasterServerImpl::start_job_on_workers(const std::vector<i32>& worker_ids) {
-  proto::BulkJobParameters w_job_params;
-  w_job_params.MergeFrom(job_params_);
-  w_job_params.set_bulk_job_id(active_bulk_job_id_);
 
-  auto& state = bulk_jobs_state_.at(active_bulk_job_id_);
+  proto::BulkJobParameters w_job_params;
+  std::map<WorkerID, std::shared_ptr<WorkerState>> workers_copy;
+  {
+    std::unique_lock<std::mutex> lk(work_mutex_);
+    w_job_params.MergeFrom(job_params_);
+    w_job_params.set_bulk_job_id(active_bulk_job_id_);
+    for (auto& kv : workers_) {
+      if (kv.second->active) {
+        workers_copy[kv.first] = kv.second;
+      }
+    }
+  }
 
   struct Req {
     i32 worker_id;
@@ -1949,8 +1972,8 @@ void MasterServerImpl::start_job_on_workers(const std::vector<i32>& worker_ids) 
   std::map<i32, i32> retry_attempts;
 
   auto send_new_job = [&](i32 worker_id) {
-    const std::string& address = workers_.at(worker_id)->address;
-    auto& worker = workers_.at(worker_id)->stub;
+    const std::string& address = workers_copy.at(worker_id)->address;
+    auto& worker = workers_copy.at(worker_id)->stub;
     std::vector<std::string> split_addr = split(address, ':');
     std::string sans_port = split_addr[0];
     w_job_params.set_local_id(local_ids_[sans_port]);
@@ -1970,9 +1993,6 @@ void MasterServerImpl::start_job_on_workers(const std::vector<i32>& worker_ids) 
                                           w_job_params, &cq);
     rpcs[worker_id]->Finish(replies[worker_id].get(), statuses[worker_id].get(),
                             (void*)new Req{worker_id, true});
-    state->worker_histories[worker_id].start_time = now();
-    state->worker_histories[worker_id].tasks_assigned = 0;
-    state->worker_histories[worker_id].tasks_retired = 0;
     VLOG(2) << "Sent NewJob command to worker " << worker_id;
   };
 
@@ -1981,6 +2001,8 @@ void MasterServerImpl::start_job_on_workers(const std::vector<i32>& worker_ids) 
   }
 
   i64 workers_processed = 0;
+  std::vector<i32> valid_workers;
+  std::vector<i32> invalid_workers;
   while (workers_processed < worker_ids.size()) {
     void* got_tag;
     bool ok = false;
@@ -1998,13 +2020,13 @@ void MasterServerImpl::start_job_on_workers(const std::vector<i32>& worker_ids) 
       if (status.ok()) {
         VLOG(2) << "Worker " << worker_id << " NewJob returned.";
 
-        if (workers_.at(worker_id)->active && !replies[worker_id]->success()) {
+        if (workers_copy.at(worker_id)->active && !replies[worker_id]->success()) {
           LOG(WARNING) << "Worker " << worker_id << " ("
-                       << workers_.at(worker_id)->address << ") "
+                       << workers_copy.at(worker_id)->address << ") "
                        << "returned error: " << replies[worker_id]->msg();
-          workers_.at(worker_id)->active = false;
+          invalid_workers.push_back(worker_id);
         } else {
-          state->unfinished_workers[worker_id] = true;
+          valid_workers.push_back(worker_id);
         }
         workers_processed++;
       } else if (status.error_code() == grpc::StatusCode::UNAVAILABLE) {
@@ -2014,7 +2036,7 @@ void MasterServerImpl::start_job_on_workers(const std::vector<i32>& worker_ids) 
           // Already retried too many times
           LOG(WARNING) << "Worker " << worker_id << " timed out for NewJob: ("
                        << status.error_code() << "): " << status.error_message();
-          workers_.at(worker_id)->active = false;
+          invalid_workers.push_back(worker_id);
           workers_processed++;
         } else {
           // Issue a grpc Alarm to alert when we should reissue this NewJob request
@@ -2034,7 +2056,7 @@ void MasterServerImpl::start_job_on_workers(const std::vector<i32>& worker_ids) 
         // Request failed, so we should ignore this worker
         LOG(WARNING) << "Worker " << worker_id << " did not return NewJob: ("
                      << status.error_code() << "): " << status.error_message();
-        workers_.at(worker_id)->active = false;
+        invalid_workers.push_back(worker_id);
         workers_processed++;
       }
     } else {
@@ -2049,6 +2071,20 @@ void MasterServerImpl::start_job_on_workers(const std::vector<i32>& worker_ids) 
   while (cq.Next(&got_tag, &ok)) {
     Req* req = (Req*)got_tag;
     delete req;
+  }
+
+  {
+    std::unique_lock<std::mutex> lk(work_mutex_);
+    for (i32 worker_id : invalid_workers) {
+      workers_.at(worker_id)->active = false;
+    }
+    std::unique_lock<std::mutex> lock(active_mutex_);
+    if (active_bulk_job_) {
+      auto& state = bulk_jobs_state_.at(active_bulk_job_id_);
+      for (i32 worker_id : valid_workers) {
+        state->unfinished_workers[worker_id] = true;
+      }
+    }
   }
 }
 
