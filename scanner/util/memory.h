@@ -45,8 +45,14 @@ u8* new_buffer_(DeviceHandle device, size_t size, std::string call_file,
 u8* new_block_buffer_(DeviceHandle device, size_t size, i32 refs,
                      std::string call_file, i32 call_line);
 
-#define new_block_buffer(device__, size__, refs__)                  \
+#define new_block_buffer(device__, size__, refs__)                \
   new_block_buffer_(device__, size__, refs__, __FILE__, __LINE__)
+
+u8* new_block_buffer_sizes_(DeviceHandle device, const std::vector<size_t>& sizes,
+                            std::string call_file, i32 call_line);
+
+#define new_block_buffer_sizes(device__, sizes__)                 \
+  new_block_buffer_sizes_(device__, sizes__, __FILE__, __LINE__)
 
 void add_buffer_ref(DeviceHandle device, u8* buffer);
 
@@ -71,6 +77,6 @@ u64 current_memory_allocated(DeviceHandle device);
 
 u64 max_memory_allocated(DeviceHandle device);
 
-const std::vector<Allocation>& allocator_allocations(DeviceHandle device);
+const std::vector<Allocation> allocator_allocations(DeviceHandle device);
 
 }

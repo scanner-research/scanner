@@ -121,7 +121,7 @@ class SystemAllocator : public Allocator {
       try {
         return new u8[size];
       } catch (const std::bad_alloc& e) {
-        LOG(FATAL) << "CPU memory allocation failed: " << e.what();
+        LOG(FATAL) << "CPU memory allocation failed (" << size << " bytes): " << e.what();
       }
     } else if (device_.type == DeviceType::GPU) {
       u8* buffer;
@@ -270,12 +270,24 @@ class BlockAllocator {
   BlockAllocator(Allocator* allocator) : allocator_(allocator) {}
 
   ~BlockAllocator() {
-    std::lock_guard<std::mutex> guard(lock_);
-    for (Allocation& alloc : allocations_) {
-      assert(alloc.refs > 0);
-      allocator_->free(alloc.buffer);
+    {
+      std::lock_guard<std::mutex> guard(map_lock_);
+      for (auto& it : allocation_map_) {
+        auto alloc = it.second;
+        assert(alloc->refs > 0);
+        allocator_->free(alloc->buffer);
+      }
+      allocation_map_.clear();
     }
-    allocations_.clear();
+
+    {
+      std::lock_guard<std::mutex> guard(vec_lock_);
+      for (Allocation& alloc : allocations_) {
+        assert(alloc.refs > 0);
+        allocator_->free(alloc.buffer);
+      }
+      allocations_.clear();
+    }
   }
 
   u8* allocate(size_t size, i32 refs, std::string call_file = "",
@@ -289,8 +301,10 @@ class BlockAllocator {
     alloc.call_file = call_file;
     alloc.call_line = call_line;
 
-    std::lock_guard<std::mutex> guard(lock_);
-    allocations_.push_back(alloc);
+    {
+      std::lock_guard<std::mutex> guard(vec_lock_);
+      allocations_.push_back(alloc);
+    }
 
     current_memory_allocated_ += alloc.size;
     max_memory_allocated_ =
@@ -299,64 +313,154 @@ class BlockAllocator {
     return buffer;
   }
 
-  void add_refs(u8* buffer, size_t refs) {
-    std::lock_guard<std::mutex> guard(lock_);
+  u8* allocate_sizes(const std::vector<size_t>& sizes, std::string call_file = "", i32 call_line = 0) {
+    size_t total_size = 0;
+    for (size_t size : sizes) { total_size += size; }
+    u8* buffer = allocator_->allocate(total_size);
 
-    i32 index;
-    bool found = find_buffer(buffer, index);
-    LOG_IF(FATAL, !found)
+    std::shared_ptr<Allocation> alloc(new Allocation);
+    alloc->buffer = buffer;
+    alloc->size = total_size;
+    alloc->refs = sizes.size();
+    alloc->call_file = call_file;
+    alloc->call_line = call_line;
+
+    {
+      std::lock_guard<std::mutex> guard(map_lock_);
+      u8* cursor = buffer;
+      for (size_t size : sizes) {
+        allocation_map_[cursor] = alloc;
+        cursor += size;
+      }
+    }
+
+    current_memory_allocated_ += alloc->size;
+    max_memory_allocated_ =
+        std::max(current_memory_allocated_, max_memory_allocated_);
+
+    return buffer;
+  }
+
+  void add_refs(u8* buffer, size_t refs) {
+    {
+      std::lock_guard<std::mutex> guard(map_lock_);
+      auto it = allocation_map_.find(buffer);
+      if (it != allocation_map_.end()) {
+        std::shared_ptr<Allocation>& alloc = it->second;
+        assert(alloc->refs > 0);
+        alloc->refs += refs;
+        return;
+      }
+    }
+
+    {
+      std::lock_guard<std::mutex> guard(vec_lock_);
+
+      i32 index;
+      bool found = find_buffer(buffer, index);
+      LOG_IF(FATAL, !found)
         << "Block allocator tried to add ref to non-block buffer";
 
-    Allocation& alloc = allocations_[index];
-    assert(alloc.refs > 0);
+      Allocation& alloc = allocations_[index];
+      assert(alloc.refs > 0);
 
-    alloc.refs += refs;
+      alloc.refs += refs;
+    }
   }
 
   void free(u8* buffer) {
-    std::lock_guard<std::mutex> guard(lock_);
+    {
+      std::lock_guard<std::mutex> guard(map_lock_);
+      auto it = allocation_map_.find(buffer);
+      if (it != allocation_map_.end()) {
+        std::shared_ptr<Allocation> alloc = it->second;
+        allocation_map_.erase(it);
 
-    i32 index;
-    bool found = find_buffer(buffer, index);
-    LOG_IF(FATAL, !found) << "Block allocator freed non-block buffer";
+        assert(alloc->refs > 0);
+        alloc->refs -= 1;
 
-    Allocation& alloc = allocations_[index];
-    assert(alloc.refs > 0);
-    alloc.refs -= 1;
+        if (alloc->refs == 0) {
+          current_memory_allocated_ -= alloc->size;
+          allocator_->free(alloc->buffer);
+        }
 
-    if (alloc.refs == 0) {
-      current_memory_allocated_ -= alloc.size;
+        return;
+      }
+    }
 
-      allocator_->free(alloc.buffer);
-      allocations_.erase(allocations_.begin() + index);
+    {
+      std::lock_guard<std::mutex> guard(vec_lock_);
+
+      i32 index;
+      bool found = find_buffer(buffer, index);
+      LOG_IF(FATAL, !found) << "Block allocator freed non-block buffer";
+
+      Allocation& alloc = allocations_[index];
+      assert(alloc.refs > 0);
+      alloc.refs -= 1;
+
+      if (alloc.refs == 0) {
+        current_memory_allocated_ -= alloc.size;
+
+        allocator_->free(alloc.buffer);
+        allocations_.erase(allocations_.begin() + index);
+      }
     }
   }
 
   bool buffers_in_same_block(std::vector<u8*> buffers) {
     assert(buffers.size() > 0);
 
-    std::lock_guard<std::mutex> guard(lock_);
-    i32 base_index;
-    bool found = find_buffer(buffers[0], base_index);
-    if (!found) {
-      return false;
-    }
+    {
+      std::lock_guard<std::mutex> guard(map_lock_);
+      auto it = allocation_map_.find(buffers[0]);
+      if (it != allocation_map_.end()) {
+        u8* base_buffer = it->second->buffer;
 
-    for (i32 i = 1; i < buffers.size(); ++i) {
-      i32 index;
-      found = find_buffer(buffers[i], index);
-      if (!found || base_index != index) {
-        return false;
+        for (i32 i = 1; i < buffers.size(); ++i) {
+          auto it2 = allocation_map_.find(buffers[i]);
+          if (it2 == allocation_map_.end() || it2->second->buffer != base_buffer) {
+            return false;
+          }
+        }
+
+        return true;
       }
     }
 
-    return true;
+    {
+      std::lock_guard<std::mutex> guard(vec_lock_);
+      i32 base_index;
+      bool found = find_buffer(buffers[0], base_index);
+      if (!found) {
+        return false;
+      }
+
+      for (i32 i = 1; i < buffers.size(); ++i) {
+        i32 index;
+        found = find_buffer(buffers[i], index);
+        if (!found || base_index != index) {
+          return false;
+        }
+      }
+
+      return true;
+    }
   }
 
   bool buffer_in_block(u8* buffer) {
-    std::lock_guard<std::mutex> guard(lock_);
-    i32 index;
-    return find_buffer(buffer, index);
+    {
+      std::lock_guard<std::mutex> guard(map_lock_);
+      if (allocation_map_.find(buffer) != allocation_map_.end()) {
+        return true;
+      }
+    }
+
+    {
+      std::lock_guard<std::mutex> guard(vec_lock_);
+      i32 index;
+      return find_buffer(buffer, index);
+    }
   }
 
   bool find_buffer(u8* buffer, i32& index) {
@@ -371,7 +475,15 @@ class BlockAllocator {
     return false;
   }
 
-  const std::vector<Allocation>& allocations() {
+  const std::vector<Allocation> allocations() {
+    std::lock_guard<std::mutex> guard1(map_lock_);
+    std::lock_guard<std::mutex> guard2(vec_lock_);
+
+    std::vector<Allocation> allocs_copy = allocations_;
+    for (auto& it : allocation_map_) {
+      allocs_copy.push_back(*(it.second));
+    }
+
     return allocations_;
   }
 
@@ -384,8 +496,10 @@ class BlockAllocator {
   }
 
  private:
-  std::mutex lock_;
+  std::mutex map_lock_;
+  std::mutex vec_lock_;
   std::vector<Allocation> allocations_;
+  std::map<u8*, std::shared_ptr<Allocation>> allocation_map_;
   Allocator* allocator_;
 
   u64 current_memory_allocated_ = 0;
@@ -683,6 +797,17 @@ u8* new_block_buffer_(DeviceHandle device, size_t size, i32 refs,
 #endif
 }
 
+u8* new_block_buffer_sizes_(DeviceHandle device, const std::vector<size_t>& sizes,
+                            std::string call_file, i32 call_line) {
+  LOG_IF(FATAL, sizes.size() == 0) << "Cannot allocate zero-length buffer";
+#ifdef USE_LINKED_ALLOCATOR
+  LOG(FATAL) << "Linked allocator doesn't implement size-list based allocation";
+#else
+  BlockAllocator* allocator = block_allocator_for_device(device);
+  return allocator->allocate_sizes(sizes, call_file, call_line);
+#endif
+}
+
 void add_buffer_ref(DeviceHandle device, u8* buffer) {
   add_buffer_refs(device, buffer, 1);
 }
@@ -861,7 +986,7 @@ u64 max_memory_allocated(DeviceHandle device) {
   return block_allocator->max_memory_allocated();
 }
 
-const std::vector<Allocation>& allocator_allocations(DeviceHandle device) {
+const std::vector<Allocation> allocator_allocations(DeviceHandle device) {
   BlockAllocator* block_allocator = block_allocator_for_device(device);
   return block_allocator->allocations();
 }
