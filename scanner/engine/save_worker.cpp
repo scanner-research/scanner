@@ -110,10 +110,13 @@ void SaveWorker::feed(EvalWorkEntry& input_entry) {
 
   profiler_.add_interval("io", io_start, now());
 
-  for (size_t out_idx = 0; out_idx < work_entry.columns.size(); ++out_idx) {
-    u64 num_elements = static_cast<u64>(work_entry.columns[out_idx].size());
-    for (size_t i = 0; i < num_elements; ++i) {
-      delete_element(CPU_DEVICE, work_entry.columns[out_idx][i]);
+  {
+    ProfileBlock _block(&profiler_, "cleanup");
+    for (size_t out_idx = 0; out_idx < work_entry.columns.size(); ++out_idx) {
+      u64 num_elements = static_cast<u64>(work_entry.columns[out_idx].size());
+      for (size_t i = 0; i < num_elements; ++i) {
+        delete_element(CPU_DEVICE, work_entry.columns[out_idx][i]);
+      }
     }
   }
 }

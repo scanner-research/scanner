@@ -950,82 +950,91 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
       // For each column, transfer all valid rows to temp output, deleting all
       // the non valid rows, and then swap the temp rows into the side
       // output columns
-      i32 first_col_idx = side_output_columns.size() - num_output_columns;
-      for (i64 row_start = 0;
-           row_start < side_output_columns[first_col_idx].size(); ++row_start) {
-        assert(!side_row_ids[first_col_idx].empty());
-        // assert(side_row_ids[first_col_idx][row_start] <=
-        //        kernel_valid_output_rows[kernel_current_output_idx]);
-        if (kernel_current_output_idx < kernel_valid_output_rows.size() &&
-            side_row_ids[first_col_idx][row_start] ==
-                kernel_valid_output_rows[kernel_current_output_idx]) {
-          i64 next_row = kernel_valid_output_rows[kernel_current_output_idx];
-          // Is a valid row, so keep
-          for (i64 i = 0; i < num_output_columns; ++i) {
-            i32 col_idx = side_output_columns.size() - num_output_columns + i;
-            auto& element = side_output_columns[col_idx][row_start];
-            temp_output_columns[i].push_back(element);
-            temp_row_ids[i].push_back(next_row);
-          }
-          kernel_current_output_idx++;
-        } else {
-          // Is not a valid row, so delete
-          for (i64 i = 0; i < num_output_columns; ++i) {
-            i32 col_idx = side_output_columns.size() - num_output_columns + i;
-            auto& element = side_output_columns[col_idx][row_start];
-            delete_element(side_output_handles[col_idx], element);
+      {
+        ProfileBlock _block(&profiler_, "side_transfer");
+        i32 first_col_idx = side_output_columns.size() - num_output_columns;
+        for (i64 row_start = 0;
+             row_start < side_output_columns[first_col_idx].size(); ++row_start) {
+          assert(!side_row_ids[first_col_idx].empty());
+          // assert(side_row_ids[first_col_idx][row_start] <=
+          //        kernel_valid_output_rows[kernel_current_output_idx]);
+          if (kernel_current_output_idx < kernel_valid_output_rows.size() &&
+              side_row_ids[first_col_idx][row_start] ==
+              kernel_valid_output_rows[kernel_current_output_idx]) {
+            i64 next_row = kernel_valid_output_rows[kernel_current_output_idx];
+            // Is a valid row, so keep
+            for (i64 i = 0; i < num_output_columns; ++i) {
+              i32 col_idx = side_output_columns.size() - num_output_columns + i;
+              auto& element = side_output_columns[col_idx][row_start];
+              temp_output_columns[i].push_back(element);
+              temp_row_ids[i].push_back(next_row);
+            }
+            kernel_current_output_idx++;
+          } else {
+            // Is not a valid row, so delete
+            for (i64 i = 0; i < num_output_columns; ++i) {
+              i32 col_idx = side_output_columns.size() - num_output_columns + i;
+              auto& element = side_output_columns[col_idx][row_start];
+              delete_element(side_output_handles[col_idx], element);
+            }
           }
         }
-      }
-      for (i64 i = 0; i < num_output_columns; ++i) {
-        i32 col_idx = side_output_columns.size() - num_output_columns + i;
-        side_output_columns[col_idx].swap(temp_output_columns[i]);
-        side_row_ids[col_idx].swap(temp_row_ids[i]);
+        for (i64 i = 0; i < num_output_columns; ++i) {
+          i32 col_idx = side_output_columns.size() - num_output_columns + i;
+          side_output_columns[col_idx].swap(temp_output_columns[i]);
+          side_row_ids[col_idx].swap(temp_row_ids[i]);
+        }
       }
     }
 
-    // Remove elements from the element cache we won't access anymore
-    if (kernel_valid_input_rows.size() > 0) {
-      i64 last_cache_element = 0;
-      i64 min_used_row = kernel_valid_input_rows[std::min(
-          row_end, (i64)kernel_valid_input_rows.size() - 1)];
-      min_used_row += kernel_stencil[0];
-      {
-        auto& row_id_deque = kernel_cache_row_ids[0];
-        while (row_id_deque.size() > 0) {
-          i64 cache_row = row_id_deque.front();
-          if (cache_row < min_used_row) {
-            for (auto& deqs : kernel_cache_row_ids) {
-              deqs.pop_front();
+    {
+      ProfileBlock _block(&profiler_, "cache_delete");
+      // Remove elements from the element cache we won't access anymore
+      if (kernel_valid_input_rows.size() > 0) {
+        i64 last_cache_element = 0;
+        i64 min_used_row = kernel_valid_input_rows[std::min(
+                                                            row_end, (i64)kernel_valid_input_rows.size() - 1)];
+        min_used_row += kernel_stencil[0];
+        {
+          auto& row_id_deque = kernel_cache_row_ids[0];
+          while (row_id_deque.size() > 0) {
+            i64 cache_row = row_id_deque.front();
+            if (cache_row < min_used_row) {
+              for (auto& deqs : kernel_cache_row_ids) {
+                deqs.pop_front();
+              }
+              for (size_t i = 0; i < kernel_cache.size(); ++i) {
+                auto device = kernel_cache_devices[i];
+                auto& cache_deque = kernel_cache[i];
+                assert(cache_deque.size() > 0);
+                Element element = cache_deque.front();
+                delete_element(device, element);
+                cache_deque.pop_front();
+              }
+            } else {
+              break;
             }
-            for (size_t i = 0; i < kernel_cache.size(); ++i) {
-              auto device = kernel_cache_devices[i];
-              auto& cache_deque = kernel_cache[i];
-              assert(cache_deque.size() > 0);
-              Element element = cache_deque.front();
-              delete_element(device, element);
-              cache_deque.pop_front();
-            }
-          } else {
-            break;
           }
+          kernel_element_cache_input_idx += producible_elements;
         }
-        kernel_element_cache_input_idx += producible_elements;
       }
     }
 
     // Remove dead columns from side_output_handles
     // TODO(apoms): move this to before the Op eval
-    auto& dead_columns = arg_group_.dead_columns[k];
-    for (size_t y = 0; y < dead_columns.size(); ++y) {
-      i32 dead_col_idx = dead_columns[dead_columns.size() - 1 - y];
-      Elements& column = side_output_columns[dead_col_idx];
-      for (Element& element : column) {
-        delete_element(side_output_handles[dead_col_idx], element);
+    {
+      ProfileBlock _block(&profiler_, "delete");
+      auto& dead_columns = arg_group_.dead_columns[k];
+      for (size_t y = 0; y < dead_columns.size(); ++y) {
+        i32 dead_col_idx = dead_columns[dead_columns.size() - 1 - y];
+        Elements& column = side_output_columns[dead_col_idx];
+        for (Element& element : column) {
+          delete_element(side_output_handles[dead_col_idx], element);
+        }
+        side_output_columns.erase(side_output_columns.begin() + dead_col_idx);
+        side_output_handles.erase(side_output_handles.begin() + dead_col_idx);
+        side_row_ids.erase(side_row_ids.begin() + dead_col_idx);
       }
-      side_output_columns.erase(side_output_columns.begin() + dead_col_idx);
-      side_output_handles.erase(side_output_handles.begin() + dead_col_idx);
-      side_row_ids.erase(side_row_ids.begin() + dead_col_idx);
     }
     // Delete elements from stencil cache that will no longer be used
     profiler_.add_interval("full_cleanup:" + op_name, full_cleanup_start, now());
