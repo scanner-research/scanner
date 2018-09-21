@@ -1671,12 +1671,9 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
           worker_ids.push_back(kv.first);
         }
       }
-    }
-    start_job_on_workers(worker_ids);
-    {
-      std::unique_lock<std::mutex> lk(work_mutex_);
       state->unstarted_workers.clear();
     }
+    start_job_on_workers(worker_ids);
   }
 
   // Wait for all workers to finish
@@ -1778,14 +1775,11 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
           local_totals_[sans_port] += 1;
           worker_ids.push_back(wid);
         }
+        state->unstarted_workers.clear();
       }
 
       if (!worker_ids.empty()) {
         start_job_on_workers(worker_ids);
-      }
-      {
-        std::unique_lock<std::mutex> lk(work_mutex_);
-        state->unstarted_workers.clear();
       }
     }
     std::this_thread::yield();
