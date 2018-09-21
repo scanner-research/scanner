@@ -73,7 +73,7 @@ class WorkerImpl final : public proto::Worker::Service {
   };
 
   Condition<State> state_;
-  std::atomic_flag unregistered_;
+  std::atomic_flag unregistered_ = ATOMIC_FLAG_INIT;
   std::set<std::string> so_paths_;
 
   std::thread watchdog_thread_;

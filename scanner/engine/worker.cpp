@@ -688,9 +688,9 @@ Result WorkerImpl::register_with_master() {
     return result;
   }
 
-  LOG(INFO) << "Worker registered with master";
-
   node_id_ = registration.node_id();
+
+  LOG(INFO) << "Worker registered with master with id " << node_id_;
 
   state_.set(State::IDLE);
 
@@ -829,6 +829,7 @@ void WorkerImpl::start_job_processor() {
       bool result = process_job(&job_params_, &job_result_);
       if (!result) {
         try_unregister();
+        unregistered_.clear();
         state_.set(INITIALIZING);
         register_with_master();
       } else {
