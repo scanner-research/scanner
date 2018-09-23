@@ -45,9 +45,7 @@ class MasterServerImpl final : public proto::Master::Service {
 
   void run();
 
-  void handle_rpcs();
-
-  void start_watchdog(bool enable_timeout, i32 timeout_ms = 50000);
+  void handle_rpcs(i32 watchdog_timeout_ms = 50000);
 
  private:
   void ShutdownHandler(MCall<proto::Empty, proto::Result>* call);
@@ -153,6 +151,8 @@ class MasterServerImpl final : public proto::Master::Service {
 
   void blacklist_job(i64 job_id);
 
+  void start_shutdown();
+
   DatabaseParameters db_params_;
   const std::string port_;
 
@@ -162,8 +162,7 @@ class MasterServerImpl final : public proto::Master::Service {
   std::condition_variable pinger_wake_cv_;
   std::mutex pinger_wake_mutex_;
 
-  std::thread watchdog_thread_;
-  std::atomic<bool> watchdog_awake_;
+  std::atomic<std::chrono::high_resolution_clock::duration> last_watchdog_poke_;
   Flag trigger_shutdown_;
   grpc::Alarm* shutdown_alarm_ = nullptr;
   storehouse::StorageBackend* storage_;
@@ -174,17 +173,32 @@ class MasterServerImpl final : public proto::Master::Service {
   std::vector<proto::PythonKernelRegistration> py_kernel_registrations_;
 
   // Worker state
-  WorkerID next_worker_id_ = 0;
+  std::atomic<WorkerID> next_worker_id_{0};
 
   struct WorkerState {
-    WorkerID id;
-    bool active = false;
-    std::unique_ptr<proto::Worker::Stub> stub;
-    std::string address;
-    // Tracks number of times the pinger has failed to reach a worker
-    i64 failed_pings = 0;
+    enum State {
+      IDLE, // Waiting for a new job
+      RUNNING_JOB, // Executing a job
+      UNREGISTERED // Unregistered and can be deleted
+    };
+
+    WorkerState(WorkerID _id, std::unique_ptr<proto::Worker::Stub> _stub,
+                const std::string& _address)
+        : id(_id), stub(std::move(_stub)), address(_address) {}
+
+    /// The unique ID assigned to this worker.
+    const WorkerID id;
+    /// The current state the worker is in.
+    std::atomic<State> state;
+    /// The RPC stub used to send GRPC messages to the worker.
+    const std::unique_ptr<proto::Worker::Stub> stub;
+    /// The IP address of the worker.
+    const std::string address;
+    /// Number of times the pinger has failed to reach a worker.
+    std::atomic<i64> failed_pings{0};
   };
 
+  /// A map from worker IDs to workers that have registered with the master.
   std::map<WorkerID, std::shared_ptr<WorkerState>> workers_;
 
   // True if the master is executing a job
@@ -242,8 +256,11 @@ class MasterServerImpl final : public proto::Master::Service {
     // All job task output rows
     // Job -> Task -> task output rows
     std::vector<std::vector<std::vector<i64>>> job_tasks;
-    // Outstanding set of generated task samples that should be processed
-    std::deque<std::tuple<i64, i64>> unallocated_job_tasks;
+    // Outstanding set of generated tasks that are waiting to or are being
+    // processed
+    std::set<std::tuple<i64, i64>> active_job_tasks;
+    // Queue of tasks that need to be assigned to a worker
+    std::deque<std::tuple<i64, i64>> to_assign_job_tasks;
     // The total number of tasks that have been completed
     std::atomic<i64> total_tasks_used{0};
     // The total number of tasks for this bulk job
@@ -259,9 +276,9 @@ class MasterServerImpl final : public proto::Master::Service {
     // Tracks tasks assigned to worker so they can be reassigned if the worker
     // fails
     // Worker id -> (job_id, task_id)
-    std::map<i64, std::set<std::tuple<i64, i64>>> active_job_tasks;
+    std::map<i64, std::set<std::tuple<i64, i64>>> worker_job_tasks;
     // (Worker id, job_id, task_id) -> start_time
-    std::map<std::tuple<i64, i64, i64>, double> active_job_tasks_starts;
+    std::map<std::tuple<i64, i64, i64>, double> worker_job_tasks_starts;
     // Tracks number of times a task has been failed so that a job can be
     // removed if it is causing consistent failures job_id -> task_id ->
     // num_failures
@@ -280,7 +297,7 @@ class MasterServerImpl final : public proto::Master::Service {
     std::vector<i32> unstarted_workers;
     std::atomic<i64> num_failed_workers{0};
     std::vector<i32> job_uncommitted_tables;
-    
+
     Result job_result;
   };
 

@@ -48,7 +48,7 @@ static const u32 PING_WORKER_TIMEOUT = 5;
 static const u32 NEW_JOB_WORKER_TIMEOUT = 30;
 
 MasterServerImpl::MasterServerImpl(DatabaseParameters& params, const std::string& port)
-    : watchdog_awake_(true), db_params_(params), port_(port) {
+    : db_params_(params), port_(port) {
   VLOG(1) << "Creating master...";
 
   {
@@ -89,9 +89,6 @@ MasterServerImpl::~MasterServerImpl() {
   stop_job_processor();
 
   stop_worker_pinger();
-  if (watchdog_thread_.joinable()) {
-    watchdog_thread_.join();
-  }
   delete storage_;
   if (shutdown_alarm_) {
     delete shutdown_alarm_;
@@ -145,7 +142,7 @@ void MasterServerImpl::run() {
     }                                                                        \
   } while (0);
 
-void MasterServerImpl::handle_rpcs() {
+void MasterServerImpl::handle_rpcs(i32 watchdog_timeout_ms) {
   // Spawn instances for receiving and returning requests
   REQUEST_RPC(Shutdown, proto::Empty, Result);
   REQUEST_RPC(ListTables, proto::Empty, proto::ListTablesResult);
@@ -176,47 +173,96 @@ void MasterServerImpl::handle_rpcs() {
   REQUEST_RPC(Ping, proto::Empty, proto::Empty);
   REQUEST_RPC(PokeWatchdog, proto::Empty, proto::Empty);
 
-  void* tag;  // uniquely identifies a request.
-  bool ok;
-  while (cq_->Next(&tag, &ok)) {
+  // Initialize the watchdog here to avoid instantly shutting down if
+  // watchdog poking hasn't started yet.
+  last_watchdog_poke_ = now().time_since_epoch();
+
+  // The main event loop for the master. This loop serves two primary functions:
+  //
+  //  1. Handle GRPC events. The loop first checks if any events have occured
+  //     by polling the global completion queue. If so, it calls out to one
+  //     of the event handlers to respond to the request (potentially pushing
+  //     the request onto the masters thread pool to be handled asynchronously).
+  //
+  //  2. Monitor watchdog timeout. After checking for an event, the loop then
+  //     checks to see if the watchdog timeout has expired. If so, it starts the
+  //     shutdown process for the master.
+  bool has_called_start_shutdown = false;
+  while (true) {
     // Block waiting to read the next event from the completion queue. The
     // event is uniquely identified by its tag, which in this case is the
     // memory address of a CallData instance.
     // The return value of Next should always be checked. This return value
     // tells us whether there is any kind of event or cq_ is shutting down.
-    if (auto call_tag = static_cast<BaseCall<MasterServerImpl>::Tag*>(tag)) {
-      std::string type;
-      switch (call_tag->get_state()) {
-        case BaseCall<MasterServerImpl>::Tag::State::Received: {
-          type = "Received";
-          break;
+    std::chrono::system_clock::time_point cq_deadline =
+        std::chrono::system_clock::now() + std::chrono::milliseconds(50);
+    void* tag;  // uniquely identifies a request.
+    bool ok;
+    grpc::CompletionQueue::NextStatus status =
+        cq_->AsyncNext(&tag, &ok, cq_deadline);
+
+    // Receive an event (or a shutdown notification)
+    if (status == grpc::CompletionQueue::NextStatus::GOT_EVENT) {
+      if (auto call_tag = static_cast<BaseCall<MasterServerImpl>::Tag*>(tag)) {
+        std::string type;
+        switch (call_tag->get_state()) {
+          case BaseCall<MasterServerImpl>::Tag::State::Received: {
+            type = "Received";
+            break;
+          }
+          case BaseCall<MasterServerImpl>::Tag::State::Sent: {
+            type = "Sent";
+            break;
+          }
+          case BaseCall<MasterServerImpl>::Tag::State::Cancelled: {
+            type = "Cancelled";
+            break;
+          }
         }
-        case BaseCall<MasterServerImpl>::Tag::State::Sent: {
-          type = "Sent";
-          break;
+        VLOG(2) << "Master cq got " << call_tag->get_call()->name << ":" << type
+                << ":" << ok;
+        if (ok) {
+          call_tag->Advance(this);
+        } else {
+          delete call_tag->get_call();
         }
-        case BaseCall<MasterServerImpl>::Tag::State::Cancelled: {
-          type = "Cancelled";
-          break;
-        }
-      }
-      VLOG(2) << "Master cq got " << call_tag->get_call()->name << ":" << type
-              << ":" << ok;
-      if (ok) {
-      call_tag->Advance(this);
       } else {
-        delete call_tag->get_call();
+        // Shutting down
+        VLOG(1) << "Master cq got null, shutting down...";
+        server_->Shutdown();
+        cq_->Shutdown();
       }
-    } else {
-      // Shutting down
-      VLOG(1) << "Master cq got null, shutting down...";
-      server_->Shutdown();
-      cq_->Shutdown();
+    }
+    // The cq has shutdown, so exit the loop and prepare to teardown the master
+    else if (status == grpc::CompletionQueue::NextStatus::SHUTDOWN) {
+      break;
+    }
+
+    // If watchdog timeout is enabled (greater than 0), then check if the
+    // last watchdog poke occured within the timeout window.
+    if (!trigger_shutdown_.raised() && watchdog_timeout_ms > 0) {
+      double ms_since =
+          std::chrono::duration_cast<std::chrono::milliseconds>(
+              now().time_since_epoch() - last_watchdog_poke_.load())
+              .count();
+      if (ms_since > watchdog_timeout_ms) {
+        // Watchdog not woken, time to bail out
+        LOG(ERROR) << "Master did not receive heartbeat in "
+                   << watchdog_timeout_ms << "ms. Shutting down.";
+        trigger_shutdown_.set();
+      }
+    }
+
+    // Handle shutdown if triggered
+    if (trigger_shutdown_.raised() && !has_called_start_shutdown) {
+      has_called_start_shutdown = true;
+      start_shutdown();
     }
   }
 }
 
-void MasterServerImpl::ShutdownHandler(MCall<proto::Empty, proto::Result>* call) {
+void MasterServerImpl::ShutdownHandler(
+    MCall<proto::Empty, proto::Result>* call) {
   VLOG(1) << "Master received shutdown!";
   call->reply.set_success(true);
   trigger_shutdown_.set();
@@ -327,10 +373,10 @@ void MasterServerImpl::NewTableHandler(
   write_table_metadata(storage_, TableMetadata(table_desc));
   write_database_metadata(storage_, meta_);
 
-  LOG_IF(FATAL, rows[0].columns().size() != columns.size()) << "Row 0 doesn't have # entries == # columns";
+  LOG_IF(FATAL, rows[0].columns().size() != columns.size())
+      << "Row 0 doesn't have # entries == # columns";
   for (size_t j = 0; j < columns.size(); ++j) {
-    const std::string output_path =
-        table_item_output_path(table_id, j, 0);
+    const std::string output_path = table_item_output_path(table_id, j, 0);
 
     const std::string output_metadata_path =
         table_item_metadata_path(table_id, j, 0);
@@ -459,13 +505,11 @@ void MasterServerImpl::RegisterWorkerHandler(
 
     i32 node_id = next_worker_id_++;
     VLOG(1) << "Adding worker: " << node_id << ", " << worker_address;
-    std::shared_ptr<WorkerState> worker_state(new WorkerState);
-    worker_state->stub = proto::Worker::NewStub(grpc::CreateChannel(
+    auto stub = proto::Worker::NewStub(grpc::CreateChannel(
         worker_address, grpc::InsecureChannelCredentials()));
-    registration->set_node_id(node_id);
-    worker_state->address = worker_address;
-    worker_state->active = true;
-    worker_state->id = node_id;
+    std::shared_ptr<WorkerState> worker_state(
+        new WorkerState(node_id, std::move(stub), worker_address));
+    worker_state->state = WorkerState::IDLE;
 
     workers_[node_id] = worker_state;
 
@@ -478,6 +522,7 @@ void MasterServerImpl::RegisterWorkerHandler(
       state->unstarted_workers.push_back(node_id);
     }
 
+    registration->set_node_id(node_id);
     REQUEST_RPC(RegisterWorker, proto::WorkerParams, proto::Registration);
     call->Respond(grpc::Status::OK);
   });
@@ -507,7 +552,8 @@ void MasterServerImpl::ActiveWorkersHandler(
   set_database_path(db_params_.db_path);
 
   for (auto& kv : workers_) {
-    if (kv.second->active) {
+    // Check if worker is not inactive
+    if (kv.second->state.load() != WorkerState::UNREGISTERED) {
       i32 worker_id = kv.first;
       proto::WorkerInfo* info = registered_workers->add_workers();
       info->set_id(worker_id);
@@ -838,8 +884,8 @@ void MasterServerImpl::NextWorkHandler(
 
     VLOG(2) << "Master received NextWork command";
     i32 worker_id = node_info->node_id();
-    if (!workers_.at(worker_id)->active) {
-      // Worker is not active
+    if (workers_.at(worker_id)->state != WorkerState::RUNNING_JOB) {
+      // Worker is not running a job (must be an old request) so ignore
       new_work->set_no_more_work(true);
       REQUEST_RPC(NextWork, proto::NextWorkRequest, proto::NextWorkReply);
       call->Respond(grpc::Status::OK);
@@ -864,7 +910,7 @@ void MasterServerImpl::NextWorkHandler(
     auto& state = bulk_jobs_state_.at(bulk_job_id);
 
     // If we do not have any outstanding work, try and create more
-    if (state->unallocated_job_tasks.empty()) {
+    if (state->to_assign_job_tasks.empty()) {
       // If we have no more samples for this task, try and get another task
       if (state->next_task == state->num_tasks) {
         // Check if there are any tasks left
@@ -882,13 +928,14 @@ void MasterServerImpl::NextWorkHandler(
         i64 current_job = state->next_job - 1;
         i64 current_task = state->next_task;
 
-        state->unallocated_job_tasks.push_front(
-            std::make_tuple(current_job, current_task));
+        auto jt = std::make_tuple(current_job, current_task);
+        state->active_job_tasks.insert(jt);
+        state->to_assign_job_tasks.push_front(jt);
         state->next_task++;
       }
     }
 
-    if (state->unallocated_job_tasks.empty()) {
+    if (state->to_assign_job_tasks.empty()) {
       if (finished_) {
         // No more work
         new_work->set_no_more_work(true);
@@ -902,8 +949,8 @@ void MasterServerImpl::NextWorkHandler(
     }
 
     // Grab the next task sample
-    std::tuple<i64, i64> job_task_id = state->unallocated_job_tasks.back();
-    state->unallocated_job_tasks.pop_back();
+    std::tuple<i64, i64> job_task_id = state->to_assign_job_tasks.back();
+    state->to_assign_job_tasks.pop_back();
 
     assert(state->next_task <= state->num_tasks);
 
@@ -935,8 +982,8 @@ void MasterServerImpl::NextWorkHandler(
                           now().time_since_epoch())
                           .count();
     // Track sample assigned to worker
-    state->active_job_tasks[node_info->node_id()].insert(job_task_id);
-    state->active_job_tasks_starts[std::make_tuple(
+    state->worker_job_tasks[node_info->node_id()].insert(job_task_id);
+    state->worker_job_tasks_starts[std::make_tuple(
         (i64)node_info->node_id(), job_idx, task_idx)] = task_start;
     state->worker_histories[node_info->node_id()].tasks_assigned += 1;
 
@@ -961,9 +1008,9 @@ void MasterServerImpl::FinishedWorkHandler(
     i64 task_id = params->task_id();
     i64 num_rows = params->num_rows();
 
-    if (!workers_.at(worker_id)->active) {
-      // Technically the task was finished, but we don't count it for now
-      // because it would have been reinserted into the work queue
+    if (workers_.count(worker_id) == 0) {
+      LOG(WARNING) << "Master got FinishedWork from non-existent worker id "
+                   << worker_id << ". Ignoring.";
       REQUEST_RPC(FinishedWork, proto::FinishedWorkRequest, proto::Empty);
       call->Respond(grpc::Status::OK);
       return;
@@ -983,21 +1030,32 @@ void MasterServerImpl::FinishedWorkHandler(
 
     auto& state = bulk_jobs_state_.at(bulk_job_id);
 
-    auto& worker_tasks = state->active_job_tasks.at(worker_id);
+    auto& worker_tasks = state->worker_job_tasks.at(worker_id);
 
-    std::tuple<i64, i64> job_tasks = std::make_tuple(job_id, task_id);
-    assert(worker_tasks.count(job_tasks) > 0);
-    worker_tasks.erase(job_tasks);
-    state->active_job_tasks_starts.erase(
+    std::tuple<i64, i64> job_task = std::make_tuple(job_id, task_id);
+
+    // Remove the task from the list of assigned tasks to the worker
+    assert(worker_tasks.count(job_task) > 0);
+    worker_tasks.erase(job_task);
+    state->worker_job_tasks_starts.erase(
         std::make_tuple((i64)worker_id, job_id, task_id));
 
+    // Increment the number of tasks finished by this worker
     state->worker_histories[worker_id].tasks_retired += 1;
 
     i64 active_job = state->next_job - 1;
 
     // If job was blacklisted, then we have already updated total tasks
     // used to reflect that and we should ignore it
-    if (state->blacklisted_jobs.count(job_id) == 0) {
+    bool not_blacklisted = state->blacklisted_jobs.count(job_id) == 0;
+    // It's possible for a task to be assigned to multiple workers, so
+    // this condition makes sure that we only mark the task as finished
+    // the first time it is processed.
+    bool still_active = state->active_job_tasks.count(job_task) > 0;
+    if (not_blacklisted && still_active) {
+      // Remove from active job task list since it has been finished
+      state->active_job_tasks.erase(job_task);
+
       state->total_tasks_used++;
       state->tasks_used_per_job[job_id]++;
 
@@ -1058,7 +1116,7 @@ void MasterServerImpl::FinishedJobHandler(
     auto& state = bulk_jobs_state_.at(bulk_job_id);
     state->unfinished_workers.at(worker_id) = false;
 
-    if (!workers_.at(worker_id)->active) {
+    if (workers_.at(worker_id)->state == WorkerState::UNREGISTERED) {
       REQUEST_RPC(FinishedJob, proto::FinishedJobRequest, proto::Empty);
       call->Respond(grpc::Status::OK);
       return;
@@ -1073,6 +1131,7 @@ void MasterServerImpl::FinishedJobHandler(
     if (active_bulk_job_) {
       stop_job_on_worker(worker_id);
     }
+    workers_.at(worker_id)->state = WorkerState::IDLE;
 
     REQUEST_RPC(FinishedJob, proto::FinishedJobRequest, proto::Empty);
     call->Respond(grpc::Status::OK);
@@ -1158,7 +1217,7 @@ void MasterServerImpl::GetJobStatusHandler(
     // Num workers
     i32 num_workers = 0;
     for (auto& kv : workers_) {
-      if (kv.second->active) {
+      if (kv.second->state == WorkerState::RUNNING_JOB) {
         num_workers++;
       }
     }
@@ -1203,71 +1262,9 @@ void MasterServerImpl::PokeWatchdogHandler(
     MCall<proto::Empty, proto::Empty>* call) {
   pool_->enqueue_front([this, call]() {
     VLOG(2) << "Master received PokeWatchdog.";
-    watchdog_awake_ = true;
+    last_watchdog_poke_ = now().time_since_epoch();
     REQUEST_RPC(PokeWatchdog, proto::Empty, proto::Empty);
     call->Respond(grpc::Status::OK);
-  });
-}
-
-
-void MasterServerImpl::start_watchdog(bool enable_timeout, i32 timeout_ms) {
-  watchdog_thread_ = std::thread([this, enable_timeout, timeout_ms]() {
-    double time_since_check = 0;
-    // Wait until shutdown is triggered or watchdog isn't woken up
-    if (!enable_timeout) {
-      trigger_shutdown_.wait();
-    }
-    while (!trigger_shutdown_.raised()) {
-      auto sleep_start = now();
-      trigger_shutdown_.wait_for(timeout_ms);
-      time_since_check += nano_since(sleep_start) / 1e6;
-      if (time_since_check > timeout_ms) {
-        if (!watchdog_awake_) {
-          // Watchdog not woken, time to bail out
-          LOG(ERROR) << "Master did not receive heartbeat in " << timeout_ms
-                     << "ms. Shutting down.";
-          trigger_shutdown_.set();
-        }
-        watchdog_awake_ = false;
-        time_since_check = 0;
-      }
-    }
-    // Shutdown workers
-    std::vector<i32> worker_ids;
-    std::map<i32, proto::Worker::Stub*> workers_copy;
-    {
-      std::unique_lock<std::mutex> lk(work_mutex_);
-      for (auto& kv : workers_) {
-        if (kv.second->active) {
-          worker_ids.push_back(kv.first);
-          workers_copy[kv.first] = kv.second->stub.get();
-        }
-      }
-    }
-    for (i32 i : worker_ids) {
-      proto::Empty empty;
-      proto::Result wresult;
-      grpc::Status status;
-      GRPC_BACKOFF_D(workers_copy.at(i)->Shutdown(&ctx, empty, &wresult),
-                     status, 15);
-      const std::string& worker_address = workers_.at(i)->address;
-      LOG_IF(WARNING, !status.ok())
-          << "Master could not send shutdown message to worker at "
-          << worker_address << " (" << status.error_code()
-          << "): " << status.error_message();
-    }
-    // Shutdown self
-    {
-      std::unique_lock<std::mutex> lock(finished_mutex_);
-      finished_ = true;
-      shutdown_alarm_ =
-          new grpc::Alarm(cq_.get(), gpr_now(GPR_CLOCK_MONOTONIC), nullptr);
-    }
-    // Wait until job is done
-    {
-      std::unique_lock<std::mutex> lock(active_mutex_);
-      active_cv_.wait(lock, [this] { return !active_bulk_job_; });
-    }
   });
 }
 
@@ -1647,7 +1644,7 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
   {
     std::unique_lock<std::mutex> lk(work_mutex_);
     for (auto kv : workers_) {
-      if (kv.second->active) {
+      if (kv.second->state.load() != WorkerState::UNREGISTERED) {
         const std::string& address = kv.second->address;
         // Strip port
         std::vector<std::string> split_addr = split(address, ':');
@@ -1667,7 +1664,7 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
     {
       std::unique_lock<std::mutex> lk(work_mutex_);
       for (auto& kv : workers_) {
-        if (kv.second->active) {
+        if (kv.second->state.load() == WorkerState::IDLE) {
           worker_ids.push_back(kv.first);
         }
       }
@@ -1707,7 +1704,7 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
       for (auto& kv : state->unfinished_workers) {
         // If the worker is active and it is not finished, then
         // we need to keep working
-        if (workers_.at(kv.first)->active && kv.second) {
+        if (workers_.at(kv.first)->state.load() == WorkerState::RUNNING_JOB && kv.second) {
           all_workers_finished = false;
           break;
         }
@@ -1739,7 +1736,7 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
       auto current_time = std::chrono::duration_cast<std::chrono::seconds>(
                               now().time_since_epoch())
                               .count();
-      auto& jts = state->active_job_tasks_starts;
+      auto& jts = state->worker_job_tasks_starts;
       for (const auto& kv : jts) {
         if (current_time - kv.second > state->job_params.task_timeout()) {
           i64 worker_id;
@@ -1837,15 +1834,15 @@ void MasterServerImpl::start_worker_pinger() {
         }
       }
 
-      std::map<i32, proto::Worker::Stub*> ws;
+      std::map<WorkerID, std::shared_ptr<WorkerState>> ws;
       {
         std::unique_lock<std::mutex> lk(work_mutex_);
         for (auto& kv : workers_) {
           i32 worker_id = kv.first;
           auto& worker = kv.second;
-          if (!worker->active) continue;
+          if (worker->state == WorkerState::UNREGISTERED) continue;
 
-          ws.insert({worker_id, worker->stub.get()});
+          ws[worker_id] = worker;
         }
       }
 
@@ -1872,7 +1869,8 @@ void MasterServerImpl::start_worker_pinger() {
             std::chrono::system_clock::now() + std::chrono::seconds(timeout);
         request_data.context.set_deadline(deadline);
 
-        request_data.rpc = worker->AsyncPing(&request_data.context, em, &cq);
+        request_data.rpc =
+            worker->stub->AsyncPing(&request_data.context, em, &cq);
         request_data.rpc->Finish(&request_data.reply, &request_data.status,
                                  (void*)id);
         i++;
@@ -1890,14 +1888,22 @@ void MasterServerImpl::start_worker_pinger() {
               request_data.reply.node_id() != worker_id) {
             VLOG(3) << "Master failed to Ping worker " << worker_id;
             // Worker not responding, increment ping count
-            i64 num_failed_pings = ++workers_[worker_id]->failed_pings;
+            i64 num_failed_pings = ++ws[worker_id]->failed_pings;
             const i64 FAILED_PINGS_BEFORE_REMOVAL = 3;
             if (num_failed_pings >= FAILED_PINGS_BEFORE_REMOVAL ||
                 request_data.reply.node_id() != worker_id) {
               // remove it from active workers
-              LOG(WARNING) << "Worker " << worker_id
-                           << " did not respond to Ping. "
-                           << "Removing worker from active list.";
+              if (request_data.reply.node_id() != worker_id) {
+                LOG(WARNING)
+                    << "Worker " << worker_id << " responded to Ping with "
+                    << "worker id " << request_data.reply.node_id()
+                    << ". Removing from active "
+                    << "list.";
+              } else {
+                LOG(WARNING)
+                    << "Worker " << worker_id << " did not respond to Ping. "
+                    << "Removing worker from active list.";
+              }
               std::unique_lock<std::mutex> lk(work_mutex_);
               remove_worker(worker_id);
               if (state.get()) {
@@ -1906,7 +1912,7 @@ void MasterServerImpl::start_worker_pinger() {
             }
           } else {
             VLOG(3) << "Master successfully Pinged worker " << worker_id;
-            workers_[worker_id]->failed_pings = 0;
+            ws[worker_id]->failed_pings = 0;
           }
         } else {
           LOG(WARNING) << "Got invalid Ping response with tag for non-existent "
@@ -1944,7 +1950,8 @@ void MasterServerImpl::start_job_on_workers(const std::vector<i32>& worker_ids) 
     w_job_params.MergeFrom(job_params_);
     w_job_params.set_bulk_job_id(active_bulk_job_id_);
     for (auto& kv : workers_) {
-      if (kv.second->active) {
+      if (kv.second->state == WorkerState::IDLE) {
+        kv.second->state = WorkerState::RUNNING_JOB;
         workers_copy[kv.first] = kv.second;
       }
     }
@@ -2014,10 +2021,10 @@ void MasterServerImpl::start_job_on_workers(const std::vector<i32>& worker_ids) 
       if (status.ok()) {
         VLOG(2) << "Worker " << worker_id << " NewJob returned.";
 
-        if (workers_copy.at(worker_id)->active && !replies[worker_id]->success()) {
+        if (!replies[worker_id]->success()) {
           LOG(WARNING) << "Worker " << worker_id << " ("
                        << workers_copy.at(worker_id)->address << ") "
-                       << "returned error: " << replies[worker_id]->msg();
+                       << " NewJob returned error: " << replies[worker_id]->msg();
           invalid_workers.push_back(worker_id);
         } else {
           valid_workers.push_back(worker_id);
@@ -2070,7 +2077,7 @@ void MasterServerImpl::start_job_on_workers(const std::vector<i32>& worker_ids) 
   {
     std::unique_lock<std::mutex> lk(work_mutex_);
     for (i32 worker_id : invalid_workers) {
-      workers_.at(worker_id)->active = false;
+      remove_worker(worker_id);
     }
     std::unique_lock<std::mutex> lock(active_mutex_);
     if (active_bulk_job_) {
@@ -2085,14 +2092,14 @@ void MasterServerImpl::start_job_on_workers(const std::vector<i32>& worker_ids) 
 void MasterServerImpl::stop_job_on_worker(i32 worker_id) {
   // Place workers active tasks back into the unallocated task samples
   auto& state = bulk_jobs_state_.at(active_bulk_job_id_);
-  if (state->active_job_tasks.count(worker_id) > 0) {
+  if (state->worker_job_tasks.count(worker_id) > 0) {
     // Place workers active tasks back into the unallocated task samples
     VLOG(1) << "Reassigning worker " << worker_id << "'s "
-            << state->active_job_tasks.at(worker_id).size() << " task samples.";
+            << state->worker_job_tasks.at(worker_id).size() << " task samples.";
     for (const std::tuple<i64, i64>& worker_job_task :
-         state->active_job_tasks.at(worker_id)) {
-      state->unallocated_job_tasks.push_back(worker_job_task);
-      state->active_job_tasks_starts.erase(
+         state->worker_job_tasks.at(worker_id)) {
+      state->to_assign_job_tasks.push_back(worker_job_task);
+      state->worker_job_tasks_starts.erase(
           std::make_tuple((i64)worker_id, std::get<0>(worker_job_task),
                           std::get<1>(worker_job_task)));
 
@@ -2108,9 +2115,10 @@ void MasterServerImpl::stop_job_on_worker(i32 worker_id) {
         blacklist_job(job_id);
       }
     }
-    state->active_job_tasks.erase(worker_id);
+    state->worker_job_tasks.erase(worker_id);
   }
 
+  workers_.at(worker_id)->state = WorkerState::IDLE;
   state->worker_histories[worker_id].end_time = now();
   state->unfinished_workers[worker_id] = false;
 }
@@ -2120,14 +2128,13 @@ void MasterServerImpl::remove_worker(i32 node_id) {
 
   std::string worker_address = workers_.at(node_id)->address;
   // Remove worker from list
-  workers_.at(node_id)->active = false;
-
   {
     std::unique_lock<std::mutex> lock(active_mutex_);
     if (active_bulk_job_) {
       stop_job_on_worker(node_id);
     }
   }
+  workers_.at(node_id)->state = WorkerState::UNREGISTERED;
 
   // Update locals
   std::vector<std::string> split_addr = split(worker_address, ':');
@@ -2144,6 +2151,10 @@ void MasterServerImpl::blacklist_job(i64 job_id) {
 
   // All tasks in unallocated_job_tasks_ with this job id will be thrown away
   state->blacklisted_jobs.insert(job_id);
+  // Remove all of the job's tasks from active_job_tasks
+  for (i64 i = 0; i < state->job_tasks.at(job_id).size(); ++i) {
+    state->active_job_tasks.erase(std::make_tuple(job_id, i));
+  }
   // Add number of remaining tasks to tasks used
   i64 num_tasks_left_in_job =
       state->job_tasks[job_id].size() - state->tasks_used_per_job[job_id];
@@ -2160,6 +2171,40 @@ void MasterServerImpl::blacklist_job(i64 job_id) {
       finished_ = true;
     }
     finished_cv_.notify_all();
+  }
+}
+
+void MasterServerImpl::start_shutdown() {
+  // Shutdown workers
+  std::vector<i32> worker_ids;
+  std::map<i32, proto::Worker::Stub*> workers_copy;
+  {
+    std::unique_lock<std::mutex> lk(work_mutex_);
+    for (auto& kv : workers_) {
+      if (kv.second->state != WorkerState::UNREGISTERED) {
+        worker_ids.push_back(kv.first);
+        workers_copy[kv.first] = kv.second->stub.get();
+      }
+    }
+  }
+  for (i32 i : worker_ids) {
+    proto::Empty empty;
+    proto::Result wresult;
+    grpc::Status status;
+    GRPC_BACKOFF_D(workers_copy.at(i)->Shutdown(&ctx, empty, &wresult), status,
+                   15);
+    const std::string& worker_address = workers_.at(i)->address;
+    LOG_IF(WARNING, !status.ok())
+        << "Master could not send shutdown message to worker at "
+        << worker_address << " (" << status.error_code()
+        << "): " << status.error_message();
+  }
+  // Shutdown self
+  {
+    std::unique_lock<std::mutex> lock(finished_mutex_);
+    finished_ = true;
+    shutdown_alarm_ =
+        new grpc::Alarm(cq_.get(), gpr_now(GPR_CLOCK_MONOTONIC), nullptr);
   }
 }
 
