@@ -59,14 +59,14 @@
     <span class="n">CPU</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="n">GPU</span> <span class="o">=</span> <span class="mi">1</span>
 
-    <span class="nd">@staticmethod</span>
+<div class="viewcode-block" id="DeviceType.to_proto"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.common.DeviceType.to_proto">[docs]</a>    <span class="nd">@staticmethod</span>
     <span class="k">def</span> <span class="nf">to_proto</span><span class="p">(</span><span class="n">protobufs</span><span class="p">,</span> <span class="n">device</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">device</span> <span class="o">==</span> <span class="n">DeviceType</span><span class="o">.</span><span class="n">CPU</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">CPU</span>
         <span class="k">elif</span> <span class="n">device</span> <span class="o">==</span> <span class="n">DeviceType</span><span class="o">.</span><span class="n">GPU</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">GPU</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="n">ScannerException</span><span class="p">(</span><span class="s1">&#39;Invalid device type&#39;</span><span class="p">)</span></div>
+            <span class="k">raise</span> <span class="n">ScannerException</span><span class="p">(</span><span class="s1">&#39;Invalid device type&#39;</span><span class="p">)</span></div></div>
 
 
 <div class="viewcode-block" id="DeviceHandle"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.common.DeviceHandle">[docs]</a><span class="k">class</span> <span class="nc">DeviceHandle</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
@@ -86,14 +86,14 @@
     <span class="n">Blob</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="n">Video</span> <span class="o">=</span> <span class="mi">1</span>
 
-    <span class="nd">@staticmethod</span>
+<div class="viewcode-block" id="ColumnType.to_proto"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.common.ColumnType.to_proto">[docs]</a>    <span class="nd">@staticmethod</span>
     <span class="k">def</span> <span class="nf">to_proto</span><span class="p">(</span><span class="n">protobufs</span><span class="p">,</span> <span class="n">ty</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">ty</span> <span class="o">==</span> <span class="n">ColumnType</span><span class="o">.</span><span class="n">Blob</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">Other</span>
         <span class="k">elif</span> <span class="n">ty</span> <span class="o">==</span> <span class="n">ColumnType</span><span class="o">.</span><span class="n">Video</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">Video</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="n">ScannerException</span><span class="p">(</span><span class="s1">&#39;Invalid column type&#39;</span><span class="p">)</span></div>
+            <span class="k">raise</span> <span class="n">ScannerException</span><span class="p">(</span><span class="s1">&#39;Invalid column type&#39;</span><span class="p">)</span></div></div>
 </pre></div>
 
           </div>
@@ -229,7 +229,7 @@
     </div>
   <div class="footer">
     &copy; Copyright 2018, Alex Poms, Will Crichton.
-    Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.0.
+    Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.1.
   </div>
   
   </body>
