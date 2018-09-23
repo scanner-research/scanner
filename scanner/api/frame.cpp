@@ -109,7 +109,7 @@ Frame* new_frame(DeviceHandle device, FrameInfo info) {
 }
 
 std::vector<Frame*> new_frames(DeviceHandle device, FrameInfo info, i32 num) {
-  u8* buffer = new_block_buffer(device, info.size() * num, num);
+  u8* buffer = new_block_buffer_size(device, info.size(), num);
   std::vector<Frame*> frames;
   for (i32 i = 0; i < num; ++i) {
     frames.push_back(new Frame(info, buffer + i * info.size()));

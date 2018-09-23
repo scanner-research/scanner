@@ -54,12 +54,7 @@ void move_if_different_address_space(Profiler& profiler,
       }
     }
 
-    size_t total_size = 0;
-    for (i32 b = 0; b < (i32)column.size(); ++b) {
-      total_size += sizes[b];
-    }
-
-    u8* block = new_block_buffer(target_handle, total_size, column.size());
+    u8* block = new_block_buffer_sizes(target_handle, sizes);
     for (i32 b = 0; b < (i32)column.size(); ++b) {
       size_t size = sizes[b];
       dest_buffers.push_back(block);
@@ -117,12 +112,7 @@ Elements copy_elements(Profiler& profiler, DeviceHandle current_handle,
     }
   }
 
-  size_t total_size = 0;
-  for (i32 b = 0; b < (i32)column.size(); ++b) {
-    total_size += sizes[b];
-  }
-
-  u8* block = new_block_buffer(target_handle, total_size, column.size());
+  u8* block = new_block_buffer_sizes(target_handle, sizes);
   for (i32 b = 0; b < (i32)column.size(); ++b) {
     size_t size = sizes[b];
     dest_buffers.push_back(block);

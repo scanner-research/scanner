@@ -329,7 +329,7 @@ class BlockAllocator {
       std::lock_guard<std::mutex> guard(map_lock_);
       u8* cursor = buffer;
       for (size_t size : sizes) {
-        allocation_map_[cursor] = alloc;
+        allocation_map_.insert({cursor, alloc});
         cursor += size;
       }
     }
@@ -346,9 +346,12 @@ class BlockAllocator {
       std::lock_guard<std::mutex> guard(map_lock_);
       auto it = allocation_map_.find(buffer);
       if (it != allocation_map_.end()) {
-        std::shared_ptr<Allocation>& alloc = it->second;
+        std::shared_ptr<Allocation> alloc = it->second;
         assert(alloc->refs > 0);
         alloc->refs += refs;
+        for (size_t i = 0; i < refs; ++i) {
+          allocation_map_.insert({buffer, alloc});
+        }
         return;
       }
     }
@@ -499,7 +502,7 @@ class BlockAllocator {
   std::mutex map_lock_;
   std::mutex vec_lock_;
   std::vector<Allocation> allocations_;
-  std::map<u8*, std::shared_ptr<Allocation>> allocation_map_;
+  std::unordered_multimap<u8*, std::shared_ptr<Allocation>> allocation_map_;
   Allocator* allocator_;
 
   u64 current_memory_allocated_ = 0;
@@ -783,7 +786,7 @@ BlockAllocator* block_allocator_for_device(DeviceHandle device) {
 
 u8* new_buffer_(DeviceHandle device, size_t size, std::string call_file,
                i32 call_line) {
-  return new_block_buffer_(device, size, 1, call_file, call_line);
+  return new_block_buffer_size_(device, size, 1, call_file, call_line);
 }
 
 u8* new_block_buffer_(DeviceHandle device, size_t size, i32 refs,
@@ -797,6 +800,13 @@ u8* new_block_buffer_(DeviceHandle device, size_t size, i32 refs,
 #endif
 }
 
+u8* new_block_buffer_size_(DeviceHandle device, size_t size, i32 copies,
+                            std::string call_file, i32 call_line) {
+  std::vector<size_t> sizes;
+  for (i32 i = 0; i < copies; ++i) { sizes.push_back(size); }
+  return new_block_buffer_sizes_(device, sizes, call_file, call_line);
+}
+
 u8* new_block_buffer_sizes_(DeviceHandle device, const std::vector<size_t>& sizes,
                             std::string call_file, i32 call_line) {
   LOG_IF(FATAL, sizes.size() == 0) << "Cannot allocate zero-length buffer";
@@ -807,6 +817,9 @@ u8* new_block_buffer_sizes_(DeviceHandle device, const std::vector<size_t>& size
   return allocator->allocate_sizes(sizes, call_file, call_line);
 #endif
 }
+
+
+
 
 void add_buffer_ref(DeviceHandle device, u8* buffer) {
   add_buffer_refs(device, buffer, 1);

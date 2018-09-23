@@ -238,8 +238,7 @@ bool PreEvaluateWorker::yield(i32 item_size,
           FrameInfo frame_info(decode_args_[media_col_idx][0].height(),
                                decode_args_[media_col_idx][0].width(), 3,
                                FrameType::U8);
-          u8* buffer = new_block_buffer(decoder_output_handle_,
-                                        num_rows * frame_info.size(), num_rows);
+          u8* buffer = new_block_buffer_size(decoder_output_handle_, frame_info.size(), num_rows);
           if (!work_entry.inplace_video[c]) {
             decoders_[media_col_idx]->get_frames(buffer, num_rows);
           } else {

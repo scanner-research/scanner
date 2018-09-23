@@ -368,11 +368,11 @@ void read_other_column(StorageBackend* storage, Profiler& profiler,
     end_offset += element_sizes[i];
   }
 
-  size_t total_size = 0;
+  std::vector<size_t> sizes;
   for (i32 row : rows) {
-    total_size += static_cast<size_t>(element_sizes[row]);
+    sizes.push_back(static_cast<size_t>(element_sizes[row]));
   }
-  u8* block_buffer = new_block_buffer(CPU_DEVICE, total_size, rows.size());
+  u8* block_buffer = new_block_buffer_sizes(CPU_DEVICE, sizes);
 
   // If the requested elements are sufficiently sparse by some threshold, we
   // read each element individually. Otherwise, we read the entire block and
