@@ -121,11 +121,10 @@ Result Database::start_master(const MachineParameters& machine_params,
   master_server_.reset(scanner::internal::get_master_service(params, port));
   master_server_->run();
 
-  // Setup watchdog
-  master_server_->start_watchdog(watchdog);
-
   // Start handling rpcs
-  master_thread_ = std::thread([this]() { master_server_->handle_rpcs(); });
+  master_thread_ = std::thread([this, watchdog]() {
+    master_server_->handle_rpcs(watchdog ? 50000 : -1);
+  });
 
   Result result;
   result.set_success(true);
