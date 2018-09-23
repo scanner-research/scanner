@@ -20,12 +20,7 @@ class HistogramKernelCPU : public BatchedKernel {
     size_t hist_size = BINS * 3 * sizeof(int);
     i32 input_count = num_rows(frame_col);
 
-    std::vector<size_t> sizes;
-    for (i32 i = 0; i < input_count; ++i) {
-      sizes.push_back(hist_size);
-    }
-
-    u8* output_block = new_block_buffer_sizes(device_, sizes);
+    u8* output_block = new_block_buffer_size(device_, hist_size, input_count);
 
     for (i32 i = 0; i < input_count; ++i) {
       cv::Mat img = frame_to_mat(frame_col[i].as_const_frame());
