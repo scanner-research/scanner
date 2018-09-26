@@ -1942,17 +1942,17 @@ void MasterServerImpl::stop_worker_pinger() {
 }
 
 void MasterServerImpl::start_job_on_workers(const std::vector<i32>& worker_ids) {
-
   proto::BulkJobParameters w_job_params;
   std::map<WorkerID, std::shared_ptr<WorkerState>> workers_copy;
   {
     std::unique_lock<std::mutex> lk(work_mutex_);
     w_job_params.MergeFrom(job_params_);
     w_job_params.set_bulk_job_id(active_bulk_job_id_);
-    for (auto& kv : workers_) {
-      if (kv.second->state == WorkerState::IDLE) {
-        kv.second->state = WorkerState::RUNNING_JOB;
-        workers_copy[kv.first] = kv.second;
+    for (i32 worker_id : worker_ids) {
+      if (workers_.count(worker_id) > 0 &&
+          workers_.at(worker_id)->state == WorkerState::IDLE) {
+        workers_.at(worker_id)->state = WorkerState::RUNNING_JOB;
+        workers_copy[worker_id] = workers_.at(worker_id);
       }
     }
   }
