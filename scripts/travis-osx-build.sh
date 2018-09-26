@@ -116,7 +116,7 @@ build_osx() {
 
         # Push new homebrew version
         git add scanner.rb
-        git commit -m "Automated update for Scanner version $TRAVIS_TAG"
+        git commit -m "Automated update for Scanner version $TRAVIS_TAG" || true
         git push
     fi
 }
