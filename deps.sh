@@ -613,7 +613,8 @@ if [[ $INSTALL_GOOGLETEST == true ]] && [[ ! -f $BUILD_DIR/googletest.done ]]; t
     cd $BUILD_DIR
     rm -fr googletest
     git clone https://github.com/google/googletest && \
-        cd googletest && mkdir build && cd build && \
+        cd googletest && git checkout release-1.8.1 && \
+        mkdir build && cd build && \
         cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX && \
         make -j${cores} && make install && \
         touch $BUILD_DIR/googletest.done \
