@@ -218,10 +218,6 @@ class MasterServerImpl final : public proto::Master::Service {
   // Manages modification of all of the below structures
   std::mutex work_mutex_;
 
-  // Worker connections
-  std::map<std::string, i32> local_ids_;
-  std::map<std::string, i32> local_totals_;
-
   enum struct BulkJobState {
     RUNNING,
     FINISHED

@@ -1339,9 +1339,6 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
   state->task_result.set_success(true);
   state->job_result.set_success(true);
 
-  local_ids_.clear();
-  local_totals_.clear();
-
   // Respond to NewJob only after the state has been created
   REQUEST_RPC(NewJob, proto::BulkJobParameters, proto::NewJobReply);
   new_job_call_->Respond(grpc::Status::OK);
@@ -1637,26 +1634,6 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
 
   VLOG(1) << "Total jobs: " << state->num_jobs;
 
-  // TODO(apoms): change this to support adding and removing nodes
-  //              the main change is that the workers should handle
-  //              spawning sub processes instead of appearing as
-  //              multiple logical nodes
-  {
-    std::unique_lock<std::mutex> lk(work_mutex_);
-    for (auto kv : workers_) {
-      if (kv.second->state.load() != WorkerState::UNREGISTERED) {
-        const std::string& address = kv.second->address;
-        // Strip port
-        std::vector<std::string> split_addr = split(address, ':');
-        std::string sans_port = split_addr[0];
-        if (local_totals_.count(sans_port) == 0) {
-          local_totals_[sans_port] = 0;
-        }
-        local_totals_[sans_port] += 1;
-      }
-    }
-  }
-
   // Send new job command to workers
   VLOG(1) << "Sending new job command to workers";
   {
@@ -1763,13 +1740,6 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
       {
         std::unique_lock<std::mutex> lk(work_mutex_);
         for (i32 wid : state->unstarted_workers) {
-          const std::string& address = workers_.at(wid)->address;
-          std::vector<std::string> split_addr = split(address, ':');
-          std::string sans_port = split_addr[0];
-          if (local_totals_.count(sans_port) == 0) {
-            local_totals_[sans_port] = 0;
-          }
-          local_totals_[sans_port] += 1;
           worker_ids.push_back(wid);
         }
         state->unstarted_workers.clear();
@@ -1942,6 +1912,7 @@ void MasterServerImpl::stop_worker_pinger() {
 }
 
 void MasterServerImpl::start_job_on_workers(const std::vector<i32>& worker_ids) {
+  std::vector<i32> filtered_worker_ids;
   proto::BulkJobParameters w_job_params;
   std::map<WorkerID, std::shared_ptr<WorkerState>> workers_copy;
   {
@@ -1953,6 +1924,7 @@ void MasterServerImpl::start_job_on_workers(const std::vector<i32>& worker_ids) 
           workers_.at(worker_id)->state == WorkerState::IDLE) {
         workers_.at(worker_id)->state = WorkerState::RUNNING_JOB;
         workers_copy[worker_id] = workers_.at(worker_id);
+        filtered_worker_ids.push_back(worker_id);
       }
     }
   }
@@ -1977,9 +1949,6 @@ void MasterServerImpl::start_job_on_workers(const std::vector<i32>& worker_ids) 
     auto& worker = workers_copy.at(worker_id)->stub;
     std::vector<std::string> split_addr = split(address, ':');
     std::string sans_port = split_addr[0];
-    w_job_params.set_local_id(local_ids_[sans_port]);
-    w_job_params.set_local_total(local_totals_[sans_port]);
-    local_ids_[sans_port] += 1;
 
     client_contexts[worker_id] =
         std::unique_ptr<grpc::ClientContext>(new grpc::ClientContext);
@@ -1997,14 +1966,14 @@ void MasterServerImpl::start_job_on_workers(const std::vector<i32>& worker_ids) 
     VLOG(2) << "Sent NewJob command to worker " << worker_id;
   };
 
-  for (i32 worker_id : worker_ids) {
+  for (i32 worker_id : filtered_worker_ids) {
     send_new_job(worker_id);
   }
 
   i64 workers_processed = 0;
   std::vector<i32> valid_workers;
   std::vector<i32> invalid_workers;
-  while (workers_processed < worker_ids.size()) {
+  while (workers_processed < filtered_worker_ids.size()) {
     void* got_tag;
     bool ok = false;
     auto stat = cq.Next(&got_tag, &ok);
@@ -2135,13 +2104,6 @@ void MasterServerImpl::remove_worker(i32 node_id) {
     }
   }
   workers_.at(node_id)->state = WorkerState::UNREGISTERED;
-
-  // Update locals
-  std::vector<std::string> split_addr = split(worker_address, ':');
-  std::string sans_port = split_addr[0];
-  assert(local_totals_.count(sans_port) > 0);
-  local_totals_[sans_port] -= 1;
-  local_ids_[sans_port] -= 1;
 
   VLOG(1) << "Removing worker " << node_id << " (" << worker_address << ").";
 }

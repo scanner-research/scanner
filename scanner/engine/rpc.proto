@@ -241,8 +241,6 @@ message BulkJobParameters {
   int32 pipeline_instances_per_node = 6;
   int32 io_packet_size = 7;
   int32 work_packet_size = 8;
-  int32 local_id = 9;
-  int32 local_total = 10;
   bool profiling = 12;
   int32 load_sparsity_threshold = 13;
   int32 tasks_in_queue_per_pu = 14;
