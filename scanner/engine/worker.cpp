@@ -949,8 +949,6 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
   set_database_path(db_params_.db_path);
 
-  i32 local_id = job_params->local_id();
-  i32 local_total = job_params->local_total();
   // Controls if work should be distributed roundrobin or dynamically
   bool distribute_work_dynamically = true;
 
@@ -1276,7 +1274,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           kg_ppn = 1;
         } else {
           kg_ppn = device_type == DeviceType::CPU
-                       ? db_params_.num_cpus / local_total / max_devices
+                       ? db_params_.num_cpus / max_devices
                        : (i32)num_gpus / max_devices;
         }
         LOG(INFO) << "Kernel Group " << k
@@ -1307,7 +1305,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   // Set up memory pool if different than previous memory pool
   if (!memory_pool_initialized_ ||
       job_params->memory_pool_config() != cached_memory_pool_config_) {
-    if (db_params_.num_cpus < local_total * pipeline_instances_per_node &&
+    if (db_params_.num_cpus < pipeline_instances_per_node &&
         job_params->memory_pool_config().cpu().use_pool()) {
       RESULT_ERROR(job_result,
                    "Cannot oversubscribe CPUs and also use CPU memory pool");
