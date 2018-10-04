@@ -21,6 +21,10 @@
 #include "scanner/api/op.h"
 #include "scanner/api/kernel.h"
 
+#include <pybind11/embed.h>
+
+namespace py = pybind11;
+
 namespace scanner {
 namespace internal {
 
@@ -497,7 +501,13 @@ Result determine_input_rows_to_slices(
         config.args =
             std::vector<u8>(source_input.enumerator_args().begin(),
                             source_input.enumerator_args().end());
-        std::unique_ptr<Enumerator> e(factory->new_instance(config));
+
+        std::unique_ptr<Enumerator> e;
+        {
+          // HACK(apoms): to fix this issue: https://github.com/pybind/pybind11/issues/1364
+          py::gil_scoped_acquire acquire;
+          e.reset(factory->new_instance(config));
+        }
         // If this is a source enumerator, we must provide table meta
         if (auto column_enumerator = dynamic_cast<ColumnEnumerator*>(e.get())) {
           column_enumerator->set_table_meta(&table_metas);
@@ -1229,7 +1239,14 @@ Result derive_stencil_requirements(
       size_t size = source_input.enumerator_args().size();
       config.args = std::vector<u8>(source_input.enumerator_args().begin(),
                                     source_input.enumerator_args().end());
-      Enumerator* e = factory->new_instance(config);
+
+      Enumerator* e;
+      {
+        // HACK(apoms): to fix this issue:
+        // https://github.com/pybind/pybind11/issues/1364
+        py::gil_scoped_acquire acquire;
+        e = factory->new_instance(config);
+      }
       enumerators[col_idx].reset(e);
       // If this is a source enumerator, we must provide table meta
       if (auto column_enumerator = dynamic_cast<ColumnEnumerator*>(e)) {

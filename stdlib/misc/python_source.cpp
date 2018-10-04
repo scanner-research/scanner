@@ -42,7 +42,10 @@ class PythonEnumerator : public Enumerator {
       return;
     }
 
-    py::gil_scoped_acquire acquire;
+    {
+      // HACK(apoms): to fix this issue: https://github.com/pybind/pybind11/issues/1364
+      pybind11::get_shared_data("");
+    }
     // Unpickle arguments and repickle per array element
     try {
       py::module main = py::module::import("__main__");
