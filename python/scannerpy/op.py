@@ -94,14 +94,22 @@ class OpGenerator:
             pseudo_name = name + ':' + py_op_info['registration_id']
             name = pseudo_name
             if not name in self._db._python_ops:
+                devices = []
+                if py_op_info['device_type']:
+                    devices.append(py_op_info['device_type'])
+                if py_op_info['device_sets']:
+                    for d in py_op_info['device_sets']:
+                        devices.append(d[0])
+                    
                 self._db.register_op(
                     pseudo_name, py_op_info['input_columns'],
                     py_op_info['output_columns'], py_op_info['variadic_inputs'],
                     py_op_info['stencil'], py_op_info['unbounded_state'],
                     py_op_info['bounded_state'], py_op_info['proto_path'])
-                self._db.register_python_kernel(pseudo_name, py_op_info['device_type'],
-                                                py_op_info['kernel'],
-                                                py_op_info['batch'])
+                for device in devices:
+                    self._db.register_python_kernel(pseudo_name, device,
+                                                    py_op_info['kernel'],
+                                                    py_op_info['batch'])
 
         # This will raise an exception if the op does not exist.
         op_info = self._db._get_op_info(name)
@@ -215,9 +223,49 @@ def register_python_op(name: str = None,
                        stencil: List[int] = None,
                        unbounded_state: bool = False,
                        bounded_state: int = None,
-                       device_type: DeviceType = DeviceType.CPU,
+                       device_type: DeviceType = None,
+                       device_sets: List[Tuple[DeviceType, int]] = None,
                        batch: int = 1,
                        proto_path: str = None):
+    r"""Class or function decorator which registers a new Op and Kernel with the
+    Scanner master.
+
+    Parameters
+    ----------
+    name
+      Optional name for the Op. By default, it will be inferred as the name of the
+      decorated class/kernel.
+
+    stencil
+      Specifies the default stencil to use for the Op. If none, indicates
+      that the the Op does not have the ability to stencil. A stencil of
+      [0] should be specified if the Op can stencil but should not by
+      default.
+
+    unbounded_state
+      If true, indicates that the Op needs to see all previous elements
+      of its input sequences before it can compute a given element. For
+      example, to compute output element at index 100, the Op must have
+      already produced elements 0-99. This option is mutually exclusive
+      with `bounded_state`.
+
+    bounded_state
+      If true, indicates that the Op needs to see all previous elements
+      of its input sequences before it can compute a given element. For
+      example, to compute output element at index 100, the Op must have
+      already produced elements 0-99. This option is mutually exclusive
+      with `bounded_state`.
+
+    device_type
+
+    device_sets
+
+    batch
+
+    proto_path
+      Optional path to the proto file that describes the configuration
+      arguments to this Op.
+    """
     def dec(fn_or_class):
         is_fn = False
         if isinstance(fn_or_class, types.FunctionType) or isinstance(
@@ -394,6 +442,14 @@ def register_python_op(name: str = None,
                     return parse_ret(exec_fn(self, **args))
             wrapped_fn_or_class.execute = execute
 
+        dtype = device_type
+        if device_type is None and device_sets is None:
+            dtype = DeviceType.CPU
+
+        if device_type is not None and device_sets is not None:
+            raise ScannerException(
+                'Must only specify one of "device_type" or "device_sets" for python Op.')
+            
         PYTHON_OP_REGISTRY[kname] = {
             'input_columns': input_columns,
             'output_columns': output_columns,
@@ -402,7 +458,8 @@ def register_python_op(name: str = None,
             'unbounded_state': unbounded_state,
             'bounded_state': bounded_state,
             'kernel': wrapped_fn_or_class,
-            'device_type': device_type,
+            'device_type': dtype,
+            'device_sets': device_sets,
             'batch': batch,
             'proto_path': proto_path,
             'registration_id': uuid.uuid4().hex

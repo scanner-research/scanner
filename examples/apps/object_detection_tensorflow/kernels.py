@@ -10,7 +10,7 @@ import tarfile
 
 from scannerpy import FrameType, DeviceType
 from scannerpy.stdlib import tensorflow
-from typing import Tuple
+from typing import Tuple, Sequence
 from tqdm import tqdm
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -34,7 +34,9 @@ def download_and_extract_model(url):
             break
     return model_path
 
-@scannerpy.register_python_op()
+@scannerpy.register_python_op(device_sets=[(DeviceType.CPU, -1),
+                                           (DeviceType.GPU, 1)],
+                              batch=2)
 class ObjDetect(tensorflow.TensorFlowKernel):
     def build_graph(self):
         url = self.config.args['dnn_url']
@@ -52,8 +54,8 @@ class ObjDetect(tensorflow.TensorFlowKernel):
 
     # Evaluate object detection DNN model on a frame
     # Return bounding box position, class and score
-    def execute(self, frame: FrameType) -> bytes:
-        image = frame
+    def execute(self, frame: Sequence[FrameType]) -> Sequence[bytes]:
+        frames = frame
         image_tensor = self.graph.get_tensor_by_name('image_tensor:0')
         boxes = self.graph.get_tensor_by_name('detection_boxes:0')
         scores = self.graph.get_tensor_by_name('detection_scores:0')
@@ -62,15 +64,18 @@ class ObjDetect(tensorflow.TensorFlowKernel):
             (boxes, scores, classes) = self.sess.run(
                 [boxes, scores, classes],
                 feed_dict={
-                    image_tensor: np.expand_dims(image, axis=0)
+                    image_tensor: np.stack(frames, axis=0)
                 })
 
             # bundled data format: [box position(x1 y1 x2 y2), box class, box score]
-            bundled_data = np.concatenate(
-                (boxes.reshape(100, 4), classes.reshape(100, 1),
-                 scores.reshape(100, 1)), 1)[:20]
+            data = []
+            for i in range(len(frames)):
+                bundled_data = np.concatenate(
+                    (boxes[i].reshape(100, 4), classes[i].reshape(100, 1),
+                     scores[i].reshape(100, 1)), 1)[:20]
+                data.append(bundled_data.tobytes())
 
-            return bundled_data.tobytes()
+            return data
 
 ##################################################################################################
 # Driver Functions                                                                               #
