@@ -388,9 +388,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_heartbeat_process</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
 
     <span class="k">def</span> <span class="nf">_stop_heartbeat</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_enable_watchdog</span> <span class="ow">and</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_heartbeat_stop_event</span> <span class="ow">and</span>
-            <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_heartbeat_stop_event</span><span class="o">.</span><span class="n">is_set</span><span class="p">()):</span>
+        <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_enable_watchdog</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_heartbeat_stop_event</span><span class="p">):</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_heartbeat_stop_event</span><span class="o">.</span><span class="n">set</span><span class="p">()</span>
 
     <span class="k">def</span> <span class="nf">_handle_signal</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">signum</span><span class="p">,</span> <span class="n">frame</span><span class="p">):</span>
@@ -1283,6 +1281,7 @@
             <span class="k">yield</span>
 
         <span class="k">if</span> <span class="n">pbar</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">pbar</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">total_tasks</span> <span class="o">-</span> <span class="n">last_task_count</span><span class="p">)</span>
             <span class="n">pbar</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 
         <span class="k">yield</span> <span class="n">job_status</span>
@@ -1309,8 +1308,8 @@
             <span class="n">output</span><span class="p">:</span> <span class="n">Sink</span><span class="p">,</span>
             <span class="n">jobs</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Job</span><span class="p">],</span>
             <span class="n">force</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-            <span class="n">work_packet_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">250</span><span class="p">,</span>
-            <span class="n">io_packet_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">work_packet_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">32</span><span class="p">,</span>
+            <span class="n">io_packet_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">128</span><span class="p">,</span>
             <span class="n">cpu_pool</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
             <span class="n">gpu_pool</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
             <span class="n">pipeline_instances_per_node</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>

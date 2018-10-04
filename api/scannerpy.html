@@ -339,7 +339,7 @@ over. If <cite>batch == 1</cite>, kernel is assume to not be able to batch.</li>
 
 <dl class="method">
 <dt id="scannerpy.database.Database.run">
-<code class="descname">run</code><span class="sig-paren">(</span><em>output</em>, <em>jobs</em>, <em>force=False</em>, <em>work_packet_size=250</em>, <em>io_packet_size=-1</em>, <em>cpu_pool=None</em>, <em>gpu_pool=None</em>, <em>pipeline_instances_per_node=None</em>, <em>show_progress=True</em>, <em>profiling=False</em>, <em>load_sparsity_threshold=8</em>, <em>tasks_in_queue_per_pu=4</em>, <em>task_timeout=0</em>, <em>checkpoint_frequency=1000</em>, <em>detach=False</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#Database.run"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.Database.run" title="Permalink to this definition">¶</a></dt>
+<code class="descname">run</code><span class="sig-paren">(</span><em>output</em>, <em>jobs</em>, <em>force=False</em>, <em>work_packet_size=32</em>, <em>io_packet_size=128</em>, <em>cpu_pool=None</em>, <em>gpu_pool=None</em>, <em>pipeline_instances_per_node=None</em>, <em>show_progress=True</em>, <em>profiling=False</em>, <em>load_sparsity_threshold=8</em>, <em>tasks_in_queue_per_pu=4</em>, <em>task_timeout=0</em>, <em>checkpoint_frequency=1000</em>, <em>detach=False</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#Database.run"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.Database.run" title="Permalink to this definition">¶</a></dt>
 <dd><p>Runs a collection of jobs.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -640,8 +640,41 @@ op in a C++ registry.</p>
 
 <dl class="function">
 <dt id="scannerpy.op.register_python_op">
-<code class="descclassname">scannerpy.op.</code><code class="descname">register_python_op</code><span class="sig-paren">(</span><em>name=None</em>, <em>stencil=None</em>, <em>unbounded_state=False</em>, <em>bounded_state=None</em>, <em>device_type=&lt;DeviceType.CPU: 0&gt;</em>, <em>batch=1</em>, <em>proto_path=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/op.html#register_python_op"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.op.register_python_op" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<code class="descclassname">scannerpy.op.</code><code class="descname">register_python_op</code><span class="sig-paren">(</span><em>name=None</em>, <em>stencil=None</em>, <em>unbounded_state=False</em>, <em>bounded_state=None</em>, <em>device_type=None</em>, <em>device_sets=None</em>, <em>batch=1</em>, <em>proto_path=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/op.html#register_python_op"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.op.register_python_op" title="Permalink to this definition">¶</a></dt>
+<dd><p>Class or function decorator which registers a new Op and Kernel with the
+Scanner master.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>name</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.7)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.7)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>]) – Optional name for the Op. By default, it will be inferred as the name of the
+decorated class/kernel.</li>
+<li><strong>stencil</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.7)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.7)"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>]]) – Specifies the default stencil to use for the Op. If none, indicates
+that the the Op does not have the ability to stencil. A stencil of
+[0] should be specified if the Op can stencil but should not by
+default.</li>
+<li><strong>unbounded_state</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a>) – If true, indicates that the Op needs to see all previous elements
+of its input sequences before it can compute a given element. For
+example, to compute output element at index 100, the Op must have
+already produced elements 0-99. This option is mutually exclusive
+with <cite>bounded_state</cite>.</li>
+<li><strong>bounded_state</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.7)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>]) – If true, indicates that the Op needs to see all previous elements
+of its input sequences before it can compute a given element. For
+example, to compute output element at index 100, the Op must have
+already produced elements 0-99. This option is mutually exclusive
+with <cite>bounded_state</cite>.</li>
+<li><strong>device_type</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.7)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference internal" href="#scannerpy.common.DeviceType" title="scannerpy.common.DeviceType"><code class="xref py py-class docutils literal notranslate"><span class="pre">DeviceType</span></code></a>]) – </li>
+<li><strong>device_sets</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.7)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.7)"><code class="xref py py-class docutils literal notranslate"><span class="pre">List</span></code></a>[<code class="xref py py-class docutils literal notranslate"><span class="pre">Tuple</span></code>[<a class="reference internal" href="#scannerpy.common.DeviceType" title="scannerpy.common.DeviceType"><code class="xref py py-class docutils literal notranslate"><span class="pre">DeviceType</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>]]]) – </li>
+<li><strong>batch</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>) – </li>
+<li><strong>proto_path</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.7)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.7)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>]) – Optional path to the proto file that describes the configuration
+arguments to this Op.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
 
 </div>
 <div class="section" id="scannerpy-streams-module">

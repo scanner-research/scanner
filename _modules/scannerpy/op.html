@@ -141,14 +141,22 @@
             <span class="n">pseudo_name</span> <span class="o">=</span> <span class="n">name</span> <span class="o">+</span> <span class="s1">&#39;:&#39;</span> <span class="o">+</span> <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;registration_id&#39;</span><span class="p">]</span>
             <span class="n">name</span> <span class="o">=</span> <span class="n">pseudo_name</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">_python_ops</span><span class="p">:</span>
+                <span class="n">devices</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">if</span> <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;device_type&#39;</span><span class="p">]:</span>
+                    <span class="n">devices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;device_type&#39;</span><span class="p">])</span>
+                <span class="k">if</span> <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;device_sets&#39;</span><span class="p">]:</span>
+                    <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;device_sets&#39;</span><span class="p">]:</span>
+                        <span class="n">devices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+                    
                 <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">register_op</span><span class="p">(</span>
                     <span class="n">pseudo_name</span><span class="p">,</span> <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;input_columns&#39;</span><span class="p">],</span>
                     <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;output_columns&#39;</span><span class="p">],</span> <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;variadic_inputs&#39;</span><span class="p">],</span>
                     <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;stencil&#39;</span><span class="p">],</span> <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;unbounded_state&#39;</span><span class="p">],</span>
                     <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;bounded_state&#39;</span><span class="p">],</span> <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;proto_path&#39;</span><span class="p">])</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">register_python_kernel</span><span class="p">(</span><span class="n">pseudo_name</span><span class="p">,</span> <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;device_type&#39;</span><span class="p">],</span>
-                                                <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;kernel&#39;</span><span class="p">],</span>
-                                                <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;batch&#39;</span><span class="p">])</span>
+                <span class="k">for</span> <span class="n">device</span> <span class="ow">in</span> <span class="n">devices</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">register_python_kernel</span><span class="p">(</span><span class="n">pseudo_name</span><span class="p">,</span> <span class="n">device</span><span class="p">,</span>
+                                                    <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;kernel&#39;</span><span class="p">],</span>
+                                                    <span class="n">py_op_info</span><span class="p">[</span><span class="s1">&#39;batch&#39;</span><span class="p">])</span>
 
         <span class="c1"># This will raise an exception if the op does not exist.</span>
         <span class="n">op_info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">_get_op_info</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
@@ -262,9 +270,49 @@
                        <span class="n">stencil</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                        <span class="n">unbounded_state</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
                        <span class="n">bounded_state</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-                       <span class="n">device_type</span><span class="p">:</span> <span class="n">DeviceType</span> <span class="o">=</span> <span class="n">DeviceType</span><span class="o">.</span><span class="n">CPU</span><span class="p">,</span>
+                       <span class="n">device_type</span><span class="p">:</span> <span class="n">DeviceType</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                       <span class="n">device_sets</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="n">DeviceType</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                        <span class="n">batch</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
                        <span class="n">proto_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Class or function decorator which registers a new Op and Kernel with the</span>
+<span class="sd">    Scanner master.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    name</span>
+<span class="sd">      Optional name for the Op. By default, it will be inferred as the name of the</span>
+<span class="sd">      decorated class/kernel.</span>
+
+<span class="sd">    stencil</span>
+<span class="sd">      Specifies the default stencil to use for the Op. If none, indicates</span>
+<span class="sd">      that the the Op does not have the ability to stencil. A stencil of</span>
+<span class="sd">      [0] should be specified if the Op can stencil but should not by</span>
+<span class="sd">      default.</span>
+
+<span class="sd">    unbounded_state</span>
+<span class="sd">      If true, indicates that the Op needs to see all previous elements</span>
+<span class="sd">      of its input sequences before it can compute a given element. For</span>
+<span class="sd">      example, to compute output element at index 100, the Op must have</span>
+<span class="sd">      already produced elements 0-99. This option is mutually exclusive</span>
+<span class="sd">      with `bounded_state`.</span>
+
+<span class="sd">    bounded_state</span>
+<span class="sd">      If true, indicates that the Op needs to see all previous elements</span>
+<span class="sd">      of its input sequences before it can compute a given element. For</span>
+<span class="sd">      example, to compute output element at index 100, the Op must have</span>
+<span class="sd">      already produced elements 0-99. This option is mutually exclusive</span>
+<span class="sd">      with `bounded_state`.</span>
+
+<span class="sd">    device_type</span>
+
+<span class="sd">    device_sets</span>
+
+<span class="sd">    batch</span>
+
+<span class="sd">    proto_path</span>
+<span class="sd">      Optional path to the proto file that describes the configuration</span>
+<span class="sd">      arguments to this Op.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="nf">dec</span><span class="p">(</span><span class="n">fn_or_class</span><span class="p">):</span>
         <span class="n">is_fn</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">fn_or_class</span><span class="p">,</span> <span class="n">types</span><span class="o">.</span><span class="n">FunctionType</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span>
@@ -441,6 +489,14 @@
                     <span class="k">return</span> <span class="n">parse_ret</span><span class="p">(</span><span class="n">exec_fn</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">args</span><span class="p">))</span>
             <span class="n">wrapped_fn_or_class</span><span class="o">.</span><span class="n">execute</span> <span class="o">=</span> <span class="n">execute</span>
 
+        <span class="n">dtype</span> <span class="o">=</span> <span class="n">device_type</span>
+        <span class="k">if</span> <span class="n">device_type</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">device_sets</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">dtype</span> <span class="o">=</span> <span class="n">DeviceType</span><span class="o">.</span><span class="n">CPU</span>
+
+        <span class="k">if</span> <span class="n">device_type</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">device_sets</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ScannerException</span><span class="p">(</span>
+                <span class="s1">&#39;Must only specify one of &quot;device_type&quot; or &quot;device_sets&quot; for python Op.&#39;</span><span class="p">)</span>
+            
         <span class="n">PYTHON_OP_REGISTRY</span><span class="p">[</span><span class="n">kname</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
             <span class="s1">&#39;input_columns&#39;</span><span class="p">:</span> <span class="n">input_columns</span><span class="p">,</span>
             <span class="s1">&#39;output_columns&#39;</span><span class="p">:</span> <span class="n">output_columns</span><span class="p">,</span>
@@ -449,7 +505,8 @@
             <span class="s1">&#39;unbounded_state&#39;</span><span class="p">:</span> <span class="n">unbounded_state</span><span class="p">,</span>
             <span class="s1">&#39;bounded_state&#39;</span><span class="p">:</span> <span class="n">bounded_state</span><span class="p">,</span>
             <span class="s1">&#39;kernel&#39;</span><span class="p">:</span> <span class="n">wrapped_fn_or_class</span><span class="p">,</span>
-            <span class="s1">&#39;device_type&#39;</span><span class="p">:</span> <span class="n">device_type</span><span class="p">,</span>
+            <span class="s1">&#39;device_type&#39;</span><span class="p">:</span> <span class="n">dtype</span><span class="p">,</span>
+            <span class="s1">&#39;device_sets&#39;</span><span class="p">:</span> <span class="n">device_sets</span><span class="p">,</span>
             <span class="s1">&#39;batch&#39;</span><span class="p">:</span> <span class="n">batch</span><span class="p">,</span>
             <span class="s1">&#39;proto_path&#39;</span><span class="p">:</span> <span class="n">proto_path</span><span class="p">,</span>
             <span class="s1">&#39;registration_id&#39;</span><span class="p">:</span> <span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()</span><span class="o">.</span><span class="n">hex</span>
