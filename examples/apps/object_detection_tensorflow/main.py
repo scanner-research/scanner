@@ -24,14 +24,20 @@ if __name__ == '__main__':
 
     [input_table], failed = db.ingest_videos([('example', movie_path)], force=True)
 
+    stride = 1
+
     frame = db.sources.FrameColumn()
-    strided_frame = db.streams.Stride(frame, 1)
+    strided_frame = db.streams.Stride(frame, stride)
 
     model_name = 'ssd_mobilenet_v1_coco_2017_11_17'
     model_url = MODEL_TEMPLATE_URL.format(model_name)
 
     # Call the newly created object detect op
-    objdet_frame = db.ops.ObjDetect(frame=strided_frame, dnn_url=model_url)
+    objdet_frame = db.ops.ObjDetect(
+        frame=strided_frame,
+        dnn_url=model_url,
+        device=DeviceType.GPU if db.has_gpu() else DeviceType.CPU,
+        batch=2)
 
     output_op = db.sinks.Column(columns={'bundled_data': objdet_frame})
     job = Job(
@@ -42,6 +48,8 @@ if __name__ == '__main__':
 
     [out_table] = db.run(output=output_op, jobs=[job], force=True,
                          pipeline_instances_per_node=1)
+
+    out_table.profiler().write_trace('obj.trace')
 
     print('Extracting data from Scanner output...')
 
@@ -61,7 +69,7 @@ if __name__ == '__main__':
 
     frame = db.sources.FrameColumn()
     bundled_data = db.sources.Python()
-    strided_frame = db.streams.Stride(frame, 1)
+    strided_frame = db.streams.Stride(frame, stride)
     drawn_frame = db.ops.TFDrawBoxes(frame=strided_frame,
                                      bundled_data=bundled_data,
                                      min_score_thresh=0.5)

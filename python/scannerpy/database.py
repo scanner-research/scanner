@@ -341,9 +341,7 @@ class Database(object):
         self._heartbeat_process.start()
 
     def _stop_heartbeat(self):
-        if (self._enable_watchdog and
-            self._heartbeat_stop_event and
-            not self._heartbeat_stop_event.is_set()):
+        if (self._enable_watchdog and self._heartbeat_stop_event):
             self._heartbeat_stop_event.set()
 
     def _handle_signal(self, signum, frame):
@@ -1236,6 +1234,7 @@ class Database(object):
             yield
 
         if pbar is not None:
+            pbar.update(total_tasks - last_task_count)
             pbar.close()
 
         yield job_status
@@ -1262,8 +1261,8 @@ class Database(object):
             output: Sink,
             jobs: Sequence[Job],
             force: bool = False,
-            work_packet_size: int = 250,
-            io_packet_size: int = -1,
+            work_packet_size: int = 32,
+            io_packet_size: int = 128,
             cpu_pool: str = None,
             gpu_pool: str = None,
             pipeline_instances_per_node: int = None,
