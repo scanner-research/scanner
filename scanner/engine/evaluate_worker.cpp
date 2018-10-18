@@ -400,13 +400,19 @@ EvaluateWorker::~EvaluateWorker() {
 
 void EvaluateWorker::new_task(i64 job_idx, i64 task_idx,
                               const std::vector<TaskStream>& task_streams) {
-  job_idx_ = job_idx;
-  task_idx_ = task_idx;
+
   for (size_t i = 0; i < task_streams.size(); ++i) {
     for (i64 used_rows : current_valid_input_idx_[i]) {
-      assert(valid_input_rows_[i].size() == used_rows);
+      if (!(valid_input_rows_[i].size() == used_rows)) {
+        LOG(FATAL) << "Evaluate Worker did not use all rows for task ("
+                   << job_idx_ << ", " << task_idx_ << "): used " << used_rows
+                   << ", expected to use" << valid_input_rows_[i].size();
+      }
     }
   }
+
+  job_idx_ = job_idx;
+  task_idx_ = task_idx;
   valid_input_rows_.clear();
   valid_input_rows_set_.clear();
   current_valid_input_idx_.clear();
