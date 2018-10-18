@@ -39,6 +39,8 @@ class Profiler {
 
   void increment(const std::string& key, int64_t value);
 
+  void reset(timepoint_t base_time);
+
   struct TaskRecord {
     std::string key;
     int64_t start;

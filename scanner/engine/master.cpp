@@ -26,12 +26,15 @@
 #include "scanner/engine/sink_registry.h"
 #include "scanner/engine/enumerator_registry.h"
 #include "scanner/util/thread_pool.h"
+#include "scanner/util/storehouse.h"
 
 #include <grpc/support/log.h>
 #include <set>
 #include <mutex>
 #include <pybind11/embed.h>
 
+using storehouse::StoreResult;
+using storehouse::WriteFile;
 namespace py = pybind11;
 
 namespace scanner {
@@ -48,7 +51,7 @@ static const u32 PING_WORKER_TIMEOUT = 5;
 static const u32 NEW_JOB_WORKER_TIMEOUT = 30;
 
 MasterServerImpl::MasterServerImpl(DatabaseParameters& params, const std::string& port)
-    : db_params_(params), port_(port) {
+    : db_params_(params), port_(port), profiler_(now()) {
   VLOG(1) << "Creating master...";
 
   {
@@ -208,10 +211,13 @@ void MasterServerImpl::handle_rpcs(i32 watchdog_timeout_ms) {
         switch (call_tag->get_state()) {
           case BaseCall<MasterServerImpl>::Tag::State::Received: {
             type = "Received";
+            tag_start_times_[call_tag->get_call()] = now();
             break;
           }
           case BaseCall<MasterServerImpl>::Tag::State::Sent: {
             type = "Sent";
+            profiler_.add_interval(call_tag->get_call()->name, tag_start_times_.at(call_tag->get_call()), now());
+            tag_start_times_.erase(call_tag->get_call());
             break;
           }
           case BaseCall<MasterServerImpl>::Tag::State::Cancelled: {
@@ -1334,6 +1340,14 @@ void MasterServerImpl::stop_job_processor() {
 
 bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
                                    proto::Result* job_result) {
+  // Remove old profiling information
+  auto job_start = now();
+  profiler_.reset(job_start);
+  i64 job_start_ns = std::chrono::time_point_cast<std::chrono::nanoseconds>(job_start)
+    .time_since_epoch()
+    .count();
+  job_params_.set_base_time(job_start_ns);
+
   i32 bulk_job_id = active_bulk_job_id_;
   std::shared_ptr<BulkJob> state(new BulkJob);
   {
@@ -1792,6 +1806,9 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
   }
   write_bulk_job_metadata(storage_, BulkJobMetadata(job_descriptor));
 
+  // Write profiler info
+  write_profiler(bulk_job_id, job_start, now());
+
   finished_fn();
 
   VLOG(1) << "Master finished job";
@@ -2176,6 +2193,33 @@ void MasterServerImpl::start_shutdown() {
     shutdown_alarm_ =
         new grpc::Alarm(cq_.get(), gpr_now(GPR_CLOCK_MONOTONIC), nullptr);
   }
+}
+
+void MasterServerImpl::write_profiler(int bulk_job_id, timepoint_t job_start, timepoint_t job_end) {
+  // Create output file
+  std::string profiler_file_name = bulk_job_master_profiler_path(bulk_job_id);
+  std::unique_ptr<WriteFile> profiler_output;
+  BACKOFF_FAIL(make_unique_write_file(storage_, profiler_file_name, profiler_output),
+      "while trying to make write file for " + profiler_file_name);
+
+  // Write profiler data
+  i64 start_time_ns =
+      std::chrono::time_point_cast<std::chrono::nanoseconds>(job_start)
+          .time_since_epoch()
+          .count();
+  i64 end_time_ns =
+      std::chrono::time_point_cast<std::chrono::nanoseconds>(job_end)
+          .time_since_epoch()
+          .count();
+  s_write(profiler_output.get(), start_time_ns);
+  s_write(profiler_output.get(), end_time_ns);
+
+  write_profiler_to_file(profiler_output.get(), 0, "master", "master", 0, profiler_);
+
+  // Save profiler
+  BACKOFF_FAIL(profiler_output->save(), "while trying to save " + profiler_output->path());
+  std::fflush(NULL);
+  sync();
 }
 
 }  // namespace internal

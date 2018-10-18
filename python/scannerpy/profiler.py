@@ -30,13 +30,26 @@ class Profiler:
         job = db._load_descriptor(db.protobufs.BulkJobDescriptor,
                                   'jobs/{}/descriptor.bin'.format(job_id))
 
-        self._profilers = {}
-        for n in range(job.num_nodes):
-            path = '{}/jobs/{}/profile_{}.bin'.format(db._db_path, job_id, n)
+        self._worker_profilers = {}
+
+        def get_prof(path, worker=True):
             file_info = self._storage.get_file_info(path)
             if file_info.file_exists:
-                time, profs = self._parse_profiler_file(path)
-                self._profilers[n] = (time, profs)
+                time, profs = self._parse_profiler_file(path, worker)
+                return time, profs
+            else:
+                return None
+                self._worker_profilers[n] = (time, profs)
+
+
+        for n in range(job.num_nodes):
+            path = '{}/jobs/{}/profile_{}.bin'.format(db._db_path, job_id, n)
+            prof = get_prof(path)
+            if prof is not None:
+                self._worker_profilers[n] = prof
+
+        path = '{}/jobs/{}/profile_master.bin'.format(db._db_path, job_id)
+        self._master_profiler = get_prof(path, worker=False)
 
     def write_trace(self, path: str):
         """
@@ -55,7 +68,38 @@ class Profiler:
         colors = {'idle': 'grey'}
         traces = []
         next_tid = 0
-        for proc, (_, worker_profiler_groups) in self._profilers.items():
+
+        def make_trace_from_interval(interval, cat, proc, tid):
+            trace = {
+                'name': interval[0],
+                'cat': cat,
+                'ph': 'X',
+                'ts': interval[1] / 1000,  # ns to microseconds
+                'dur': (interval[2] - interval[1]) / 1000,
+                'pid': proc,
+                'tid': tid,
+                'args': {}
+            }
+            if interval[0] in colors:
+                trace['cname'] = colors[interval[0]]
+            return trace
+
+
+        if self._master_profiler is not None:
+            traces.append({
+                'name': 'thread_name',
+                'ph': 'M',
+                'pid': -1,
+                'tid': 0,
+                'args': {'name': 'master'}
+            })
+
+            print('Master intervals: {}', len(self._master_profiler[1]['intervals']))
+
+            for interval in self._master_profiler[1]['intervals']:
+                traces.append(make_trace_from_interval(interval, 'master', -1, 0))
+
+        for proc, (_, worker_profiler_groups) in self._worker_profilers.items():
             for worker_type, profs in [('load',
                                         worker_profiler_groups['load']),
                                        ('decode',
@@ -82,19 +126,7 @@ class Profiler:
                         }
                     })
                     for interval in prof['intervals']:
-                        trace = {
-                            'name': interval[0],
-                            'cat': worker_type,
-                            'ph': 'X',
-                            'ts': interval[1] / 1000,  # ns to microseconds
-                            'dur': (interval[2] - interval[1]) / 1000,
-                            'pid': proc,
-                            'tid': tid,
-                            'args': {}
-                        }
-                        if interval[0] in colors:
-                            trace['cname'] = colors[interval[0]]
-                        traces.append(trace)
+                        traces.append(make_trace_from_interval(interval, worker_type, proc, tid))
         with open(path, 'w') as f:
             f.write(json.dumps(traces))
 
@@ -110,13 +142,13 @@ class Profiler:
         }
 
     def total_time_interval(self):
-        intv, _ = list(self._profilers.values())[0]
+        intv, _ = list(self._worker_profilers.values())[0]
         return intv
 
     def statistics(self):
         totals = {}
         for (total_start,
-             total_end), profiler in list(self._profilers.values()):
+             total_end), profiler in list(self._worker_profilers.values()):
             for kind in profiler:
                 if kind not in totals:
                     totals[kind] = {}
@@ -189,7 +221,7 @@ class Profiler:
             'counters': counters
         }, offset
 
-    def _parse_profiler_file(self, profiler_path):
+    def _parse_profiler_file(self, profiler_path, worker=True):
         bytes_buffer = self._storage.read(profiler_path)
         offset = 0
         # Read start and end time intervals
@@ -197,28 +229,33 @@ class Profiler:
         start_time = t[0]
         t, offset = read_advance('q', bytes_buffer, offset)
         end_time = t[0]
-        # Profilers
-        profilers = defaultdict(list)
-        # Load worker profilers
-        t, offset = read_advance('B', bytes_buffer, offset)
-        num_load_workers = t[0]
-        for i in range(num_load_workers):
-            prof, offset = self._parse_profiler_output(bytes_buffer, offset)
-            profilers[prof['worker_type']].append(prof)
-        # Eval worker profilers
-        t, offset = read_advance('B', bytes_buffer, offset)
-        num_eval_workers = t[0]
-        t, offset = read_advance('B', bytes_buffer, offset)
-        groups_per_chain = t[0]
-        for pu in range(num_eval_workers):
-            for fg in range(groups_per_chain):
-                prof, offset = self._parse_profiler_output(
-                    bytes_buffer, offset)
+
+        if worker:
+            # Profilers
+            profilers = defaultdict(list)
+            # Load worker profilers
+            t, offset = read_advance('B', bytes_buffer, offset)
+            num_load_workers = t[0]
+            for i in range(num_load_workers):
+                prof, offset = self._parse_profiler_output(bytes_buffer, offset)
                 profilers[prof['worker_type']].append(prof)
-        # Save worker profilers
-        t, offset = read_advance('B', bytes_buffer, offset)
-        num_save_workers = t[0]
-        for i in range(num_save_workers):
-            prof, offset = self._parse_profiler_output(bytes_buffer, offset)
-            profilers[prof['worker_type']].append(prof)
-        return (start_time, end_time), profilers
+            # Eval worker profilers
+            t, offset = read_advance('B', bytes_buffer, offset)
+            num_eval_workers = t[0]
+            t, offset = read_advance('B', bytes_buffer, offset)
+            groups_per_chain = t[0]
+            for pu in range(num_eval_workers):
+                for fg in range(groups_per_chain):
+                    prof, offset = self._parse_profiler_output(
+                        bytes_buffer, offset)
+                    profilers[prof['worker_type']].append(prof)
+            # Save worker profilers
+            t, offset = read_advance('B', bytes_buffer, offset)
+            num_save_workers = t[0]
+            for i in range(num_save_workers):
+                prof, offset = self._parse_profiler_output(bytes_buffer, offset)
+                profilers[prof['worker_type']].append(prof)
+            return (start_time, end_time), profilers
+
+        else:
+            return (start_time, end_time), self._parse_profiler_output(bytes_buffer, offset)[0]
