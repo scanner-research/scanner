@@ -505,8 +505,16 @@ void MasterServerImpl::RegisterWorkerHandler(
 
     i32 node_id = next_worker_id_++;
     VLOG(1) << "Adding worker: " << node_id << ", " << worker_address;
-    auto stub = proto::Worker::NewStub(grpc::CreateChannel(
-        worker_address, grpc::InsecureChannelCredentials()));
+
+    // wcrichto 10-17-18: providing the node_id in the ChannelArguments prevents a bug where
+    // when a worker dies/restarts on the same node/port, the connection would be reused and
+    // all messages would bounce with GOAWAY.
+    // See: https://github.com/grpc/grpc/issues/14260#issuecomment-362298290
+    auto chan_args = grpc::ChannelArguments();
+    chan_args.SetInt("node_id", node_id);
+    auto stub = proto::Worker::NewStub(grpc::CreateCustomChannel(
+        worker_address, grpc::InsecureChannelCredentials(), chan_args));
+
     std::shared_ptr<WorkerState> worker_state(
         new WorkerState(node_id, std::move(stub), worker_address));
     worker_state->state = WorkerState::IDLE;
@@ -1857,23 +1865,26 @@ void MasterServerImpl::start_worker_pinger() {
           if (!request_data.status.ok() ||
               request_data.reply.node_id() != worker_id) {
             VLOG(3) << "Master failed to Ping worker " << worker_id;
+
             // Worker not responding, increment ping count
             i64 num_failed_pings = ++ws[worker_id]->failed_pings;
             const i64 FAILED_PINGS_BEFORE_REMOVAL = 3;
             if (num_failed_pings >= FAILED_PINGS_BEFORE_REMOVAL ||
-                request_data.reply.node_id() != worker_id) {
+                (request_data.status.ok() && request_data.reply.node_id() != worker_id)) {
+
               // remove it from active workers
-              if (request_data.reply.node_id() != worker_id) {
+              if (num_failed_pings >= FAILED_PINGS_BEFORE_REMOVAL) {
+                LOG(WARNING)
+                  << "Worker " << worker_id << " did not respond to Ping. "
+                  << "Removing worker from active list.";
+              } else {
                 LOG(WARNING)
                     << "Worker " << worker_id << " responded to Ping with "
                     << "worker id " << request_data.reply.node_id()
                     << ". Removing from active "
                     << "list.";
-              } else {
-                LOG(WARNING)
-                    << "Worker " << worker_id << " did not respond to Ping. "
-                    << "Removing worker from active list.";
               }
+
               std::unique_lock<std::mutex> lk(work_mutex_);
               remove_worker(worker_id);
               if (state.get()) {
@@ -1945,10 +1956,7 @@ void MasterServerImpl::start_job_on_workers(const std::vector<i32>& worker_ids) 
   std::map<i32, i32> retry_attempts;
 
   auto send_new_job = [&](i32 worker_id) {
-    const std::string& address = workers_copy.at(worker_id)->address;
     auto& worker = workers_copy.at(worker_id)->stub;
-    std::vector<std::string> split_addr = split(address, ':');
-    std::string sans_port = split_addr[0];
 
     client_contexts[worker_id] =
         std::unique_ptr<grpc::ClientContext>(new grpc::ClientContext);
