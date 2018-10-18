@@ -952,7 +952,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   // Controls if work should be distributed roundrobin or dynamically
   bool distribute_work_dynamically = true;
 
-  timepoint_t base_time = now();
+  timepoint_t base_time(std::chrono::nanoseconds(job_params->base_time()));
   const i32 work_packet_size = job_params->work_packet_size();
   const i32 io_packet_size = job_params->io_packet_size() != -1
                                  ? job_params->io_packet_size()
@@ -1973,7 +1973,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   // Execution done, write out profiler intervals for each worker
   // TODO: job_name -> job_id?
   i32 job_id = meta.get_bulk_job_id(job_params->job_name());
-  std::string profiler_file_name = bulk_job_profiler_path(job_id, node_id_);
+  std::string profiler_file_name = bulk_job_worker_profiler_path(job_id, node_id_);
   std::unique_ptr<WriteFile> profiler_output;
   BACKOFF_FAIL(
       make_unique_write_file(storage_, profiler_file_name, profiler_output),

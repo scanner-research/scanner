@@ -40,6 +40,14 @@ inline void Profiler::increment(const std::string& key, int64_t value) {
   unlock();
 }
 
+inline void Profiler::reset(timepoint_t base_time) {
+  spin_lock();
+  base_time_ = base_time;
+  records_.clear();
+  counters_.clear();
+  unlock();
+}
+
 inline void Profiler::spin_lock() {
   while (lock_.test_and_set(std::memory_order_acquire));
 }

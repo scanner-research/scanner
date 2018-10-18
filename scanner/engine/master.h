@@ -24,6 +24,7 @@
 #include "scanner/util/util.h"
 #include "scanner/util/grpc.h"
 #include "scanner/util/thread_pool.h"
+#include "scanner/util/profiler.h"
 
 #include <mutex>
 #include <thread>
@@ -152,6 +153,8 @@ class MasterServerImpl final : public proto::Master::Service {
   void blacklist_job(i64 job_id);
 
   void start_shutdown();
+
+  void write_profiler(int bulk_job_id, timepoint_t job_start, timepoint_t job_end);
 
   DatabaseParameters db_params_;
   const std::string port_;
@@ -302,6 +305,9 @@ class MasterServerImpl final : public proto::Master::Service {
   std::unique_ptr<grpc::ServerCompletionQueue> cq_;
   proto::Master::AsyncService service_;
   std::unique_ptr<grpc::Server> server_;
+
+  Profiler profiler_;
+  std::unordered_map<BaseCall<MasterServerImpl>*, timepoint_t> tag_start_times_;
 };
 
 }

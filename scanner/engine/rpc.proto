@@ -257,6 +257,7 @@ message BulkJobParameters {
   DatabaseDescriptor db_meta = 18;
   repeated Column output_columns = 20;
   int32 bulk_job_id = 21;
+  int64 base_time = 22;
 }
 
 message NewJobReply {

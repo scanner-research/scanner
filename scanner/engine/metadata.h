@@ -76,7 +76,11 @@ inline std::string bulk_job_descriptor_path(i32 bulk_job_id) {
   return bulk_job_directory(bulk_job_id) + "/descriptor.bin";
 }
 
-inline std::string bulk_job_profiler_path(i32 bulk_job_id, i32 node) {
+inline std::string bulk_job_master_profiler_path(i32 bulk_job_id) {
+  return bulk_job_directory(bulk_job_id) + "/profile_master.bin";
+}
+
+inline std::string bulk_job_worker_profiler_path(i32 bulk_job_id, i32 node) {
   return bulk_job_directory(bulk_job_id) + "/profile_" + std::to_string(node) +
          ".bin";
 }
