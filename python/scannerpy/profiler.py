@@ -94,8 +94,6 @@ class Profiler:
                 'args': {'name': 'master'}
             })
 
-            print('Master intervals: {}', len(self._master_profiler[1]['intervals']))
-
             for interval in self._master_profiler[1]['intervals']:
                 traces.append(make_trace_from_interval(interval, 'master', -1, 0))
 
