@@ -1388,7 +1388,7 @@ class Database(object):
                     source_input = j.inputs.add()
                     source_input.op_index = op_idx
                     # We special case on Column to transform it into a
-                    # (table, col) pair that is then trasnformed into a
+                    # (table, col) pair that is then transformed into a
                     # protobuf object
                     if isinstance(args, Column):
                         if not args._table.committed():
