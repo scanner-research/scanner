@@ -141,8 +141,6 @@
                 <span class="s1">&#39;args&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;master&#39;</span><span class="p">}</span>
             <span class="p">})</span>
 
-            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Master intervals: </span><span class="si">{}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_master_profiler</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s1">&#39;intervals&#39;</span><span class="p">]))</span>
-
             <span class="k">for</span> <span class="n">interval</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_master_profiler</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s1">&#39;intervals&#39;</span><span class="p">]:</span>
                 <span class="n">traces</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">make_trace_from_interval</span><span class="p">(</span><span class="n">interval</span><span class="p">,</span> <span class="s1">&#39;master&#39;</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
 
