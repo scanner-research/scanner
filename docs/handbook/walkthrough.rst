@@ -1,13 +1,13 @@
 .. _quickstart:
 
-Quickstart
-==========
+Walkthrough
+===========
 
 To explain how Scanner is used, let's walk through a simple example that reads every third frame from a video, resizes the frames, and then creates a new video from the sequence of resized frames.
 
 .. note::
 
-   This Quickstart walks you through a very basic Scanner application that downsamples a video in space and time. Once you are done with this guide, check out the `examples <https://github.com/scanner-research/scanner/blob/master/examples>`__ directory for more useful applications, such as using Tensorflow `for detecting objects in all frames of a video <https://github.com/scanner-research/scanner/blob/master/examples/apps/object_detection_tensorflow>`__ and Caffe for `face detection <https://github.com/scanner-research/scanner/blob/master/examples/apps/face_detection>`__.
+   This document walks you through a very basic Scanner application that downsamples a video in space and time. Once you are done with this guide, check out the `examples <https://github.com/scanner-research/scanner/blob/master/examples>`__ directory for more useful applications, such as using Tensorflow `for detecting objects in all frames of a video <https://github.com/scanner-research/scanner/blob/master/examples/apps/object_detection_tensorflow>`__ and Caffe for `face detection <https://github.com/scanner-research/scanner/blob/master/examples/apps/face_detection>`__.
 
 To run the code discussed here, install Scanner (:ref:`installation`). Then from the top-level Scanner directory, run:
 
@@ -217,4 +217,3 @@ Now we can process these multiple jobs at the same time using :code:`run`:
    output_tables = db.run(output=output_frame, jobs=jobs)
 
 Like before, this call will block until Scanner has finished processing all the jobs. You should see a progress bar while Scanner is executing the computation graph as before. Once the jobs are done, :code:`run` returns the newly computed tables, here shown as :code:`output_tables`.
-

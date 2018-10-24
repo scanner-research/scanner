@@ -3,45 +3,100 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-.. image:: scanner_logo.png
+==========================================
 
-===========================
+.. raw:: html
 
-Scanner is a system for developing applications that efficiently process large video datasets. Scanner applications can run on a multi-core laptop, a server packed with multiple GPUs, or a large number of machines in the cloud. Scanner has been used for:
+  <div class="row">
+    <div class="col-xs-12">
+      <div class="text-center">
+        <h2>
+          Scanner is an open-source distributed system for authoring video processing applications.
+        </h2>
+        <a href="/guide.html" class="btn btn-default btn-sm">
+           Get started
+        </a>
+        <a href="/overview.html" class="btn btn-default btn-sm">
+           How does it work?
+        </a>
+      </div>
+    </div>
+  </div>
 
-- **Labeling and data mining large video collections:** Scanner is in use at Stanford University as the compute engine for visual data mining applications that detect faces, commercials, human poses, etc. in datasets as big as 70,000 hours of TV news (12 billion frames, 20 TB) or 600 feature length movies (106 million frames).
+  <div class="row">
+    <div class="col-md-6 col-xs-12">
+      <h3>
+       Simpler video processing
+      </h3>
+      <ul>
+        <li>Out-of-the box modules for object, pose, and face detection.</li>
+        <li>Works directly with video files (no more pre-processing into images!).</li>
+        <li>Supports efficent random access of frames in video.</li>
+        <li>Scales to use multiple GPUs and multi-core CPUs.</li>
+        <li>Scales out to hundreds of machines in the cloud or your local cluster.</li>
+        <li>Integrated with Kubernetes, Google Cloud Platform, and AWS.</li>
+      </p>
+    </div>
 
-- **VR Video synthesis:** Scanner is in use at Facebook to scale the `Surround 360 VR video stitching software <https://github.com/scanner-research/Surround360>`__, which processes fourteen 2048x2048 input videos to produce 8k stereo video output.
+    <div class="col-md-6 col-xs-12">
+      <h3>
+       Easy to use Python API
+      </h3>
+         <pre><code class="jljs python">from scannerpy import Database, Job
+  
+  # Ingest a video 
+  db = Database()
+  db.ingest_videos([('example_table', 'example.mp4')])
+  
+  # Define a Computation Graph
+  frame = db.sources.FrameColumn()                                    
+  hist = db.ops.Histogram(input=frame)            
+  output_frame = db.sinks.Column(columns={'hist': hist})         
+  
+  # Set parameters of computation graph ops
+  job = Job(op_args={
+    # Column to read input frames from
+    frame: db.table('example_table').column('frame'),
+    # Table name for computation output
+    output_frame: 'resized_example'                 
+  })
+  
+  # Execute the computation graph 
+  output_tables = db.run(output=output_frame, jobs=[job])
+         </code></pre>
+    </div>
+  </div>
 
-To learn more about Scanner, see the documentation below or read the SIGGRAPH
-2018 Technical Paper: `"Scanner: Efficient Video Analysis at Scale" <http://graphics.stanford.edu/papers/scanner/scanner_sig18.pdf>`__ by Poms, Crichton, Hanrahan, and Fatahalian.
+  <div class="row">
+    <div class="col-xs-12">
+      <h3>
+      Applications
+      </h3>
+    </div>
 
-For easy access to off-the-shelf pipelines built using Scanner like face detection and optical flow, check out our `scannertools <https://github.com/scanner-research/scannertools>`__ library.
+    <div class="col-md-6 col-xs-12">
+      <h4>
+       Analyzing videos with machine learning and computer vision
+      </h4>
+      <p>
+        Use modern neural networks to automatically detect objects, people, and faces in your videos.
+        Check out <a href="https://scanner-research.github.io/scannertools/">scannertools</a> for an
+        easy to use toolkit that's setup to download and run these models.
+      </p>
+      <div style="position: relative; padding-bottom: 56.25%; padding-top: 25px; height: 0;">
+        <iframe style="position: absolute; top: 0; left: 0;" width="100%" height="100%" src="https://www.youtube.com/embed/IQsb_nbPf9M" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+      </div>
+    </div>
 
-Key Features
-------------
-
-Scanner's key features include:
-
-- **Video processing computations as dataflow graphs**.  Like many modern ML frameworks, Scanner structures video analysis tasks as dataflow graphs whose nodes produce and consume sequences of per-frame data. Scanner's embodiment of the dataflow model includes operators useful for video processing tasks such as sparse frame sampling (e.g., "frames known to contain a face"), sliding window frame access (e.g., stencils for temporal smoothing), and stateful processing across frames (e.g., tracking).
-
-- **Videos as logical tables** To simplify the management of and access to large-numbers of videos, Scanner represents video collections and the pixel-level products of video frame analysis (e.g., flow fields, depth maps, activations) as tables in a data store. Scanner's data store features first-class support for video frame column types to facilitate key performance optimizations, such as storing video in compressed form and providing fast access to sparse lists of video frames.
-
-- **First-class support for GPU acceleration:** Since many video processing algorithms benefit from GPU acceleration, Scanner provides first-class support for writing dataflow graph operations that utilize GPU execution. Scanner also leverages specialized GPU hardware for video decoding when available.
-
-- **Fault tolerant, distributed execution:** Scanner applications can be run on the cores of a single machine, on a multi-GPU server, or scaled to hundreds of machines (potentially with heterogeneous numbers of GPUs), without significant source-level change.  Scanner also provides fault tolerance, so your applications can not only utilize many machines, but use cheaper preemptible machines on cloud computing platforms.
-
-
-What Scanner **is not**:
-
-Scanner is not a system for implementing new high-performance image and video processing kernels from scratch.  However, Scanner can be used to create scalable video processing applications by composing kernels that already exist as part of popular libraries such as OpenCV, Caffe, TensorFlow, etc. or have been implemented in popular performance-oriented languages like `CUDA <https://developer.nvidia.com/cuda-zone>`__ or `Halide <http://halide-lang.org/>`__. Yes, you can write your own dataflow graph operations in Python or C++ too!
-
-.. toctree::
-   :maxdepth: 2
-   :includehidden:
-
-   installation
-   getting-started
-   programming-handbook
-   api
-   about
+    <div class="col-md-6 col-xs-12">
+      <h4>
+        VR video synthesis from multiple cameras
+      </h4>
+      <p>
+        Scanner is currently being used as the compute engine behind the <a href="https://facebook360.fb.com/2018/09/26/film-the-future-with-red-and-facebook-360/">Manifold</a> 360 video camera from Facebook and RED. Scanner has been integrated into the publicly available version of the Surround 360 system on <a href="https://github.com/scanner-research/Surround360">GitHub</a>.
+      </p>
+      <div style="position: relative; padding-bottom: 56.25%; padding-top: 25px; height: 0;">
+        <iframe style="position: absolute; top: 0; left: 0;" src="https://www.facebook.com/plugins/video.php?href=https%3A%2F%2Fwww.facebook.com%2FFacebook360%2Fvideos%2F370097893531240%2F%3Ft%3D0&&show_text=false" width="100%" height="100%" style="border:none;overflow:hidden" scrolling="no" frameborder="0" allowTransparency="true" allow="encrypted-media" allowFullScreen="true"></iframe>
+      </div>
+    </div>
+  </div>

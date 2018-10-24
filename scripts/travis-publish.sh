@@ -38,7 +38,7 @@ rm -fr ~/.ssh/known_hosts
 ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
 
 pip3 install doxypypy twine
-pip3 install Sphinx sphinx_readable_theme sphinx-autodoc-typehints
+pip3 install Sphinx sphinx_readable_theme sphinx_bootstrap_theme sphinx-autodoc-typehints
 
 rm -rf ${HTML_PATH}
 mkdir -p ${HTML_PATH}
