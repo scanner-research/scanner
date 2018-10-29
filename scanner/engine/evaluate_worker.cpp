@@ -1239,7 +1239,8 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
 
       // Encode video frames
       if (compression_enabled_[i] && column_type == ColumnType::Video &&
-          buffered_entry_.frame_sizes[encoder_idx].type == FrameType::U8) {
+          buffered_entry_.frame_sizes[encoder_idx].type == FrameType::U8 &&
+          buffered_entry_.frame_sizes[encoder_idx].channels() == 3) {
         auto& encoder = encoders_[encoder_idx];
         if (!encoder_configured_[encoder_idx]) {
           // Configure encoder
