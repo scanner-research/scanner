@@ -116,8 +116,9 @@ class SQLSink : public Sink {
           }
 
           update_str =
-              tfm::format("INSERT INTO %s (%s) VALUES (%s)", args_.table(),
-                          join(column_list, ", "), join(value_list, ", "));
+              tfm::format("INSERT INTO %s (%s) VALUES (%s) %s", args_.table(),
+                          join(column_list, ", "), join(value_list, ", "),
+                          args_.ignore_conflicts() ? "ON CONFLICT DO NOTHING" : "");
         } else {
           std::vector<std::string> update_list;
           for (auto it = updates.begin(); it != updates.end(); it++) {
@@ -125,6 +126,7 @@ class SQLSink : public Sink {
           }
 
           LOG_IF(FATAL, id == -1) << "SQLSink updates must have an `id` field set to know which row to update.";
+
           update_str = tfm::format("UPDATE %s SET %s WHERE id = %d", args_.table(), join(update_list, ", "), id);
         }
 

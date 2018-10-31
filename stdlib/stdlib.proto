@@ -201,6 +201,7 @@ message SQLSinkArgs {
   string job_table = 2;
   string table = 3;
   bool insert = 4;
+  bool ignore_conflicts = 5;
 }
 
 message SQLSinkStreamArgs {
