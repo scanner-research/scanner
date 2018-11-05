@@ -2487,8 +2487,9 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   leave_loop:
     break;
   remain_loop:
-
+    auto yield = now();
     std::this_thread::yield();
+    scheduler_profiler.add_interval("yield", yield, now());
   }
 
   // If the job failed, can't expect queues to have drained, so

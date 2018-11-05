@@ -103,6 +103,9 @@ bool LoadWorker::yield(i32 item_size,
     const auto& source_args = load_work_entry.source_args(i);
 
     i64 total_rows = source_args.args_size();
+    // Both row_start_ and row_end_ have a default value of -1
+    // Either row_start_ or row_end_ equals -1 means that the task is
+    // not loading from the beginning of the enumerator.
     i64 row_start = row_start_ == -1 ? current_row_ : row_start_;
     i64 row_end = row_end_ == -1 ?
         std::min(current_row_ + item_size, total_rows) : row_end_;

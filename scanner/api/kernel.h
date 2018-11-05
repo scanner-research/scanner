@@ -101,6 +101,18 @@ inline Element add_element_ref(DeviceHandle device, Element& element) {
   return ele;
 }
 
+inline i32 get_element_ref(DeviceHandle device, Element& element) {
+  if (element.is_null()) {
+    return 0;
+  }
+  if (element.is_frame) {
+    Frame* frame = element.as_frame();
+    return get_buffer_ref(device, frame->data);
+  } else {
+    return get_buffer_ref(device, element.buffer);
+  }
+}
+
 inline void delete_element(DeviceHandle device, Element& element) {
   if (element.is_null()) {
     return;
