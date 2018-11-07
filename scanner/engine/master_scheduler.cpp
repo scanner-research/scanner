@@ -922,15 +922,23 @@ void MasterServerImpl::NextWorkHandler(
     }
 
     auto& state = bulk_jobs_state_.at(bulk_job_id);
+    LoadWorkEntry stenciled_entry;
+    std::vector<proto::Job> jobs(job_params_.jobs().begin(),
+                                 job_params_.jobs().end());
+    std::vector<proto::Op> ops(job_params_.ops().begin(),
+                               job_params_.ops().end());
 
     // If we do not have any outstanding work, try and create more
     if (state->to_assign_job_tasks.empty()) {
       // If we have no more samples for this task, try and get another task
+
+      // This if-condition means that all tasks in this job are finished
       if (state->next_task == state->num_tasks) {
-        // Check if there are any tasks left
+        // Check if there are any unfinished jobs left
         if (state->next_job < state->num_jobs && state->task_result.success()) {
           state->next_task = 0;
-          state->num_tasks = state->job_tasks.at(state->next_job).size();
+          // Set num_tasks to how many tasks are there in the next job
+          state->num_tasks = state->tasks_per_job[state->next_job];
           state->next_job++;
           VLOG(1) << "Tasks left: "
                   << state->total_tasks - state->total_tasks_used;
@@ -938,9 +946,10 @@ void MasterServerImpl::NextWorkHandler(
       }
 
       // Create more work if possible
+      // This if-condition means that this job is not finished yet (more tasks to go!)
       if (state->next_task < state->num_tasks) {
+        // Create a new task
         i64 current_job = state->next_job - 1;
-        i64 current_task = state->next_task;
 
         auto jt = std::make_tuple(current_job, current_task);
         state->active_job_tasks.insert(jt);
@@ -966,11 +975,9 @@ void MasterServerImpl::NextWorkHandler(
     std::tuple<i64, i64> job_task_id = state->to_assign_job_tasks.back();
     state->to_assign_job_tasks.pop_back();
 
-    assert(state->next_task <= state->num_tasks);
+    assert(state->next_task <= state->num_tasks && state->next_task >= 0);
 
-    i64 job_idx;
-    i64 task_idx;
-    std::tie(job_idx, task_idx) = job_task_id;
+
 
     // If the job was blacklisted, then we throw it away
     if (state->blacklisted_jobs.count(job_idx) > 0) {
@@ -987,8 +994,8 @@ void MasterServerImpl::NextWorkHandler(
     }
     new_work->set_job_index(job_idx);
     new_work->set_task_index(task_idx);
-    const auto& task_rows = state->job_tasks.at(job_idx).at(task_idx);
-    for (i64 r : task_rows) {
+    const auto& task_rows = state->task_streams[job_idx][task_idx].valid_output_rows;
+    for (i64 r : state->job_output_rows[job_idx]) {
       new_work->add_output_rows(r);
     }
 
@@ -1072,9 +1079,10 @@ void MasterServerImpl::FinishedWorkHandler(
 
       state->total_tasks_used++;
       state->tasks_used_per_job[job_id]++;
+      VLOG(1) << "One task finished! Tasks left: "
+              << state->total_tasks - state->total_tasks_used;
 
-      if (state->tasks_used_per_job[job_id] ==
-          state->job_tasks[job_id].size()) {
+      if (state->tasks_used_per_job[job_id] == state->tasks_per_job[job_id]) {
         if (state->dag_info.is_table_output) {
           i32 tid = state->job_uncommitted_tables[job_id];
           meta_.commit_table(tid);
@@ -1348,9 +1356,6 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
     .count();
   job_params_.set_base_time(job_start_ns);
 
-  // Set profiling level
-  PROFILER_LEVEL = static_cast<ProfilerLevel>(job_params->profiler_level());
-
   i32 bulk_job_id = active_bulk_job_id_;
   std::shared_ptr<BulkJob> state(new BulkJob);
   {
@@ -1523,65 +1528,59 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
     return false;
   }
 
-  // HACK(apoms): we currently split work into tasks in two ways:
-  //  a) align with the natural boundaries defined by the slice partitioner
-  //  b) use a user-specified size to chunk up the output sequence
-
   VLOG(1) << "Building tasks";
-  // Job -> task -> rows
-  i32 total_tasks_temp = 0;
-  for (size_t i = 0; i < jobs.size(); ++i) {
-    state->tasks_used_per_job.push_back(0);
+  // Setup table metadata cache for use in other operations
+  populate_analysis_info(ops, dag_info);
+  remap_input_op_edges(ops, dag_info);
+  // Analyze op DAG to determine what inputs need to be pipped along
+  // and when intermediates can be retired -- essentially liveness analysis
+  perform_liveness_analysis(ops, dag_info);
+  // The live columns at each op index
+  std::vector<std::vector<std::tuple<i32, std::string>>>& live_columns =
+      dag_info.live_columns;
+  // The columns to remove for the current kernel
+  std::vector<std::vector<i32>> dead_columns =
+      dag_info.dead_columns;
+  // Outputs from the current kernel that are not used
+  std::vector<std::vector<i32>> unused_outputs =
+      dag_info.unused_outputs;
+  // Indices in the live columns list that are the inputs to the current
+  // kernel. Starts from the second evalutor (index 1)
+  // can be maps instead of vectors, op_idx -> anything {op0: 0, op1: triangle}
+  std::vector<std::vector<i32>> column_mapping =
+      dag_info.column_mapping;
 
-    auto& slice_input_rows = state->slice_input_rows_per_job[i];
-    i64 total_output_rows = state->total_output_rows_per_job[i];
-
-    std::vector<i64> partition_boundaries;
-    if (slice_input_rows.size() == 0) {
-      // No slices, so we can split as desired. Currently use IO packet size
-      // since it is the smallest granularity we can specify
-      for (i64 r = 0; r < total_output_rows; r += io_packet_size) {
-        partition_boundaries.push_back(r);
-      }
-      partition_boundaries.push_back(total_output_rows);
-    } else {
-      // Split stream into partitions, respecting slice boundaries
-      // We assume there is only one slice for now since
-      // they all must have the same number of groups
-
-      // Derive the output rows produced by each slice group
-      i64 slice_op_idx = slice_input_rows.begin()->first;
-      i64 slice_in_rows = slice_input_rows.begin()->second;
-      *job_result = derive_slice_final_output_rows(
-          jobs.at(i), ops, slice_op_idx, slice_in_rows, dag_info,
-          partition_boundaries);
-      if (!job_result->success()) {
-        // No database changes made at this point, so just return
-        finished_fn();
-        return false;
-      }
-    }
-    assert(partition_boundaries.back() == total_output_rows);
-    state->job_tasks.emplace_back();
-    auto& tasks = state->job_tasks.back();
-    for (i64 pi = 0; pi < partition_boundaries.size() - 1; ++pi) {
-      tasks.emplace_back();
-      auto& task_rows = tasks.back();
-
-      i64 s = partition_boundaries[pi];
-      i64 e = partition_boundaries[pi + 1];
-      for (i64 r = s; r < e; ++r) {
-        task_rows.push_back(r);
-      }
-      total_tasks_temp++;
+  state->job_output_rows.resize(jobs.size());
+  for (size_t job_idx = 0; job_idx < jobs.size(); ++job_idx) {
+    // NOTE(swjz): Assume the output rows are 0 to total_output_rows_per_job[job_id]
+    for (size_t j = 0; j < state->total_output_rows_per_job[job_idx]; ++j) {
+      state->job_output_rows[job_idx].push_back(j);
     }
   }
-  state->total_tasks = total_tasks_temp;
 
-  if (!job_result->success()) {
-    // No database changes made at this point, so just return
-    finished_fn();
-    return false;
+  // NOTE(swjz): Set task sizes for all ops to io_packet_size for now
+  state->task_size_per_op.resize(jobs.size());
+  for (size_t job_idx = 0; job_idx < jobs.size(); ++job_idx) {
+    for (i64 i=0; i<ops.size(); i++) {
+      state->task_size_per_op[job_idx][i] = io_packet_size;
+    }
+  }
+
+  state->task_streams.resize(jobs.size());
+  for (size_t job_idx = 0; job_idx < jobs.size(); ++job_idx) {
+    LoadWorkEntry dummy_load_entry;
+    derive_stencil_requirements(
+        meta_, *table_metas_, jobs.at(job_idx), ops,
+        state->dag_info, job_params_.boundary_condition(),
+        state->job_to_table_id[job_idx], job_idx,
+        state->job_output_rows[job_idx],
+        dummy_load_entry,
+        state->task_size_per_op[job_idx],
+        state->task_streams[job_idx]);
+    state->total_tasks += state->task_streams[job_idx].size();
+
+    state->tasks_used_per_job.push_back(0);
+    state->tasks_per_job.push_back(state->task_streams[job_idx].size());
   }
 
   // Write out database metadata so that workers can read it
@@ -1607,17 +1606,18 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
       }
       table_metas_->update(TableMetadata(table_desc));
 
-      i64 total_rows = 0;
-      std::vector<i64> end_rows;
-      auto& tasks = state->job_tasks.at(job_idx);
-      for (i64 task_id = 0; task_id < tasks.size(); ++task_id) {
-        i64 task_rows = tasks.at(task_id).size();
-        total_rows += task_rows;
-        end_rows.push_back(total_rows);
-      }
-      for (i64 r : end_rows) {
-        table_desc.add_end_rows(r);
-      }
+//      i64 total_rows = 0;
+//      std::vector<i64> end_rows;
+//      auto& tasks = state->job_tasks.at(job_idx);
+//      for (i64 task_id = 0; task_id < tasks.size(); ++task_id) {
+//        i64 task_rows = tasks.at(task_id).size();
+//        total_rows += task_rows;
+//        end_rows.push_back(total_rows);
+//      }
+//      for (i64 r : end_rows) {
+//        table_desc.add_end_rows(r);
+//      }
+      table_desc.add_end_rows(state->total_output_rows_per_job[0]);
       table_desc.set_job_id(bulk_job_id);
       state->job_uncommitted_tables.push_back(table_id);
       table_metas_->update(TableMetadata(table_desc));
@@ -1803,8 +1803,6 @@ void MasterServerImpl::start_worker_pinger() {
   pinger_active_ = true;
   pinger_thread_ = std::thread([this]() {
     while (pinger_active_) {
-      VLOG(2) << "Start of pinger loop";
-
       std::shared_ptr<BulkJob> state;
       {
         std::unique_lock<std::mutex> l(work_mutex_);
@@ -1835,8 +1833,6 @@ void MasterServerImpl::start_worker_pinger() {
 
       grpc::CompletionQueue cq;
       int i = 0;
-
-      VLOG(2) << "Queueing pings to workers";
       for (auto& kv : ws) {
         i64 id = kv.first;
         auto& worker = kv.second;
@@ -1857,8 +1853,6 @@ void MasterServerImpl::start_worker_pinger() {
         i++;
         VLOG(3) << "Master sending Ping to worker " << id;
       }
-
-      VLOG(2) << "Waiting on pings from workers";
       for (int i = 0; i < ws.size(); ++i) {
         void* got_tag;
         bool ok = false;
@@ -1908,7 +1902,6 @@ void MasterServerImpl::start_worker_pinger() {
       }
       cq.Shutdown();
 
-      VLOG(2) << "All pings sent/received";
       // Sleep for 5 seconds or wake up if the job has finished before then
       std::unique_lock<std::mutex> lk(pinger_wake_mutex_);
       pinger_wake_cv_.wait_for(lk, std::chrono::seconds(5),
