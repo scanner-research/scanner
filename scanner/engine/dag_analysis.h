@@ -126,6 +126,15 @@ Result derive_stencil_requirements_worker(
     const proto::Job& job, const std::vector<proto::Op>& ops,
     const DAGAnalysisInfo& analysis_results,
     proto::BulkJobParameters::BoundaryCondition boundary_condition,
+    i64 table_id, i64 job_idx, i64 task_idx,
+    const std::vector<i64>& output_rows, LoadWorkEntry& output_entry,
+    std::map<i64, TaskStream>& task_streams);
+
+Result derive_stencil_requirements_scheduler(
+    const DatabaseMetadata& meta, TableMetaCache& table_meta,
+    const proto::Job& job, const std::vector<proto::Op>& ops,
+    const DAGAnalysisInfo& analysis_results,
+    proto::BulkJobParameters::BoundaryCondition boundary_condition,
     i64 table_id, i64 job_idx,
     const std::vector<i64>& output_rows, LoadWorkEntry& output_entry,
     std::map<i64, i64>& task_size_per_op,
