@@ -74,6 +74,8 @@ void LoadWorker::feed(LoadWorkEntry& input_entry) {
   }
 }
 
+// This is compatible with the old scheduler, in which case
+// both row_start_ and row_end_ equal -1 by default
 bool LoadWorker::yield(i32 item_size,
                        EvalWorkEntry& output_entry,
                        i64 row_start_, i64 row_end_) {

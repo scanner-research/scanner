@@ -27,7 +27,6 @@
 #include "scanner/util/cuda.h"
 #include "scanner/util/glog.h"
 #include "scanner/util/grpc.h"
-#include "scanner/util/fs.h"
 
 #include <arpa/inet.h>
 #include <grpc/grpc_posix.h>
@@ -67,196 +66,6 @@ inline bool operator==(const MemoryPoolConfig& lhs,
 inline bool operator!=(const MemoryPoolConfig& lhs,
                        const MemoryPoolConfig& rhs) {
   return !(lhs == rhs);
-}
-
-// This function parses EvalWorkEntry struct to protocol buffer format
-void evalworkentry_to_proto(const EvalWorkEntry& input, proto::EvalWorkEntry& output,
-    Profiler& profiler) {
-  auto parse_start = now();
-
-  output.set_table_id(input.table_id);
-  output.set_job_index(input.job_index);
-  output.set_task_index(input.task_index);
-  for (const std::vector<i64>& col_row_ids : input.row_ids) {
-    proto::ColumnRowIds* col_row_ids_proto = output.add_col_row_ids();
-    for (const i64& row_id : col_row_ids) {
-      col_row_ids_proto->add_row_ids(row_id);
-    }
-  }
-  for (auto i = 0; i < input.columns.size(); ++i) {
-    const Elements& elements = input.columns.at(i);
-    const DeviceHandle& handle = input.column_handles.at(i);
-    proto::Elements* elements_proto = output.add_columns();
-    for (const Element& element : elements) {
-      proto::Element* element_proto = elements_proto->add_element();
-      element_proto->set_size(element.size);
-      if (element.is_frame) {
-        const Frame* frame = element.as_const_frame();
-        auto create_buffer_start = now();
-        std::vector<u8> buffer;
-        buffer.resize(frame->size());
-        memcpy_buffer(buffer.data(), CPU_DEVICE, frame->data, handle, frame->size());
-        profiler.add_interval("create_buffer", create_buffer_start, now());
-        element_proto->set_buffer(buffer.data(), buffer.size());
-        for (i32 shape : frame->shape) {
-          element_proto->add_shape(shape);
-        }
-        element_proto->set_type(frame->type);
-      } else {
-        std::vector<u8> buffer;
-        buffer.resize(element.size);
-        memcpy_buffer(buffer.data(), CPU_DEVICE, element.buffer, handle, element.size);
-        element_proto->set_buffer(buffer.data(), buffer.size());
-      }
-      element_proto->set_index(element.index);
-      element_proto->set_is_frame(element.is_frame);
-    }
-  }
-  for (const DeviceHandle& column_handle : input.column_handles) {
-    proto::DeviceHandle* column_handle_proto = output.add_column_handles();
-    column_handle_proto->set_id(column_handle.id);
-    column_handle_proto->set_type(column_handle.type);
-  }
-  for (const bool inplace_video_option : input.inplace_video) {
-    output.add_inplace_video(inplace_video_option);
-  }
-  for (const ColumnType& column_type : input.column_types) {
-    output.add_column_types(column_type);
-  }
-  output.set_needs_configure(input.needs_configure);
-  output.set_needs_reset(input.needs_reset);
-  output.set_last_in_io_packet(input.last_in_io_packet);
-  for (const proto::VideoDescriptor::VideoCodecType& video_encoding_type : input.video_encoding_type) {
-    if (video_encoding_type == proto::VideoDescriptor::RAW) {
-      output.add_video_encoding_type(proto::EvalWorkEntry::RAW);
-    } else if (video_encoding_type == proto::VideoDescriptor::H264) {
-      output.add_video_encoding_type(proto::EvalWorkEntry::H264);
-    }
-  }
-  output.set_first(input.first);
-  output.set_last_in_task(input.last_in_task);
-  for (const FrameInfo& frame_size : input.frame_sizes) {
-    proto::FrameInfo* frame_size_proto = output.add_frame_sizes();
-    frame_size_proto->set_type(frame_size.type);
-    for (i32 shape : frame_size.shape) {
-      frame_size_proto->add_shape(shape);
-    }
-  }
-  for (const bool compressed : input.compressed) {
-    output.add_compressed(compressed);
-  }
-
-  profiler.add_interval("eval_to_proto", parse_start, now());
-}
-
-// This function parses protocol buffer format to EvalWorkEntry struct
-void proto_to_evalworkentry(const proto::EvalWorkEntry& input, EvalWorkEntry& output,
-    Profiler& profiler, const DeviceHandle& handle) {
-  auto parse_start = now();
-  output.table_id = input.table_id();
-  output.job_index = input.job_index();
-  output.task_index = input.task_index();
-  for (int i=0; i<input.col_row_ids_size(); ++i) {
-    output.row_ids.emplace_back();
-    std::vector<i64>& col_row_ids = output.row_ids.back();
-    const proto::ColumnRowIds& col_row_ids_proto = input.col_row_ids(i);
-    for (int j=0; j<col_row_ids_proto.row_ids_size(); ++j) {
-      col_row_ids.push_back(col_row_ids_proto.row_ids(j));
-    }
-  }
-  for (int i=0; i<input.column_handles_size(); ++i) {
-    output.column_handles.emplace_back();
-    DeviceHandle& column_handle = output.column_handles.back();
-    const proto::DeviceHandle& column_handle_proto = input.column_handles(i);
-    // NOTE(swjz): Since the handle of previous output might not be the real handle
-    // this task uses here, we force the input handle of this task to be the real one
-    column_handle.id = handle.id;
-    column_handle.type = handle.type;
-  }
-  for (int i=0; i<input.columns_size(); ++i) {
-    bool is_allocated = false;
-    u8* frame_buffer = nullptr;
-    output.columns.emplace_back();
-    Elements& elements = output.columns.back();
-//    const DeviceHandle& handle = output.column_handles.at(i);
-    const proto::Elements& elements_proto = input.columns(i);
-    for (int j=0; j<elements_proto.element_size(); ++j) {
-      elements.emplace_back();
-      Element& element = elements.back();
-      auto& element_proto = elements_proto.element(j);
-      if (element_proto.size() > 0) {
-        if (element_proto.is_frame()) {
-          FrameInfo info{};
-          for (int k=0; k<element_proto.shape_size(); ++k) {
-            info.shape[k] = element_proto.shape(k);
-          }
-          info.type = element_proto.type();
-
-          // Here we assume that either all elements, or no element
-          // in this column are frames
-          if (!is_allocated) {
-            is_allocated = true;
-            auto allocate_start = now();
-            // The frame_buffer here is essentially frame->data() rather than Element.buffer
-            VLOG(1) << "Allocating buffer of size " << info.size() * elements_proto.element_size();
-            frame_buffer = new_block_buffer(handle, info.size() * elements_proto.element_size(),
-                                            elements_proto.element_size());
-            profiler.add_interval("allocation", allocate_start, now());
-          }
-          u8* this_frame_buffer = frame_buffer + j * info.size();
-          auto memcpy_start = now();
-          memcpy_buffer(this_frame_buffer, handle, (u8*)element_proto.buffer().c_str(),
-              CPU_DEVICE, info.size());
-          profiler.add_interval("memcpy_frame", memcpy_start, now());
-          Frame* frame = new Frame(info, this_frame_buffer);
-          element.buffer = reinterpret_cast<u8*>(frame);
-        } else {
-          element.buffer = new_buffer(handle, element_proto.size());
-          auto memcpy_start = now();
-          memcpy_buffer(element.buffer, handle, (u8*)element_proto.buffer().c_str(),
-              CPU_DEVICE, element_proto.size());
-          profiler.add_interval("memcpy", memcpy_start, now());
-        }
-      }
-      element.size = element_proto.size();
-      element.is_frame = element_proto.is_frame();
-      element.index = element_proto.index();
-    }
-  }
-  for (int i=0; i<input.inplace_video_size(); ++i) {
-    output.inplace_video.push_back(input.inplace_video(i));
-  }
-  for (int i=0; i<input.column_types_size(); ++i) {
-    output.column_types.push_back(input.column_types(i));
-  }
-  output.needs_configure = input.needs_configure();
-  output.needs_reset = input.needs_reset();
-  output.last_in_io_packet = input.last_in_io_packet();
-  for (int i=0; i<input.video_encoding_type_size(); ++i) {
-    output.video_encoding_type.emplace_back();
-    proto::VideoDescriptor::VideoCodecType& video_encoding_type =
-        output.video_encoding_type.back();
-    if (input.video_encoding_type(i) == proto::EvalWorkEntry::RAW) {
-      video_encoding_type = proto::VideoDescriptor::RAW;
-    } else if (input.video_encoding_type(i) == proto::EvalWorkEntry::H264) {
-      video_encoding_type = proto::VideoDescriptor::H264;
-    }
-  }
-  output.first = input.first();
-  output.last_in_task = input.last_in_task();
-  for (int i=0; i<input.frame_sizes_size(); ++i) {
-    output.frame_sizes.emplace_back();
-    FrameInfo& frame_sizes = output.frame_sizes.back();
-    frame_sizes.type = input.frame_sizes(i).type();
-    for (int j=0; j<input.frame_sizes(i).shape_size(); ++j) {
-      frame_sizes.shape[j] = input.frame_sizes(i).shape(j);
-    }
-  }
-  for (int i=0; i<input.compressed_size(); ++i) {
-    output.compressed.push_back(input.compressed(i));
-  }
-
-  profiler.add_interval("proto_to_eval", parse_start, now());
 }
 
 void load_driver(LoadInputQueue& load_work,
@@ -1045,15 +854,8 @@ void WorkerImpl::stop_job_processor() {
 
 bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
                              proto::Result* job_result) {
-  timepoint_t base_time(std::chrono::nanoseconds(job_params->base_time()));
-
-  Profiler profiler(base_time);
   job_result->set_success(true);
 
-  // Set profiler level
-  PROFILER_LEVEL = static_cast<ProfilerLevel>(job_params->profiler_level());
-
-  auto setup_ops_start = now();
   // Load Ops, register Ops, and register python kernels before running jobs
   {
     proto::Empty empty;
@@ -1111,7 +913,6 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       }
     }
   }
-  profiler.add_interval("process_job:ops_setup", setup_ops_start, now());
 
   auto finished_fn = [&]() {
     if (!trigger_shutdown_.raised()) {
@@ -1151,6 +952,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   // Controls if work should be distributed roundrobin or dynamically
   bool distribute_work_dynamically = true;
 
+  timepoint_t base_time(std::chrono::nanoseconds(job_params->base_time()));
   const i32 work_packet_size = job_params->work_packet_size();
   const i32 io_packet_size = job_params->io_packet_size() != -1
                                  ? job_params->io_packet_size()
@@ -1164,11 +966,10 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
                              job_params->ops().end());
 
 
-  auto meta_cache_start = now();
   // Setup table metadata cache for use in other operations
   DatabaseMetadata meta(job_params->db_meta());
   TableMetaCache table_meta(storage_, meta);
-  profiler.add_interval("process_job:cache_table_metadata", meta_cache_start, now());
+
   // Perform analysis on the graph to determine:
   //
   // - populate_analysis_info: Analayze the graph to build lookup structures to
@@ -1184,7 +985,6 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   // - remap_input_op_edges: Remap multiple inputs to a single input op
   //
   // - perform_liveness_analysis: When to retire elements (liveness analysis)
-  auto dag_analysis_start = now();
   DAGAnalysisInfo analysis_results;
   populate_analysis_info(ops, analysis_results);
   // Need slice input rows to know which slice we are in
@@ -1213,7 +1013,6 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   std::vector<Column> final_output_columns(
       job_params->output_columns().begin(),
       job_params->output_columns().end());
-  // Read compression options from job_params
   std::vector<ColumnCompressionOptions> final_compression_options;
   for (auto& opts : job_params->compression()) {
     ColumnCompressionOptions o;
@@ -1224,11 +1023,9 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     final_compression_options.push_back(o);
   }
   assert(final_output_columns.size() == final_compression_options.size());
-  profiler.add_interval("process_job:dag_analysis", dag_analysis_start, now());
 
   // Setup kernel factories and the kernel configs that will be used
   // to instantiate instances of the op pipeline
-  auto pipeline_setup_start = now();
   KernelRegistry* kernel_registry = get_kernel_registry();
   std::vector<KernelFactory*> kernel_factories;
   std::vector<KernelConfig> kernel_configs;
@@ -1264,7 +1061,6 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     }
   }
 
-  // TODO(swjz): Worker should only instantiate specific kernel
   // Go through the vector of Ops, and for each Op which represents a
   // non-special Op (i.e. has a kernel implementation) get the factory
   // for constructing instances of that op, and create the config object
@@ -1327,7 +1123,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       auto input = op.inputs(i);
       kernel_config.input_columns.push_back(input.column());
       if (input_columns.size() == 0) {
-        // We can have 0 columns in op info if variadic arguments
+        // We ccan have 0 columns in op info if variadic arguments
         kernel_config.input_column_types.push_back(ColumnType::Other);
       } else {
         kernel_config.input_column_types.push_back(input_columns[i].type());
@@ -1368,11 +1164,13 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
         last_device_type = factory->get_device_type();
         first_op = false;
       }
-      // NOTE(swjz): Each kernel is divided into one single group
-      if (factory != nullptr) {
+      if (factory != nullptr &&
+          factory->get_device_type() != last_device_type) {
+        // Does not use the same device as previous kernel, so push into new
+        // group
         last_device_type = factory->get_device_type();
+        groups.emplace_back();
       }
-      groups.emplace_back();
       auto& op_group = groups.back().op_names;
       auto& op_source = groups.back().is_source;
       auto& op_sampling = groups.back().sampling_args;
@@ -1451,8 +1249,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   i32 num_kernel_groups = static_cast<i32>(groups.size());
   assert(num_kernel_groups > 0);  // is this actually necessary?
 
-  // NOTE(swjz): I set the pipeline_instances_per_node = 1 here for now
-  i32 pipeline_instances_per_node = 1;
+  i32 pipeline_instances_per_node = job_params->pipeline_instances_per_node();
 
   LOG(INFO) << "Initial pipeline instances per node: " << pipeline_instances_per_node;
   // If pipline_instances_per_node is -1, we set a smart default. Currently, we
@@ -1503,6 +1300,31 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
                  pipeline_instances_per_node);
     finished_fn();
     return false;
+  }
+
+  // Set up memory pool if different than previous memory pool
+  if (!memory_pool_initialized_ ||
+      job_params->memory_pool_config() != cached_memory_pool_config_) {
+    if (db_params_.num_cpus < pipeline_instances_per_node &&
+        job_params->memory_pool_config().cpu().use_pool()) {
+      RESULT_ERROR(job_result,
+                   "Cannot oversubscribe CPUs and also use CPU memory pool");
+      finished_fn();
+      return false;
+    }
+    if (db_params_.gpu_ids.size() < pipeline_instances_per_node &&
+        job_params->memory_pool_config().gpu().use_pool()) {
+      RESULT_ERROR(job_result,
+                   "Cannot oversubscribe GPUs and also use GPU memory pool");
+      finished_fn();
+      return false;
+    }
+    if (memory_pool_initialized_) {
+      destroy_memory_allocators();
+    }
+    init_memory_allocators(job_params->memory_pool_config(), gpu_ids);
+    cached_memory_pool_config_ = job_params->memory_pool_config();
+    memory_pool_initialized_ = true;
   }
 
   // Setup source factories and source configs that will be used
@@ -1581,41 +1403,11 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           std::vector<u8>(so.args().begin(), so.args().end());
     }
   }
-  profiler.add_interval("process_job:pipeline_setup", pipeline_setup_start, now());
-
-  auto memory_pool_start = now();
-  // Set up memory pool if different than previous memory pool
-  if (!memory_pool_initialized_ ||
-      job_params->memory_pool_config() != cached_memory_pool_config_) {
-    if (db_params_.num_cpus < pipeline_instances_per_node &&
-        job_params->memory_pool_config().cpu().use_pool()) {
-      RESULT_ERROR(job_result,
-                   "Cannot oversubscribe CPUs and also use CPU memory pool");
-      finished_fn();
-      return false;
-    }
-    if (db_params_.gpu_ids.size() < pipeline_instances_per_node &&
-        job_params->memory_pool_config().gpu().use_pool()) {
-      RESULT_ERROR(job_result,
-                   "Cannot oversubscribe GPUs and also use GPU memory pool");
-      finished_fn();
-      return false;
-    }
-    if (memory_pool_initialized_) {
-      destroy_memory_allocators();
-    }
-    init_memory_allocators(job_params->memory_pool_config(), gpu_ids);
-    cached_memory_pool_config_ = job_params->memory_pool_config();
-    memory_pool_initialized_ = true;
-  }
-  profiler.add_interval("process_job:create_memory_pool", memory_pool_start, now());
-
 
 #ifdef __linux__
   omp_set_num_threads(std::thread::hardware_concurrency());
 #endif
 
-  auto pipeline_create_start = now();
   // Setup shared resources for distributing work to processing threads
   i64 accepted_tasks = 0;
   LoadInputQueue load_work;
@@ -1625,7 +1417,6 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   std::vector<SaveInputQueue> save_work(db_params_.num_save_workers);
   SaveOutputQueue retired_tasks;
 
-  // TODO(swjz): Only source Op should do this.
   // Setup load workers
   i32 num_load_workers = db_params_.num_load_workers;
   std::vector<Profiler> load_thread_profilers;
@@ -1634,18 +1425,18 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     load_thread_profilers.emplace_back(Profiler(base_time));
   }
   std::vector<std::thread> load_threads;
-//  for (i32 i = 0; i < num_load_workers; ++i) {
-//    LoadWorkerArgs args{
-//        // Uniform arguments
-//        node_id_, table_meta,
-//        // Per worker arguments
-//        i, db_params_.storage_config, std::ref(load_thread_profilers[i]),
-//        std::ref(load_results[i]), io_packet_size, work_packet_size,
-//        source_factories, source_configs};
-//
-//    load_threads.emplace_back(load_driver, std::ref(load_work),
-//                              std::ref(initial_eval_work), args);
-//  }
+  for (i32 i = 0; i < num_load_workers; ++i) {
+    LoadWorkerArgs args{
+        // Uniform arguments
+        node_id_, table_meta,
+        // Per worker arguments
+        i, db_params_.storage_config, std::ref(load_thread_profilers[i]),
+        std::ref(load_results[i]), io_packet_size, work_packet_size,
+        source_factories, source_configs};
+
+    load_threads.emplace_back(load_driver, std::ref(load_work),
+                              std::ref(initial_eval_work), args);
+  }
 
   // Setup evaluate workers
   std::vector<std::vector<Profiler>> eval_profilers(
@@ -1811,29 +1602,28 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   std::vector<std::thread> pre_eval_threads;
   std::vector<std::vector<std::thread>> eval_threads;
   std::vector<std::thread> post_eval_threads;
-//  for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
-//    // Pre thread
-//    pre_eval_threads.emplace_back(
-//        pre_evaluate_driver, std::ref(*std::get<0>(pre_eval_queues[pu])),
-//        std::ref(*std::get<1>(pre_eval_queues[pu])), pre_eval_args[pu]);
-//    // Op threads
-//    eval_threads.emplace_back();
-//    std::vector<std::thread>& threads = eval_threads.back();
-//    for (i32 kg = 0; kg < num_kernel_groups; ++kg) {
-//      threads.emplace_back(
-//          evaluate_driver, std::ref(*std::get<0>(eval_queues[pu][kg])),
-//          std::ref(*std::get<1>(eval_queues[pu][kg])), eval_args[pu][kg]);
-//    }
-//    // Post threads
-//    post_eval_threads.emplace_back(
-//        post_evaluate_driver, std::ref(*std::get<0>(post_eval_queues[pu])),
-//        std::ref(*std::get<1>(post_eval_queues[pu])), post_eval_args[pu]);
-//  }
+  for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
+    // Pre thread
+    pre_eval_threads.emplace_back(
+        pre_evaluate_driver, std::ref(*std::get<0>(pre_eval_queues[pu])),
+        std::ref(*std::get<1>(pre_eval_queues[pu])), pre_eval_args[pu]);
+    // Op threads
+    eval_threads.emplace_back();
+    std::vector<std::thread>& threads = eval_threads.back();
+    for (i32 kg = 0; kg < num_kernel_groups; ++kg) {
+      threads.emplace_back(
+          evaluate_driver, std::ref(*std::get<0>(eval_queues[pu][kg])),
+          std::ref(*std::get<1>(eval_queues[pu][kg])), eval_args[pu][kg]);
+    }
+    // Post threads
+    post_eval_threads.emplace_back(
+        post_evaluate_driver, std::ref(*std::get<0>(post_eval_queues[pu])),
+        std::ref(*std::get<1>(post_eval_queues[pu])), post_eval_args[pu]);
+  }
 
-  // TODO(swjz): Only sink Op should do this.
   // Setup save coordinator
-//  std::thread save_coordinator_thread(
-//      save_coordinator, std::ref(output_eval_work), std::ref(save_work));
+  std::thread save_coordinator_thread(
+      save_coordinator, std::ref(output_eval_work), std::ref(save_work));
 
   // Setup save workers
   i32 num_save_workers = db_params_.num_save_workers;
@@ -1844,31 +1634,27 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     save_thread_profilers.emplace_back(Profiler(base_time));
   }
   std::vector<std::thread> save_threads;
-//  for (i32 i = 0; i < num_save_workers; ++i) {
-//    SaveWorkerArgs args{// Uniform arguments
-//                        node_id_,
-//                        std::ref(sink_args),
-//
-//                        // Per worker arguments
-//                        i, db_params_.storage_config,
-//                        sink_factories, sink_configs,
-//                        std::ref(save_thread_profilers[i]),
-//                        std::ref(save_results[i])};
-//
-//    save_threads.emplace_back(save_driver, std::ref(save_work[i]),
-//                              std::ref(retired_tasks), args);
-//  }
+  for (i32 i = 0; i < num_save_workers; ++i) {
+    SaveWorkerArgs args{// Uniform arguments
+                        node_id_,
+                        std::ref(sink_args),
 
-  profiler.add_interval("process_job:create_pipelines", pipeline_create_start, now());
+                        // Per worker arguments
+                        i, db_params_.storage_config,
+                        sink_factories, sink_configs,
+                        std::ref(save_thread_profilers[i]),
+                        std::ref(save_results[i])};
+
+    save_threads.emplace_back(save_driver, std::ref(save_work[i]),
+                              std::ref(retired_tasks), args);
+  }
 
   if (job_params->profiling()) {
-    auto wait_for_others_start = now();
     // Wait until all evaluate workers have started up
     std::unique_lock<std::mutex> lk(startup_lock);
     startup_cv.wait(lk, [&] {
       return eval_total == startup_count;
     });
-    profiler.add_interval("process_job:wait_for_pipelines", wait_for_others_start, now());
   }
 
   timepoint_t start_time = now();
@@ -1881,10 +1667,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   // This keeps track of the last time we received a "wait_for_work" message
   // from the master. If less than 1 second have passed since this message, we
   // shouldn't ask the master for more work to avoid overloading it.
-  const int MILLISECONDS_TO_WAIT_ALPHA = 20;
-  const int MILLISECONDS_TO_WAIT_BETA = 1000;
-  const int MILLISECONDS_TO_WAIT_RAMP = 15000;
-  auto last_wait_for_work_time = now() - std::chrono::milliseconds(MILLISECONDS_TO_WAIT_ALPHA);
+  const int SECONDS_TO_WAIT = 1;
+  auto last_wait_for_work_time = now() - std::chrono::seconds(SECONDS_TO_WAIT);
   while (true) {
     if (trigger_shutdown_.raised()) {
       // Abandon ship!
@@ -1897,7 +1681,6 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       LOG(INFO) << "Worker " << node_id_ << " in error, stopping.";
       break;
     }
-    auto retire_start = now();
     // We batch up retired tasks to avoid sync overhead
     std::vector<std::tuple<i32, i64, i64>> batched_retired_tasks;
     {
@@ -1943,7 +1726,6 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
         break;
       }
     }
-    scheduler_profiler.add_interval("retire", retire_start, now());
     i64 total_tasks_processed = 0;
     for (i64 t : retired_work_for_queues) {
       total_tasks_processed += t;
@@ -1958,27 +1740,17 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     }
     // If local amount of work is less than the amount of work we want
     // queued up, then ask the master for more work.
-    i32 milliseconds_since_start = ms_since(start_time);
-    i32 milliseconds_to_wait = std::max(
-        MILLISECONDS_TO_WAIT_ALPHA,
-        std::min(
-            MILLISECONDS_TO_WAIT_BETA,
-            (MILLISECONDS_TO_WAIT_BETA - MILLISECONDS_TO_WAIT_ALPHA) *
-                    (milliseconds_since_start / MILLISECONDS_TO_WAIT_RAMP) +
-                MILLISECONDS_TO_WAIT_ALPHA));
     i32 local_work = accepted_tasks - total_tasks_processed;
     if (local_work <
             pipeline_instances_per_node * job_params->tasks_in_queue_per_pu() &&
-        ms_since(last_wait_for_work_time) > milliseconds_to_wait) {
+        seconds_since(last_wait_for_work_time) > SECONDS_TO_WAIT) {
       proto::NextWorkRequest node_info;
       node_info.set_node_id(node_id_);
       node_info.set_bulk_job_id(active_bulk_job_id_);
 
       proto::NextWorkReply new_work;
       grpc::Status status;
-      auto next_work = now();
       GRPC_BACKOFF(master_->NextWork(&ctx, node_info, &new_work), status);
-      scheduler_profiler.add_interval("nextwork", next_work, now());
       if (!status.ok()) {
         RESULT_ERROR(job_result,
                      "Worker %d could not get next work from master", node_id_);
@@ -1997,23 +1769,12 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       } else {
         // Perform analysis on load work entry to determine upstream
         // requirements and when to discard elements.
-        // NOTE(swjz): Set task sizes for all ops to io_packet_size for now
-        std::map<i64, i64> task_size_per_op;
-        for (i64 i=0; i<ops.size(); i++) {
-          task_size_per_op[i] = io_packet_size;
-        }
-
-        i64 table_id = new_work.table_id();
-        i64 job_id = new_work.job_index();
-        i64 task_id = new_work.task_index();
-        i32 bulk_job_id = meta.get_bulk_job_id(job_params->job_name());
+        std::deque<TaskStream> task_stream;
         LoadWorkEntry stenciled_entry;
-
-        auto dep_analysis_start = now();
-        // All we need from this is task_stream_map. Might also use grpc to get from master
-        derive_stencil_requirements_master(
+        derive_stencil_requirements(
             meta, table_meta, jobs.at(new_work.job_index()), ops,
-            analysis_results, job_params->boundary_condition(), job_id,
+            analysis_results, job_params->boundary_condition(),
+            new_work.table_id(), new_work.job_index(), new_work.task_index(),
             std::vector<i64>(new_work.output_rows().begin(),
                              new_work.output_rows().end()),
             stenciled_entry, task_stream,
@@ -2030,431 +1791,10 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
             target_work_queue = i;
           }
         }
-
-        DeviceHandle device_handle;
-        if (ops.at(task_stream_map[task_id].op_idx).device_type() == proto::CPU) {
-          device_handle = CPU_DEVICE;
-        } else if (ops.at(task_stream_map[task_id].op_idx).device_type() == proto::GPU) {
-          // FIXME: Support only one GPU for now
-          device_handle = {DeviceType::GPU, 0};
-        }
-
-        // load_driver:
-        if (task_stream_map[task_id].op_idx == 0) {
-          // FIXME(swjz): The row_start here is actually how many rows are loaded by
-          // other tasks before this one. If the rows are not continuous or not starting
-          // from zero, this code fails because it assumes that the number wanted is
-          // the first row id in its list.
-          i64 row_start = task_stream_map[task_id].valid_output_rows.at(0);
-          i64 row_end = row_start + task_stream_map[task_id].valid_output_rows.size();
-
-          proto::Result load_worker_result;
-          LoadWorkerArgs load_worker_args {
-              // Uniform arguments
-              node_id_, table_meta,
-              // Per worker arguments
-              0, db_params_.storage_config, std::ref(load_thread_profilers[0]),
-              load_worker_result, io_packet_size, work_packet_size,
-              source_factories, source_configs
-          };
-          LoadWorker load_worker(load_worker_args);
-          load_worker.feed(stenciled_entry);
-          i32 output_queue_idx = 0;
-          EvalWorkEntry load_output_entry;
-          load_worker.yield(task_size_per_op[0], load_output_entry, row_start, row_end);
-          load_output_entry.first = true;
-          load_output_entry.last_in_task = true;
-
-          i32 work_packet_size = INT_MAX; // Ignore work packet size for now
-          PreEvaluateWorkerArgs pre_evaluate_worker_args {
-              // Uniform arguments
-              node_id_, num_cpus, num_cpus,
-              job_params->work_packet_size(),
-
-              // Per worker arguments
-              0, CPU_DEVICE, eval_profilers[0][0],  // Use CPU to decode for now
-          };
-
-          auto pre_start = now();
-          PreEvaluateWorker pre_evaluate_worker(pre_evaluate_worker_args);
-          EvalWorkEntry pre_evaluate_input_entry = load_output_entry;
-          pre_evaluate_worker.feed(pre_evaluate_input_entry, pre_evaluate_input_entry.first);
-          EvalWorkEntry pre_evaluate_output_entry;
-          pre_evaluate_worker.yield(task_size_per_op[0], pre_evaluate_output_entry);
-          scheduler_profiler.add_interval("pre", pre_start, now());
-
-          std::string eval_map_file_name = eval_map_path(bulk_job_id, task_id);
-          std::unique_ptr<WriteFile> eval_map_output;
-          BACKOFF_FAIL(
-              make_unique_write_file(storage_, eval_map_file_name, eval_map_output),
-              "while trying to make write file for " + eval_map_file_name);
-
-          proto::EvalWorkEntry pre_output_proto;
-          auto serialize_start = now();
-          evalworkentry_to_proto(pre_evaluate_output_entry, pre_output_proto,
-              scheduler_profiler);
-          scheduler_profiler.add_interval("serialize", serialize_start, now());
-          size_t serialized_size = pre_output_proto.ByteSizeLong();
-
-          std::vector<u8> eval_map_bytes;
-          auto allocate_start = now();
-          eval_map_bytes.resize(serialized_size);
-          scheduler_profiler.add_interval("alloc", allocate_start, now());
-          serialize_start = now();
-          pre_output_proto.SerializeToArray(eval_map_bytes.data(), serialized_size);
-          scheduler_profiler.add_interval("serialize", serialize_start, now());
-
-          auto write_start = now();
-          s_write(eval_map_output.get(), eval_map_bytes.data(), serialized_size);
-          scheduler_profiler.add_interval("write", write_start, now());
-
-          // Since it has been serialized, we delete it from memory
-          for (auto& column : pre_evaluate_output_entry.columns) {
-            for (auto& element : column) {
-              delete_element(device_handle, element);
-            }
-          }
-        }
-        else if (ops.at(task_stream_map[task_id].op_idx).is_source()) {
-          // this source op was remapped. do nothing.
-        }
-        // If sink Op, post evaluate & save work
-        else if (ops.at(task_stream_map[task_id].op_idx).is_sink()) {
-          // post_evaluate_driver()
-          EvalWorkEntry post_evaluate_input_entry;
-          TaskStream task_stream = task_stream_map[task_id];
-
-          // fill in EvalWorkEntry manually
-          EvalWorkEntry evaluate_input_entry;
-          post_evaluate_input_entry.table_id = table_id;
-          post_evaluate_input_entry.job_index = job_id;
-          post_evaluate_input_entry.task_index = task_id;
-          post_evaluate_input_entry.needs_configure = false; // hardcode by swjz
-          post_evaluate_input_entry.needs_reset = false; // hardcode by swjz
-          post_evaluate_input_entry.last_in_io_packet = true;
-          post_evaluate_input_entry.last_in_task = true;
-          // Op -> Elements
-          std::map<i64, Elements> op_to_elements;
-          // Op -> Device Handle
-          std::map<i64, DeviceHandle> op_to_handle;
-          // Op -> Rows
-          std::map<i64, std::vector<i64>> op_to_row_ids;
-          auto grab_source_start = now();
-          for (i64 source_task : task_stream.source_tasks) {
-            // The file name of eval_map[source_task]
-            std::string eval_map_file_name = eval_map_path(bulk_job_id, source_task);
-            std::unique_ptr<RandomReadFile> eval_map_input;
-            BACKOFF_FAIL(
-                make_unique_random_read_file(storage_, eval_map_file_name, eval_map_input),
-                "while trying to make read file for " + eval_map_file_name);
-            u64 pos = 0;
-            auto read_start = now();
-            std::vector<u8> eval_map_bytes = storehouse::read_entire_file(eval_map_input.get(), pos);
-            scheduler_profiler.add_interval("read", read_start, now());
-            proto::EvalWorkEntry post_input_proto;
-            post_input_proto.ParseFromArray(eval_map_bytes.data(), eval_map_bytes.size());
-            EvalWorkEntry eval_map_at_source_task;
-
-            const TaskStream& source_task_stream = task_stream_map.at(source_task);
-            DeviceHandle source_handle;
-            if (ops.at(source_task_stream.op_idx).device_type() == proto::CPU) {
-              source_handle = CPU_DEVICE;
-            } else if (ops.at(source_task_stream.op_idx).device_type() == proto::GPU) {
-              source_handle = {DeviceType::GPU, 0};
-            }
-            proto_to_evalworkentry(post_input_proto, eval_map_at_source_task,
-                                   scheduler_profiler, device_handle);
-            if (source_task_stream.op_idx == 0) {
-              // The source task is a source Op. It might have multiple input columns
-              // because we remapped input columns. So we skip merging process below.
-              auto eval_work_entry = std::move(eval_map_at_source_task);
-              post_evaluate_input_entry.columns.insert(post_evaluate_input_entry.columns.end(),
-                                                       eval_work_entry.columns.begin(),
-                                                       eval_work_entry.columns.end());
-              post_evaluate_input_entry.column_handles.insert(post_evaluate_input_entry.column_handles.end(),
-                                                              eval_work_entry.column_handles.begin(),
-                                                              eval_work_entry.column_handles.end());
-              post_evaluate_input_entry.row_ids.insert(post_evaluate_input_entry.row_ids.end(),
-                                                       eval_work_entry.row_ids.begin(),
-                                                       eval_work_entry.row_ids.end());
-            } else {
-              // We merge multiple columns from different tasks to one column
-              // if these tasks come from the same op
-              // Assume this source task only has one output column, it must be the last one
-              size_t col_id = eval_map_at_source_task.columns.size() - 1;
-              auto& column = eval_map_at_source_task.columns[col_id];
-              auto& handle = eval_map_at_source_task.column_handles.at(col_id);
-              // All source task data have been transferred to device_handle
-              op_to_handle[source_task_stream.op_idx] = device_handle;
-              op_to_row_ids[source_task_stream.op_idx].insert(
-                  op_to_row_ids[source_task_stream.op_idx].end(),
-                  task_stream.source_task_to_rows.at(source_task).begin(),
-                  task_stream.source_task_to_rows.at(source_task).end());
-
-              for (auto& row_id : task_stream.source_task_to_rows.at(source_task)) {
-                for (size_t r = 0; r < eval_map_at_source_task.row_ids[col_id].size(); ++r) {
-                  // Only need the columns that cover required row ids
-                  if (row_id == eval_map_at_source_task.row_ids[col_id][r]) {
-//                    add_element_ref(handle, column[r]);
-                    op_to_elements[source_task_stream.op_idx].push_back(column[r]);
-                  }
-                }
-              }
-            }
-
-//            // Since it has been used, we delete it from memory
-//            for (auto i = 0; i < eval_map_at_source_task.columns.size(); ++i) {
-//              auto& column = eval_map_at_source_task.columns.at(i);
-//              auto& handle = eval_map_at_source_task.column_handles.at(i);
-//              for (auto& element : column) {
-//                delete_element(handle, element);
-//              }
-//            }
-          }
-
-          for (auto& kv : op_to_elements) {
-            post_evaluate_input_entry.columns.push_back(kv.second);
-            post_evaluate_input_entry.column_handles.push_back(op_to_handle.at(kv.first));
-            post_evaluate_input_entry.row_ids.push_back(op_to_row_ids.at(kv.first));
-          }
-
-          scheduler_profiler.add_interval("grab_source", grab_source_start, now());
-
-          // Only keep the last columns because we dropped liveness_analysis
-          i32 num_sink_col = final_output_columns.size();
-          VLOG(1) << "Output columns: " << num_sink_col;
-
-          assert(num_sink_col <= post_evaluate_input_entry.columns.size());
-
-          // Since it is not used, we delete it from memory
-          for (auto column = post_evaluate_input_entry.columns.begin();
-               column < post_evaluate_input_entry.columns.begin() +
-               post_evaluate_input_entry.columns.size() - num_sink_col; ++column) {
-            for (auto& element : *column) {
-              delete_element(CPU_DEVICE, element);
-            }
-          }
-
-          post_evaluate_input_entry.columns.erase(
-              post_evaluate_input_entry.columns.begin(),
-              post_evaluate_input_entry.columns.begin() +
-              post_evaluate_input_entry.columns.size() - num_sink_col);
-
-          post_evaluate_input_entry.column_handles.erase(
-              post_evaluate_input_entry.column_handles.begin(),
-              post_evaluate_input_entry.column_handles.begin() +
-              post_evaluate_input_entry.column_handles.size() - num_sink_col);
-
-          post_evaluate_input_entry.row_ids.erase(
-              post_evaluate_input_entry.row_ids.begin(),
-              post_evaluate_input_entry.row_ids.begin() +
-              post_evaluate_input_entry.row_ids.size() -  num_sink_col);
-
-          auto post_start = now();
-          PostEvaluateWorkerArgs post_evaluate_worker_args {
-              // Uniform arguments
-              node_id_,
-
-              // Per worker arguments
-              0, eval_profilers[0][2], column_mapping.back(),
-              final_output_columns, final_compression_options,
-          };
-          PostEvaluateWorker post_evaluate_worker(post_evaluate_worker_args);
-
-          post_evaluate_worker.feed(post_evaluate_input_entry);
-          EvalWorkEntry post_evaluate_output_entry;
-          post_evaluate_worker.yield(post_evaluate_output_entry);
-
-          scheduler_profiler.add_interval("post", post_start, now());
-
-          EvalWorkEntry save_driver_input_entry = post_evaluate_output_entry;
-
-          auto save_start = now();
-          // save_driver()
-          proto::Result save_worker_result;
-          SaveWorkerArgs save_worker_args {
-              node_id_,
-              std::ref(sink_args),
-
-              // Per worker arguments
-              0, db_params_.storage_config,
-              sink_factories, sink_configs,
-              std::ref(save_thread_profilers[0]),
-              std::ref(save_worker_result)
-          };
-
-
-          SaveWorker save_worker(save_worker_args);
-          // NOTE(swjz): Force the task_id of SaveWorker to be 0 for now.
-          save_worker.new_task(save_driver_input_entry.job_index, 0,
-                               save_driver_input_entry.table_id, save_driver_input_entry.column_types);
-          save_worker.feed(save_driver_input_entry);
-          save_worker.finished();
-          scheduler_profiler.add_interval("save", save_start, now());
-        }
-        // Regular (non-source/sink) Op
-        else {
-          const TaskStream& task_stream = task_stream_map[task_id];
-          i32 op_idx = task_stream.op_idx;
-
-          // fill in EvalWorkEntry manually
-          EvalWorkEntry evaluate_input_entry;
-          evaluate_input_entry.table_id = table_id;
-          evaluate_input_entry.job_index = job_id;
-          evaluate_input_entry.task_index = task_id;
-          evaluate_input_entry.needs_configure = false; // hardcode by swjz
-          evaluate_input_entry.needs_reset = false; // hardcode by swjz
-          evaluate_input_entry.last_in_io_packet = true;
-          evaluate_input_entry.last_in_task = true;
-          // Op -> Elements
-          std::map<i64, Elements> op_to_elements;
-          // Op -> Device Handle
-          std::map<i64, DeviceHandle> op_to_handle;
-          // Op -> Rows
-          std::map<i64, std::vector<i64>> op_to_row_ids;
-
-          auto grab_source_start = now();
-          for (i64 source_task : task_stream.source_tasks) {
-            // The file name of eval_map[source_task]
-            std::string eval_map_file_name = eval_map_path(bulk_job_id, source_task);
-            std::unique_ptr<RandomReadFile> eval_map_input;
-            BACKOFF_FAIL(
-                make_unique_random_read_file(storage_, eval_map_file_name, eval_map_input),
-                "while trying to make read file for " + eval_map_file_name);
-            u64 pos = 0;
-            std::vector<u8> eval_map_bytes = storehouse::read_entire_file(eval_map_input.get(), pos);
-            proto::EvalWorkEntry evaluate_input_proto;
-            evaluate_input_proto.ParseFromArray(eval_map_bytes.data(), eval_map_bytes.size());
-            EvalWorkEntry eval_map_at_source_task;
-
-            const TaskStream& source_task_stream = task_stream_map.at(source_task);
-            DeviceHandle source_handle;
-            if (ops.at(source_task_stream.op_idx).device_type() == proto::CPU) {
-              source_handle = CPU_DEVICE;
-            } else if (ops.at(source_task_stream.op_idx).device_type() == proto::GPU) {
-              source_handle = {DeviceType::GPU, 0};
-            }
-            proto_to_evalworkentry(evaluate_input_proto, eval_map_at_source_task,
-                                   scheduler_profiler, device_handle);
-            if (source_task_stream.op_idx == 0) {
-              // The source task is a source Op. It might have multiple input columns
-              // because we remapped input columns. So we skip merging process below.
-              auto eval_work_entry = std::move(eval_map_at_source_task);
-              evaluate_input_entry.columns.insert(evaluate_input_entry.columns.end(),
-                                                  eval_work_entry.columns.begin(),
-                                                  eval_work_entry.columns.end());
-              evaluate_input_entry.column_handles.insert(evaluate_input_entry.column_handles.end(),
-                                                         eval_work_entry.column_handles.begin(),
-                                                         eval_work_entry.column_handles.end());
-              evaluate_input_entry.row_ids.insert(evaluate_input_entry.row_ids.end(),
-                                                  eval_work_entry.row_ids.begin(),
-                                                  eval_work_entry.row_ids.end());
-            } else {
-              // We merge multiple columns from different tasks to one column
-              // if these tasks come from the same op
-              // FIXME(swjz): Take the last one if source task has more than one output columns
-              // This happens because we did not delete unused columns in evaluate_worker.cpp
-//              assert(eval_map_at_source_task.columns.size() == 1);
-              size_t col_id = eval_map_at_source_task.columns.size() - 1;
-              auto& column = eval_map_at_source_task.columns[col_id];
-              auto& handle = eval_map_at_source_task.column_handles.at(col_id);
-              // All source task data have been transferred to device_handle
-              op_to_handle[source_task_stream.op_idx] = device_handle;
-              op_to_row_ids[source_task_stream.op_idx].insert(
-                  op_to_row_ids[source_task_stream.op_idx].end(),
-                  task_stream.source_task_to_rows.at(source_task).begin(),
-                  task_stream.source_task_to_rows.at(source_task).end());
-
-              for (auto& row_id : task_stream.source_task_to_rows.at(source_task)) {
-                for (size_t r = 0; r < eval_map_at_source_task.row_ids[col_id].size(); ++r) {
-                  // Only need the columns that cover required row ids
-                  if (row_id == eval_map_at_source_task.row_ids[col_id][r]) {
-//                    add_element_ref(handle, column[r]);
-                    op_to_elements[source_task_stream.op_idx].push_back(column[r]);
-                  }
-                }
-              }
-            }
-
-//            // Since it has been used, we delete it from memory
-//            for (auto i = 0; i < eval_map_at_source_task.columns.size(); ++i) {
-//              auto& column = eval_map_at_source_task.columns.at(i);
-//              auto& handle = eval_map_at_source_task.column_handles.at(i);
-//              for (auto& element : column) {
-//                delete_element(handle, element);
-//              }
-//            }
-          }
-
-          for (auto& kv : op_to_elements) {
-            evaluate_input_entry.columns.push_back(kv.second);
-            evaluate_input_entry.column_handles.push_back(op_to_handle.at(kv.first));
-            evaluate_input_entry.row_ids.push_back(op_to_row_ids.at(kv.first));
-          }
-          scheduler_profiler.add_interval("grab_source", grab_source_start, now());
-          // Now evaluate_input_entry is ready to go!
-
-          proto::Result evaluate_worker_result;
-          auto eval_start = now();
-          EvaluateWorkerArgs evaluate_worker_args {
-              // Uniform arguments
-              node_id_, startup_lock, startup_cv, startup_count,
-
-              // Per worker arguments
-              // NOTE(swjz): there is only one group if we use CPU only
-              0, op_idx, groups[op_idx], job_params->boundary_condition(),
-              eval_profilers[0][1], evaluate_worker_result
-          };
-          EvaluateWorker evaluate_worker(evaluate_worker_args);
-          std::vector<TaskStream> task_stream_vector;
-          task_stream_vector.push_back(task_stream);
-          evaluate_worker.new_task(job_id, task_id, task_stream_vector);
-
-          // the evaluate_input_entry here should contain all dependency data
-          evaluate_worker.feed(evaluate_input_entry);
-          EvalWorkEntry evaluate_output_entry;
-          evaluate_worker.yield(work_packet_size, evaluate_output_entry);
-
-          scheduler_profiler.add_interval("eval", eval_start, now());
-
-          std::string eval_map_file_name = eval_map_path(bulk_job_id, task_id);
-          std::unique_ptr<WriteFile> eval_map_output;
-          BACKOFF_FAIL(
-              make_unique_write_file(storage_, eval_map_file_name, eval_map_output),
-              "while trying to make write file for " + eval_map_file_name);
-
-          proto::EvalWorkEntry evaluate_output_proto;
-          auto serialize_start = now();
-          evalworkentry_to_proto(evaluate_output_entry, evaluate_output_proto,
-              scheduler_profiler);
-          scheduler_profiler.add_interval("serialize", serialize_start, now());
-          size_t serialized_size = evaluate_output_proto.ByteSizeLong();
-
-          std::vector<u8> eval_map_bytes;
-          auto allocate_start = now();
-          eval_map_bytes.resize(serialized_size);
-          scheduler_profiler.add_interval("alloc", allocate_start, now());
-          serialize_start = now();
-          evaluate_output_proto.SerializeToArray(eval_map_bytes.data(), serialized_size);
-          scheduler_profiler.add_interval("serialize", serialize_start, now());
-
-          auto write_start = now();
-          s_write(eval_map_output.get(), eval_map_bytes.data(), serialized_size);
-          scheduler_profiler.add_interval("write", write_start, now());
-
-          // Since it has been serialized, we delete it from memory
-          for (auto i = 0; i < evaluate_output_entry.columns.size(); ++i) {
-            auto& column = evaluate_output_entry.columns.at(i);
-            auto& handle = evaluate_output_entry.column_handles.at(i);
-            for (auto &element : column) {
-              delete_element(handle, element);
-            }
-          }
-        }
-
+        load_work.push(
+            std::make_tuple(target_work_queue, task_stream, stenciled_entry));
         allocated_work_to_queues[target_work_queue]++;
         accepted_tasks++;
-        retired_tasks.enqueue(std::make_tuple(0, job_id, task_id));
       }
     }
 
@@ -2486,9 +1826,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   leave_loop:
     break;
   remain_loop:
-    auto yield = now();
+
     std::this_thread::yield();
-    scheduler_profiler.add_interval("yield", yield, now());
   }
 
   // If the job failed, can't expect queues to have drained, so
@@ -2542,7 +1881,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
   for (i32 i = 0; i < num_load_workers; ++i) {
     // Wait until all load threads have finished
-//    load_threads[i].join();
+    load_threads[i].join();
   }
 
   // Push sentinel work entries into queue to terminate eval threads
@@ -2557,7 +1896,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   for (i32 i = 0; i < pipeline_instances_per_node; ++i) {
     // Wait until pre eval has finished
     LOG(INFO) << "Pre join " << i;
-//    pre_eval_threads[i].join();
+    pre_eval_threads[i].join();
   }
 
   LOG(INFO) << "Exiting kernel threads";
@@ -2567,7 +1906,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     }
     for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
       // Wait until eval has finished
-//      eval_threads[pu][kg].join();
+      eval_threads[pu][kg].join();
     }
   }
 
@@ -2578,13 +1917,13 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   }
   for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
     // Wait until eval has finished
-//    post_eval_threads[pu].join();
+    post_eval_threads[pu].join();
   }
 
   LOG(INFO) << "Exiting save threads";
   // Push sentinel work entries into queue to terminate coordinator thread
   push_output_eval_exit_message(output_eval_work);
-//  save_coordinator_thread.join();
+  save_coordinator_thread.join();
 
   // Push sentinel work entries into queue to terminate save threads
   for (i32 i = 0; i < num_save_workers; ++i) {
@@ -2595,7 +1934,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     push_save_exit_message(save_work[i]);
   }
   for (i32 i = 0; i < num_save_workers; ++i) {
-//    save_threads[i].join();
+    save_threads[i].join();
   }
   LOG(INFO) << "All threads are finished";
 
@@ -2656,11 +1995,6 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   s_write(profiler_output.get(), end_time_ns);
 
   i64 out_rank = node_id_;
-
-  // Write process job profiler
-  write_profiler_to_file(profiler_output.get(), out_rank, "process_job", "", 0,
-                         profiler);
-
   // Load worker profilers
   u8 load_worker_count = num_load_workers;
   s_write(profiler_output.get(), load_worker_count);
@@ -2700,10 +2034,6 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     write_profiler_to_file(profiler_output.get(), out_rank, "save", "", i,
                            save_thread_profilers[i]);
   }
-  u8 scheduler_count = 1;
-  s_write(profiler_output.get(), scheduler_count);
-  write_profiler_to_file(profiler_output.get(), out_rank, "scheduler", "", 0,
-                         scheduler_profiler);
 
   BACKOFF_FAIL(profiler_output->save(),
                "while trying to save " + profiler_output->path());
