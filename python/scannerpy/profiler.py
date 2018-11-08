@@ -98,7 +98,9 @@ class Profiler:
                 traces.append(make_trace_from_interval(interval, 'master', -1, 0))
 
         for proc, (_, worker_profiler_groups) in self._worker_profilers.items():
-            for worker_type, profs in [('load',
+            for worker_type, profs in [('process_job',
+                                        worker_profiler_groups['process_job']),
+                                       ('load',
                                         worker_profiler_groups['load']),
                                        ('decode',
                                         worker_profiler_groups['decode']),
@@ -231,6 +233,9 @@ class Profiler:
         if worker:
             # Profilers
             profilers = defaultdict(list)
+            # Load process_job profiler
+            prof, offset = self._parse_profiler_output(bytes_buffer, offset)
+            profilers[prof['worker_type']].append(prof)
             # Load worker profilers
             t, offset = read_advance('B', bytes_buffer, offset)
             num_load_workers = t[0]

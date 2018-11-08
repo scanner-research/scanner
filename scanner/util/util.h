@@ -58,6 +58,11 @@ inline double seconds_since(timepoint_t then) {
       .count();
 }
 
+inline double ms_since(timepoint_t then) {
+  return std::chrono::duration_cast<std::chrono::milliseconds>(now() - then)
+      .count();
+}
+
 inline double nano_since(timepoint_t then) {
   return std::chrono::duration_cast<std::chrono::nanoseconds>(now() - then)
       .count();
