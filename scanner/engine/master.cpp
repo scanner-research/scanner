@@ -1800,6 +1800,8 @@ void MasterServerImpl::start_worker_pinger() {
   pinger_active_ = true;
   pinger_thread_ = std::thread([this]() {
     while (pinger_active_) {
+      VLOG(2) << "Start of pinger loop";
+
       std::shared_ptr<BulkJob> state;
       {
         std::unique_lock<std::mutex> l(work_mutex_);
@@ -1830,6 +1832,8 @@ void MasterServerImpl::start_worker_pinger() {
 
       grpc::CompletionQueue cq;
       int i = 0;
+
+      VLOG(2) << "Queueing pings to workers";
       for (auto& kv : ws) {
         i64 id = kv.first;
         auto& worker = kv.second;
@@ -1850,6 +1854,8 @@ void MasterServerImpl::start_worker_pinger() {
         i++;
         VLOG(3) << "Master sending Ping to worker " << id;
       }
+
+      VLOG(2) << "Waiting on pings from workers";
       for (int i = 0; i < ws.size(); ++i) {
         void* got_tag;
         bool ok = false;
@@ -1899,6 +1905,7 @@ void MasterServerImpl::start_worker_pinger() {
       }
       cq.Shutdown();
 
+      VLOG(2) << "All pings sent/received";
       // Sleep for 5 seconds or wake up if the job has finished before then
       std::unique_lock<std::mutex> lk(pinger_wake_mutex_);
       pinger_wake_cv_.wait_for(lk, std::chrono::seconds(5),

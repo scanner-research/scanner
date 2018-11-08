@@ -4,13 +4,13 @@ set(SOURCE_FILES
   montage_kernel_cpu.cpp
   image_encoder_kernel_cpu.cpp
   image_decoder_kernel_cpu.cpp
-  resize_kernel.cpp)
+  resize_kernel.cpp
+  feature_extractor_kernel.cpp)
 
 if (BUILD_CUDA)
   list(APPEND SOURCE_FILES
     histogram_kernel_gpu.cpp
     montage_kernel_gpu.cpp
-    feature_extractor_kernel.cpp
     feature_matcher_kernel.cpp)
     #image_decoder_kernel_gpu.cpp
 endif()
