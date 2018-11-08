@@ -1241,11 +1241,19 @@ class Database(object):
         return
 
     def wait_on_job(self, *args, **kwargs):
+        sleep_schedule = []
+        for i in range(15):
+            sleep_schedule += [0.02 * (2 ** i)] * (50 // (2 ** i))
         gen = self.wait_on_job_gen(*args, **kwargs)
+        sleep_attempt = 0
         while True:
             try:
                 job_status = next(gen)
-                time.sleep(1.0)
+                if sleep_attempt < len(sleep_schedule):
+                    time.sleep(sleep_schedule[sleep_attempt])
+                else:
+                    time.sleep(1.0)
+                sleep_attempt += 1
             except StopIteration:
                 break
         return job_status
@@ -1559,11 +1567,15 @@ class Database(object):
                 cpu_pool = cpu_pool[1:]
             size = self._parse_size_string(cpu_pool)
             job_params.memory_pool_config.cpu.free_space = size
+        else:
+            job_params.memory_pool_config.cpu.use_pool = False
 
         if gpu_pool is not None:
             job_params.memory_pool_config.gpu.use_pool = True
             size = self._parse_size_string(gpu_pool)
             job_params.memory_pool_config.gpu.free_space = size
+        else:
+            job_params.memory_pool_config.gpu.use_pool = False
 
         if not self._workers_started and self._start_cluster:
             self.start_workers(self._worker_paths)

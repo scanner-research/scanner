@@ -178,20 +178,24 @@ def test_gather_video_column(db):
 def test_profiler(db):
     frame = db.sources.FrameColumn()
     hist = db.ops.Histogram(frame=frame)
-    output_op = db.sinks.Column(columns={'hist': hist})
+    ghist = db.streams.Gather(hist, [0])
+    output_op = db.sinks.Column(columns={'hist': ghist})
 
     job = Job(op_args={
         frame: db.table('test1').column('frame'),
         output_op: '_ignore'
     })
 
+    time_start = time.time()
     output = db.run(output_op, [job], show_progress=False, force=True)
+    print('Time', time.time() - time_start)
     profiler = output[0].profiler()
-    f = tempfile.NamedTemporaryFile(delete=False)
-    f.close()
-    profiler.write_trace(f.name)
+    #f = tempfile.NamedTemporaryFile(delete=False)
+    #f.close()
+    #profiler.write_trace(f.name)
+    profiler.write_trace("test.prof")
     profiler.statistics()
-    run(['rm', '-f', f.name])
+    #run(['rm', '-f', f.name])
 
 
 def test_new_table(db):
