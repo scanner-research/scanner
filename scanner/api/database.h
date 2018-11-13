@@ -28,6 +28,7 @@
 namespace scanner {
 namespace internal {
 class MasterServerImpl;
+class MasterServerImplNew;
 }
 
 //! Description of resources for a given machine.
@@ -60,11 +61,13 @@ class Database {
                       const std::string& python_dir,
                       bool watchdog = true,
                       i64 no_workers_timeout = 30,
-                      i32 new_job_retries_limit = 5);
+                      i32 new_job_retries_limit = 5,
+                      bool new_scheduler = false);
 
   Result start_worker(const MachineParameters& params, const std::string& port,
                       const std::string& python_dir,
-                      bool watchdog = true);
+                      bool watchdog = true,
+                      bool new_scheduler = false);
 
   Result ingest_videos(const std::vector<std::string>& table_names,
                        const std::vector<std::string>& paths,
@@ -96,6 +99,7 @@ class Database {
   std::string master_address_;
 
   std::unique_ptr<internal::MasterServerImpl> master_server_;
+  std::unique_ptr<internal::MasterServerImplNew> master_server_new_;
   std::thread master_thread_;
   std::vector<std::unique_ptr<ServerState>> worker_states_;
 };

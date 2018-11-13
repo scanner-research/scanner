@@ -30,17 +30,18 @@ namespace scanner {
 
   proto::Result start_master_wrapper(Database& db, const std::string& port,
                                      const std::string& python_dir, bool watchdog,
-                                     i64 no_workers_timeout, i32 new_job_retries_limit) {
+                                     i64 no_workers_timeout, i32 new_job_retries_limit,
+                                     bool new_scheduler) {
     // HACK(apoms): we don't call the GIL release here because the db methods are
     // in a different module and we can't release the GIL until they have initialized
     // the builtins. To fix this issue: https://github.com/pybind/pybind11/issues/1364
     return db.start_master(default_machine_params(), port, python_dir, watchdog,
-                           no_workers_timeout, new_job_retries_limit);
+                           no_workers_timeout, new_job_retries_limit, new_scheduler);
   }
 
   proto::Result start_worker_wrapper(Database& db, const std::string& params_s,
                                      const std::string& port, const std::string& python_dir,
-                                     bool watchdog) {
+                                     bool watchdog, bool new_scheduler) {
     // HACK(apoms): we don't call the GIL release here because the db methods are
     // in a different module and we can't release the GIL until they have initialized
     // the builtins. To fix this issue: https://github.com/pybind/pybind11/issues/1364
@@ -54,7 +55,7 @@ namespace scanner {
       params.gpu_ids.push_back(gpu_id);
     }
 
-    return db.start_worker(params, port, python_dir, watchdog);
+    return db.start_worker(params, port, python_dir, watchdog, new_scheduler);
   }
 
   std::vector<FailedVideo> ingest_videos_wrapper(Database& db, std::vector<std::string> table_names,

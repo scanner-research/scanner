@@ -135,13 +135,21 @@ struct DatabaseParameters {
 };
 
 class MasterServerImpl;
+class MasterServerImplNew;
 class WorkerImpl;
+class WorkerImplNew;
 
 MasterServerImpl* get_master_service(DatabaseParameters& param, const std::string& port);
+
+MasterServerImplNew* get_master_service_new(DatabaseParameters& param, const std::string& port);
 
 WorkerImpl* get_worker_service(DatabaseParameters& params,
                                const std::string& master_address,
                                const std::string& worker_port);
+
+WorkerImplNew* get_worker_service_new(DatabaseParameters& params,
+                                      const std::string& master_address,
+                                      const std::string& worker_port);
 
 // Utilities
 void move_if_different_address_space(Profiler& profiler,

@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "scanner/engine/worker.h"
+#include "scanner/engine/worker_scheduler.h"
 #include "scanner/engine/evaluate_worker.h"
 #include "scanner/engine/kernel_registry.h"
 #include "scanner/engine/source_registry.h"
@@ -659,7 +659,7 @@ void save_driver(SaveInputQueue& save_work,
 }
 }
 
-WorkerImpl::WorkerImpl(DatabaseParameters& db_params,
+WorkerImplNew::WorkerImplNew(DatabaseParameters& db_params,
                        std::string master_address, std::string worker_port)
   : watchdog_awake_(true),
     db_params_(db_params),
@@ -710,7 +710,7 @@ WorkerImpl::WorkerImpl(DatabaseParameters& db_params,
   VLOG(2) << resource_ss.rdbuf();
 }
 
-WorkerImpl::~WorkerImpl() {
+WorkerImplNew::~WorkerImplNew() {
   State state = state_.get();
   bool was_initializing = state == State::INITIALIZING;
   state_.set(State::SHUTTING_DOWN);
@@ -733,7 +733,7 @@ WorkerImpl::~WorkerImpl() {
   }
 }
 
-grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
+grpc::Status WorkerImplNew::NewJob(grpc::ServerContext* context,
                                 const proto::BulkJobParameters* job_params,
                                 proto::Result* job_result) {
   LOG(INFO) << "Worker " << node_id_ << " received NewJob";
@@ -786,7 +786,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
   return grpc::Status::OK;
 }
 
-grpc::Status WorkerImpl::Shutdown(grpc::ServerContext* context,
+grpc::Status WorkerImplNew::Shutdown(grpc::ServerContext* context,
                                   const proto::Empty* empty, Result* result) {
   State state = state_.get();
   switch (state) {
@@ -815,7 +815,7 @@ grpc::Status WorkerImpl::Shutdown(grpc::ServerContext* context,
   return grpc::Status::OK;
 }
 
-grpc::Status WorkerImpl::Ping(grpc::ServerContext* context,
+grpc::Status WorkerImplNew::Ping(grpc::ServerContext* context,
                               const proto::Empty* empty1,
                               proto::PingReply* reply) {
   reply->set_node_id(node_id_);
@@ -823,7 +823,7 @@ grpc::Status WorkerImpl::Ping(grpc::ServerContext* context,
   return grpc::Status::OK;
 }
 
-void WorkerImpl::start_watchdog(grpc::Server* server, bool enable_timeout,
+void WorkerImplNew::start_watchdog(grpc::Server* server, bool enable_timeout,
                                 i32 timeout_ms) {
   watchdog_thread_ = std::thread([this, server, enable_timeout, timeout_ms]() {
     double time_since_check = 0;
@@ -851,7 +851,7 @@ void WorkerImpl::start_watchdog(grpc::Server* server, bool enable_timeout,
   });
 }
 
-Result WorkerImpl::register_with_master() {
+Result WorkerImplNew::register_with_master() {
   assert(state_.get() == State::INITIALIZING);
 
   LOG(INFO) << "Worker try to register with master";
@@ -890,7 +890,7 @@ Result WorkerImpl::register_with_master() {
   return result;
 }
 
-void WorkerImpl::try_unregister() {
+void WorkerImplNew::try_unregister() {
   if (state_.get() != State::INITIALIZING && !unregistered_.test_and_set()) {
     proto::UnregisterWorkerRequest node_info;
     node_info.set_node_id(node_id_);
@@ -908,7 +908,7 @@ void WorkerImpl::try_unregister() {
   }
 }
 
-void WorkerImpl::load_op(const proto::OpPath* op_path) {
+void WorkerImplNew::load_op(const proto::OpPath* op_path) {
   std::string so_path = op_path->path();
   LOG(INFO) << "Worker " << node_id_ << " loading Op library: " << so_path;
 
@@ -922,7 +922,7 @@ void WorkerImpl::load_op(const proto::OpPath* op_path) {
       << "dlopen of " << so_path << " failed: " << dlerror();
 }
 
-void WorkerImpl::register_op(const proto::OpRegistration* op_registration) {
+void WorkerImplNew::register_op(const proto::OpRegistration* op_registration) {
   const std::string& name = op_registration->name();
   const bool variadic_inputs = op_registration->variadic_inputs();
   std::vector<Column> input_columns;
@@ -960,7 +960,7 @@ void WorkerImpl::register_op(const proto::OpRegistration* op_registration) {
   LOG(INFO) << "Worker " << node_id_ << " registering Op: " << name;
 }
 
-void WorkerImpl::register_python_kernel(const proto::PythonKernelRegistration* python_kernel) {
+void WorkerImplNew::register_python_kernel(const proto::PythonKernelRegistration* python_kernel) {
   const std::string& op_name = python_kernel->op_name();
   DeviceType device_type = python_kernel->device_type();
   const std::string& kernel_code = python_kernel->kernel_code();
@@ -1005,7 +1005,7 @@ void WorkerImpl::register_python_kernel(const proto::PythonKernelRegistration* p
   LOG(INFO) << "Worker " << node_id_ << " registering Python Kernel: " << op_name;
 }
 
-void WorkerImpl::start_job_processor() {
+void WorkerImplNew::start_job_processor() {
   job_processor_thread_ = std::thread([this]() {
     while (!trigger_shutdown_.raised()) {
       // Wait on not finished
@@ -1031,7 +1031,7 @@ void WorkerImpl::start_job_processor() {
   });
 }
 
-void WorkerImpl::stop_job_processor() {
+void WorkerImplNew::stop_job_processor() {
   // Wake up job processor
   {
     std::unique_lock<std::mutex> lock(active_mutex_);
@@ -1043,7 +1043,7 @@ void WorkerImpl::stop_job_processor() {
   }
 }
 
-bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
+bool WorkerImplNew::process_job(const proto::BulkJobParameters* job_params,
                              proto::Result* job_result) {
   timepoint_t base_time(std::chrono::nanoseconds(job_params->base_time()));
 
@@ -2011,13 +2011,16 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
         auto dep_analysis_start = now();
         // All we need from this is task_stream_map. Might also use grpc to get from master
-        derive_stencil_requirements_master(
+        derive_stencil_requirements_scheduler(
             meta, table_meta, jobs.at(new_work.job_index()), ops,
-            analysis_results, job_params->boundary_condition(), job_id,
+            analysis_results, job_params->boundary_condition(),
+            table_id, job_id,
             std::vector<i64>(new_work.output_rows().begin(),
                              new_work.output_rows().end()),
-            stenciled_entry, task_stream,
-            db_params_.storage_config);
+            stenciled_entry, task_size_per_op, task_stream_map);
+        scheduler_profiler.add_interval("deps", dep_analysis_start, now());
+
+        stenciled_entry.set_task_index(task_id);
 
         // Determine which pipeline instance to allocate to
         i32 target_work_queue = -1;
@@ -2066,6 +2069,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           load_output_entry.last_in_task = true;
 
           i32 work_packet_size = INT_MAX; // Ignore work packet size for now
+          proto::Result pre_evaluate_result;
           PreEvaluateWorkerArgs pre_evaluate_worker_args {
               // Uniform arguments
               node_id_, num_cpus, num_cpus,
@@ -2073,6 +2077,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
               // Per worker arguments
               0, CPU_DEVICE, eval_profilers[0][0],  // Use CPU to decode for now
+              pre_evaluate_result
           };
 
           auto pre_start = now();

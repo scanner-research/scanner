@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "scanner/engine/master.h"
+#include "scanner/engine/master_scheduler.h"
 #include "scanner/engine/ingest.h"
 #include "scanner/engine/sampler.h"
 #include "scanner/engine/dag_analysis.h"
@@ -50,7 +50,7 @@ static const u32 POKE_WATCHDOG_WORKER_TIMEOUT = 5;
 static const u32 PING_WORKER_TIMEOUT = 5;
 static const u32 NEW_JOB_WORKER_TIMEOUT = 30;
 
-MasterServerImpl::MasterServerImpl(DatabaseParameters& params, const std::string& port)
+MasterServerImplNew::MasterServerImplNew(DatabaseParameters& params, const std::string& port)
     : db_params_(params), port_(port), profiler_(now()) {
   VLOG(1) << "Creating master...";
 
@@ -77,7 +77,7 @@ MasterServerImpl::MasterServerImpl(DatabaseParameters& params, const std::string
   VLOG(1) << "Master created.";
 }
 
-MasterServerImpl::~MasterServerImpl() {
+MasterServerImplNew::~MasterServerImplNew() {
   trigger_shutdown_.set();
   {
     std::unique_lock<std::mutex> lock(finished_mutex_);
@@ -101,7 +101,7 @@ MasterServerImpl::~MasterServerImpl() {
 // Expects context->peer() to return a string in the format
 // ipv4:<peer_address>:<random_port>
 // Returns the <peer_address> from the above format.
-std::string MasterServerImpl::get_worker_address_from_grpc_context(
+std::string MasterServerImplNew::get_worker_address_from_grpc_context(
     grpc::ServerContext* context) {
   std::string worker_address = context->peer();
   std::size_t portSep = worker_address.find_last_of(':');
@@ -118,7 +118,7 @@ std::string MasterServerImpl::get_worker_address_from_grpc_context(
   return worker_address_actual;
 }
 
-void MasterServerImpl::run() {
+void MasterServerImplNew::run() {
   std::string server_address("0.0.0.0:" + port_);
   grpc::ServerBuilder builder;
   builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
@@ -137,15 +137,15 @@ void MasterServerImpl::run() {
 #define REQUEST_RPC(name__, request__, reply__)                              \
   do {                                                                       \
     if (!trigger_shutdown_.raised()) {                                       \
-      auto call = new Call<MasterServerImpl, request__, reply__>(            \
-          #name__, &MasterServerImpl::name__##Handler);                      \
+      auto call = new Call<MasterServerImplNew, request__, reply__>(            \
+          #name__, &MasterServerImplNew::name__##Handler);                      \
       service_.Request##name__(&call->ctx, &call->request, &call->responder, \
                                cq_.get(), cq_.get(),                         \
                                (void*)&call->received_tag);                  \
     }                                                                        \
   } while (0);
 
-void MasterServerImpl::handle_rpcs(i32 watchdog_timeout_ms) {
+void MasterServerImplNew::handle_rpcs(i32 watchdog_timeout_ms) {
   // Spawn instances for receiving and returning requests
   REQUEST_RPC(Shutdown, proto::Empty, Result);
   REQUEST_RPC(ListTables, proto::Empty, proto::ListTablesResult);
@@ -206,21 +206,21 @@ void MasterServerImpl::handle_rpcs(i32 watchdog_timeout_ms) {
 
     // Receive an event (or a shutdown notification)
     if (status == grpc::CompletionQueue::NextStatus::GOT_EVENT) {
-      if (auto call_tag = static_cast<BaseCall<MasterServerImpl>::Tag*>(tag)) {
+      if (auto call_tag = static_cast<BaseCall<MasterServerImplNew>::Tag*>(tag)) {
         std::string type;
         switch (call_tag->get_state()) {
-          case BaseCall<MasterServerImpl>::Tag::State::Received: {
+          case BaseCall<MasterServerImplNew>::Tag::State::Received: {
             type = "Received";
             tag_start_times_[call_tag->get_call()] = now();
             break;
           }
-          case BaseCall<MasterServerImpl>::Tag::State::Sent: {
+          case BaseCall<MasterServerImplNew>::Tag::State::Sent: {
             type = "Sent";
             profiler_.add_interval(call_tag->get_call()->name, tag_start_times_.at(call_tag->get_call()), now());
             tag_start_times_.erase(call_tag->get_call());
             break;
           }
-          case BaseCall<MasterServerImpl>::Tag::State::Cancelled: {
+          case BaseCall<MasterServerImplNew>::Tag::State::Cancelled: {
             type = "Cancelled";
             break;
           }
@@ -267,7 +267,7 @@ void MasterServerImpl::handle_rpcs(i32 watchdog_timeout_ms) {
   }
 }
 
-void MasterServerImpl::ShutdownHandler(
+void MasterServerImplNew::ShutdownHandler(
     MCall<proto::Empty, proto::Result>* call) {
   VLOG(1) << "Master received shutdown!";
   call->reply.set_success(true);
@@ -280,7 +280,7 @@ void MasterServerImpl::ShutdownHandler(
   call->Respond(grpc::Status::OK);
 }
 
-void MasterServerImpl::ListTablesHandler(
+void MasterServerImplNew::ListTablesHandler(
     MCall<proto::Empty, proto::ListTablesResult>* call) {
   std::unique_lock<std::mutex> lk(work_mutex_);
 
@@ -292,7 +292,7 @@ void MasterServerImpl::ListTablesHandler(
   call->Respond(grpc::Status::OK);
 }
 
-void MasterServerImpl::GetTablesHandler(
+void MasterServerImplNew::GetTablesHandler(
     MCall<proto::GetTablesParams, proto::GetTablesResult>* call) {
   std::unique_lock<std::mutex> lk(work_mutex_);
   auto params = &call->request;
@@ -328,7 +328,7 @@ void MasterServerImpl::GetTablesHandler(
   call->Respond(grpc::Status::OK);
 }
 
-void MasterServerImpl::DeleteTablesHandler(
+void MasterServerImplNew::DeleteTablesHandler(
     MCall<proto::DeleteTablesParams, proto::Empty>* call) {
   std::unique_lock<std::mutex> lk(work_mutex_);
   auto params = &call->request;
@@ -348,7 +348,7 @@ void MasterServerImpl::DeleteTablesHandler(
   call->Respond(grpc::Status::OK);
 }
 
-void MasterServerImpl::NewTableHandler(
+void MasterServerImplNew::NewTableHandler(
     MCall<proto::NewTableParams, proto::Empty>* call) {
   std::unique_lock<std::mutex> lk(work_mutex_);
   auto params = &call->request;
@@ -418,7 +418,7 @@ void MasterServerImpl::NewTableHandler(
   call->Respond(grpc::Status::OK);
 }
 
-void MasterServerImpl::GetVideoMetadataHandler(
+void MasterServerImplNew::GetVideoMetadataHandler(
     MCall<proto::GetVideoMetadataParams, proto::GetVideoMetadataResult>* call) {
   std::unique_lock<std::mutex> lk(work_mutex_);
   auto params = &call->request;
@@ -471,7 +471,7 @@ void MasterServerImpl::GetVideoMetadataHandler(
   call->Respond(grpc::Status::OK);
 }
 
-void MasterServerImpl::IngestVideosHandler(
+void MasterServerImplNew::IngestVideosHandler(
     MCall<proto::IngestParameters, proto::IngestResult>* call) {
   auto params = &call->request;
   auto result = &call->reply;
@@ -496,7 +496,7 @@ void MasterServerImpl::IngestVideosHandler(
   call->Respond(grpc::Status::OK);
 }
 
-void MasterServerImpl::RegisterWorkerHandler(
+void MasterServerImplNew::RegisterWorkerHandler(
     MCall<proto::WorkerParams, proto::Registration>* call) {
   pool_->enqueue_front([this, call]() {
     std::unique_lock<std::mutex> lk(work_mutex_);
@@ -542,7 +542,7 @@ void MasterServerImpl::RegisterWorkerHandler(
   });
 }
 
-void MasterServerImpl::UnregisterWorkerHandler(
+void MasterServerImplNew::UnregisterWorkerHandler(
     MCall<proto::UnregisterWorkerRequest, proto::Empty>* call) {
   pool_->enqueue_front([this, call]() {
     std::unique_lock<std::mutex> lk(work_mutex_);
@@ -558,7 +558,7 @@ void MasterServerImpl::UnregisterWorkerHandler(
   });
 }
 
-void MasterServerImpl::ActiveWorkersHandler(
+void MasterServerImplNew::ActiveWorkersHandler(
     MCall<proto::Empty, proto::RegisteredWorkers>* call) {
   std::unique_lock<std::mutex> lk(work_mutex_);
   auto registered_workers = &call->reply;
@@ -579,7 +579,7 @@ void MasterServerImpl::ActiveWorkersHandler(
   call->Respond(grpc::Status::OK);
 }
 
-void MasterServerImpl::GetOpInfoHandler(
+void MasterServerImplNew::GetOpInfoHandler(
     MCall<proto::OpInfoArgs, proto::OpInfo>* call) {
   auto op_info_args = &call->request;
   auto op_info = &call->reply;
@@ -612,7 +612,7 @@ void MasterServerImpl::GetOpInfoHandler(
   call->Respond(grpc::Status::OK);
 }
 
-void MasterServerImpl::GetSourceInfoHandler(
+void MasterServerImplNew::GetSourceInfoHandler(
     MCall<proto::SourceInfoArgs, proto::SourceInfo>* call) {
   auto source_info_args = &call->request;
   auto source_info = &call->reply;
@@ -640,7 +640,7 @@ void MasterServerImpl::GetSourceInfoHandler(
   call->Respond(grpc::Status::OK);
 }
 
-void MasterServerImpl::GetEnumeratorInfoHandler(
+void MasterServerImplNew::GetEnumeratorInfoHandler(
     MCall<proto::EnumeratorInfoArgs, proto::EnumeratorInfo>* call) {
   auto info_args = &call->request;
   auto info = &call->reply;
@@ -663,7 +663,7 @@ void MasterServerImpl::GetEnumeratorInfoHandler(
   call->Respond(grpc::Status::OK);
 }
 
-void MasterServerImpl::GetSinkInfoHandler(
+void MasterServerImplNew::GetSinkInfoHandler(
     MCall<proto::SinkInfoArgs, proto::SinkInfo>* call) {
   auto sink_info_args = &call->request;
   auto sink_info = &call->reply;
@@ -693,7 +693,7 @@ void MasterServerImpl::GetSinkInfoHandler(
   call->Respond(grpc::Status::OK);
 }
 
-void MasterServerImpl::LoadOpHandler(MCall<proto::OpPath, Result>* call) {
+void MasterServerImplNew::LoadOpHandler(MCall<proto::OpPath, Result>* call) {
   auto op_path = &call->request;
   auto result = &call->reply;
   std::string so_path = op_path->path();
@@ -732,7 +732,7 @@ void MasterServerImpl::LoadOpHandler(MCall<proto::OpPath, Result>* call) {
   call->Respond(grpc::Status::OK);
 }
 
-void MasterServerImpl::RegisterOpHandler(
+void MasterServerImplNew::RegisterOpHandler(
     MCall<proto::OpRegistration, proto::Result>* call) {
   std::unique_lock<std::mutex> lk(work_mutex_);
 
@@ -793,7 +793,7 @@ void MasterServerImpl::RegisterOpHandler(
   call->Respond(grpc::Status::OK);
 }
 
-void MasterServerImpl::RegisterPythonKernelHandler(
+void MasterServerImplNew::RegisterPythonKernelHandler(
     MCall<proto::PythonKernelRegistration, proto::Result>* call) {
   std::unique_lock<std::mutex> lk(work_mutex_);
   auto python_kernel = &call->request;
@@ -855,7 +855,7 @@ void MasterServerImpl::RegisterPythonKernelHandler(
 }
 
 
-void MasterServerImpl::ListLoadedOpsHandler(MCall<proto::Empty, proto::ListLoadedOpsReply>* call) {
+void MasterServerImplNew::ListLoadedOpsHandler(MCall<proto::Empty, proto::ListLoadedOpsReply>* call) {
   auto& reply = call->reply;
   for (const std::string& so_path : so_paths_) {
     proto::OpPath* op_path = reply.add_registrations();
@@ -866,7 +866,7 @@ void MasterServerImpl::ListLoadedOpsHandler(MCall<proto::Empty, proto::ListLoade
   call->Respond(grpc::Status::OK);
 }
 
-void MasterServerImpl::ListRegisteredOpsHandler(MCall<proto::Empty, proto::ListRegisteredOpsReply>* call) {
+void MasterServerImplNew::ListRegisteredOpsHandler(MCall<proto::Empty, proto::ListRegisteredOpsReply>* call) {
   auto& reply = call->reply;
   for (auto& reg : op_registrations_) {
     auto r = reply.add_registrations();
@@ -877,7 +877,7 @@ void MasterServerImpl::ListRegisteredOpsHandler(MCall<proto::Empty, proto::ListR
   call->Respond(grpc::Status::OK);
 }
 
-void MasterServerImpl::ListRegisteredPythonKernelsHandler(
+void MasterServerImplNew::ListRegisteredPythonKernelsHandler(
     MCall<proto::Empty, proto::ListRegisteredPythonKernelsReply>* call) {
   auto& reply = call->reply;
   for (auto& reg : py_kernel_registrations_) {
@@ -889,7 +889,7 @@ void MasterServerImpl::ListRegisteredPythonKernelsHandler(
   call->Respond(grpc::Status::OK);
 }
 
-void MasterServerImpl::NextWorkHandler(
+void MasterServerImplNew::NextWorkHandler(
     MCall<proto::NextWorkRequest, proto::NextWorkReply>* call) {
   pool_->enqueue([this, call]() {
     std::unique_lock<std::mutex> lk(work_mutex_);
@@ -938,7 +938,7 @@ void MasterServerImpl::NextWorkHandler(
         if (state->next_job < state->num_jobs && state->task_result.success()) {
           state->next_task = 0;
           // Set num_tasks to how many tasks are there in the next job
-          state->num_tasks = state->tasks_per_job[state->next_job];
+          state->num_tasks = state->job_tasks.at(state->next_job).size();
           state->next_job++;
           VLOG(1) << "Tasks left: "
                   << state->total_tasks - state->total_tasks_used;
@@ -951,10 +951,52 @@ void MasterServerImpl::NextWorkHandler(
         // Create a new task
         i64 current_job = state->next_job - 1;
 
-        auto jt = std::make_tuple(current_job, current_task);
-        state->active_job_tasks.insert(jt);
-        state->to_assign_job_tasks.push_front(jt);
-        state->next_task++;
+        int ready_count = 0;
+        // Grab all READY tasks
+        for (auto& kv : state->task_streams[current_job]) {
+          TaskStream& task_stream = kv.second;
+          if (task_stream.status == TaskStream::READY) {
+            ready_count++;
+          }
+        }
+
+        if (ready_count < state->task_streams[current_job].size() / 2) {
+          VLOG(1) << "Give task from beginning";
+          for (auto it = state->task_streams[current_job].begin();
+               it != state->task_streams[current_job].end(); ++it) {
+            i64 task_id = it->first;
+            TaskStream& task_stream = it->second;
+
+            // Only continue if the task is ready
+            if (task_stream.status == TaskStream::READY) {
+              // The task is going to be assigned to a worker.
+              state->active_job_tasks.insert(
+                  std::make_tuple(current_job, task_id));
+              state->to_assign_job_tasks.push_front(
+                  std::make_tuple(current_job, task_id));
+              state->next_task++;
+              break;
+            }
+          }
+        } else {
+          VLOG(1) << "Give task from end";
+          for (auto it = state->task_streams[current_job].rbegin();
+               it != state->task_streams[current_job].rend(); ++it) {
+            i64 task_id = it->first;
+            TaskStream& task_stream = it->second;
+
+            // Only continue if the task is ready
+            if (task_stream.status == TaskStream::READY) {
+              // The task is going to be assigned to a worker.
+              state->active_job_tasks.insert(
+                  std::make_tuple(current_job, task_id));
+              state->to_assign_job_tasks.push_front(
+                  std::make_tuple(current_job, task_id));
+              state->next_task++;
+              break;
+            }
+          }
+        }
       }
     }
 
@@ -973,7 +1015,12 @@ void MasterServerImpl::NextWorkHandler(
 
     // Grab the next task sample
     std::tuple<i64, i64> job_task_id = state->to_assign_job_tasks.back();
+    i64 job_idx;
+    i64 task_idx;
+    std::tie(job_idx, task_idx) = job_task_id;
     state->to_assign_job_tasks.pop_back();
+    TaskStream& task_stream = state->task_streams[job_idx][task_idx];
+    task_stream.status = TaskStream::ASSIGNED;
 
     assert(state->next_task <= state->num_tasks && state->next_task >= 0);
 
@@ -1013,7 +1060,7 @@ void MasterServerImpl::NextWorkHandler(
   });
 }
 
-void MasterServerImpl::FinishedWorkHandler(
+void MasterServerImplNew::FinishedWorkHandler(
     MCall<proto::FinishedWorkRequest, proto::Empty>* call) {
   pool_->enqueue([this, call]() {
     std::unique_lock<std::mutex> lk(work_mutex_);
@@ -1053,6 +1100,29 @@ void MasterServerImpl::FinishedWorkHandler(
 
     auto& worker_tasks = state->worker_job_tasks.at(worker_id);
 
+    // Mark the status of this Op as DONE
+    TaskStream& task_stream = state->task_streams[job_id].at(task_id);
+    task_stream.status = TaskStream::DONE;
+
+    // Mark this Op's dependents as READY if their launch count turns to 0
+    for (i64 dependent_task_id : task_stream.waiting_tasks) {
+      state->task_streams[job_id][dependent_task_id].launch_count--;
+      if (state->task_streams[job_id][dependent_task_id].launch_count == 0) {
+        state->task_streams[job_id][dependent_task_id].status = TaskStream::READY;
+      } else if (state->task_streams[job_id][dependent_task_id].launch_count < 0) {
+        LOG(FATAL) << "Launch Count of " << dependent_task_id << " < 0!";
+      }
+    }
+    // Remove this Op's dependencies if their free count turns to 0
+    for (i64 dependency_task_id : task_stream.source_tasks) {
+      state->task_streams[job_id][dependency_task_id].free_count--;
+      if (state->task_streams[job_id][dependency_task_id].free_count == 0) {
+        state->task_streams[job_id].erase(dependency_task_id);
+      } else if (state->task_streams[job_id][dependency_task_id].free_count < 0) {
+        LOG(FATAL) << "Free Count of " << dependency_task_id << " < 0!";
+      }
+    }
+
     std::tuple<i64, i64> job_task = std::make_tuple(job_id, task_id);
 
     // Remove the task from the list of assigned tasks to the worker
@@ -1082,7 +1152,8 @@ void MasterServerImpl::FinishedWorkHandler(
       VLOG(1) << "One task finished! Tasks left: "
               << state->total_tasks - state->total_tasks_used;
 
-      if (state->tasks_used_per_job[job_id] == state->tasks_per_job[job_id]) {
+      if (state->tasks_used_per_job[job_id] ==
+          state->job_tasks[job_id].size()) {
         if (state->dag_info.is_table_output) {
           i32 tid = state->job_uncommitted_tables[job_id];
           meta_.commit_table(tid);
@@ -1111,7 +1182,7 @@ void MasterServerImpl::FinishedWorkHandler(
   });
 }
 
-void MasterServerImpl::FinishedJobHandler(
+void MasterServerImplNew::FinishedJobHandler(
     MCall<proto::FinishedJobRequest, proto::Empty>* call) {
   pool_->enqueue([this, call]() {
     std::unique_lock<std::mutex> lk(work_mutex_);
@@ -1160,7 +1231,7 @@ void MasterServerImpl::FinishedJobHandler(
   });
 }
 
-void MasterServerImpl::NewJobHandler(
+void MasterServerImplNew::NewJobHandler(
     MCall<proto::BulkJobParameters, proto::NewJobReply>* call) {
   pool_->enqueue([this, call]() {
     VLOG(1) << "Master received NewJob command";
@@ -1193,7 +1264,7 @@ void MasterServerImpl::NewJobHandler(
   });
 }
 
-void MasterServerImpl::GetJobStatusHandler(
+void MasterServerImplNew::GetJobStatusHandler(
     MCall<proto::GetJobStatusRequest, proto::GetJobStatusReply>* call) {
   VLOG(3) << "Master received GetJobStatus command";
 
@@ -1252,7 +1323,7 @@ void MasterServerImpl::GetJobStatusHandler(
   });
 }
 
-void MasterServerImpl::GetJobsHandler(
+void MasterServerImplNew::GetJobsHandler(
     MCall<proto::GetJobsRequest, proto::GetJobsReply>* call) {
   VLOG(3) << "Master received GetJobs command";
 
@@ -1274,13 +1345,13 @@ void MasterServerImpl::GetJobsHandler(
 
 
 
-void MasterServerImpl::PingHandler(
+void MasterServerImplNew::PingHandler(
     MCall<proto::Empty, proto::Empty>* call) {
   REQUEST_RPC(Ping, proto::Empty, proto::Empty);
   call->Respond(grpc::Status::OK);
 }
 
-void MasterServerImpl::PokeWatchdogHandler(
+void MasterServerImplNew::PokeWatchdogHandler(
     MCall<proto::Empty, proto::Empty>* call) {
   pool_->enqueue_front([this, call]() {
     VLOG(2) << "Master received PokeWatchdog.";
@@ -1290,7 +1361,7 @@ void MasterServerImpl::PokeWatchdogHandler(
   });
 }
 
-void MasterServerImpl::recover_and_init_database() {
+void MasterServerImplNew::recover_and_init_database() {
   VLOG(1) << "Initializing database...";
 
   VLOG(1) << "Reading database metadata";
@@ -1307,7 +1378,7 @@ void MasterServerImpl::recover_and_init_database() {
   VLOG(1) << "Database initialized.";
 }
 
-void MasterServerImpl::start_job_processor() {
+void MasterServerImplNew::start_job_processor() {
   VLOG(1) << "Starting job processor";
   job_processor_thread_ = std::thread([this]() {
     {
@@ -1334,7 +1405,7 @@ void MasterServerImpl::start_job_processor() {
   });
 }
 
-void MasterServerImpl::stop_job_processor() {
+void MasterServerImplNew::stop_job_processor() {
   // Wake up job processor
   {
     std::unique_lock<std::mutex> lock(active_mutex_);
@@ -1346,7 +1417,7 @@ void MasterServerImpl::stop_job_processor() {
   }
 }
 
-bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
+bool MasterServerImplNew::process_job(const proto::BulkJobParameters* job_params,
                                    proto::Result* job_result) {
   // Remove old profiling information
   auto job_start = now();
@@ -1569,7 +1640,7 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
   state->task_streams.resize(jobs.size());
   for (size_t job_idx = 0; job_idx < jobs.size(); ++job_idx) {
     LoadWorkEntry dummy_load_entry;
-    derive_stencil_requirements(
+    derive_stencil_requirements_scheduler(
         meta_, *table_metas_, jobs.at(job_idx), ops,
         state->dag_info, job_params_.boundary_condition(),
         state->job_to_table_id[job_idx], job_idx,
@@ -1580,7 +1651,11 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
     state->total_tasks += state->task_streams[job_idx].size();
 
     state->tasks_used_per_job.push_back(0);
-    state->tasks_per_job.push_back(state->task_streams[job_idx].size());
+    state->job_tasks.emplace_back();
+    auto& tasks = state->job_tasks.back();
+    for (size_t task_idx = 0; task_idx < state->task_streams[job_idx].size(); ++task_idx) {
+      tasks.emplace_back(state->task_streams[job_idx][task_idx].valid_output_rows);
+    }
   }
 
   // Write out database metadata so that workers can read it
@@ -1798,7 +1873,7 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
   return true;
 }
 
-void MasterServerImpl::start_worker_pinger() {
+void MasterServerImplNew::start_worker_pinger() {
   VLOG(1) << "Starting worker pinger";
   pinger_active_ = true;
   pinger_thread_ = std::thread([this]() {
@@ -1910,7 +1985,7 @@ void MasterServerImpl::start_worker_pinger() {
   });
 }
 
-void MasterServerImpl::stop_worker_pinger() {
+void MasterServerImplNew::stop_worker_pinger() {
   if (pinger_thread_.joinable()) {
     {
       std::unique_lock<std::mutex> lk(pinger_wake_mutex_);
@@ -1921,7 +1996,7 @@ void MasterServerImpl::stop_worker_pinger() {
   }
 }
 
-void MasterServerImpl::start_job_on_workers(const std::vector<i32>& worker_ids) {
+void MasterServerImplNew::start_job_on_workers(const std::vector<i32>& worker_ids) {
   std::vector<i32> filtered_worker_ids;
   proto::BulkJobParameters w_job_params;
   std::map<WorkerID, std::shared_ptr<WorkerState>> workers_copy;
@@ -2065,7 +2140,7 @@ void MasterServerImpl::start_job_on_workers(const std::vector<i32>& worker_ids) 
   }
 }
 
-void MasterServerImpl::stop_job_on_worker(i32 worker_id) {
+void MasterServerImplNew::stop_job_on_worker(i32 worker_id) {
   // Place workers active tasks back into the unallocated task samples
   auto& state = bulk_jobs_state_.at(active_bulk_job_id_);
   if (state->worker_job_tasks.count(worker_id) > 0) {
@@ -2099,7 +2174,7 @@ void MasterServerImpl::stop_job_on_worker(i32 worker_id) {
   state->unfinished_workers[worker_id] = false;
 }
 
-void MasterServerImpl::remove_worker(i32 node_id) {
+void MasterServerImplNew::remove_worker(i32 node_id) {
   assert(workers_.count(node_id) > 0);
 
   std::string worker_address = workers_.at(node_id)->address;
@@ -2115,7 +2190,7 @@ void MasterServerImpl::remove_worker(i32 node_id) {
   VLOG(1) << "Removing worker " << node_id << " (" << worker_address << ").";
 }
 
-void MasterServerImpl::blacklist_job(i64 job_id) {
+void MasterServerImplNew::blacklist_job(i64 job_id) {
   auto& state = bulk_jobs_state_.at(active_bulk_job_id_);
 
   // Check that the job has not been blacklisted yet
@@ -2147,7 +2222,7 @@ void MasterServerImpl::blacklist_job(i64 job_id) {
   }
 }  // namespace internal
 
-void MasterServerImpl::start_shutdown() {
+void MasterServerImplNew::start_shutdown() {
   // Shutdown workers
   std::vector<i32> worker_ids;
   std::map<i32, proto::Worker::Stub*> workers_copy;
@@ -2181,7 +2256,7 @@ void MasterServerImpl::start_shutdown() {
   }
 }
 
-void MasterServerImpl::write_profiler(int bulk_job_id, timepoint_t job_start, timepoint_t job_end) {
+void MasterServerImplNew::write_profiler(int bulk_job_id, timepoint_t job_start, timepoint_t job_end) {
   // Create output file
   std::string profiler_file_name = bulk_job_master_profiler_path(bulk_job_id);
   std::unique_ptr<WriteFile> profiler_output;

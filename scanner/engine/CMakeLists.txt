@@ -28,7 +28,9 @@ set(SOURCE_FILES
   sample_op.cpp
   space_op.cpp
   slice_op.cpp
-  unslice_op.cpp)
+  unslice_op.cpp
+  master_scheduler.cpp
+  worker_scheduler.cpp)
 
 add_library(engine OBJECT
   ${SOURCE_FILES})

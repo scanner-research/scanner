@@ -139,7 +139,8 @@ class Database(object):
                  no_workers_timeout: float = 30,
                  grpc_timeout: float = 30,
                  new_job_retries_limit: int = 5,
-                 machine_params = None):
+                 machine_params = None,
+                 new_scheduler = False):
         if config:
             self.config = config
         else:
@@ -157,6 +158,7 @@ class Database(object):
         self._grpc_timeout = grpc_timeout
         self._new_job_retries_limit = new_job_retries_limit
         self._machine_params = machine_params
+        self._new_scheduler = new_scheduler
         if debug is None:
             self._debug = (master is None and workers is None)
 
@@ -635,7 +637,8 @@ class Database(object):
                 self._master_conn = None
                 res = self._bindings.start_master(
                     self._db, self.config.master_port, SCRIPT_DIR, self._enable_watchdog,
-                    self._no_workers_timeout, self._new_job_retries_limit).success
+                    self._no_workers_timeout, self._new_job_retries_limit,
+                    self._new_scheduler).success
                 assert res
                 res = self._connect_to_master()
                 if not res:
@@ -654,12 +657,13 @@ class Database(object):
                     'config=pickle.loads(bytes(\'\'\'{config:s}\'\'\', \'utf8\'))\n'
                     + 'start_master(port=\'{master_port:s}\', block=True,\n' +
                     '             config=config, watchdog={watchdog},\n' +
-                    '             no_workers_timeout={no_workers})\" ' +
+                    '             no_workers_timeout={no_workers}, new_scheduler={new_scheduler})\" ' +
                     '').format(
                         master_port=master_port,
                         config=pickled_config,
                         watchdog=self._enable_watchdog,
-                        no_workers=self._no_workers_timeout)
+                        no_workers=self._no_workers_timeout,
+                        new_scheduler = self._new_scheduler)
                 self._master_conn = self._run_remote_cmd(
                     self._master_address, master_cmd, nohup=True)
 
@@ -725,7 +729,8 @@ class Database(object):
                     config=self.config,
                     db=self._db,
                     watchdog=self._enable_worker_watchdog,
-                    machine_params=machine_params)
+                    machine_params=machine_params,
+                    new_scheduler=self._new_scheduler)
         else:
             pickled_config = pickle.dumps(self.config, 0).decode()
             worker_cmd = (
@@ -735,7 +740,7 @@ class Database(object):
                 + 'start_worker(\'{master:s}\', port=\'{worker_port:s}\',\n' +
                 '             block=True,\n' +
                 '             watchdog={watchdog},' +
-                '             config=config)\" ' + '')
+                '             config=config, new_scheduler={new_scheduler})\" ' + '')
 
             # Start workers now that master is ready
             self._worker_conns = []
@@ -749,7 +754,8 @@ class Database(object):
                                 master=self._master_address,
                                 config=pickled_config,
                                 watchdog=self._enable_worker_watchdog,
-                                worker_port=w.partition(':')[2]),
+                                worker_port=w.partition(':')[2],
+                                new_scheduler=self._new_scheduler),
                             nohup=True))
                 except Exception as e:
                     print(
@@ -1619,7 +1625,8 @@ def start_master(port: int = None,
                  block: bool = False,
                  watchdog: bool = True,
                  no_workers_timeout: float = 30,
-                 new_job_retries_limit: int = 5):
+                 new_job_retries_limit: int = 5,
+                 new_scheduler: bool = False):
     r""" Start a master server instance on this node.
 
     Parameters
@@ -1662,7 +1669,8 @@ def start_master(port: int = None,
                            (config.master_address + ':' + port))
     result = bindings.start_master(db, port, SCRIPT_DIR, watchdog,
                                    no_workers_timeout,
-                                   new_job_retries_limit)
+                                   new_job_retries_limit,
+                                   new_scheduler)
     if not result.success():
         raise ScannerException('Failed to start master: {}'.format(
             result.msg()))
@@ -1674,7 +1682,7 @@ def start_master(port: int = None,
 def worker_process(args):
     [
         master_address, machine_params, port, config, config_path, block,
-        watchdog, db
+        watchdog, db, new_scheduler
     ] = args
     config = config or Config(config_path)
     port = port or config.worker_port
@@ -1687,7 +1695,7 @@ def worker_process(args):
         master_address)
     machine_params = machine_params or bindings.default_machine_params()
     result = bindings.start_worker(db, machine_params, str(port), SCRIPT_DIR,
-                                   watchdog)
+                                   watchdog, new_scheduler)
     if not result.success():
         raise ScannerException('Failed to start worker: {}'.format(
             result.msg()))
@@ -1704,7 +1712,8 @@ def start_worker(master_address: str,
                  block: bool = False,
                  watchdog: bool = True,
                  num_workers: int = None,
-                 db: Database = None):
+                 db: Database = None,
+                 new_scheduler: bool = False):
     r"""Starts a worker instance on this node.
 
     Parameters
@@ -1764,7 +1773,7 @@ def start_worker(master_address: str,
             results = list(
                 executor.map(worker_process, ([[
                     master_address, machine_params,
-                    int(port) + i, config, config_path, block, watchdog, None
+                    int(port) + i, config, config_path, block, watchdog, None, new_scheduler
                 ] for i in range(num_workers)])))
 
         for result in results:
@@ -1774,5 +1783,5 @@ def start_worker(master_address: str,
     else:
         return worker_process([
             master_address, machine_params, port, config, config_path, block,
-            watchdog, db
+            watchdog, db, new_scheduler
         ])

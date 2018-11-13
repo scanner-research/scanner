@@ -15,7 +15,9 @@
 
 #include "scanner/engine/runtime.h"
 #include "scanner/engine/master.h"
+#include "scanner/engine/master_scheduler.h"
 #include "scanner/engine/worker.h"
+#include "scanner/engine/worker_scheduler.h"
 
 namespace scanner {
 namespace internal {
@@ -24,10 +26,20 @@ MasterServerImpl* get_master_service(DatabaseParameters& param, const std::strin
   return new MasterServerImpl(param, port);
 }
 
+MasterServerImplNew* get_master_service_new(DatabaseParameters& param, const std::string& port) {
+  return new MasterServerImplNew(param, port);
+}
+
 WorkerImpl* get_worker_service(DatabaseParameters& params,
                                      const std::string& master_address,
                                      const std::string& worker_port) {
   return new WorkerImpl(params, master_address, worker_port);
+}
+
+WorkerImplNew* get_worker_service_new(DatabaseParameters& params,
+                               const std::string& master_address,
+                               const std::string& worker_port) {
+  return new WorkerImplNew(params, master_address, worker_port);
 }
 
 void move_if_different_address_space(Profiler& profiler,
