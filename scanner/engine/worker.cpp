@@ -859,6 +859,9 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   Profiler profiler(base_time);
   job_result->set_success(true);
 
+  // Set profiler level
+  PROFILER_LEVEL = static_cast<ProfilerLevel>(job_params->profiler_level());
+
   auto setup_ops_start = now();
   // Load Ops, register Ops, and register python kernels before running jobs
   {

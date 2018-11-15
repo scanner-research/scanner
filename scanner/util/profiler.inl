@@ -22,8 +22,10 @@ namespace scanner {
 inline void Profiler::add_interval(
   const std::string& key,
   timepoint_t start,
-  timepoint_t end)
+  timepoint_t end,
+  ProfilerLevel level)
 {
+  if (level < PROFILER_LEVEL) { return; }
   spin_lock();
   records_.emplace_back(TaskRecord{
     key,

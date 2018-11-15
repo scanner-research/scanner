@@ -23,6 +23,8 @@
 
 namespace scanner {
 
+ProfilerLevel PROFILER_LEVEL = ProfilerLevel::Info;
+
 Profiler::Profiler(timepoint_t base_time) : base_time_(base_time), lock_(0) {}
 
 Profiler::Profiler(const Profiler& other)

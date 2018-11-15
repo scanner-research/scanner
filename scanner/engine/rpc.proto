@@ -252,12 +252,18 @@ message BulkJobParameters {
   BoundaryCondition boundary_condition = 15;
   float task_timeout = 16;
   int32 checkpoint_frequency = 17;
+  enum ProfilerLevel {
+    Debug = 0;
+    Info = 1;
+    Important = 2;
+  };
+  ProfilerLevel profiler_level = 18;
 
   // For master's use only
-  DatabaseDescriptor db_meta = 18;
-  repeated Column output_columns = 20;
-  int32 bulk_job_id = 21;
-  int64 base_time = 22;
+  DatabaseDescriptor db_meta = 20;
+  repeated Column output_columns = 21;
+  int32 bulk_job_id = 22;
+  int64 base_time = 23;
 }
 
 message NewJobReply {

@@ -1163,7 +1163,7 @@ class Database(object):
 
         return table
 
-    def profiler(self, job_name):
+    def profiler(self, job_name, **kwargs):
         db_meta = self._load_db_metadata()
         if isinstance(job_name, str):
             job_id = None
@@ -1177,7 +1177,7 @@ class Database(object):
         else:
             job_id = job_name
 
-        return Profiler(self, job_id)
+        return Profiler(self, job_id, **kwargs)
 
     def get_active_jobs(self):
         req = self.protobufs.GetJobsRequest()
@@ -1280,7 +1280,8 @@ class Database(object):
             tasks_in_queue_per_pu: int = 4,
             task_timeout: int = 0,
             checkpoint_frequency: int = 1000,
-            detach: bool = False):
+            detach: bool = False,
+            profiler_level: int = 1):
         r"""Runs a collection of jobs.
 
         Parameters
@@ -1558,6 +1559,7 @@ class Database(object):
             self.protobufs.BulkJobParameters.REPEAT_EDGE)
         job_params.task_timeout = task_timeout
         job_params.checkpoint_frequency = checkpoint_frequency
+        job_params.profiler_level = profiler_level
 
         job_params.memory_pool_config.pinned_cpu = False
         if cpu_pool is not None:

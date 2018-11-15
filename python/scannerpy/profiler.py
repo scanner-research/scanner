@@ -1,5 +1,9 @@
 import struct
 import json
+from concurrent.futures import ThreadPoolExecutor
+import random
+import tarfile
+import os
 
 from scannerpy.common import *
 
@@ -25,28 +29,28 @@ class Profiler:
     Contains profiling information about Scanner jobs.
     """
 
-    def __init__(self, db, job_id):
+    def __init__(self, db, job_id, load_threads=8, subsample=None):
         self._storage = db._storage
         job = db._load_descriptor(db.protobufs.BulkJobDescriptor,
                                   'jobs/{}/descriptor.bin'.format(job_id))
 
-        self._worker_profilers = {}
-
         def get_prof(path, worker=True):
+            print('loading', path)
             file_info = self._storage.get_file_info(path)
             if file_info.file_exists:
                 time, profs = self._parse_profiler_file(path, worker)
                 return time, profs
             else:
                 return None
-                self._worker_profilers[n] = (time, profs)
 
+        nodes = list(range(job.num_nodes))
+        if subsample is not None:
+            nodes = random.sample(nodes, subsample)
 
-        for n in range(job.num_nodes):
-            path = '{}/jobs/{}/profile_{}.bin'.format(db._db_path, job_id, n)
-            prof = get_prof(path)
-            if prof is not None:
-                self._worker_profilers[n] = prof
+        with ThreadPoolExecutor(max_workers=load_threads) as executor:
+            profilers = executor.map(
+                get_prof, ['{}/jobs/{}/profile_{}.bin'.format(db._db_path, job_id, n) for n in nodes])
+        self._worker_profilers = {n: prof for n, prof in enumerate(profilers) if prof is not None}
 
         path = '{}/jobs/{}/profile_master.bin'.format(db._db_path, job_id)
         self._master_profiler = get_prof(path, worker=False)
@@ -127,8 +131,25 @@ class Profiler:
                     })
                     for interval in prof['intervals']:
                         traces.append(make_trace_from_interval(interval, worker_type, proc, tid))
-        with open(path, 'w') as f:
+
+
+        parts = path.split('.')
+        base = parts[0]
+        exts = parts[1:]
+        with open(base + '.trace', 'w') as f:
             f.write(json.dumps(traces))
+
+        if exts == ['trace']:
+            return path
+
+        elif exts == ['tar', 'gz']:
+            with tarfile.open(base + '.tar.gz', 'w:gz') as tar:
+                tar.add(base + '.trace')
+            os.remove(base + '.trace')
+            return path
+
+        else:
+            raise ScannerException("Invalid trace extension '{}'. Must be .trace or .tar.gz.".format(ext))
 
     def _convert_time(self, d):
         def convert(t):
@@ -182,6 +203,7 @@ class Profiler:
         num_keys = t[0]
         # Key dictionary encoding
         key_dictionary = {}
+        print('keys', num_keys)
         for i in range(num_keys):
             key_name, offset = unpack_string(bytes_buffer, offset)
             t, offset = read_advance('B', bytes_buffer, offset)
@@ -191,6 +213,7 @@ class Profiler:
         t, offset = read_advance('q', bytes_buffer, offset)
         num_intervals = t[0]
         intervals = []
+        print('intervals', num_intervals)
         for i in range(num_intervals):
             # Key index
             t, offset = read_advance('B', bytes_buffer, offset)
@@ -204,6 +227,7 @@ class Profiler:
         t, offset = read_advance('q', bytes_buffer, offset)
         num_counters = t[0]
         counters = {}
+        print('counters', num_counters)
         for i in range(num_counters):
             # Counter name
             counter_name, offset = unpack_string(bytes_buffer, offset)
@@ -223,6 +247,8 @@ class Profiler:
 
     def _parse_profiler_file(self, profiler_path, worker=True):
         bytes_buffer = self._storage.read(profiler_path)
+        print('read bytes')
+
         offset = 0
         # Read start and end time intervals
         t, offset = read_advance('q', bytes_buffer, offset)
