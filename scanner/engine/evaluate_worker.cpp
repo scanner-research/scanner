@@ -893,7 +893,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
           }
         }
         profiler_.add_interval("stencil_create:" + op_name,
-                               stencil_create_start, now());
+                               stencil_create_start, now(), ProfilerLevel::Debug);
 
         // Setup output buffers to receive op output
         BatchedElements output_columns;
@@ -903,7 +903,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
         // by the kernel
         auto eval_start = now();
         kernel->execute_kernel(input_columns, output_columns);
-        profiler_.add_interval("evaluate:" + op_name, eval_start, now());
+        profiler_.add_interval("evaluate:" + op_name, eval_start, now(), ProfilerLevel::Debug);
 
         auto cleanup_start = now();
         // Delete unused output columns
@@ -938,7 +938,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
               producible_row_ids.begin() + start - row_start,
               producible_row_ids.begin() + start - row_start + batch);
         }
-        profiler_.add_interval("cleanup:" + op_name, cleanup_start, now());
+        profiler_.add_interval("cleanup:" + op_name, cleanup_start, now(), ProfilerLevel::Debug);
       }
     }
     profiler_.add_interval("full_eval:" + op_name, full_eval_start, now());

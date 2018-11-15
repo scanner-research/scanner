@@ -197,7 +197,7 @@ bool SoftwareVideoEncoder::feed(const u8* frame_buffer, size_t frame_size) {
   }
   auto scale_end = now();
   if (profiler_) {
-    profiler_->add_interval("ffmpeg:scale_frame", scale_start, scale_end);
+    profiler_->add_interval("ffmpeg:scale_frame", scale_start, scale_end, ProfilerLevel::Debug);
   }
 
   delete[] bigger_buf;
@@ -308,9 +308,9 @@ void SoftwareVideoEncoder::feed_frame(bool flush) {
              << "." << LIBAVCODEC_VERSION_MICRO << ")";
 #endif
   if (profiler_) {
-    profiler_->add_interval("ffmpeg:send_frame", send_start, send_end);
+    profiler_->add_interval("ffmpeg:send_frame", send_start, send_end, ProfilerLevel::Debug);
     profiler_->add_interval("ffmpeg:receive_packet", receive_start,
-                            receive_end);
+                            receive_end, ProfilerLevel::Debug);
   }
 }
 }

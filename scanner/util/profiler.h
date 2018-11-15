@@ -29,13 +29,21 @@ class WriteFile;
 
 namespace scanner {
 
+enum ProfilerLevel {
+  Debug = 0,
+  Info = 1,
+  Important = 2
+};
+
+extern ProfilerLevel PROFILER_LEVEL;
+
 class Profiler {
  public:
   Profiler(timepoint_t base_time);
 
   Profiler(const Profiler& other);
 
-  void add_interval(const std::string& key, timepoint_t start, timepoint_t end);
+  void add_interval(const std::string& key, timepoint_t start, timepoint_t end, ProfilerLevel level=ProfilerLevel::Info);
 
   void increment(const std::string& key, int64_t value);
 

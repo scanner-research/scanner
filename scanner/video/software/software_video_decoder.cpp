@@ -186,7 +186,7 @@ bool SoftwareVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
     auto get_context_end = now();
     if (profiler_) {
       profiler_->add_interval("ffmpeg:get_sws_context", get_context_start,
-                              get_context_end);
+                              get_context_end, ProfilerLevel::Debug);
     }
   }
 
@@ -212,7 +212,7 @@ bool SoftwareVideoDecoder::get_frame(u8* decoded_buffer, size_t decoded_size) {
   frame_pool_.push(frame);
 
   if (profiler_) {
-    profiler_->add_interval("ffmpeg:scale_frame", scale_start, scale_end);
+    profiler_->add_interval("ffmpeg:scale_frame", scale_start, scale_end, ProfilerLevel::Debug);
   }
 
   return decoded_frame_queue_.size() > 0;
@@ -274,9 +274,9 @@ void SoftwareVideoDecoder::feed_packet(bool flush) {
   }
   auto received_end = now();
   if (profiler_) {
-    profiler_->add_interval("ffmpeg:send_packet", send_start, send_end);
+    profiler_->add_interval("ffmpeg:send_packet", send_start, send_end, ProfilerLevel::Debug);
     profiler_->add_interval("ffmpeg:receive_frame", received_start,
-                            received_end);
+                            received_end, ProfilerLevel::Debug);
   }
 #else
   uint8_t* orig_data = packet_.data;
@@ -297,7 +297,7 @@ void SoftwareVideoDecoder::feed_packet(bool flush) {
     int consumed_length =
         avcodec_decode_video2(cc_, frame, &got_picture, &packet_);
     if (profiler_) {
-      profiler_->add_interval("ffmpeg:decode_video", decode_start, now());
+      profiler_->add_interval("ffmpeg:decode_video", decode_start, now(), ProfilerLevel::Debug);
     }
     if (consumed_length < 0) {
       char err_msg[256];

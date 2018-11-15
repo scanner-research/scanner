@@ -1348,6 +1348,9 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
     .count();
   job_params_.set_base_time(job_start_ns);
 
+  // Set profiling level
+  PROFILER_LEVEL = static_cast<ProfilerLevel>(job_params->profiler_level());
+
   i32 bulk_job_id = active_bulk_job_id_;
   std::shared_ptr<BulkJob> state(new BulkJob);
   {
