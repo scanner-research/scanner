@@ -35,7 +35,6 @@ class Profiler:
                                   'jobs/{}/descriptor.bin'.format(job_id))
 
         def get_prof(path, worker=True):
-            print('loading', path)
             file_info = self._storage.get_file_info(path)
             if file_info.file_exists:
                 time, profs = self._parse_profiler_file(path, worker)
@@ -149,7 +148,8 @@ class Profiler:
             return path
 
         else:
-            raise ScannerException("Invalid trace extension '{}'. Must be .trace or .tar.gz.".format(ext))
+            raise ScannerException("Invalid trace extension '{}'. Must be .trace or .tar.gz." \
+                                   .format(''.join(['.' + e for e in exts])))
 
     def _convert_time(self, d):
         def convert(t):
@@ -203,7 +203,6 @@ class Profiler:
         num_keys = t[0]
         # Key dictionary encoding
         key_dictionary = {}
-        print('keys', num_keys)
         for i in range(num_keys):
             key_name, offset = unpack_string(bytes_buffer, offset)
             t, offset = read_advance('B', bytes_buffer, offset)
@@ -213,7 +212,6 @@ class Profiler:
         t, offset = read_advance('q', bytes_buffer, offset)
         num_intervals = t[0]
         intervals = []
-        print('intervals', num_intervals)
         for i in range(num_intervals):
             # Key index
             t, offset = read_advance('B', bytes_buffer, offset)
@@ -227,7 +225,6 @@ class Profiler:
         t, offset = read_advance('q', bytes_buffer, offset)
         num_counters = t[0]
         counters = {}
-        print('counters', num_counters)
         for i in range(num_counters):
             # Counter name
             counter_name, offset = unpack_string(bytes_buffer, offset)
@@ -247,7 +244,6 @@ class Profiler:
 
     def _parse_profiler_file(self, profiler_path, worker=True):
         bytes_buffer = self._storage.read(profiler_path)
-        print('read bytes')
 
         offset = 0
         # Read start and end time intervals
