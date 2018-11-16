@@ -26,23 +26,23 @@ jobs:
   include:
     - stage: "Test build"
       script: "travis_retry ./scripts/travis-build.sh"
-    - stage: "Test build"
-      language: generic
-      services:
-        addons:
-      install:
-        pip3 install requests[security] --upgrade
-      script: "travis_retry ./scripts/travis-osx-build.sh"
-      os: osx
+    # - stage: "Test build"
+    #   language: generic
+    #   services:
+    #     addons:
+    #   install:
+    #     pip3 install requests[security] --upgrade
+    #   script: "travis_retry ./scripts/travis-osx-build.sh"
+    #   os: osx
     - stage: test
       script: "travis_retry ./scripts/travis-test.sh"
-      env: TEST_TYPE=cpp 
+      env: TEST_TYPE=cpp
     - stage: test
       script: "travis_retry ./scripts/travis-test.sh"
-      env: TEST_TYPE=tutorials 
+      env: TEST_TYPE=tutorials
     - stage: test
       script: "travis_retry ./scripts/travis-test.sh"
-      env: TEST_TYPE=integration 
+      env: TEST_TYPE=integration
     - stage: build
       script: "travis_retry ./scripts/travis-build.sh"
       after_success: "travis_retry ./scripts/travis-publish.sh"
