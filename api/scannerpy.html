@@ -14,7 +14,6 @@
     <script type="text/javascript" src="../_static/jquery.js"></script>
     <script type="text/javascript" src="../_static/underscore.js"></script>
     <script type="text/javascript" src="../_static/doctools.js"></script>
-    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
     <link rel="author" title="About these documents" href="../about.html" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -262,7 +261,7 @@ serialized representations of the data.</li>
 
 <dl class="method">
 <dt id="scannerpy.database.Database.profiler">
-<code class="descname">profiler</code><span class="sig-paren">(</span><em>job_name</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#Database.profiler"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.Database.profiler" title="Permalink to this definition">¶</a></dt>
+<code class="descname">profiler</code><span class="sig-paren">(</span><em>job_name</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#Database.profiler"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.Database.profiler" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -339,7 +338,7 @@ over. If <cite>batch == 1</cite>, kernel is assume to not be able to batch.</li>
 
 <dl class="method">
 <dt id="scannerpy.database.Database.run">
-<code class="descname">run</code><span class="sig-paren">(</span><em>output</em>, <em>jobs</em>, <em>force=False</em>, <em>work_packet_size=32</em>, <em>io_packet_size=128</em>, <em>cpu_pool=None</em>, <em>gpu_pool=None</em>, <em>pipeline_instances_per_node=None</em>, <em>show_progress=True</em>, <em>profiling=False</em>, <em>load_sparsity_threshold=8</em>, <em>tasks_in_queue_per_pu=4</em>, <em>task_timeout=0</em>, <em>checkpoint_frequency=1000</em>, <em>detach=False</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#Database.run"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.Database.run" title="Permalink to this definition">¶</a></dt>
+<code class="descname">run</code><span class="sig-paren">(</span><em>output</em>, <em>jobs</em>, <em>force=False</em>, <em>work_packet_size=32</em>, <em>io_packet_size=128</em>, <em>cpu_pool=None</em>, <em>gpu_pool=None</em>, <em>pipeline_instances_per_node=None</em>, <em>show_progress=True</em>, <em>profiling=False</em>, <em>load_sparsity_threshold=8</em>, <em>tasks_in_queue_per_pu=4</em>, <em>task_timeout=0</em>, <em>checkpoint_frequency=1000</em>, <em>detach=False</em>, <em>profiler_level=1</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#Database.run"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.Database.run" title="Permalink to this definition">¶</a></dt>
 <dd><p>Runs a collection of jobs.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -1238,7 +1237,7 @@ tasks.</p>
 <span id="scannerpy-profiler-module"></span><h2>scannerpy.profiler module<a class="headerlink" href="#module-scannerpy.profiler" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="scannerpy.profiler.Profiler">
-<em class="property">class </em><code class="descclassname">scannerpy.profiler.</code><code class="descname">Profiler</code><span class="sig-paren">(</span><em>db</em>, <em>job_id</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/profiler.html#Profiler"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.profiler.Profiler" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">scannerpy.profiler.</code><code class="descname">Profiler</code><span class="sig-paren">(</span><em>db</em>, <em>job_id</em>, <em>load_threads=8</em>, <em>subsample=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/profiler.html#Profiler"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.profiler.Profiler" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.7)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
 <p>Contains profiling information about Scanner jobs.</p>
 <dl class="method">
@@ -1575,7 +1574,7 @@ to run a computation over.</p>
     </div>
   <div class="footer">
     &copy; Copyright 2018, Alex Poms, Will Crichton.
-    Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.1.
+    Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.2.
   </div>
   
   </body>

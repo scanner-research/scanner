@@ -14,7 +14,6 @@
     <script type="text/javascript" src="../../_static/jquery.js"></script>
     <script type="text/javascript" src="../../_static/underscore.js"></script>
     <script type="text/javascript" src="../../_static/doctools.js"></script>
-    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
     <link rel="author" title="About these documents" href="../../about.html" />
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
@@ -1210,7 +1209,7 @@
 
         <span class="k">return</span> <span class="n">table</span></div>
 
-<div class="viewcode-block" id="Database.profiler"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.database.Database.profiler">[docs]</a>    <span class="k">def</span> <span class="nf">profiler</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">job_name</span><span class="p">):</span>
+<div class="viewcode-block" id="Database.profiler"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.database.Database.profiler">[docs]</a>    <span class="k">def</span> <span class="nf">profiler</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">job_name</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="n">db_meta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load_db_metadata</span><span class="p">()</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">job_name</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
             <span class="n">job_id</span> <span class="o">=</span> <span class="kc">None</span>
@@ -1224,7 +1223,7 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="n">job_id</span> <span class="o">=</span> <span class="n">job_name</span>
 
-        <span class="k">return</span> <span class="n">Profiler</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">job_id</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="n">Profiler</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">job_id</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="Database.get_active_jobs"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.database.Database.get_active_jobs">[docs]</a>    <span class="k">def</span> <span class="nf">get_active_jobs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">req</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">protobufs</span><span class="o">.</span><span class="n">GetJobsRequest</span><span class="p">()</span>
@@ -1288,11 +1287,19 @@
         <span class="k">return</span></div>
 
 <div class="viewcode-block" id="Database.wait_on_job"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.database.Database.wait_on_job">[docs]</a>    <span class="k">def</span> <span class="nf">wait_on_job</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">sleep_schedule</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">15</span><span class="p">):</span>
+            <span class="n">sleep_schedule</span> <span class="o">+=</span> <span class="p">[</span><span class="mf">0.02</span> <span class="o">*</span> <span class="p">(</span><span class="mi">2</span> <span class="o">**</span> <span class="n">i</span><span class="p">)]</span> <span class="o">*</span> <span class="p">(</span><span class="mi">50</span> <span class="o">//</span> <span class="p">(</span><span class="mi">2</span> <span class="o">**</span> <span class="n">i</span><span class="p">))</span>
         <span class="n">gen</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wait_on_job_gen</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">sleep_attempt</span> <span class="o">=</span> <span class="mi">0</span>
         <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="n">job_status</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">gen</span><span class="p">)</span>
-                <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">sleep_attempt</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">sleep_schedule</span><span class="p">):</span>
+                    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">sleep_schedule</span><span class="p">[</span><span class="n">sleep_attempt</span><span class="p">])</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+                <span class="n">sleep_attempt</span> <span class="o">+=</span> <span class="mi">1</span>
             <span class="k">except</span> <span class="ne">StopIteration</span><span class="p">:</span>
                 <span class="k">break</span>
         <span class="k">return</span> <span class="n">job_status</span></div>
@@ -1319,7 +1326,8 @@
             <span class="n">tasks_in_queue_per_pu</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span><span class="p">,</span>
             <span class="n">task_timeout</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
             <span class="n">checkpoint_frequency</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1000</span><span class="p">,</span>
-            <span class="n">detach</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+            <span class="n">detach</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+            <span class="n">profiler_level</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">):</span>
         <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Runs a collection of jobs.</span>
 
 <span class="sd">        Parameters</span>
@@ -1597,6 +1605,7 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">protobufs</span><span class="o">.</span><span class="n">BulkJobParameters</span><span class="o">.</span><span class="n">REPEAT_EDGE</span><span class="p">)</span>
         <span class="n">job_params</span><span class="o">.</span><span class="n">task_timeout</span> <span class="o">=</span> <span class="n">task_timeout</span>
         <span class="n">job_params</span><span class="o">.</span><span class="n">checkpoint_frequency</span> <span class="o">=</span> <span class="n">checkpoint_frequency</span>
+        <span class="n">job_params</span><span class="o">.</span><span class="n">profiler_level</span> <span class="o">=</span> <span class="n">profiler_level</span>
 
         <span class="n">job_params</span><span class="o">.</span><span class="n">memory_pool_config</span><span class="o">.</span><span class="n">pinned_cpu</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="k">if</span> <span class="n">cpu_pool</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -1606,11 +1615,15 @@
                 <span class="n">cpu_pool</span> <span class="o">=</span> <span class="n">cpu_pool</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
             <span class="n">size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_size_string</span><span class="p">(</span><span class="n">cpu_pool</span><span class="p">)</span>
             <span class="n">job_params</span><span class="o">.</span><span class="n">memory_pool_config</span><span class="o">.</span><span class="n">cpu</span><span class="o">.</span><span class="n">free_space</span> <span class="o">=</span> <span class="n">size</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">job_params</span><span class="o">.</span><span class="n">memory_pool_config</span><span class="o">.</span><span class="n">cpu</span><span class="o">.</span><span class="n">use_pool</span> <span class="o">=</span> <span class="kc">False</span>
 
         <span class="k">if</span> <span class="n">gpu_pool</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">job_params</span><span class="o">.</span><span class="n">memory_pool_config</span><span class="o">.</span><span class="n">gpu</span><span class="o">.</span><span class="n">use_pool</span> <span class="o">=</span> <span class="kc">True</span>
             <span class="n">size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_size_string</span><span class="p">(</span><span class="n">gpu_pool</span><span class="p">)</span>
             <span class="n">job_params</span><span class="o">.</span><span class="n">memory_pool_config</span><span class="o">.</span><span class="n">gpu</span><span class="o">.</span><span class="n">free_space</span> <span class="o">=</span> <span class="n">size</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">job_params</span><span class="o">.</span><span class="n">memory_pool_config</span><span class="o">.</span><span class="n">gpu</span><span class="o">.</span><span class="n">use_pool</span> <span class="o">=</span> <span class="kc">False</span>
 
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_workers_started</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_start_cluster</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">start_workers</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_worker_paths</span><span class="p">)</span>
@@ -1944,7 +1957,7 @@
     </div>
   <div class="footer">
     &copy; Copyright 2018, Alex Poms, Will Crichton.
-    Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.1.
+    Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.2.
   </div>
   
   </body>
