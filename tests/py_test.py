@@ -193,7 +193,7 @@ def test_profiler(db):
     #f = tempfile.NamedTemporaryFile(delete=False)
     #f.close()
     #profiler.write_trace(f.name)
-    profiler.write_trace("test.prof")
+    profiler.write_trace("test.trace")
     profiler.statistics()
     #run(['rm', '-f', f.name])
 
