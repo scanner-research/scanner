@@ -14,6 +14,7 @@ class TensorFlowKernel(Kernel):
         for handle in config.devices:
             if handle.type == DeviceType.GPU.value:
                 visible_device_list.append(str(handle.id))
+                tf_config.gpu_options.allow_growth = True
                 cpu_only = False
         if cpu_only:
             tf_config.device_count['GPU'] = 0
