@@ -40,15 +40,17 @@ if db.has_gpu():
     print('Using GPUs')
     device = DeviceType.GPU
     pipeline_instances = -1
+    scales = 3
 else:
     print('Using CPUs')
     device = DeviceType.CPU
     pipeline_instances = 1
+    scales = 1
 
 frame = db.sources.FrameColumn()
 poses_out = db.ops.OpenPose(
     frame=frame,
-    pose_num_scales=3,
+    pose_num_scales=scales,
     pose_scale_gap=0.33,
     device=device)
 drawn_frame = db.ops.PoseDraw(frame=frame, frame_poses=poses_out)
