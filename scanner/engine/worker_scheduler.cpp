@@ -1878,6 +1878,9 @@ bool WorkerImplNew::process_job(const proto::BulkJobParameters* job_params,
   std::vector<i64> allocated_work_to_queues(pipeline_instances_per_node);
   std::vector<i64> retired_work_for_queues(pipeline_instances_per_node);
   bool finished = false;
+  // Task -> TaskStream
+  std::map<i64, TaskStream> task_stream_map;
+  Profiler scheduler_profiler(base_time);
   // This keeps track of the last time we received a "wait_for_work" message
   // from the master. If less than 1 second have passed since this message, we
   // shouldn't ask the master for more work to avoid overloading it.
