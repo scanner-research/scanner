@@ -19,7 +19,7 @@ def bboxes(buf, protobufs):
 
 
 def poses(buf, protobufs):
-    if len(buf) == 1:
+    if len(buf) == 4:
         return []
 
     kp_size = (
