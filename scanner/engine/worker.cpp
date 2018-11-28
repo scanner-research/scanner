@@ -487,10 +487,6 @@ WorkerImpl::WorkerImpl(DatabaseParameters& db_params,
   set_database_path(db_params.db_path);
 
   avcodec_register_all();
-#ifdef DEBUG
-  // Stop SIG36 from grpc when debugging
-  grpc_use_signal(-1);
-#endif
   // google::protobuf::io::CodedInputStream::SetTotalBytesLimit(67108864 * 4,
   //                                                            67108864 * 2);
 

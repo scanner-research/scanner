@@ -303,7 +303,7 @@ elif [[ $INSTALL_ALL == false ]]; then
     fi
 
     if [[ -z ${WITH_PROTOBUF+x} ]]; then
-        echo -n "Do you have protobuf>=3.5.1 installed? [y/N]: "
+        echo -n "Do you have protobuf>=3.6.1 installed? [y/N]: "
         read yn
         if [[ $yn == y ]] || [[ $yn == Y ]]; then
             INSTALL_PROTOBUF=false
@@ -320,7 +320,7 @@ elif [[ $INSTALL_ALL == false ]]; then
     fi
 
     if [[ -z ${WITH_GRPC+x} ]]; then
-        echo -n "Do you have grpc==1.12.0 installed? [y/N]: "
+        echo -n "Do you have grpc==1.16.0 installed? [y/N]: "
         read yn
         if [[ $yn == y ]] || [[ $yn == Y ]]; then
             INSTALL_GRPC=false
@@ -474,24 +474,24 @@ if [[ $INSTALL_OPENCV == true ]] && [[ ! -f $BUILD_DIR/opencv.done ]]; then
 fi
 
 if [[ $INSTALL_PROTOBUF == true ]] && [[ ! -f $BUILD_DIR/protobuf.done ]] ; then
-    # protobuf 3.5.1
-    echo "Installing protobuf 3.5.1..."
+    # protobuf 3.6.1
+    echo "Installing protobuf 3.6.1..."
     cd $BUILD_DIR
     rm -fr protobuf
-    git clone -b v3.5.1 https://github.com/google/protobuf.git --depth 1 && \
+    git clone -b v3.6.1 https://github.com/google/protobuf.git --depth 1 && \
         cd protobuf && bash ./autogen.sh && \
         ./configure --prefix=$INSTALL_PREFIX && make -j$cores && \
         make install && touch $BUILD_DIR/protobuf.done \
             || { echo 'Installing protobuf failed!' ; exit 1; }
-    echo "Done installing protobuf 3.5.1"
+    echo "Done installing protobuf 3.6.1"
 fi
 
 if [[ $INSTALL_GRPC == true ]] && [[ ! -f $BUILD_DIR/grpc.done ]] ; then
-    # gRPC 1.12.0
-    echo "Installing gRPC 1.12.0..."
+    # gRPC 1.16.0
+    echo "Installing gRPC 1.16.0..."
     cd $BUILD_DIR
     rm -fr grpc
-    git clone -b v1.12.0 https://github.com/grpc/grpc && \
+    git clone -b v1.16.0 https://github.com/grpc/grpc && \
         cd grpc && git submodule update --init --recursive && \
         CPPFLAGS=-I$INSTALL_PREFIX/include LDFLAGS=-L$INSTALL_PREFIX/lib make -j$cores && \
         CPPFLAGS=-I$INSTALL_PREFIX/include LDFLAGS=-L$INSTALL_PREFIX/lib make install prefix=$INSTALL_PREFIX && \
@@ -513,7 +513,7 @@ if [[ $INSTALL_GRPC == true ]] && [[ ! -f $BUILD_DIR/grpc.done ]] ; then
         install_name_tool -change libgrpc_unsecure.dylib @rpath/libgrpc_unsecure.dylib \
                           $INSTALL_PREFIX/lib/libgrpc++_unsecure.dylib
     fi
-    echo "Done installing gRPC 1.12.0"
+    echo "Done installing gRPC 1.16.0"
 fi
 
 if [[ $INSTALL_HALIDE == true ]] && [[ ! -f $BUILD_DIR/halide.done ]] ; then
@@ -727,6 +727,7 @@ if [[ $INSTALL_CAFFE == true ]] && \
               -DCUDA_ARCH_BIN="30 35 50 60 61" \
               -DCUDA_ARCH_PTX="30 35 50 60 61" \
               -DOpenCV_DIR=$INSTALL_PREFIX \
+              -DCMAKE_CXX_FLAGS="-std=c++11" \
               .. && \
         make -j${cores} && \
         make install && \
