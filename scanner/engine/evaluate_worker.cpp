@@ -398,6 +398,15 @@ EvaluateWorker::~EvaluateWorker() {
   clear_stencil_cache();
 }
 
+void EvaluateWorker::new_job(i64 job_idx,
+                             const JobAnalysisInfo& info) {
+  job_info_[job_idx] = info;
+}
+
+void EvaluateWorker::finished_job(i64 job_idx) {
+  job_info_.erase(job_idx);
+}
+
 void EvaluateWorker::new_task(i64 job_idx, i64 task_idx,
                               const std::vector<TaskStream>& task_streams) {
 
@@ -453,18 +462,20 @@ void EvaluateWorker::new_task(i64 job_idx, i64 task_idx,
     current_element_cache_input_idx_.push_back(0);
   }
 
+  JobAnalysisInfo job_info = job_info_.at(job_idx_);
   // Initialize partitioners and domain samplers for this job and this slice
   partitioners_.clear();
   domain_samplers_.clear();
   for (auto& kv : arg_group_.sampling_args) {
     i64 op_idx = kv.first;
+    i64 global_op_idx = arg_group_.global_op_idx[op_idx];
     i64 slice = 0;
     if (arg_group_.sampling_args.at(op_idx).at(job_idx).size() > 1) {
       slice = slice_group_;
     }
     auto& sampling_args =
         arg_group_.sampling_args.at(op_idx).at(job_idx).at(slice);
-    if (arg_group_.slice_input_rows.count(op_idx) > 0) {
+    if (job_info.slice_input_rows.count(global_op_idx) > 0) {
       // Slice op
       Partitioner* tpartitioner = nullptr;
       Result result = make_partitioner_instance(
@@ -472,7 +483,7 @@ void EvaluateWorker::new_task(i64 job_idx, i64 task_idx,
           std::vector<u8>(
               sampling_args.sampling_args().begin(),
               sampling_args.sampling_args().end()),
-          arg_group_.slice_input_rows.at(op_idx).at(job_idx),
+          job_info.slice_input_rows.at(global_op_idx),
           tpartitioner);
       partitioners_[op_idx].reset(tpartitioner);
       if (!result.success()) {
@@ -543,6 +554,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
   // input rows and stencil cache.
   for (size_t k = 0; k < arg_group_.op_names.size(); ++k) {
     auto op_start = now();
+    i64 global_op_idx = arg_group_.global_op_idx[k];
     const std::string& op_name = arg_group_.op_names.at(k);
     bool is_source = arg_group_.is_source.at(k);
     DeviceHandle current_handle = kernel_devices_[k];
@@ -649,15 +661,14 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
     }
 
     // Determine input op max rows for handling boundary
-    i64 max_rows;
-    if (arg_group_.op_input_domain_size.at(k).at(job_idx_).size() == 1) {
-      // HACK(apoms): we can only do this because we guarantee that there is
-      // only one slice per pipeline
-      max_rows = arg_group_.op_input_domain_size.at(k).at(job_idx_).at(0);
-    } else {
-      max_rows =
-          arg_group_.op_input_domain_size.at(k).at(job_idx_).at(slice_group_);
-    }
+    JobAnalysisInfo job_info = job_info_.at(job_idx_);
+    // HACK(apoms): we can only do this because we guarantee that there is
+    // only one slice per pipeline
+    i64 slice_to_read = job_info.total_rows_per_op.at(global_op_idx).size() == 1
+                            ? 0
+                            : slice_group_;
+    i64 max_rows =
+        job_info.total_rows_per_op.at(global_op_idx).at(slice_to_read);
 
     // Figure out how many elements can be produced
     auto compute_producible_elements =
@@ -826,7 +837,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
     } else if (op_name == UNSLICE_OP_NAME) {
       // Remap row ids from sub domain to original domain
       const auto& unslice_input_counts =
-          arg_group_.unslice_input_rows.at(k).at(job_idx_);
+          job_info.unslice_input_rows.at(global_op_idx);
       i64 offset = 0;
       for (i64 i = 0; i < slice_group_; ++i) {
         offset += unslice_input_counts.at(i);

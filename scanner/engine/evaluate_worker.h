@@ -87,25 +87,17 @@ class PreEvaluateWorker {
 };
 
 struct OpArgGroup {
+  std::vector<i64> global_op_idx;
   std::vector<std::string> op_names;
   std::vector<bool> is_source;
   /// For sampling ops
   // Op -> Job -> slice
   std::map<i64, std::vector<std::vector<proto::SamplingArgs>>> sampling_args;
-  /// For slice ops
-  // Op -> Job -> slice
-  std::map<i64, std::vector<i64>> slice_input_rows;
-  std::map<i64, std::vector<std::vector<i64>>> slice_output_rows;
-  /// For unslice ops
-  // Op -> Job -> slice
-  std::map<i64, std::vector<std::vector<i64>>> unslice_input_rows;
   /// For regular kernels
   std::vector<std::tuple<KernelFactory*, KernelConfig>> kernel_factories;
-  // Number of rows in the input domain for this op
-  // Op -> Job -> slice -> rows
-  std::map<i64, std::vector<std::vector<i64>>> op_input_domain_size;
   // Op -> Job -> slice -> args
   std::map<i64, std::vector<std::vector<std::vector<u8>>>> op_args;
+
   std::vector<std::vector<std::tuple<i32, std::string>>> live_columns;
   // Discarded after kernel use
   std::vector<std::vector<i32>> dead_columns;
@@ -144,6 +136,12 @@ class EvaluateWorker {
 
   ~EvaluateWorker();
 
+  // Thread-safe
+  void new_job(i64 job_idx, const JobAnalysisInfo& info);
+
+  // Thread-safe
+  void finished_job(i64 job_idx);
+
   void new_task(i64 job_idx, i64 task_idx,
                 const std::vector<TaskStream>& task_streams);
 
@@ -160,6 +158,7 @@ class EvaluateWorker {
   Profiler& profiler_;
 
   OpArgGroup arg_group_;
+  std::map<i64, JobAnalysisInfo> job_info_;
   std::vector<DeviceHandle> kernel_devices_;
   std::vector<std::vector<DeviceHandle>> kernel_input_devices_;
   std::vector<std::vector<DeviceHandle>> kernel_output_devices_;

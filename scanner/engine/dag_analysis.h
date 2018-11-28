@@ -50,19 +50,6 @@ struct DAGAnalysisInfo {
   std::map<i64, i64> sampling_ops;
   std::map<i64, std::vector<i64>> op_children;
 
-  // Input rows to slice Ops per Job
-  std::vector<std::map<i64, i64>> slice_input_rows;
-  // Job -> Op -> Slice
-  std::vector<std::map<i64, std::vector<i64>>> slice_output_rows;
-  // Input rows to unslice Ops per Job
-  // Job -> Op -> Slice
-  std::vector<std::map<i64, std::vector<i64>>> unslice_input_rows;
-  // Total rows for each ops domain
-  // Job -> Op -> Slice
-  std::vector<std::map<i64, std::vector<i64>>> total_rows_per_op;
-  // Total output rows per Job
-  std::vector<i64> total_output_rows;
-
   std::map<i64, bool> bounded_state_ops;
   std::map<i64, bool> unbounded_state_ops;
   std::map<i64, i32> warmup_sizes;
@@ -77,6 +64,8 @@ struct DAGAnalysisInfo {
   std::vector<std::vector<i32>> dead_columns;
   std::vector<std::vector<i32>> unused_outputs;
   std::vector<std::vector<i32>> column_mapping;
+
+  std::map<i64, JobAnalysisInfo> job_info;
 };
 
 
@@ -88,10 +77,11 @@ Result validate_jobs_and_ops(
 
 Result determine_input_rows_to_slices(
     DatabaseMetadata& meta, TableMetaCache& table_metas,
-    const std::vector<proto::Job>& jobs,
     const std::vector<proto::Op>& ops,
-    DAGAnalysisInfo& info,
-    storehouse::StorageConfig* storage_config);
+    const proto::Job& job,
+    int job_idx,
+    storehouse::StorageConfig* storage_config,
+    DAGAnalysisInfo& info);
 
 Result derive_slice_final_output_rows(
     const proto::Job& job,
@@ -101,8 +91,8 @@ Result derive_slice_final_output_rows(
     DAGAnalysisInfo& info,
     std::vector<i64>& slice_output_partition);
 
-void populate_analysis_info(const std::vector<proto::Op>& ops,
-                            DAGAnalysisInfo& info);
+void populate_op_analysis_info(const std::vector<proto::Op>& ops,
+                               DAGAnalysisInfo& info);
 
 // Change all edges from input Ops to instead come from the first Op.
 // We currently only implement IO at the start and end of a pipeline.
@@ -112,14 +102,17 @@ void remap_input_op_edges(std::vector<proto::Op>& ops,
 void perform_liveness_analysis(const std::vector<proto::Op>& ops,
                                DAGAnalysisInfo& info);
 
-Result derive_stencil_requirements(
+Result derive_required_elements_for_task(
+    // Inputs
     const DatabaseMetadata& meta, TableMetaCache& table_meta,
     const proto::Job& job, const std::vector<proto::Op>& ops,
     const DAGAnalysisInfo& analysis_results,
     proto::BulkJobParameters::BoundaryCondition boundary_condition,
     i64 table_id, i64 job_idx, i64 task_idx,
+    storehouse::StorageConfig* storage_config,
+    // Outputs
     const std::vector<i64>& output_rows, LoadWorkEntry& output_entry,
-    std::deque<TaskStream>& task_streams, storehouse::StorageConfig* storage_config);
+    std::deque<TaskStream>& task_streams);
 
 // Result derive_input_rows_from_output_rows(
 //     const std::vector<proto::Job>& jobs,

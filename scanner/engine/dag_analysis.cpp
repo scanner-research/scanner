@@ -424,12 +424,12 @@ Result validate_jobs_and_ops(
   return result;
 }
 
-Result determine_input_rows_to_slices(
-    DatabaseMetadata& meta, TableMetaCache& table_metas,
-    const std::vector<proto::Job>& jobs,
-    const std::vector<proto::Op>& ops,
-    DAGAnalysisInfo& info,
-    storehouse::StorageConfig* storage_config) {
+Result determine_input_rows_to_slices(DatabaseMetadata& meta,
+                                      TableMetaCache& table_metas,
+                                      const std::vector<proto::Op>& ops,
+                                      const proto::Job& job, int job_idx,
+                                      storehouse::StorageConfig* storage_config,
+                                      DAGAnalysisInfo& info) {
   Result result;
   result.set_success(true);
   const std::vector<i32>& op_slice_level = info.op_slice_level;
@@ -438,253 +438,239 @@ Result determine_input_rows_to_slices(
   const std::map<i64, i64>& unslice_ops = info.unslice_ops;
   const std::map<i64, i64>& sampling_ops = info.sampling_ops;
   const std::map<i64, std::vector<i64>>& op_children = info.op_children;
-  std::vector<std::map<i64, i64>>& slice_input_rows = info.slice_input_rows;
-  std::vector<std::map<i64, std::vector<i64>>>& slice_output_rows =
-      info.slice_output_rows;
-  std::vector<std::map<i64, std::vector<i64>>>& unslice_input_rows =
-      info.unslice_input_rows;
-  std::vector<std::map<i64, std::vector<i64>>>& total_rows_per_op =
-      info.total_rows_per_op;
-  std::vector<i64>& total_output_rows = info.total_output_rows;
-  // For each job, use table rows to determine number of total possible outputs
+
+  // Use table rows to determine number of total possible outputs
   // by propagating downward through Op DAG
-  for (const proto::Job& job : jobs) {
-    slice_input_rows.emplace_back();
-    std::map<i64, i64>& job_slice_input_rows = slice_input_rows.back();
-    slice_output_rows.emplace_back();
-    std::map<i64, std::vector<i64>>& job_slice_output_rows =
-        slice_output_rows.back();
-    unslice_input_rows.emplace_back();
-    std::map<i64, std::vector<i64>>& job_unslice_input_rows =
-        unslice_input_rows.back();
-    total_rows_per_op.emplace_back();
-    std::map<i64, std::vector<i64>>& job_total_rows_per_op =
-        total_rows_per_op.back();
-    // Create domain samplers using sampling args
-    // Op idx -> samplers for each slice group
-    std::map<i64, proto::SamplingArgsAssignment> args_assignment;
-    std::map<i64, std::vector<std::unique_ptr<DomainSampler>>> domain_samplers;
-    for (const proto::SamplingArgsAssignment& saa :
-         job.sampling_args_assignment()) {
-      if (ops.at(saa.op_index()).name() == SLICE_OP_NAME) {
-        args_assignment[saa.op_index()] = saa;
-      } else {
-        std::vector<std::unique_ptr<DomainSampler>>& samplers =
-            domain_samplers[saa.op_index()];
-        // Assign number of rows to correct op
-        for (auto& sa : saa.sampling_args()) {
-          DomainSampler* sampler;
-          result = make_domain_sampler_instance(
-              sa.sampling_function(),
-              std::vector<u8>(sa.sampling_args().begin(),
-                              sa.sampling_args().end()),
-              sampler);
-          if (!result.success()) {
-            return result;
-          }
-          samplers.emplace_back(sampler);
-        }
-      }
-    }
-    // Create enumerators using enumerator args
-    std::map<i64, i64> source_input_rows;
-    {
-      // Instantiate enumerators to determine number of rows produced from each
-      // Source op
-      auto registry = get_enumerator_registry();
-      for (auto& source_input : job.inputs()) {
-        const std::string& source_name = ops.at(source_input.op_index()).name();
-        EnumeratorFactory* factory = registry->get_enumerator(source_name);
-        EnumeratorConfig config;
-        config.storage_config = storage_config;
-        size_t size = source_input.enumerator_args().size();
-        config.args =
-            std::vector<u8>(source_input.enumerator_args().begin(),
-                            source_input.enumerator_args().end());
+  JobAnalysisInfo& job_info = info.job_info[job_idx];
+  std::map<i64, i64>& job_slice_input_rows = job_info.slice_input_rows;
+  std::map<i64, std::vector<i64>>& job_slice_output_rows =
+      job_info.slice_output_rows;
+  std::map<i64, std::vector<i64>>& job_unslice_input_rows =
+      job_info.unslice_input_rows;
+  std::map<i64, std::vector<i64>>& job_total_rows_per_op =
+      job_info.total_rows_per_op;
+  i64& total_output_rows = job_info.total_output_rows;
 
-        std::unique_ptr<Enumerator> e;
-        {
-          // HACK(apoms): to fix this issue: https://github.com/pybind/pybind11/issues/1364
-          py::gil_scoped_acquire acquire;
-          e.reset(factory->new_instance(config));
-        }
-        // If this is a source enumerator, we must provide table meta
-        if (auto column_enumerator = dynamic_cast<ColumnEnumerator*>(e.get())) {
-          column_enumerator->set_table_meta(&table_metas);
-        }
-        // Get actual num row count
-        source_input_rows[source_input.op_index()] = e->total_elements();
-      }
-    }
-
-    // Each Op can have a vector of outputs because of one level slicing
-    // Op idx -> input columns -> slice groups
-    std::vector<std::vector<std::vector<i64>>> op_num_inputs(ops.size());
-    // Currently, we constrain there to only be a single number of slice groups
-    // per job (no slicing in different ways) to make it easy to schedule
-    // as tasks
-    i64 number_of_slice_groups = -1;
-    // First populate num rows from table inputs
-    for (const proto::SourceInput& ci : job.inputs()) {
-      // Determine number of rows for the requested table
-      i64 num_rows = source_input_rows.at(ci.op_index());
+  // Create domain samplers using sampling args
+  // Op idx -> samplers for each slice group
+  std::map<i64, proto::SamplingArgsAssignment> args_assignment;
+  std::map<i64, std::vector<std::unique_ptr<DomainSampler>>> domain_samplers;
+  for (const proto::SamplingArgsAssignment& saa :
+       job.sampling_args_assignment()) {
+    if (ops.at(saa.op_index()).name() == SLICE_OP_NAME) {
+      args_assignment[saa.op_index()] = saa;
+    } else {
+      std::vector<std::unique_ptr<DomainSampler>>& samplers =
+          domain_samplers[saa.op_index()];
       // Assign number of rows to correct op
-      op_num_inputs[ci.op_index()] = {{num_rows}};
-    }
-    bool success = false;
-    std::vector<i64> ready_ops;
-    for (auto& kv : input_ops) {
-      ready_ops.push_back(kv.first);
-    }
-    while (!ready_ops.empty()) {
-      i64 op_idx = ready_ops.back();
-      ready_ops.pop_back();
-
-      // Verify inputs are rate matched
-      std::vector<i64> slice_group_outputs;
-      {
-        const std::vector<i64>& first_input_column_slice_groups =
-            op_num_inputs.at(op_idx).at(0);
-        // Check all columns match the first column
-        for (const auto& input_column_slice_groups : op_num_inputs.at(op_idx)) {
-          // Verify there are the same number of slice groups
-          if (input_column_slice_groups.size() !=
-              first_input_column_slice_groups.size()) {
-            RESULT_ERROR(
-                &result,
-                "Job %s specified multiple inputs with a differing "
-                "number of slice groups for %s Op at %ld (%lu vs %lu).",
-                job.output_table_name().c_str(), ops[op_idx].name().c_str(),
-                op_idx, first_input_column_slice_groups.size(),
-                input_column_slice_groups.size());
-            return result;
-          }
-          // Verify the number of rows for each slice group matches
-          for (size_t i = 0; i < first_input_column_slice_groups.size(); ++i) {
-            if (input_column_slice_groups.at(i) !=
-                first_input_column_slice_groups.at(i)) {
-              RESULT_ERROR(
-                  &result,
-                  "Job %s specified multiple inputs with a differing "
-                  "number of rows for slice group %lu for %s Op at %ld "
-                  "(%lu vs %lu).",
-                  job.output_table_name().c_str(), i,
-                  ops[op_idx].name().c_str(), op_idx,
-                  input_column_slice_groups.at(i),
-                  first_input_column_slice_groups.at(i));
-              return result;
-            }
-          }
-        }
-        slice_group_outputs = first_input_column_slice_groups;
-      }
-      // Check if we are done
-      if (ops[op_idx].is_sink()) {
-        // Should always be at slice level 0
-        assert(slice_group_outputs.size() == 1);
-        total_output_rows.push_back(slice_group_outputs.at(0));
-        success = true;
-        break;
-      }
-      // Check if this is a sampling Op
-      if (sampling_ops.count(op_idx) > 0) {
-        i64 sampling_op_idx = sampling_ops.at(op_idx);
-        // Verify number of samplers is equal to number of slice groups
-        if (domain_samplers.at(op_idx).size() != slice_group_outputs.size()) {
-          RESULT_ERROR(&result,
-                       "Job %s specified %lu samplers but there are %lu slice "
-                       "groups for %s Op at %ld.",
-                       job.output_table_name().c_str(),
-                       domain_samplers.at(op_idx).size(),
-                       slice_group_outputs.size(), ops[op_idx].name().c_str(),
-                       op_idx);
-          return result;
-        }
-        // Apply domain samplers to determine downstream row count
-        std::vector<i64> new_slice_group_outputs;
-        for (size_t i = 0; i < slice_group_outputs.size(); ++i) {
-          auto& sampler = domain_samplers.at(op_idx).at(i);
-          i64 new_outputs = 0;
-          result = sampler->get_num_downstream_rows(slice_group_outputs.at(i),
-                                                    new_outputs);
-          if (!result.success()) {
-            return result;
-          }
-          new_slice_group_outputs.push_back(new_outputs);
-        }
-        slice_group_outputs = new_slice_group_outputs;
-      }
-
-      // Check if this is a slice op
-      if (slice_ops.count(op_idx) > 0) {
-        assert(op_slice_level.at(op_idx) == 1);
-        assert(slice_group_outputs.size() == 1);
-        // Create Partitioner to enumerate slices
-        Partitioner* tpartitioner = nullptr;
-        auto& args = args_assignment[op_idx].sampling_args(0);
-        result = make_partitioner_instance(
-            args.sampling_function(),
-            std::vector<u8>(
-                args.sampling_args().begin(),
-                args.sampling_args().end()),
-            slice_group_outputs.at(0),
-            tpartitioner);
-        std::unique_ptr<Partitioner> partitioner{tpartitioner};
+      for (auto& sa : saa.sampling_args()) {
+        DomainSampler* sampler;
+        result = make_domain_sampler_instance(
+            sa.sampling_function(),
+            std::vector<u8>(sa.sampling_args().begin(),
+                            sa.sampling_args().end()),
+            sampler);
         if (!result.success()) {
           return result;
         }
-
-        // Track job slice inputs so we can determine number of groups later
-        job_slice_input_rows.insert({op_idx, slice_group_outputs.at(0)});
-        // Update outputs with the new slice group outputs for this partition
-        slice_group_outputs = partitioner->total_rows_per_group();
-
-        if (number_of_slice_groups == -1) {
-          number_of_slice_groups == slice_group_outputs.size();
-        } else if (slice_group_outputs.size() != number_of_slice_groups) {
-          RESULT_ERROR(
-              &result,
-              "Job %s specified one slice with %lu groups and another "
-              "slice with %lu groups. Scanner currently does not "
-              "support multiple slices with different numbers of groups "
-              "in the same job.",
-              job.output_table_name().c_str(),
-              slice_group_outputs.size(), number_of_slice_groups);
-          return result;
-        }
-        job_slice_output_rows.insert({op_idx, slice_group_outputs});
+        samplers.emplace_back(sampler);
       }
-
-      // Check if this is an unslice op
-      if (unslice_ops.count(op_idx) > 0) {
-        assert(op_slice_level.at(op_idx) == 0);
-
-        job_unslice_input_rows.insert({op_idx, slice_group_outputs});
-        // Concatenate all slice group outputs
-        i64 new_outputs = 0;
-        for (i64 group_outputs : slice_group_outputs) {
-          new_outputs += group_outputs;
-        }
-        slice_group_outputs = {new_outputs};
-      }
-      // Track size of output domain for this Op for use in boundary condition
-      // check
-      job_total_rows_per_op[op_idx] = slice_group_outputs;
-
-      for (i64 child_op_idx : op_children.at(op_idx)) {
-        op_num_inputs.at(child_op_idx).push_back(slice_group_outputs);
-        // Check if Op has all of its inputs. If so, add to ready stack
-        if (op_num_inputs.at(child_op_idx).size() ==
-            ops[child_op_idx].inputs_size()) {
-          ready_ops.push_back(child_op_idx);
-        }
-      }
-    }
-    if (!success) {
-      // This should never happen...
-      assert(false);
     }
   }
+  // Create enumerators using enumerator args
+  std::map<i64, i64> source_input_rows;
+  {
+    // Instantiate enumerators to determine number of rows produced from each
+    // Source op
+    auto registry = get_enumerator_registry();
+    for (auto& source_input : job.inputs()) {
+      const std::string& source_name = ops.at(source_input.op_index()).name();
+      EnumeratorFactory* factory = registry->get_enumerator(source_name);
+      EnumeratorConfig config;
+      config.storage_config = storage_config;
+      size_t size = source_input.enumerator_args().size();
+      config.args = std::vector<u8>(source_input.enumerator_args().begin(),
+                                    source_input.enumerator_args().end());
+
+      std::unique_ptr<Enumerator> e;
+      {
+        // HACK(apoms): to fix this issue:
+        // https://github.com/pybind/pybind11/issues/1364
+        py::gil_scoped_acquire acquire;
+        e.reset(factory->new_instance(config));
+      }
+      // If this is a source enumerator, we must provide table meta
+      if (auto column_enumerator = dynamic_cast<ColumnEnumerator*>(e.get())) {
+        column_enumerator->set_table_meta(&table_metas);
+      }
+      // Get actual num row count
+      source_input_rows[source_input.op_index()] = e->total_elements();
+    }
+  }
+
+  // Each Op can have a vector of outputs because of one level slicing
+  // Op idx -> input columns -> slice groups
+  std::vector<std::vector<std::vector<i64>>> op_num_inputs(ops.size());
+  // Currently, we constrain there to only be a single number of slice groups
+  // per job (no slicing in different ways) to make it easy to schedule
+  // as tasks
+  i64 number_of_slice_groups = -1;
+  // First populate num rows from table inputs
+  for (const proto::SourceInput& ci : job.inputs()) {
+    // Determine number of rows for the requested table
+    i64 num_rows = source_input_rows.at(ci.op_index());
+    // Assign number of rows to correct op
+    op_num_inputs[ci.op_index()] = {{num_rows}};
+  }
+  bool success = false;
+  std::vector<i64> ready_ops;
+  for (auto& kv : input_ops) {
+    ready_ops.push_back(kv.first);
+  }
+  while (!ready_ops.empty()) {
+    i64 op_idx = ready_ops.back();
+    ready_ops.pop_back();
+
+    // Verify inputs are rate matched
+    std::vector<i64> slice_group_outputs;
+    {
+      const std::vector<i64>& first_input_column_slice_groups =
+          op_num_inputs.at(op_idx).at(0);
+      // Check all columns match the first column
+      for (const auto& input_column_slice_groups : op_num_inputs.at(op_idx)) {
+        // Verify there are the same number of slice groups
+        if (input_column_slice_groups.size() !=
+            first_input_column_slice_groups.size()) {
+          RESULT_ERROR(&result,
+                       "Job %s specified multiple inputs with a differing "
+                       "number of slice groups for %s Op at %ld (%lu vs %lu).",
+                       job.output_table_name().c_str(),
+                       ops[op_idx].name().c_str(), op_idx,
+                       first_input_column_slice_groups.size(),
+                       input_column_slice_groups.size());
+          return result;
+        }
+        // Verify the number of rows for each slice group matches
+        for (size_t i = 0; i < first_input_column_slice_groups.size(); ++i) {
+          if (input_column_slice_groups.at(i) !=
+              first_input_column_slice_groups.at(i)) {
+            RESULT_ERROR(&result,
+                         "Job %s specified multiple inputs with a differing "
+                         "number of rows for slice group %lu for %s Op at %ld "
+                         "(%lu vs %lu).",
+                         job.output_table_name().c_str(), i,
+                         ops[op_idx].name().c_str(), op_idx,
+                         input_column_slice_groups.at(i),
+                         first_input_column_slice_groups.at(i));
+            return result;
+          }
+        }
+      }
+      slice_group_outputs = first_input_column_slice_groups;
+    }
+    // Check if we are done
+    if (ops[op_idx].is_sink()) {
+      // Should always be at slice level 0
+      assert(slice_group_outputs.size() == 1);
+      total_output_rows = slice_group_outputs.at(0);
+      success = true;
+      break;
+    }
+    // Check if this is a sampling Op
+    if (sampling_ops.count(op_idx) > 0) {
+      i64 sampling_op_idx = sampling_ops.at(op_idx);
+      // Verify number of samplers is equal to number of slice groups
+      if (domain_samplers.at(op_idx).size() != slice_group_outputs.size()) {
+        RESULT_ERROR(
+            &result,
+            "Job %s specified %lu samplers but there are %lu slice "
+            "groups for %s Op at %ld.",
+            job.output_table_name().c_str(), domain_samplers.at(op_idx).size(),
+            slice_group_outputs.size(), ops[op_idx].name().c_str(), op_idx);
+        return result;
+      }
+      // Apply domain samplers to determine downstream row count
+      std::vector<i64> new_slice_group_outputs;
+      for (size_t i = 0; i < slice_group_outputs.size(); ++i) {
+        auto& sampler = domain_samplers.at(op_idx).at(i);
+        i64 new_outputs = 0;
+        result = sampler->get_num_downstream_rows(slice_group_outputs.at(i),
+                                                  new_outputs);
+        if (!result.success()) {
+          return result;
+        }
+        new_slice_group_outputs.push_back(new_outputs);
+      }
+      slice_group_outputs = new_slice_group_outputs;
+    }
+
+    // Check if this is a slice op
+    if (slice_ops.count(op_idx) > 0) {
+      assert(op_slice_level.at(op_idx) == 1);
+      assert(slice_group_outputs.size() == 1);
+      // Create Partitioner to enumerate slices
+      Partitioner* tpartitioner = nullptr;
+      auto& args = args_assignment[op_idx].sampling_args(0);
+      result = make_partitioner_instance(
+          args.sampling_function(),
+          std::vector<u8>(args.sampling_args().begin(),
+                          args.sampling_args().end()),
+          slice_group_outputs.at(0), tpartitioner);
+      std::unique_ptr<Partitioner> partitioner{tpartitioner};
+      if (!result.success()) {
+        return result;
+      }
+
+      // Track job slice inputs so we can determine number of groups later
+      job_slice_input_rows.insert({op_idx, slice_group_outputs.at(0)});
+      // Update outputs with the new slice group outputs for this partition
+      slice_group_outputs = partitioner->total_rows_per_group();
+
+      if (number_of_slice_groups == -1) {
+        number_of_slice_groups == slice_group_outputs.size();
+      } else if (slice_group_outputs.size() != number_of_slice_groups) {
+        RESULT_ERROR(&result,
+                     "Job %s specified one slice with %lu groups and another "
+                     "slice with %lu groups. Scanner currently does not "
+                     "support multiple slices with different numbers of groups "
+                     "in the same job.",
+                     job.output_table_name().c_str(),
+                     slice_group_outputs.size(), number_of_slice_groups);
+        return result;
+      }
+      job_slice_output_rows.insert({op_idx, slice_group_outputs});
+    }
+
+    // Check if this is an unslice op
+    if (unslice_ops.count(op_idx) > 0) {
+      assert(op_slice_level.at(op_idx) == 0);
+
+      job_unslice_input_rows.insert({op_idx, slice_group_outputs});
+      // Concatenate all slice group outputs
+      i64 new_outputs = 0;
+      for (i64 group_outputs : slice_group_outputs) {
+        new_outputs += group_outputs;
+      }
+      slice_group_outputs = {new_outputs};
+    }
+    // Track size of output domain for this Op for use in boundary condition
+    // check
+    job_total_rows_per_op[op_idx] = slice_group_outputs;
+
+    for (i64 child_op_idx : op_children.at(op_idx)) {
+      op_num_inputs.at(child_op_idx).push_back(slice_group_outputs);
+      // Check if Op has all of its inputs. If so, add to ready stack
+      if (op_num_inputs.at(child_op_idx).size() ==
+          ops[child_op_idx].inputs_size()) {
+        ready_ops.push_back(child_op_idx);
+      }
+    }
+  }
+  if (!success) {
+    // This should never happen...
+    assert(false);
+  }
+
   return result;
 }
 
@@ -802,8 +788,8 @@ Result derive_slice_final_output_rows(
   return result;
 }
 
-void populate_analysis_info(const std::vector<proto::Op>& ops,
-                            DAGAnalysisInfo& info) {
+void populate_op_analysis_info(const std::vector<proto::Op>& ops,
+                               DAGAnalysisInfo& info) {
   std::vector<i32>& op_slice_level = info.op_slice_level;
   std::map<i64, i64>& input_ops = info.source_ops;
   std::map<i64, i64>& slice_ops = info.slice_ops;
@@ -1165,15 +1151,17 @@ void perform_liveness_analysis(const std::vector<proto::Op>& ops,
   }
 }
 
-Result derive_stencil_requirements(
+Result derive_required_elements_for_task(
+    // Inputs
     const DatabaseMetadata& meta, TableMetaCache& table_meta,
     const proto::Job& job, const std::vector<proto::Op>& ops,
     const DAGAnalysisInfo& analysis_results,
     proto::BulkJobParameters::BoundaryCondition boundary_condition,
     i64 table_id, i64 job_idx, i64 task_idx,
+    storehouse::StorageConfig* storage_config,
+    // Outputs
     const std::vector<i64>& output_rows, LoadWorkEntry& output_entry,
-    std::deque<TaskStream>& task_streams,
-    storehouse::StorageConfig* storage_config) {
+    std::deque<TaskStream>& task_streams) {
   const std::map<i64, std::vector<i32>>& stencils = analysis_results.stencils;
   const std::vector<std::vector<std::tuple<i32, std::string>>>& live_columns =
       analysis_results.live_columns;
@@ -1185,13 +1173,13 @@ Result derive_stencil_requirements(
   i64 num_ops = ops.size();
 
   const std::map<i64, std::vector<i64>>& job_total_rows_per_op =
-      analysis_results.total_rows_per_op.at(job_idx);
+      analysis_results.job_info.at(job_idx).total_rows_per_op;
   const std::map<i64, i64>& job_slice_input_rows =
-      analysis_results.slice_input_rows.at(job_idx);
+      analysis_results.job_info.at(job_idx).slice_input_rows;
   const std::map<i64, std::vector<i64>>& job_slice_output_rows =
-      analysis_results.slice_output_rows.at(job_idx);
+      analysis_results.job_info.at(job_idx).slice_output_rows;
   const std::map<i64, std::vector<i64>>& job_unslice_input_rows =
-      analysis_results.unslice_input_rows.at(job_idx);
+      analysis_results.job_info.at(job_idx).unslice_input_rows;
   const std::map<i64, bool>& bounded_state_ops =
       analysis_results.bounded_state_ops;
   const std::map<i64, bool>& unbounded_state_ops =
