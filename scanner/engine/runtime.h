@@ -63,6 +63,21 @@ struct EvalWorkEntry {
   std::vector<bool> compressed;
 };
 
+struct JobAnalysisInfo {
+  // Input rows to slice  per Job
+  std::map<i64, i64> slice_input_rows;
+  // Op -> Slice
+  std::map<i64, std::vector<i64>> slice_output_rows;
+  // Input rows to unslice Ops per Job
+  // Op -> Slice
+  std::map<i64, std::vector<i64>> unslice_input_rows;
+  // Total rows for each ops domain
+  // Op -> Slice
+  std::map<i64, std::vector<i64>> total_rows_per_op;
+  // Total output rows per Job
+  i64 total_output_rows;
+};
+
 // Contains the row indices that a Op will see for the given task
 struct TaskStream {
   i64 slice_group;
@@ -78,10 +93,16 @@ struct TaskStream {
   std::vector<i64> valid_output_rows;
 };
 
-using LoadInputQueue =
-    Queue<std::tuple<i32, std::deque<TaskStream>, LoadWorkEntry>>;
-using EvalQueue =
-    Queue<std::tuple<std::deque<TaskStream>, EvalWorkEntry>>;
+using LoadInputQueueItem =
+    std::tuple<i32, std::map<i64, JobAnalysisInfo>, std::vector<i64>,
+               std::deque<TaskStream>, LoadWorkEntry>;
+using LoadInputQueue = Queue<LoadInputQueueItem>;
+
+using EvalQueueItem =
+    std::tuple<std::map<i64, JobAnalysisInfo>, std::vector<i64>,
+               std::deque<TaskStream>, EvalWorkEntry>;
+using EvalQueue = Queue<EvalQueueItem>;
+
 using OutputEvalQueue =
     Queue<std::tuple<i32, EvalWorkEntry>>;
 using SaveInputQueue =
