@@ -76,17 +76,11 @@ void load_driver(LoadInputQueue& load_work,
   while (true) {
     auto idle_start = now();
 
-    std::tuple<i32,
-               std::map<i64, JobAnalysisInfo>,
-               std::vector<i64>,
-               std::deque<TaskStream>, LoadWorkEntry>
-        entry;
+    std::tuple<i32, std::deque<TaskStream>, LoadWorkEntry> entry;
     load_work.pop(entry);
     i32& output_queue_idx = std::get<0>(entry);
-    auto& job_analysis_info = std::get<1>(entry);
-    auto& job_analysis_free = std::get<2>(entry);
-    auto& task_streams = std::get<3>(entry);
-    LoadWorkEntry& load_work_entry = std::get<4>(entry);
+    auto& task_streams = std::get<1>(entry);
+    LoadWorkEntry& load_work_entry = std::get<2>(entry);
 
     args.profiler.add_interval("idle", idle_start, now());
 
@@ -97,28 +91,6 @@ void load_driver(LoadInputQueue& load_work,
     VLOG(2) << "Load (N/PU: " << args.node_id << "/" << args.worker_id
             << "): processing job task (" << load_work_entry.job_index() << ", "
             << load_work_entry.task_index() << ")";
-
-    // If job analysis info to free, then push it down the pipe
-    if (job_analysis_free.size() > 0) {
-      auto dummy = std::map<i64, JobAnalysisInfo>{};
-      auto dummy2 = EvalWorkEntry{};
-      for (auto& queue : initial_eval_work) {
-        queue.push(
-            std::tuple<std::map<i64, JobAnalysisInfo>, std::vector<i64>,
-                            std::deque<TaskStream>, EvalWorkEntry>(
-                dummy, job_analysis_free, {}, dummy2));
-      }
-    }
-
-    // If new job analysis info, then push it down the pipe
-    if (job_analysis_info.size() > 0) {
-      auto dummy = EvalWorkEntry{};
-      for (auto& queue : initial_eval_work) {
-        queue.push(std::tuple<std::map<i64, JobAnalysisInfo>, std::vector<i64>,
-                              std::deque<TaskStream>, EvalWorkEntry>(
-            job_analysis_info, {}, {}, dummy));
-      }
-    }
 
     auto work_start = now();
 
@@ -133,9 +105,7 @@ void load_driver(LoadInputQueue& load_work,
         work_entry.first = !task_streams.empty();
         work_entry.last_in_task = worker.done();
         initial_eval_work[output_queue_idx].push(
-            std::tuple<std::map<i64, JobAnalysisInfo>, std::vector<i64>,
-                       std::deque<TaskStream>, EvalWorkEntry>(
-                {}, {}, task_streams, work_entry));
+            std::make_tuple(task_streams, work_entry));
         // We use the task streams being empty to indicate that this is
         // a new task, so clear it here to show that this is from the same task
         task_streams.clear();
@@ -163,7 +133,9 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
   PreEvaluateWorker worker(args);
   // We sort inputs into task work queues to ensure we process them
   // sequentially
-  std::map<std::tuple<i32, i32>, Queue<EvalQueueItem>> task_work_queue;
+  std::map<std::tuple<i32, i32>,
+           Queue<std::tuple<std::deque<TaskStream>, EvalWorkEntry>>>
+      task_work_queue;
   i32 work_packet_size = args.work_packet_size;
 
   std::tuple<i32, i32> active_job_task = std::make_tuple(-1, -1);
@@ -174,26 +146,12 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
     if (task_work_queue.empty() ||
         (std::get<0>(active_job_task) != -1 &&
          task_work_queue.at(active_job_task).size() <= 0)) {
-      EvalQueueItem entry;
+      std::tuple<std::deque<TaskStream>, EvalWorkEntry> entry;
       input_work.pop(entry);
 
-      auto& job_analysis_info = std::get<0>(entry);
-      auto& job_analysis_free = std::get<1>(entry);
-      // If job analysis info to free, then push it down the pipe
-      if (job_analysis_free.size() > 0) {
-        EvalWorkEntry dummy;
-        output_work.push(EvalQueueItem({}, job_analysis_free, {}, dummy));
-        continue;
-      }
-      // If new job analysis info, then push it down the pipe
-      if (job_analysis_info.size() > 0) {
-        EvalWorkEntry dummy;
-        output_work.push(EvalQueueItem(job_analysis_info, {}, {}, dummy));
-        continue;
-      }
 
-      auto& task_streams = std::get<2>(entry);
-      EvalWorkEntry& work_entry = std::get<3>(entry);
+      auto& task_streams = std::get<0>(entry);
+      EvalWorkEntry& work_entry = std::get<1>(entry);
       VLOG(1) << "Pre-evaluate (N/KI: " << args.node_id << "/" << args.worker_id
               << "): got work " << work_entry.job_index << " " << work_entry.task_index;
       if (work_entry.job_index == -1) {
@@ -224,11 +182,11 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
     }
 
     // Grab next entry for active task
-    EvalQueueItem entry;
+    std::tuple<std::deque<TaskStream>, EvalWorkEntry> entry;
     task_work_queue.at(active_job_task).pop(entry);
 
-    auto& task_streams = std::get<2>(entry);
-    EvalWorkEntry& work_entry = std::get<3>(entry);
+    auto& task_streams = std::get<0>(entry);
+    EvalWorkEntry& work_entry = std::get<1>(entry);
 
     VLOG(1) << "Pre-evaluate (N/KI: " << args.node_id << "/" << args.worker_id
             << "): "
@@ -259,11 +217,11 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
       }
 
       if (first) {
-        output_work.push(EvalQueueItem({}, {}, task_streams, output_entry));
+        output_work.push(std::make_tuple(task_streams, output_entry));
         first = false;
       } else {
         output_work.push(
-            EvalQueueItem({}, {}, std::deque<TaskStream>(), output_entry));
+            std::make_tuple(std::deque<TaskStream>(), output_entry));
       }
 
       if (std::getenv("NO_PIPELINING")) {
@@ -294,30 +252,13 @@ void evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
   while (true) {
     auto idle_pull_start = now();
 
-    std::tuple<std::map<i64, JobAnalysisInfo>, std::vector<i64>,
-               std::deque<TaskStream>, EvalWorkEntry>
-        entry;
+    std::tuple<std::deque<TaskStream>, EvalWorkEntry> entry;
     input_work.pop(entry);
 
-    auto& job_analysis_info = std::get<0>(entry);
-    auto& job_analysis_free = std::get<1>(entry);
-    auto& task_streams = std::get<2>(entry);
-    EvalWorkEntry& work_entry = std::get<3>(entry);
+    auto& task_streams = std::get<0>(entry);
+    EvalWorkEntry& work_entry = std::get<1>(entry);
 
     args.profiler.add_interval("idle_pull", idle_pull_start, now());
-
-    if (job_analysis_free.size() > 0) {
-      for (i64 job_idx : job_analysis_free) {
-        worker.finished_job(job_idx);
-      }
-      continue;
-    }
-    if (job_analysis_info.size() > 0) {
-      for (auto const& kv : job_analysis_info) {
-        worker.new_job(kv.first, kv.second);
-      }
-      continue;
-    }
 
     if (work_entry.job_index == -1) {
       break;
@@ -356,7 +297,7 @@ void evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
     profiler.add_interval("task", work_start, now());
 
     auto idle_push_start = now();
-    output_work.push(EvalQueueItem({}, {}, task_streams, output_entry));
+    output_work.push(std::make_tuple(task_streams, output_entry));
     args.profiler.add_interval("idle_push", idle_push_start, now());
 
   }
@@ -371,9 +312,9 @@ void post_evaluate_driver(EvalQueue& input_work, OutputEvalQueue& output_work,
   while (true) {
     auto idle_start = now();
 
-    EvalQueueItem entry;
+    std::tuple<std::deque<TaskStream>, EvalWorkEntry> entry;
     input_work.pop(entry);
-    EvalWorkEntry& work_entry = std::get<3>(entry);
+    EvalWorkEntry& work_entry = std::get<1>(entry);
 
     args.profiler.add_interval("idle", idle_start, now());
 
@@ -1050,7 +991,9 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   // - perform_liveness_analysis: When to retire elements (liveness analysis)
   auto dag_analysis_start = now();
   DAGAnalysisInfo analysis_results;
-  populate_op_analysis_info(ops, analysis_results);
+  populate_analysis_info(ops, analysis_results);
+  // Need slice input rows to know which slice we are in
+  determine_input_rows_to_slices(meta, table_meta, jobs, ops, analysis_results, db_params_.storage_config);
   remap_input_op_edges(ops, analysis_results);
   // Analyze op DAG to determine what inputs need to be pipped along
   // and when intermediates can be retired -- essentially liveness analysis
@@ -1197,6 +1140,22 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     kernel_configs.push_back(kernel_config);
   }
 
+  // Figure out op input domain size for handling boundary restriction during
+  // stencil
+  // Op -> job -> slice -> rows
+  std::vector<std::vector<std::vector<i64>>> op_input_domain_size(ops.size());
+  for (size_t i = 0; i < ops.size(); ++i) {
+    // Grab one of the inputs to this op to figure out this ops input domain
+    i64 input_op_idx = i;
+    if (!ops.at(i).is_source()) {
+      input_op_idx = ops.at(i).inputs(0).op_index();
+    }
+    for (const auto& op_total_rows : analysis_results.total_rows_per_op) {
+      const auto& op_slice_rows = op_total_rows.at(input_op_idx);
+      op_input_domain_size.at(i).push_back(op_slice_rows);
+    }
+  }
+
   // Break up kernels into groups that run on the same device
   std::vector<OpArgGroup> groups;
   if (!kernel_factories.empty()) {
@@ -1219,11 +1178,11 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
         last_device_type = factory->get_device_type();
         groups.emplace_back();
       }
-      auto& op_global_idx = groups.back().global_op_idx;
       auto& op_group = groups.back().op_names;
       auto& op_source = groups.back().is_source;
       auto& op_sampling = groups.back().sampling_args;
       auto& group = groups.back().kernel_factories;
+      auto& op_input = groups.back().op_input_domain_size;
       auto& oargs = groups.back().op_args;
       auto& lc = groups.back().live_columns;
       auto& dc = groups.back().dead_columns;
@@ -1231,13 +1190,38 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       auto& cm = groups.back().column_mapping;
       auto& st = groups.back().kernel_stencils;
       auto& bt = groups.back().kernel_batch_sizes;
-      op_global_idx.push_back(i);
       const std::string& op_name = ops.at(i).name();
       op_group.push_back(op_name);
       if (source_registry->has_source(op_name)) {
         op_source.push_back(true);
       } else {
         op_source.push_back(false);
+      }
+      if (analysis_results.slice_ops.count(i) > 0) {
+        i64 local_op_idx = group.size();
+        // Set sampling args
+        auto& slice_outputs_per_job =
+            groups.back().slice_output_rows[local_op_idx];
+        for (auto& job_slice_outputs : analysis_results.slice_output_rows) {
+          auto& slice_groups = job_slice_outputs.at(i);
+          slice_outputs_per_job.push_back(slice_groups);
+        }
+        auto& slice_inputs_per_job =
+            groups.back().slice_input_rows[local_op_idx];
+        for (auto& job_slice_inputs : analysis_results.slice_input_rows) {
+          auto& slice_groups = job_slice_inputs.at(i);
+          slice_inputs_per_job.push_back(slice_groups);
+        }
+      }
+      if (analysis_results.unslice_ops.count(i) > 0) {
+        i64 local_op_idx = group.size();
+        // Set sampling args
+        auto& unslice_inputs_per_job =
+            groups.back().unslice_input_rows[local_op_idx];
+        for (auto& job_unslice_inputs : analysis_results.unslice_input_rows) {
+          auto& slice_groups = job_unslice_inputs.at(i);
+          unslice_inputs_per_job.push_back(slice_groups);
+        }
       }
       if (analysis_results.sampling_ops.count(i) > 0 ||
           analysis_results.slice_ops.count(i) > 0) {
@@ -1258,6 +1242,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       }
       i64 local_op_idx = group.size();
       group.push_back(std::make_tuple(factory, kernel_configs[i]));
+      op_input[local_op_idx] = op_input_domain_size[i];
       oargs[local_op_idx] = op_args[i];
       lc.push_back(live_columns[i]);
       dc.push_back(dead_columns[i]);
@@ -1810,27 +1795,16 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       } else {
         // Perform analysis on load work entry to determine upstream
         // requirements and when to discard elements.
-        i64 job_idx = new_work.job_index();
-        // If we have not seen this job before, then perform job analysis
-        std::map<i64, JobAnalysisInfo> job_analysis_info;
-        if (analysis_results.job_info.count(job_idx) == 0) {
-          // Need slice input rows to know which slice we are in
-          determine_input_rows_to_slices(
-              meta, table_meta, ops, jobs.at(job_idx), job_idx,
-              db_params_.storage_config, analysis_results);
-          job_analysis_info[job_idx] = analysis_results.job_info.at(job_idx);
-        }
-
-        // Determine elements to proces for this task
         std::deque<TaskStream> task_stream;
         LoadWorkEntry stenciled_entry;
-        derive_required_elements_for_task(
-            meta, table_meta, jobs.at(job_idx), ops, analysis_results,
-            job_params->boundary_condition(), new_work.table_id(), job_idx,
-            new_work.task_index(), db_params_.storage_config,
+        derive_stencil_requirements(
+            meta, table_meta, jobs.at(new_work.job_index()), ops,
+            analysis_results, job_params->boundary_condition(),
+            new_work.table_id(), new_work.job_index(), new_work.task_index(),
             std::vector<i64>(new_work.output_rows().begin(),
                              new_work.output_rows().end()),
-            stenciled_entry, task_stream);
+            stenciled_entry, task_stream,
+            db_params_.storage_config);
 
         // Determine which pipeline instance to allocate to
         i32 target_work_queue = -1;
@@ -1843,8 +1817,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
             target_work_queue = i;
           }
         }
-        load_work.push(LoadInputQueueItem(target_work_queue, job_analysis_info,
-                                          {}, task_stream, stenciled_entry));
+        load_work.push(
+            std::make_tuple(target_work_queue, task_stream, stenciled_entry));
         allocated_work_to_queues[target_work_queue]++;
         accepted_tasks++;
       }
@@ -1908,7 +1882,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   auto push_exit_message = [](EvalQueue& q) {
     EvalWorkEntry entry;
     entry.job_index = -1;
-    q.push(EvalQueueItem({}, {}, std::deque<TaskStream>(), entry));
+    q.push(std::make_tuple(std::deque<TaskStream>(), entry));
   };
 
   auto push_output_eval_exit_message = [](OutputEvalQueue& q) {
@@ -1928,7 +1902,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     LoadWorkEntry entry;
     entry.set_job_index(-1);
     load_work.push(
-        LoadInputQueueItem(0, {}, {}, std::deque<TaskStream>(), entry));
+        std::make_tuple(0, std::deque<TaskStream>(), entry));
   }
 
   for (i32 i = 0; i < num_load_workers; ++i) {

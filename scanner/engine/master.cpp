@@ -1512,15 +1512,15 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
   job_descriptor.set_name(job_params->job_name());
   // Determine total output rows and slice input rows for using to
   // split stream
-  for (i64 job_idx = 0; job_idx < jobs.size(); ++job_idx) {
-    *job_result = determine_input_rows_to_slices(
-        meta_, *table_metas_.get(), ops, jobs.at(job_idx), job_idx,
-        db_params_.storage_config, dag_info);
-    if (!job_result->success()) {
-      // No database changes made at this point, so just return
-      finished_fn();
-      return false;
-    }
+  *job_result = determine_input_rows_to_slices(meta_, *table_metas_.get(), jobs,
+                                               ops, dag_info, db_params_.storage_config);
+  state->slice_input_rows_per_job = dag_info.slice_input_rows;
+  state->total_output_rows_per_job = dag_info.total_output_rows;
+
+  if (!job_result->success()) {
+    // No database changes made at this point, so just return
+    finished_fn();
+    return false;
   }
 
   // HACK(apoms): we currently split work into tasks in two ways:
@@ -1533,8 +1533,8 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
   for (size_t i = 0; i < jobs.size(); ++i) {
     state->tasks_used_per_job.push_back(0);
 
-    auto& slice_input_rows = state->dag_info.job_info.at(i).slice_input_rows;
-    i64 total_output_rows = state->dag_info.job_info.at(i).total_output_rows;
+    auto& slice_input_rows = state->slice_input_rows_per_job[i];
+    i64 total_output_rows = state->total_output_rows_per_job[i];
 
     std::vector<i64> partition_boundaries;
     if (slice_input_rows.size() == 0) {
