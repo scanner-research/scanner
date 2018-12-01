@@ -65,12 +65,45 @@ struct EvalWorkEntry {
 
 // Contains the row indices that a Op will see for the given task
 struct TaskStream {
+  enum TaskStatus {
+    READY,      // This element can be assigned to any worker right now.
+    ASSIGNED,   // This element is assigned to a worker and currently being processed.
+    DONE,       // This element is done. We keep it here for future dependents' use.
+    WAITING     // The computation that computes this element depends on elements that
+                // are not yet available. Therefore it cannot be assigned to a worker.
+  };
+  TaskStatus status = WAITING;
+
+  // The index of current Op
+  i64 op_idx;
+
+  // The id of tasks that the current task depend on
+  std::set<i64> source_tasks;
+
+  // The id of tasks that depend on the current task
+  std::set<i64> waiting_tasks;
+
+  // If the launch_count turns to 0, this task is ready to launch.
+  i64 launch_count;
+
+  // If the free_count turns to 0, this task can be retired.
+  i64 free_count;
+
   i64 slice_group;
+
+  // Source task -> Rows
+  // The mapping from source task id to row ids
+  // With this map, we can merge multiple columns from different tasks
+  // to one column if these tasks come from the same op
+  std::map<i64, std::set<i64>> source_task_to_rows;
+
   // This is the set of input rows that the Op needs to keep.
   std::vector<i64> valid_input_rows;
+
   // This is the set of input rows it should process and produce
   // outputs for.
   std::vector<i64> compute_input_rows;
+
   // This is the set of outputs that it should pass along (those
   // not in this set should be immediately discarded). Needed
   // to support bounded state operations which must produce output
@@ -102,13 +135,21 @@ struct DatabaseParameters {
 };
 
 class MasterServerImpl;
+class MasterServerImplNew;
 class WorkerImpl;
+class WorkerImplNew;
 
 MasterServerImpl* get_master_service(DatabaseParameters& param, const std::string& port);
+
+MasterServerImplNew* get_master_service_new(DatabaseParameters& param, const std::string& port);
 
 WorkerImpl* get_worker_service(DatabaseParameters& params,
                                const std::string& master_address,
                                const std::string& worker_port);
+
+WorkerImplNew* get_worker_service_new(DatabaseParameters& params,
+                                      const std::string& master_address,
+                                      const std::string& worker_port);
 
 // Utilities
 void move_if_different_address_space(Profiler& profiler,

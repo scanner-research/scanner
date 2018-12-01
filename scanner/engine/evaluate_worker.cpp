@@ -849,7 +849,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
       i64 row_end = row_start + producible_elements;
 
       // First build mapping from row number to element in the cache
-      std::vector<std::unordered_map<i32, Element>> cache_row_maps;
+      std::vector<std::unordered_map<i64, Element>> cache_row_maps;
       for (size_t i = 0; i < input_column_idx.size(); ++i) {
         cache_row_maps.emplace_back();
         auto& row_map = cache_row_maps[i];
@@ -1189,7 +1189,7 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
       buffered_entry_.last_in_task = work_entry.last_in_task;
       buffered_entry_.columns.resize(column_mapping_.size());
       buffered_entry_.row_ids.resize(column_mapping_.size());
-      assert(work_entry.column_handles.size() == columns_.size());
+//      assert(work_entry.column_handles.size() == columns_.size());
       buffered_entry_.column_types.clear();
       buffered_entry_.column_handles.clear();
       buffered_entry_.frame_sizes.clear();

@@ -16,11 +16,13 @@
 #include "scanner/api/database.h"
 #include "scanner/engine/ingest.h"
 #include "scanner/engine/master.h"
+#include "scanner/engine/master_scheduler.h"
 #include "scanner/engine/metadata.h"
 #include "scanner/engine/rpc.grpc.pb.h"
 #include "scanner/engine/rpc.pb.h"
 #include "scanner/engine/runtime.h"
 #include "scanner/engine/worker.h"
+#include "scanner/engine/worker_scheduler.h"
 #include "scanner/metadata.pb.h"
 #include "scanner/util/cuda.h"
 
@@ -105,26 +107,49 @@ Result Database::start_master(const MachineParameters& machine_params,
                               const std::string& python_dir,
                               bool watchdog,
                               i64 no_workers_timeout,
-                              i32 new_job_retries_limit) {
-  if (master_server_ != nullptr) {
-    LOG(WARNING) << "Master already started";
-    Result result;
-    result.set_success(true);
-    return result;
+                              i32 new_job_retries_limit,
+                              bool new_scheduler) {
+  if (new_scheduler) {
+    if (master_server_new_ != nullptr) {
+      LOG(WARNING) << "Master already started";
+      Result result;
+      result.set_success(true);
+      return result;
+    }
+    internal::DatabaseParameters params =
+        machine_params_to_db_params(machine_params, storage_config_, db_path_);
+    params.no_workers_timeout = no_workers_timeout;
+    params.python_dir = python_dir;
+    params.new_job_retries_limit = new_job_retries_limit;
+
+    master_server_new_.reset(scanner::internal::get_master_service_new(params, port));
+    master_server_new_->run();
+
+    // Start handling rpcs
+    master_thread_ = std::thread([this, watchdog]() {
+      master_server_new_->handle_rpcs(watchdog ? 50000 : -1);
+    });
+  } else {
+    if (master_server_ != nullptr) {
+      LOG(WARNING) << "Master already started";
+      Result result;
+      result.set_success(true);
+      return result;
+    }
+    internal::DatabaseParameters params =
+        machine_params_to_db_params(machine_params, storage_config_, db_path_);
+    params.no_workers_timeout = no_workers_timeout;
+    params.python_dir = python_dir;
+    params.new_job_retries_limit = new_job_retries_limit;
+
+    master_server_.reset(scanner::internal::get_master_service(params, port));
+    master_server_->run();
+
+    // Start handling rpcs
+    master_thread_ = std::thread([this, watchdog]() {
+      master_server_->handle_rpcs(watchdog ? 50000 : -1);
+    });
   }
-  internal::DatabaseParameters params =
-      machine_params_to_db_params(machine_params, storage_config_, db_path_);
-  params.no_workers_timeout = no_workers_timeout;
-  params.python_dir = python_dir;
-  params.new_job_retries_limit = new_job_retries_limit;
-
-  master_server_.reset(scanner::internal::get_master_service(params, port));
-  master_server_->run();
-
-  // Start handling rpcs
-  master_thread_ = std::thread([this, watchdog]() {
-    master_server_->handle_rpcs(watchdog ? 50000 : -1);
-  });
 
   Result result;
   result.set_success(true);
@@ -134,28 +159,46 @@ Result Database::start_master(const MachineParameters& machine_params,
 Result Database::start_worker(const MachineParameters& machine_params,
                               const std::string& port,
                               const std::string& python_dir,
-                              bool watchdog) {
+                              bool watchdog,
+                              bool new_scheduler) {
   internal::DatabaseParameters params =
       machine_params_to_db_params(machine_params, storage_config_, db_path_);
   params.python_dir = python_dir;
 
   ServerState* s = new ServerState;
   ServerState& state = *s;
-  auto worker_service =
-      scanner::internal::get_worker_service(params, master_address_, port);
-  state.service.reset(worker_service);
-  state.server = start(state.service, port);
-  worker_states_.emplace_back(s);
 
-  // Register shutdown signal handler
+  if (new_scheduler) {
+    auto worker_service = scanner::internal::get_worker_service_new(params, master_address_, port);
+    state.service.reset(worker_service);
+    state.server = start(state.service, port);
+    worker_states_.emplace_back(s);
 
-  Result register_result = worker_service->register_with_master();
-  if (!register_result.success()) {
-    return register_result;
+    // Register shutdown signal handler
+
+    Result register_result = worker_service->register_with_master();
+    if (!register_result.success()) {
+      return register_result;
+    }
+
+    // Setup watchdog
+    worker_service->start_watchdog(state.server.get(), watchdog);
+  } else {
+    auto worker_service = scanner::internal::get_worker_service(params, master_address_, port);
+    state.service.reset(worker_service);
+    state.server = start(state.service, port);
+    worker_states_.emplace_back(s);
+
+    // Register shutdown signal handler
+
+    Result register_result = worker_service->register_with_master();
+    if (!register_result.success()) {
+      return register_result;
+    }
+
+    // Setup watchdog
+    worker_service->start_watchdog(state.server.get(), watchdog);
   }
-
-  // Setup watchdog
-  worker_service->start_watchdog(state.server.get(), watchdog);
 
   Result result;
   result.set_success(true);
@@ -237,6 +280,10 @@ Result Database::wait_for_server_shutdown() {
   if (master_server_ != nullptr) {
     master_thread_.join();
     master_server_.reset(nullptr);
+  }
+  if (master_server_new_ != nullptr) {
+    master_thread_.join();
+    master_server_new_.reset(nullptr);
   }
   for (auto& state : worker_states_) {
     state->server->Wait();

@@ -371,6 +371,16 @@ class BlockAllocator {
     }
   }
 
+  i32 get_refs(u8* buffer) {
+    i32 index;
+    bool found = find_buffer(buffer, index);
+    LOG_IF(FATAL, !found)
+    << "Block allocator tried to get ref to non-block buffer";
+
+    Allocation& alloc = allocations_[index];
+    return alloc.refs;
+  }
+
   void free(u8* buffer) {
     {
       std::lock_guard<std::mutex> guard(map_lock_);
@@ -552,6 +562,19 @@ class LinkedAllocator {
 
     Allocation& alloc = allocations_[index];
     alloc.refs[device] += refs;
+  }
+
+  i32 get_refs(DeviceHandle device, u8* buffer) {
+//    I don't think this is needed:
+//    auto& allocator = allocators_.at(device);
+
+    i32 index;
+    bool found = find_buffer(device, buffer, index);
+    LOG_IF(FATAL, !found)
+    << "Block allocator tried to get ref to non-block buffer";
+
+    Allocation& alloc = allocations_[index];
+    return alloc.refs[device];
   }
 
   void copy_or_add_refs(DeviceHandle source_device, u8* source_buffer,
@@ -823,6 +846,16 @@ u8* new_block_buffer_sizes_(DeviceHandle device, const std::vector<size_t>& size
 
 void add_buffer_ref(DeviceHandle device, u8* buffer) {
   add_buffer_refs(device, buffer, 1);
+}
+
+i32 get_buffer_ref(DeviceHandle device, u8* buffer) {
+  assert(buffer != nullptr);
+#ifdef USE_LINKED_ALLOCATOR
+  return linked_allocator->get_refs(device, buffer);
+#else
+  BlockAllocator* block_allocator = block_allocator_for_device(device);
+  return block_allocator->get_refs(buffer);
+#endif
 }
 
 void add_buffer_refs(DeviceHandle device, u8* buffer, i32 refs) {

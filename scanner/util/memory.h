@@ -62,6 +62,8 @@ u8* new_block_buffer_size_(DeviceHandle device, size_t size, i32 copies,
 
 void add_buffer_ref(DeviceHandle device, u8* buffer);
 
+i32 get_buffer_ref(DeviceHandle device, u8* buffer);
+
 void add_buffer_refs(DeviceHandle device, u8* buffer, i32 refs);
 
 void delete_buffer(DeviceHandle device, u8* buffer);

@@ -38,14 +38,14 @@ using WorkerID = i64;
 #ifndef MCALL
 #define MCALL
 template <class Request, class Reply>
-using MCall = Call<MasterServerImpl, Request, Reply>;
+using MCall = Call<MasterServerImplNew, Request, Reply>;
 #endif // MCALL
 
-class MasterServerImpl final : public proto::Master::Service {
+class MasterServerImplNew final : public proto::Master::Service {
  public:
-  MasterServerImpl(DatabaseParameters& params, const std::string& port);
+  MasterServerImplNew(DatabaseParameters& params, const std::string& port);
 
-  ~MasterServerImpl();
+  ~MasterServerImplNew();
 
   void run();
 
@@ -270,6 +270,15 @@ class MasterServerImpl final : public proto::Master::Service {
     // The total number of tasks that have been completed for each job
     std::vector<i64> tasks_used_per_job;
 
+    // Job -> Op -> maximum size for each task
+    std::vector<std::map<i64, i64>> task_size_per_op;
+
+    // Job -> Task -> TaskStream
+    std::vector<std::map<i64, TaskStream>> task_streams;
+
+    // Job -> Rows
+    std::vector<std::vector<i64>> job_output_rows;
+
     Result task_result;
 
     //============================================================================
@@ -310,7 +319,7 @@ class MasterServerImpl final : public proto::Master::Service {
   std::unique_ptr<grpc::Server> server_;
 
   Profiler profiler_;
-  std::unordered_map<BaseCall<MasterServerImpl>*, timepoint_t> tag_start_times_;
+  std::unordered_map<BaseCall<MasterServerImplNew>*, timepoint_t> tag_start_times_;
 };
 
 }

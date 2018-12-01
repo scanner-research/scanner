@@ -85,6 +85,11 @@ inline std::string bulk_job_worker_profiler_path(i32 bulk_job_id, i32 node) {
          ".bin";
 }
 
+inline std::string eval_map_path(i32 bulk_job_id, i64 task_id) {
+  return bulk_job_directory(bulk_job_id) + "/eval_map_" + std::to_string(task_id) +
+         ".bin";
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 /// Common persistent data structs and their serialization helpers
 

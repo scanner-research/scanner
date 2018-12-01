@@ -27,12 +27,12 @@
 namespace scanner {
 namespace internal {
 
-class WorkerImpl final : public proto::Worker::Service {
+class WorkerImplNew final : public proto::Worker::Service {
  public:
-  WorkerImpl(DatabaseParameters& db_params, std::string master_address,
+  WorkerImplNew(DatabaseParameters& db_params, std::string master_address,
              std::string worker_port);
 
-  ~WorkerImpl();
+  ~WorkerImplNew();
 
   grpc::Status NewJob(grpc::ServerContext* context,
                       const proto::BulkJobParameters* job_params,
