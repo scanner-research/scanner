@@ -20,6 +20,7 @@
 #include "scanner/engine/column_enumerator.h"
 #include "scanner/api/op.h"
 #include "scanner/api/kernel.h"
+#include "scanner/util/thread_pool.h"
 
 #include <pybind11/embed.h>
 
@@ -27,6 +28,8 @@ namespace py = pybind11;
 
 namespace scanner {
 namespace internal {
+
+static const i32 ANALYSIS_THREADS = 16;
 
 bool is_builtin_op(const std::string& name) {
   for (const auto& n : BUILTIN_OP_NAMES) {
@@ -430,8 +433,6 @@ Result determine_input_rows_to_slices(
     const std::vector<proto::Op>& ops,
     DAGAnalysisInfo& info,
     storehouse::StorageConfig* storage_config) {
-  Result result;
-  result.set_success(true);
   const std::vector<i32>& op_slice_level = info.op_slice_level;
   const std::map<i64, i64>& input_ops = info.source_ops;
   const std::map<i64, i64>& slice_ops = info.slice_ops;
@@ -445,21 +446,30 @@ Result determine_input_rows_to_slices(
       info.unslice_input_rows;
   std::vector<std::map<i64, std::vector<i64>>>& total_rows_per_op =
       info.total_rows_per_op;
+  std::map<i32, i64> total_output_rows_map;
   std::vector<i64>& total_output_rows = info.total_output_rows;
+  std::mutex output_lock;
+
+  for (i32 i = 0; i < jobs.size(); ++i) {
+    slice_input_rows.emplace_back();
+    slice_output_rows.emplace_back();
+    unslice_input_rows.emplace_back();
+    total_rows_per_op.emplace_back();
+  }
+
   // For each job, use table rows to determine number of total possible outputs
   // by propagating downward through Op DAG
-  for (const proto::Job& job : jobs) {
-    slice_input_rows.emplace_back();
-    std::map<i64, i64>& job_slice_input_rows = slice_input_rows.back();
-    slice_output_rows.emplace_back();
+  auto process = [&](i32 job_idx) {
+    Result result;
+    result.set_success(true);
+    const proto::Job& job = jobs[job_idx];
+    std::map<i64, i64>& job_slice_input_rows = slice_input_rows[job_idx];
     std::map<i64, std::vector<i64>>& job_slice_output_rows =
-        slice_output_rows.back();
-    unslice_input_rows.emplace_back();
+        slice_output_rows[job_idx];
     std::map<i64, std::vector<i64>>& job_unslice_input_rows =
-        unslice_input_rows.back();
-    total_rows_per_op.emplace_back();
+        unslice_input_rows[job_idx];
     std::map<i64, std::vector<i64>>& job_total_rows_per_op =
-        total_rows_per_op.back();
+        total_rows_per_op[job_idx];
     // Create domain samplers using sampling args
     // Op idx -> samplers for each slice group
     std::map<i64, proto::SamplingArgsAssignment> args_assignment;
@@ -486,6 +496,7 @@ Result determine_input_rows_to_slices(
         }
       }
     }
+
     // Create enumerators using enumerator args
     std::map<i64, i64> source_input_rows;
     {
@@ -582,7 +593,8 @@ Result determine_input_rows_to_slices(
       if (ops[op_idx].is_sink()) {
         // Should always be at slice level 0
         assert(slice_group_outputs.size() == 1);
-        total_output_rows.push_back(slice_group_outputs.at(0));
+        std::lock_guard<std::mutex> guard(output_lock);
+        total_output_rows_map[job_idx] = slice_group_outputs.at(0);
         success = true;
         break;
       }
@@ -684,7 +696,26 @@ Result determine_input_rows_to_slices(
       // This should never happen...
       assert(false);
     }
+
+    return result;
+  };
+
+  ThreadPool pool(ANALYSIS_THREADS);
+  std::vector<std::future<proto::Result>> futures;
+  for (i32 i = 0; i < jobs.size(); ++i) {
+    futures.emplace_back(pool.enqueue(process, i));
   }
+
+  Result result;
+  for (auto& future : futures) {
+    result = future.get();
+    if (!result.success()) { return result; }
+  }
+
+  for (i32 i = 0; i < jobs.size(); ++i) {
+    total_output_rows.push_back(total_output_rows_map[i]);
+  }
+
   return result;
 }
 
@@ -1316,13 +1347,25 @@ Result derive_stencil_requirements(
       if (op.is_source()) {
         // Ignore if it is not the first input
         if (op_idx == 0) {
+          ThreadPool enum_pool(ANALYSIS_THREADS);
+          std::vector<std::future<i64>> futures;
+          auto compute_total_elements = [](Enumerator* e){ return e->total_elements(); };
+          for (auto& e : enumerators) {
+            futures.emplace_back(enum_pool.enqueue(compute_total_elements, e.get()));
+          }
+
+          std::vector<i64> total_elements;
+          for (auto& future : futures) {
+            total_elements.push_back(future.get());
+          }
+
           for (size_t i = 0; i < enumerators.size(); ++i) {
             std::vector<i64> output_rows(
                 required_input_op_output_rows.at(i).begin(),
                 required_input_op_output_rows.at(i).end());
             std::sort(output_rows.begin(), output_rows.end());
             std::vector<i64>& input_rows = required_input_op_input_rows.at(i);
-            i64 num_rows = enumerators[i]->total_elements();
+            i64 num_rows = total_elements[i];
 
             input_rows = output_rows;
 
