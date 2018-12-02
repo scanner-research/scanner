@@ -37,26 +37,6 @@ slow = pytest.mark.skipif(
 cwd = os.path.dirname(os.path.abspath(__file__))
 
 
-def test_tutorial():
-    def run_py(path):
-        print(path)
-        run('cd {}/../examples/tutorials && python3 {}.py'.format(cwd, path),
-            shell=True)
-
-    run('cd {}/../examples/tutorials/resize_op && '
-        'mkdir -p build && cd build && cmake -D SCANNER_PATH={} .. && '
-        'make'.format(cwd, cwd + '/..'),
-        shell=True)
-
-    tutorials = [
-        '00_basic', '01_defining_python_ops', '02_op_attributes', '03_sampling', '04_slicing',
-        '05_sources_sinks', '06_compression', '07_profiling', '08_defining_cpp_ops'
-    ]
-
-    for t in tutorials:
-        run_py(t)
-
-
 @slow
 def test_examples():
     def run_py(arg):
@@ -190,12 +170,11 @@ def test_profiler(db):
     output = db.run(output_op, [job], show_progress=False, force=True)
     print('Time', time.time() - time_start)
     profiler = output[0].profiler()
-    #f = tempfile.NamedTemporaryFile(delete=False)
-    #f.close()
-    #profiler.write_trace(f.name)
-    profiler.write_trace("test.trace")
+    f = tempfile.NamedTemporaryFile(delete=False, suffix='.trace')
+    f.close()
+    profiler.write_trace(f.name)
     profiler.statistics()
-    #run(['rm', '-f', f.name])
+    run(['rm', '-f', f.name])
 
 
 def test_new_table(db):
@@ -1485,3 +1464,23 @@ def test_audio(db):
     (vid_path, _) = download_videos()
     job = Job(op_args={audio: {'path': vid_path}, output: 'audio_test'})
     db.run(output, [job], force=True)
+
+
+def test_tutorial():
+    def run_py(path):
+        print(path)
+        run('cd {}/../examples/tutorials && python3 {}.py'.format(cwd, path),
+            shell=True)
+
+    run('cd {}/../examples/tutorials/resize_op && '
+        'mkdir -p build && cd build && cmake -D SCANNER_PATH={} .. && '
+        'make'.format(cwd, cwd + '/..'),
+        shell=True)
+
+    tutorials = [
+        '00_basic', '01_defining_python_ops', '02_op_attributes', '03_sampling', '04_slicing',
+        '05_sources_sinks', '06_compression', '07_profiling', '08_defining_cpp_ops'
+    ]
+
+    for t in tutorials:
+        run_py(t)
