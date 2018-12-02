@@ -43,18 +43,22 @@ class SQLEnumerator : public Enumerator {
   }
 
   i64 total_elements() override {
-    try {
-      std::unique_ptr<pqxx::connection> conn = sql_connect(args_.config());
-      pqxx::work txn{*conn};
-      // Count the number the number of groups
-      auto query = args_.query();
-      pqxx::row r = txn.exec1(tfm::format(
-          "SELECT COUNT(DISTINCT(%s)) FROM %s WHERE %s", query.group(),
-          query.table(), args_.filter()));
-      return r[0].as<i32>();
-    } catch (pqxx::pqxx_exception& e) {
-      LOG(FATAL) << e.base().what();
+    if (total_elements_cached_ == -1) {
+      try {
+        std::unique_ptr<pqxx::connection> conn = sql_connect(args_.config());
+        pqxx::work txn{*conn};
+        // Count the number the number of groups
+        auto query = args_.query();
+        pqxx::row r = txn.exec1(tfm::format(
+            "SELECT COUNT(DISTINCT(%s)) FROM %s WHERE %s", query.group(),
+            query.table(), args_.filter()));
+        total_elements_cached_ = r[0].as<i32>();
+      } catch (pqxx::pqxx_exception& e) {
+        LOG(FATAL) << e.base().what();
+      }
     }
+
+    return total_elements_cached_;
   }
 
   ElementArgs element_args_at(i64 element_idx) override {
@@ -73,7 +77,7 @@ class SQLEnumerator : public Enumerator {
  private:
   Result valid_;
   scanner::proto::SQLEnumeratorArgs args_;
-
+  i64 total_elements_cached_ = -1;
 };
 
 class SQLSource : public Source {
