@@ -850,6 +850,8 @@ void WorkerImpl::stop_job_processor() {
 
 bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
                              proto::Result* job_result) {
+  VLOG(1) << "Processing job";
+
   timepoint_t base_time(std::chrono::nanoseconds(job_params->base_time()));
 
   Profiler profiler(base_time);

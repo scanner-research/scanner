@@ -154,7 +154,10 @@ void MasterServerImpl::handle_rpcs(i32 watchdog_timeout_ms) {
   REQUEST_RPC(NewTable, proto::NewTableParams, proto::Empty);
   REQUEST_RPC(GetVideoMetadata, proto::GetVideoMetadataParams, proto::GetVideoMetadataResult);
   REQUEST_RPC(IngestVideos, proto::IngestParameters, proto::IngestResult);
-  REQUEST_RPC(RegisterWorker, proto::WorkerParams, proto::Registration);
+  // handle more worker registrations efficiently
+  for (int i = 0; i < 10; ++i) {
+    REQUEST_RPC(RegisterWorker, proto::WorkerParams, proto::Registration);
+  }
   REQUEST_RPC(UnregisterWorker, proto::UnregisterWorkerRequest, proto::Empty);
   REQUEST_RPC(ActiveWorkers, proto::Empty, proto::RegisteredWorkers);
   REQUEST_RPC(GetOpInfo, proto::OpInfoArgs, proto::OpInfo);
