@@ -1464,20 +1464,6 @@ def test_audio(db):
     job = Job(op_args={audio: {'path': vid_path}, output: 'audio_test'})
     db.run(output, [job], force=True)
 
-@pytest.fixture(scope="module")
-def light_db():
-    # Create new config
-    (cfg_path, cfg) = make_config()
-
-    # Setup and ingest video
-    db = Database(config_path=cfg_path, debug=True)
-    yield db
-
-    # Tear down
-    run([
-        'rm', '-rf', cfg['storage']['db_path'], cfg_path
-    ])
-
 
 def download_transcript():
     url = "https://storage.googleapis.com/scanner-data/test/transcript.cc1.srt"
@@ -1494,8 +1480,7 @@ def decode_cap(config, cap: bytes) -> bytes:
     return b' '
 
 
-def test_captions(light_db):
-    db = light_db
+def test_captions(db):
     captions = db.sources.Captions(window_size=10)
     ignored = db.ops.DecodeCap(cap=captions)
     output = db.sinks.Column(columns={'ignored': ignored})
