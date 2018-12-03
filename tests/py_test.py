@@ -100,7 +100,6 @@ def download_videos():
 
     return (vid1_path, vid2_path)
 
-
 @pytest.fixture(scope="module")
 def db():
     # Create new config
@@ -1465,6 +1464,45 @@ def test_audio(db):
     job = Job(op_args={audio: {'path': vid_path}, output: 'audio_test'})
     db.run(output, [job], force=True)
 
+@pytest.fixture(scope="module")
+def light_db():
+    # Create new config
+    (cfg_path, cfg) = make_config()
+
+    # Setup and ingest video
+    db = Database(config_path=cfg_path, debug=True)
+    yield db
+
+    # Tear down
+    run([
+        'rm', '-rf', cfg['storage']['db_path'], cfg_path
+    ])
+
+
+def download_transcript():
+    url = "https://storage.googleapis.com/scanner-data/test/transcript.cc1.srt"
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.cc1.srt') as f:
+        resp = requests.get(url, stream=True)
+        assert resp.ok
+        for block in resp.iter_content(1024):
+            f.write(block)
+        return f.name
+
+@scannerpy.register_python_op(name='DecodeCap')
+def decode_cap(config, cap: bytes) -> bytes:
+    cap = json.loads(cap.decode('utf-8'))
+    return b' '
+
+
+def test_captions(light_db):
+    db = light_db
+    captions = db.sources.Captions(window_size=10)
+    ignored = db.ops.DecodeCap(cap=captions)
+    output = db.sinks.Column(columns={'ignored': ignored})
+
+    caption_path = download_transcript()
+    job = Job(op_args={captions: {'path': caption_path, 'max_time': 3600}, output: 'caption_test'})
+    db.run(output, [job], force=True, pipeline_instances_per_node=1)
 
 def test_tutorial():
     def run_py(path):
