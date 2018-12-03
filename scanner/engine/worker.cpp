@@ -490,10 +490,9 @@ WorkerImpl::WorkerImpl(DatabaseParameters& db_params,
   // google::protobuf::io::CodedInputStream::SetTotalBytesLimit(67108864 * 4,
   //                                                            67108864 * 2);
 
-  LOG(INFO) << "Create master stub";
+  LOG(INFO) << "Creating master stub at " << master_address;
   master_ = proto::Master::NewStub(
       grpc::CreateChannel(master_address, grpc::InsecureChannelCredentials()));
-  LOG(INFO) << "Finish master stub";
 
   storage_ =
       storehouse::StorageBackend::make_from_config(db_params_.storage_config);
