@@ -239,3 +239,18 @@ message AudioElementArgs {
   string path = 1;
   double frame_size = 2; // seconds
 }
+
+message CaptionsSourceArgs {
+  double window_size = 1;
+}
+
+message CaptionsEnumeratorArgs {
+  string path = 1;
+  double window_size = 2; // seconds
+  double max_time = 3; // seconds
+}
+
+message CaptionsElementArgs {
+  string path = 1;
+  double window_size = 2; // seconds
+}

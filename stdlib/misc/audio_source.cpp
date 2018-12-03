@@ -90,7 +90,7 @@ class AudioDecoder {
   ~AudioDecoder() {
     avcodec_free_context(&context_);
 
-    // TODO(wcrichto): vvv this causes a double free?
+    // TODO(wcrichto): this causes a double free?
     // avformat_close_input(&format_context_);
 
     av_freep(&io_context_->buffer);
