@@ -17,7 +17,8 @@ typedef struct {
 
 // https://github.com/nlohmann/json#basic-usage
 void to_json(json& j, const Caption& c) {
-  j = json{{"index", c.index}, {"start", c.start}, {"end", c.end}, {"line", c.line}};
+  j = json{
+      {"index", c.index}, {"start", c.start}, {"end", c.end}, {"line", c.line}};
 }
 
 class CaptionsParser {
@@ -174,7 +175,8 @@ class CaptionsEnumerator : public Enumerator {
 
 class CaptionsSource : public Source {
  public:
-  CaptionsSource(const SourceConfig& config) : Source(config), parser_(nullptr) {
+  CaptionsSource(const SourceConfig& config)
+    : Source(config), parser_(nullptr) {
     bool parsed = args_.ParseFromArray(config.args.data(), config.args.size());
     if (!parsed) {
       RESULT_ERROR(&valid_, "Could not parse CaptionsSourceArgs");
@@ -227,7 +229,8 @@ class CaptionsSource : public Source {
     u8* block_buffer = new_block_buffer(CPU_DEVICE, total_size, sizes.size());
     u8* cursor = block_buffer;
     for (i32 i = 0; i < sizes.size(); ++i) {
-      memcpy_buffer(cursor, CPU_DEVICE, (u8*) bufs[i].c_str(), CPU_DEVICE, sizes[i]);
+      memcpy_buffer(cursor, CPU_DEVICE, (u8*)bufs[i].c_str(), CPU_DEVICE,
+                    sizes[i]);
       insert_element(output_columns[0], cursor, sizes[i]);
       cursor += sizes[i];
     }
