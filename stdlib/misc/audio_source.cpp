@@ -36,7 +36,7 @@ class AudioDecoder {
  public:
   AudioDecoder(std::string& path, std::shared_ptr<StorageBackend> storage, Profiler* profiler)
     : path_(path), storage_(storage), profiler_(profiler) {
-    ProfileBlock _block(profiler_, "decode_setup");
+    ProfileBlock _block(profiler_, "audio_decode_setup");
 
     // https://stackoverflow.com/questions/39778605/ffmpeg-avformat-open-input-not-working-invalid-data-found-when-processing-input
     av_register_all();
@@ -70,7 +70,7 @@ class AudioDecoder {
     LOG_IF(FATAL, stream_index < 0) << "could not find best stream";
     stream_ = format_context_->streams[stream_index];
     time_base_ = av_q2d(stream_->time_base);
-    VLOG(1) << "stream index: " << stream_index;
+    VLOG(2) << "stream index: " << stream_index;
 
     // Set all other streams to discard their packets
     for (i32 i = 0; i < format_context_->nb_streams; ++i) {
@@ -105,7 +105,7 @@ class AudioDecoder {
 
   void decode(const std::vector<i64>& rows, const f64 target_frame_size_sec,
              std::vector<Frame*>& frames) {
-    ProfileBlock _block(profiler_, "decode");
+    ProfileBlock _block(profiler_, "audio_decode");
 
     i32 sample_rate = context_->sample_rate;
     i32 source_frame_size_samples = context_->frame_size;
@@ -119,7 +119,7 @@ class AudioDecoder {
     for (i32 row_idx = 0; row_idx < rows.size(); ++row_idx) {
       f64 time = rows[row_idx] * target_frame_size_sec;
 
-      VLOG(1) << "NEW TIME: " << time;
+      VLOG(2) << "NEW TIME: " << time;
 
       // Seeking to first avframe containing the first target sample if previous
       // decode was non-contiguous
@@ -136,7 +136,7 @@ class AudioDecoder {
       // sample at the provided time
       decode_packet(av_frames);
       AVFrame* av_frame = av_frames[cur_av_frame_idx];
-      VLOG(1) << "time: "
+      VLOG(2) << "time: "
               << (av_frame_get_best_effort_timestamp(av_frame) * time_base_);
       i64 sample_offset =
           (time - (av_frame_get_best_effort_timestamp(av_frame) * time_base_)) *
@@ -144,7 +144,7 @@ class AudioDecoder {
       LOG_IF(FATAL, sample_offset >= source_frame_size_samples)
           << "sample_offset was bigger than source frame size";
 
-      VLOG(1) << "Sample offset: " << sample_offset;
+      VLOG(2) << "Sample offset: " << sample_offset;
 
       // Read samples from first avframe into frame
       i32 samples_to_read = source_frame_size_samples - sample_offset;
@@ -174,7 +174,7 @@ class AudioDecoder {
         av_frame_unref(av_frame);
         cur_av_frame_idx += 1;
 
-        VLOG(1) << "Samples to read: " << samples_to_read;
+        VLOG(2) << "Samples to read: " << samples_to_read;
       }
 
       LOG_IF(FATAL, samples_so_far > target_frame_size_samples)
@@ -225,7 +225,7 @@ class AudioDecoder {
 
     // Flush first packet
     if (std::abs(time) > std::numeric_limits<f64>::epsilon()) {
-      VLOG(1) << "Flushing first packet";
+      VLOG(2) << "Flushing first packet";
       FF_ERROR(av_read_frame(format_context_, &packet_));
       std::vector<AVFrame*> av_frames;
       decode_packet(av_frames);
@@ -257,7 +257,7 @@ class AudioDecoder {
       while (true) {
         int error = avcodec_receive_frame(context_, av_frame);
         if (error == 0) {
-          VLOG(1) << "Frame time: "
+          VLOG(2) << "Frame time: "
                   << av_frame_get_best_effort_timestamp(av_frame) * time_base_
                   << ", offending sample: " << ((f32*)av_frame->data[0])[0];
           LOG_IF(FATAL, av_frame->nb_samples != context_->frame_size)

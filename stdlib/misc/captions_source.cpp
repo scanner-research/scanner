@@ -37,7 +37,7 @@ class CaptionsParser {
     size_t size;
     result = file->get_size(size);
     LOG_IF(FATAL, result != StoreResult::Success)
-        << "Could not open get size of " << path;
+        << "Could not get size of " << path;
 
     u8* buffer = new u8[size];
     u64 pos = 0;
@@ -151,7 +151,7 @@ class CaptionsEnumerator : public Enumerator {
   }
 
   i64 total_elements() override {
-    return std::ceil(args_.max_time() / args_.window_size());
+    return std::floor(args_.max_time() / args_.window_size());
   }
 
   ElementArgs element_args_at(i64 element_idx) override {
