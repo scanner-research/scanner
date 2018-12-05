@@ -1286,6 +1286,18 @@ Result derive_stencil_requirements(
     }
   }
 
+  ThreadPool enum_pool(ANALYSIS_THREADS);
+  std::vector<std::future<i64>> futures;
+  auto compute_total_elements = [](Enumerator* e){ return e->total_elements(); };
+  for (auto& e : enumerators) {
+    futures.emplace_back(enum_pool.enqueue(compute_total_elements, e.get()));
+  }
+
+  std::vector<i64> total_elements;
+  for (auto& future : futures) {
+    total_elements.push_back(future.get());
+  }
+
   // Compute the required rows for each kernel based on the stencil, sampling
   // operations, and slice operations.
   // For each Op, determine the set of rows needed in the live columns list
@@ -1347,18 +1359,6 @@ Result derive_stencil_requirements(
       if (op.is_source()) {
         // Ignore if it is not the first input
         if (op_idx == 0) {
-          ThreadPool enum_pool(ANALYSIS_THREADS);
-          std::vector<std::future<i64>> futures;
-          auto compute_total_elements = [](Enumerator* e){ return e->total_elements(); };
-          for (auto& e : enumerators) {
-            futures.emplace_back(enum_pool.enqueue(compute_total_elements, e.get()));
-          }
-
-          std::vector<i64> total_elements;
-          for (auto& future : futures) {
-            total_elements.push_back(future.get());
-          }
-
           for (size_t i = 0; i < enumerators.size(); ++i) {
             std::vector<i64> output_rows(
                 required_input_op_output_rows.at(i).begin(),
