@@ -1385,9 +1385,12 @@ def test_sql(sql_db):
         job_table='jobs',
         insert=False)
 
+    cur.execute('SELECT COUNT(*) FROM test');
+    n, = cur.fetchone()
     job = Job(op_args={
         row: {
-            'filter': 'true'
+            'filter': 'true',
+            'num_elements': n
         },
         output_op: {
             'job_name': 'foobar'

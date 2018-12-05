@@ -185,6 +185,7 @@ message SQLEnumeratorArgs {
   SQLConfig config = 1;
   SQLQuery query = 2;
   string filter = 3;
+  int32 num_elements = 4;
 }
 
 message SQLSourceArgs {
