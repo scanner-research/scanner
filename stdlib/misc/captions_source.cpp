@@ -50,7 +50,7 @@ class CaptionsParser {
   std::vector<Caption> find(f32 start, f32 end) {
     std::vector<Caption> output;
     for (auto& cap : captions_) {
-      if (cap.start < end && cap.end > start) {
+      if (cap.start >= start && cap.start < end) {
         output.push_back(cap);
       }
     }
@@ -151,7 +151,7 @@ class CaptionsEnumerator : public Enumerator {
   }
 
   i64 total_elements() override {
-    return std::floor(args_.max_time() / args_.window_size());
+    return std::floor((args_.max_time() - 1) / args_.window_size());
   }
 
   ElementArgs element_args_at(i64 element_idx) override {
