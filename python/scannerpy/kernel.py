@@ -42,20 +42,6 @@ def python_kernel_fn(n, recv_conn, send_conn, p_conn1, p_conn2):
   p_conn1.close()
   p_conn2.close()
   try:
-    # # Close all file descriptors that are not the send/recv channels
-    # # (we do not want to be listening on the same socket as the worker)
-    # import resource
-    # fd_min = 3
-    # fd_top = resource.getrlimit(resource.RLIMIT_NOFILE)[1] - 1
-    # for fd in range(fd_min, fd_top+1):
-    #   if fd == recv_conn.fileno() or fd == send_conn.fileno():
-    #     continue
-    #   try:
-    #     os.close(fd)
-    #     print('Closed', fd)
-    #   except OSError:
-    #     pass
-
     user_config = pickle.loads(n['user_config_str'])
     protobufs = ProtobufGenerator(user_config)
     kernel_config = KernelConfig(cloudpickle.loads(n['config']))
