@@ -1791,7 +1791,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
 
       if (new_work.wait_for_work()) {
         // Waiting for more work
-        VLOG(1) << "Node " << node_id_ << " received wait for work signal.";
+        VLOG(2) << "Node " << node_id_ << " received wait for work signal.";
         last_wait_for_work_time = now();
       }
       else if (new_work.no_more_work()) {
