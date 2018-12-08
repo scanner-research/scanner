@@ -297,11 +297,12 @@ void PythonKernel::execute(const StenciledBatchedElements &input_columns,
         for (i32 i = 0; i < input_count; ++i) {
           py::array frame_np = batched_out_cols[j][i].cast<py::array>();
           FrameType frame_type;
-          if (frame_np.dtype().is(py::dtype("uint8"))) {
+          auto dt = frame_np.dtype();
+          if (dt.kind() == 'u' && dt.itemsize() == 1) {
             frame_type = FrameType::U8;
-          } else if (frame_np.dtype().is(py::dtype("float32"))) {
+          } else if (dt.kind() == 'f' && dt.itemsize() == 4) {
             frame_type = FrameType::F32;
-          } else if (frame_np.dtype().is(py::dtype("float64"))) {
+          } else if (dt.kind() == 'f' && dt.itemsize() == 8) {
             frame_type = FrameType::F64;
           } else {
             LOG(FATAL) << "Invalid numpy dtype: " << frame_np.dtype();
