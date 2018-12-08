@@ -45,17 +45,18 @@ class SQLEnumerator : public Enumerator {
   i64 total_elements() override {
     if (args_.num_elements() == 0) {
       if (total_elements_cached_ == -1) {
+        auto query = args_.query();
+        std::string query_str = tfm::format(
+                                            "SELECT COUNT(DISTINCT(%s)) FROM %s WHERE %s", query.group(),
+                                            query.table(), args_.filter());
         try {
           std::unique_ptr<pqxx::connection> conn = sql_connect(args_.config());
           pqxx::work txn{*conn};
           // Count the number the number of groups
-          auto query = args_.query();
-          pqxx::row r = txn.exec1(tfm::format(
-            "SELECT COUNT(DISTINCT(%s)) FROM %s WHERE %s", query.group(),
-            query.table(), args_.filter()));
+          pqxx::row r = txn.exec1(query_str);
           total_elements_cached_ = r[0].as<i32>();
         } catch (pqxx::pqxx_exception& e) {
-          LOG(FATAL) << e.base().what();
+          LOG(FATAL) << e.base().what() << "; Query: " << query_str;
         }
       }
 
@@ -122,6 +123,7 @@ class SQLSource : public Source {
     auto query = args_.query();
 
     // If we received elements from a new job, then flush our cached results and run a new query
+    VLOG(2) << "SQLSource filter: " << filter;
     if (last_filter_ != filter) {
       last_filter_ = filter;
 
@@ -134,24 +136,29 @@ class SQLSource : public Source {
           query.fields(), query.id(), query.group(), query.table(),
           filter);
 
-      pqxx::result result = txn.exec(query_str);
-      LOG_IF(FATAL, result.size() == 0) << "Query returned zero rows. Executed query was:\n" << query_str;
+      try {
+        VLOG(2) << "SQLSource read query: " << query_str;
+        pqxx::result result = txn.exec(query_str);
+        LOG_IF(FATAL, result.size() == 0) << "Query returned zero rows. Executed query was:\n" << query_str;
 
-      // Group the rows based on the provided key
-      cached_rows_.clear();
-      std::vector<pqxx::row> cur_group;
-      i32 last_group = result[0]["_scanner_number"].as<i32>();
-      for (auto row : result) {
-        i32 num = row["_scanner_number"].as<i32>();
-        if (num != last_group) {
-          last_group = num;
-          cached_rows_.push_back(cur_group);
-          cur_group = std::vector<pqxx::row>();
+        // Group the rows based on the provided key
+        cached_rows_.clear();
+        std::vector<pqxx::row> cur_group;
+        i32 last_group = result[0]["_scanner_number"].as<i32>();
+        for (auto row : result) {
+          i32 num = row["_scanner_number"].as<i32>();
+          if (num != last_group) {
+            last_group = num;
+            cached_rows_.push_back(cur_group);
+            cur_group = std::vector<pqxx::row>();
+          }
+          cur_group.push_back(row);
         }
-        cur_group.push_back(row);
-      }
 
-      cached_rows_.push_back(cur_group);
+        cached_rows_.push_back(cur_group);
+      } catch (pqxx::pqxx_exception& e) {
+        LOG(FATAL) << e.base().what() << "; Query: " << query_str;
+      }
     }
 
     size_t total_size = 0;
@@ -185,32 +192,43 @@ class SQLSource : public Source {
   json row_to_json(pqxx::row row) {
     json jrow;
 
-    for (pqxx::field field : row) {
-      std::string name(field.name());
-      if (name == "_scanner_id" || name == "_scanner_number") {
-        continue;
-      }
+    try {
+      for (pqxx::field field : row) {
+        std::string name(field.name());
 
-      pqxx::oid type = field.type();
-      std::string& typname = pq_types_[type];
-      bool assigned = false;
+        // Skip over our custom fields used for grouping
+        if (name == "_scanner_id" || name == "_scanner_number") {
+          continue;
+        }
 
-      #define ASSIGN_IF(NAME, TYPE) \
+        // Skip over null fields
+        if (field.is_null()) {
+          continue;
+        }
+
+        pqxx::oid type = field.type();
+        std::string& typname = pq_types_[type];
+        bool assigned = false;
+
+#define ASSIGN_IF(NAME, TYPE)                                           \
         if (typname == NAME) { jrow[name] = field.as<TYPE>(); assigned = true; }
 
-      // Left argument is the Postgres type name, right argument is the corresponding C++ type
-      ASSIGN_IF("int4", i32);
-      ASSIGN_IF("float8", f32);
-      ASSIGN_IF("bool", bool);
-      ASSIGN_IF("text", std::string);
-      ASSIGN_IF("varchar", std::string);
+        // Left argument is the Postgres type name, right argument is the corresponding C++ type
+        ASSIGN_IF("int4", i32);
+        ASSIGN_IF("float8", f32);
+        ASSIGN_IF("bool", bool);
+        ASSIGN_IF("text", std::string);
+        ASSIGN_IF("varchar", std::string);
 
-      LOG_IF(FATAL, !assigned)
+        LOG_IF(FATAL, !assigned)
           << "Requested row has field " << name
           << " with a type we can't serialize yet: " << typname;
-    }
+      }
 
-    return std::move(jrow);
+      return std::move(jrow);
+    } catch (pqxx::pqxx_exception& e) {
+      LOG(FATAL) << e.base().what();
+    }
   }
 
   Result valid_;
