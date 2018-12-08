@@ -629,6 +629,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
       for (i32 i = 0; i < input_column_idx.size(); ++i) {
         // If one of the inputs is empty, then we haven't seen enough rows!
         if (kernel_cache_row_ids[i].size() == 0) {
+          VLOG(3) << "Input " << i << " is empty!";
           max_row_id_seen = -1;
           break;
         }
@@ -651,6 +652,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
         }
       }
     }
+    VLOG(3) << "Max row id seen: " << max_row_id_seen;
 
     // Determine input op max rows for handling boundary
     i64 max_rows;
@@ -662,6 +664,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
       max_rows =
           arg_group_.op_input_domain_size.at(k).at(job_idx_).at(slice_group_);
     }
+    VLOG(3) << "Max rows: " << max_rows;
 
     // Figure out how many elements can be produced
     auto compute_producible_elements =
@@ -721,7 +724,10 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
 
       auto& unused_outputs = arg_group_.unused_outputs[k];
       num_output_columns = kernel_num_outputs_[k] - unused_outputs.size();
+
     }
+
+    VLOG(3) << "Producible elements: " << producible_elements;
 
     // Grab row ids corresponding to producible elements by walking through
     // element cache

@@ -228,8 +228,12 @@ void MasterServerImpl::handle_rpcs(i32 watchdog_timeout_ms) {
             break;
           }
         }
-        VLOG(2) << "Master cq got " << call_tag->get_call()->name << ":" << type
-                << ":" << ok;
+
+        if (call_tag->get_call()->name != "GetJobStatus") {
+          VLOG(2) << "Master cq got " << call_tag->get_call()->name << ":" << type
+                  << ":" << ok;
+        }
+
         if (ok) {
           call_tag->Advance(this);
         } else {
@@ -1839,7 +1843,7 @@ void MasterServerImpl::start_worker_pinger() {
       grpc::CompletionQueue cq;
       int i = 0;
 
-      VLOG(2) << "Queueing pings to workers";
+      VLOG(3) << "Queueing pings to workers";
       for (auto& kv : ws) {
         i64 id = kv.first;
         auto& worker = kv.second;
@@ -1861,7 +1865,7 @@ void MasterServerImpl::start_worker_pinger() {
         VLOG(3) << "Master sending Ping to worker " << id;
       }
 
-      VLOG(2) << "Waiting on pings from workers";
+      VLOG(3) << "Waiting on pings from workers";
       for (int i = 0; i < ws.size(); ++i) {
         void* got_tag;
         bool ok = false;
