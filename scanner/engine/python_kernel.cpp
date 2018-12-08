@@ -42,35 +42,44 @@ PythonKernel::PythonKernel(const KernelConfig &config,
 
   char rand[256];
   gen_random(rand, 256);
+  process_name_ = tfm::format("%s_process_%s", op_name_, rand);
+  send_pipe_name_ = tfm::format("%s_send_pipe_%s", op_name_, rand);
+  recv_pipe_name_ = tfm::format("%s_recv_pipe_%s", op_name_, rand);
   kernel_name_ = tfm::format("%s_kernel_%s", op_name_, rand);
   std::string kernel_ns_name_ = tfm::format("ns_%s", op_name_);
 
   try {
     py::module main = py::module::import("__main__");
     py::object scope = main.attr("__dict__");
-    // FIXME((apoms): for some reason, serializing the config object in release
+    py::module cloudpickle = py::module::import("cloudpickle");
+    // FIXME(apoms): for some reason, serializing the config object in release
     // mode on MacOS fails....
     main.attr(kernel_ns_name_.c_str()) = py::dict(
         "kernel_code"_a=py::bytes(kernel_code),
         "user_config_str"_a=py::bytes(pickled_config),
-        "config"_a=config);
+        "config"_a=cloudpickle.attr("dumps")(config));
 
     std::string pycode = tfm::format(R"(
-def %s_fn():
-  import pickle
-  import cloudpickle
-  import traceback
-  from scannerpy import Config, DeviceType, DeviceHandle, KernelConfig
-  from scannerpy.protobuf_generator import ProtobufGenerator
-
-  n = %s
-  user_config = pickle.loads(n['user_config_str'])
-  protobufs = ProtobufGenerator(user_config)
-  kernel_config = KernelConfig(n['config'])
-  kernel_config.protobufs = protobufs
-  return cloudpickle.loads(n['kernel_code'])(kernel_config)
-%s = %s_fn()
-)", kernel_name_, kernel_ns_name_, kernel_name_, kernel_name_);
+from scannerpy.kernel import python_kernel_fn
+import multiprocessing as mp
+import sys
+import signal
+if __name__ == '__main__':
+  if sys.platform == 'linux' or sys.platform == 'linux2':
+    import prctl
+    prctl.set_pdeathsig(signal.SIGKILL)
+  def fn_%s():
+    ctx = mp.get_context('spawn')
+    c_recv_conn, p_send_conn = ctx.Pipe(duplex=False)
+    p_recv_conn, c_send_conn = ctx.Pipe(duplex=False)
+    p = ctx.Process(target=python_kernel_fn, args=(%s, c_recv_conn, c_send_conn, p_send_conn, p_recv_conn), daemon=True)
+    p.start()
+    # Close child sockets because child has its own copies now
+    c_recv_conn.close()
+    c_send_conn.close()
+    return p, p_send_conn, p_recv_conn
+  %s, %s, %s = fn_%s()
+)", rand, kernel_ns_name_, process_name_, send_pipe_name_, recv_pipe_name_, rand);
     py::exec(pycode, scope);
   } catch (py::error_already_set &e) {
     LOG(FATAL) << e.what();
@@ -80,7 +89,9 @@ def %s_fn():
 PythonKernel::~PythonKernel() {
   py::gil_scoped_acquire acquire;
   try {
-    py::module::import("__main__").attr(kernel_name_.c_str()).attr("close")();
+    py::module::import("__main__").attr(send_pipe_name_.c_str()).attr("close")();
+    py::module::import("__main__").attr(recv_pipe_name_.c_str()).attr("close")();
+    py::module::import("__main__").attr(process_name_.c_str()).attr("join")();
   } catch (py::error_already_set &e) {
     LOG(FATAL) << e.what();
   }
@@ -89,7 +100,13 @@ PythonKernel::~PythonKernel() {
 void PythonKernel::reset() {
   py::gil_scoped_acquire acquire;
   try {
-    py::module::import("__main__").attr(kernel_name_.c_str()).attr("reset")();
+    py::module main = py::module::import("__main__");
+    std::string pycode = tfm::format(R"(
+import cloudpickle
+msg_type = 'reset'
+%s.send_bytes(cloudpickle.dumps([msg_type, None]))
+)", send_pipe_name_);
+    py::exec(pycode.c_str(), main.attr("__dict__"));
   } catch (py::error_already_set &e) {
     LOG(FATAL) << e.what();
   }
@@ -100,17 +117,18 @@ void PythonKernel::new_stream(const std::vector<u8> &args) {
 
   try {
     py::module main = py::module::import("__main__");
-    py::object kernel = main.attr(kernel_name_.c_str());
     main.attr("args_str") =
         py::bytes(reinterpret_cast<const char *>(args.data()), args.size());
     std::string pycode = tfm::format(R"(
 import pickle
+import cloudpickle
 if len(args_str) == 0:
   args = None
 else:
   args = pickle.loads(args_str)
-%s.new_stream(args))",
-                                     kernel_name_);
+msg_type = 'new_stream'
+%s.send_bytes(cloudpickle.dumps([msg_type, args]))
+)", send_pipe_name_);
     py::exec(pycode.c_str(), main.attr("__dict__"));
   } catch (py::error_already_set &e) {
     LOG(FATAL) << e.what();
@@ -123,8 +141,10 @@ void PythonKernel::execute(const StenciledBatchedElements &input_columns,
   py::gil_scoped_acquire acquire;
 
   try {
-    py::object kernel =
-        py::module::import("__main__").attr(kernel_name_.c_str());
+    py::module main = py::module::import("__main__");
+    py::object send_pipe = main.attr(send_pipe_name_.c_str());
+    py::object recv_pipe = main.attr(recv_pipe_name_.c_str());
+    py::module cloudpickle = py::module::import("cloudpickle");
 
     std::vector<std::vector<std::vector<py::object>>> batched_cols;
     for (i32 j = 0; j < input_columns.size(); ++j) {
@@ -197,8 +217,12 @@ void PythonKernel::execute(const StenciledBatchedElements &input_columns,
     std::vector<std::vector<py::object>> batched_out_cols;
 
     if (can_batch_ && can_stencil_) {
-      py::tuple out_cols = kernel.attr("execute")(batched_cols)
-          .cast<py::tuple>();
+      py::tuple execute_data = py::make_tuple("execute", batched_cols);
+      py::object pickled_data = cloudpickle.attr("dumps")(execute_data);
+      send_pipe.attr("send_bytes")(pickled_data);
+      py::object recv_data = recv_pipe.attr("recv_bytes")();
+      py::tuple out_cols = cloudpickle.attr("loads")(recv_data);
+
       for (i32 j = 0; j < out_cols.size(); ++j) {
         batched_out_cols.push_back(out_cols[j].cast<std::vector<py::object>>());
       }
@@ -208,8 +232,14 @@ void PythonKernel::execute(const StenciledBatchedElements &input_columns,
       for (size_t i = 0; i < batched_cols.size(); ++i) {
         in_row[i] = batched_cols[i][0];
       }
-      py::tuple out_row = kernel.attr("execute")(in_row)
-          .cast<py::tuple>();
+
+      py::tuple execute_data = py::make_tuple("execute", in_row);
+      py::object pickled_data = cloudpickle.attr("dumps")(execute_data);
+      send_pipe.attr("send_bytes")(pickled_data);
+      py::object recv_data = recv_pipe.attr("recv_bytes")();
+      py::tuple out_row = cloudpickle.attr("loads")(recv_data).cast<py::tuple>();
+
+
       for (i32 j = 0; j < output_columns.size(); ++j) {
         batched_out_cols.emplace_back();
       }
@@ -225,8 +255,13 @@ void PythonKernel::execute(const StenciledBatchedElements &input_columns,
           in_row[i].push_back(batched_cols[i][j][0]);
         }
       }
-      py::tuple out_cols = kernel.attr("execute")(in_row)
-          .cast<py::tuple>();
+      py::tuple execute_data = py::make_tuple("execute", in_row);
+      py::object pickled_data = cloudpickle.attr("dumps")(execute_data);
+      send_pipe.attr("send_bytes")(pickled_data);
+      py::object recv_data = recv_pipe.attr("recv_bytes")();
+      py::tuple out_cols = cloudpickle.attr("loads")(recv_data).cast<py::tuple>();
+
+
       for (i32 j = 0; j < out_cols.size(); ++j) {
         batched_out_cols.push_back(out_cols[j].cast<std::vector<py::object>>());
       }
@@ -236,8 +271,11 @@ void PythonKernel::execute(const StenciledBatchedElements &input_columns,
       for (i32 j = 0; j < batched_cols.size(); ++j) {
         in_row.push_back(batched_cols[j][0][0]);
       }
-      py::tuple out_row =
-          kernel.attr("execute")(in_row).cast<py::tuple>();
+      py::tuple execute_data = py::make_tuple("execute", in_row);
+      py::object pickled_data = cloudpickle.attr("dumps")(execute_data);
+      send_pipe.attr("send_bytes")(pickled_data);
+      py::object recv_data = recv_pipe.attr("recv_bytes")();
+      py::tuple out_row = cloudpickle.attr("loads")(recv_data).cast<py::tuple>();
 
       for (i32 j = 0; j < output_columns.size(); ++j) {
         batched_out_cols.emplace_back();

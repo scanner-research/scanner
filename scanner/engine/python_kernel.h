@@ -29,6 +29,9 @@ class PythonKernel : public StenciledBatchedKernel {
   bool can_batch_;
   bool can_stencil_;
   std::string op_name_;
+  std::string process_name_;
+  std::string send_pipe_name_;
+  std::string recv_pipe_name_;
   std::string kernel_name_;
 };
 
