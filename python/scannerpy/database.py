@@ -139,8 +139,7 @@ class Database(object):
                  no_workers_timeout: float = 30,
                  grpc_timeout: float = 30,
                  new_job_retries_limit: int = 5,
-                 machine_params = None,
-                 workers_per_node: int = None):
+                 machine_params = None):
         if config:
             self.config = config
         else:
@@ -158,7 +157,6 @@ class Database(object):
         self._grpc_timeout = grpc_timeout
         self._new_job_retries_limit = new_job_retries_limit
         self._machine_params = machine_params
-        self._workers_per_node = workers_per_node
         if debug is None:
             self._debug = (master is None and workers is None)
 
@@ -728,8 +726,7 @@ class Database(object):
                     config=self.config,
                     db=self._db,
                     watchdog=self._enable_worker_watchdog,
-                    machine_params=machine_params,
-                    num_workers=self._workers_per_node)
+                    machine_params=machine_params)
         else:
             pickled_config = pickle.dumps(self.config, 0).decode()
             worker_cmd = (
@@ -1675,34 +1672,6 @@ def start_master(port: int = None,
     return db
 
 
-def worker_process(args):
-    [
-        master_address, machine_params, port, config, config_path, block,
-        watchdog, db
-    ] = args
-
-    config = config or Config(config_path)
-    port = port or config.worker_port
-
-    # Load all protobuf types
-    db = db or bindings.Database(
-        config.storage_config,
-        config.db_path,
-        master_address)
-    machine_params = machine_params or bindings.default_machine_params()
-    result = bindings.start_worker(db, machine_params, str(port), SCRIPT_DIR,
-                                   watchdog)
-
-    if not result.success():
-        raise ScannerException('Failed to start worker: {}'.format(
-            result.msg()))
-
-    if block:
-        bindings.wait_for_server_shutdown(db)
-
-    return result
-
-
 def start_worker(master_address: str,
                  machine_params=None,
                  port: int = None,
@@ -1710,7 +1679,6 @@ def start_worker(master_address: str,
                  config_path: str = None,
                  block: bool = False,
                  watchdog: bool = True,
-                 num_workers: int = None,
                  db: Database = None):
     r"""Starts a worker instance on this node.
 
@@ -1742,13 +1710,6 @@ def start_worker(master_address: str,
 
     Other Parameters
     ----------------
-    num_workers
-      Specifies the number of workers to create. If unspecified, only one is
-      created. This is a legacy feature that exists to deal with kernels that
-      can not be executed in the same process due to shared global state. By
-      spawning multiple worker processes and using a single pipeline per worker,
-      this limitation can be avoided.
-
     db
       This is for internal usage only.
 
@@ -1766,27 +1727,23 @@ def start_worker(master_address: str,
               file=sys.stderr)
         watchdog = True
 
-    if num_workers is not None:
-        ctx = multiprocessing.get_context('spawn')
-        subprocesses = [
-            ctx.Process(target=worker_process, daemon=True, args=([
-                master_address, machine_params,
-                int(port) + i, config, config_path, True, watchdog, None
-            ],))
-            for i in range(num_workers)
-        ]
+    config = config or Config(config_path)
+    port = port or config.worker_port
 
-        for p in subprocesses:
-            p.start()
+    # Load all protobuf types
+    db = db or bindings.Database(
+        config.storage_config,
+        config.db_path,
+        master_address)
+    machine_params = machine_params or bindings.default_machine_params()
+    result = bindings.start_worker(db, machine_params, str(port), SCRIPT_DIR,
+                                   watchdog)
 
-        if block:
-            for p in subprocesses:
-                p.join()
+    if not result.success():
+        raise ScannerException('Failed to start worker: {}'.format(
+            result.msg()))
 
-        return ProtobufGenerator(config).Result(success=True)
+    if block:
+        bindings.wait_for_server_shutdown(db)
 
-    else:
-        return worker_process([
-            master_address, machine_params, port, config, config_path, block,
-            watchdog, db
-        ])
+    return result
