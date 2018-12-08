@@ -38,6 +38,7 @@
 
 #ifdef __linux__
 #include <omp.h>
+#include <sys/prctl.h>
 #endif
 
 
@@ -476,6 +477,10 @@ WorkerImpl::WorkerImpl(DatabaseParameters& db_params,
     master_address_(master_address),
     worker_port_(worker_port) {
   init_glog("scanner_worker");
+
+#ifdef __linux__
+  prctl(PR_SET_PDEATHSIG, 9);
+#endif
 
   LOG(INFO) << "Creating worker";
 
