@@ -58,38 +58,44 @@ class ResizeClass(scannerpy.Kernel):
     def execute(self, frame: FrameType) -> FrameType:
         return cv2.resize(frame, (self._width, self._height))
 
-# Now we can use these new Ops in Scanner:
-db = Database()
 
-# Download an example video
-example_video_path = util.download_video()
+def main():
+    # Now we can use these new Ops in Scanner:
+    db = Database()
 
-# Ingest it into the database
-[input_table], _ = db.ingest_videos([('example', example_video_path)],
-                                    force=True)
+    # Download an example video
+    example_video_path = util.download_video()
 
-frame = db.sources.FrameColumn()
+    # Ingest it into the database
+    [input_table], _ = db.ingest_videos([('example', example_video_path)],
+                                        force=True)
 
-resized_frame_fn = db.ops.resize_fn(frame=frame, width=640, height=480)
+    frame = db.sources.FrameColumn()
 
-resized_frame_class = db.ops.ResizeClass(frame=frame, width=320, height=240)
+    resized_frame_fn = db.ops.resize_fn(frame=frame, width=640, height=480)
 
-output = db.sinks.FrameColumn(columns={'frame1': resized_frame_fn,
-                                       'frame2': resized_frame_class})
+    resized_frame_class = db.ops.ResizeClass(frame=frame, width=320, height=240)
 
-job = Job(op_args={
-    frame: input_table.column('frame'),
-    output: 'example_python_op'
-})
+    output = db.sinks.FrameColumn(columns={'frame1': resized_frame_fn,
+                                           'frame2': resized_frame_class})
 
-[table] = db.run(output=output, jobs=[job], force=True)
+    job = Job(op_args={
+        frame: input_table.column('frame'),
+        output: 'example_python_op'
+    })
 
-table.column('frame1').save_mp4('01_resized_fn')
-table.column('frame2').save_mp4('01_resized_class')
+    [table] = db.run(output=output, jobs=[job], force=True)
 
-print('Finished! Two videos were saved to the current directory: '
-      '01_resized_fn.mp4, 01_resized_class.mp4')
+    table.column('frame1').save_mp4('01_resized_fn')
+    table.column('frame2').save_mp4('01_resized_class')
 
-# If you are trying to integrate with a C++ library or you want a more efficient
-# implementation for your Ops, you can also define Ops in C++. See the
-# 08_defining_cpp_ops.py tutorial.
+    print('Finished! Two videos were saved to the current directory: '
+          '01_resized_fn.mp4, 01_resized_class.mp4')
+
+    # If you are trying to integrate with a C++ library or you want a more efficient
+    # implementation for your Ops, you can also define Ops in C++. See the
+    # 08_defining_cpp_ops.py tutorial.
+
+
+if __name__ == "__main__":
+    main()
