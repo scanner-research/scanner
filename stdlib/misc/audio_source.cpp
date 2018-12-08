@@ -310,7 +310,7 @@ class AudioEnumerator : public Enumerator {
 
   i64 total_elements() override {
     double duration = decoder_->duration();
-    return (i32)std::floor(duration / args_.frame_size());
+    return (i32)std::floor((duration - 1) / args_.frame_size());
   }
 
   ElementArgs element_args_at(i64 element_idx) override {
