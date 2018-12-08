@@ -99,7 +99,35 @@ namespace scanner {
       .def("args", [](const KernelConfig& config) {
           std::string s(config.args.begin(), config.args.end());
           return py::bytes(s);
-        });
+        })
+      .def(py::pickle(
+        [](const KernelConfig &p) { // __getstate__
+          /* Return a tuple that fully encodes the state of the object */
+          return py::make_tuple(p.devices,
+                                p.input_columns,
+                                p.input_column_types,
+                                p.output_columns,
+                                p.output_column_types,
+                                p.node_id,
+                                p.args);
+        },
+        [](py::tuple t) { // __setstate__
+          if (t.size() != 7) throw std::runtime_error("Invalid state!");
+
+          /* Create a new C++ instance */
+          KernelConfig config;
+          config.devices = t[0].cast<std::vector<DeviceHandle>>();
+          config.input_columns = t[1].cast<std::vector<std::string>>();
+          config.input_column_types =
+              t[2].cast<std::vector<proto::ColumnType>>();
+          config.output_columns = t[3].cast<std::vector<std::string>>();
+          config.output_column_types =
+              t[4].cast<std::vector<proto::ColumnType>>();
+          config.node_id = t[5].cast<i32>();
+          config.args = t[6].cast<std::vector<u8>>();
+
+          return config;
+        }));
 
     py::class_<DeviceHandle>(m, "DeviceHandle")
       .def_readonly("id", &DeviceHandle::id)
