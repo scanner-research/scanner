@@ -38,8 +38,8 @@ if __name__ == "__main__":
         reason='need --runslow option to run')
 
 else:
-    gpu = pytest.mark.skipif(True)
-    slow = pytest.mark.skipif(True)
+    gpu = pytest.mark.skipif(True, reason='')
+    slow = pytest.mark.skipif(True, reason='')
 
 
 @slow
