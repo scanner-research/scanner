@@ -59,7 +59,7 @@
 <span id="scannerpy-database-module"></span><h2>scannerpy.database module<a class="headerlink" href="#module-scannerpy.database" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="scannerpy.database.Database">
-<em class="property">class </em><code class="descclassname">scannerpy.database.</code><code class="descname">Database</code><span class="sig-paren">(</span><em>master=None</em>, <em>workers=None</em>, <em>start_cluster=True</em>, <em>config_path=None</em>, <em>config=None</em>, <em>debug=None</em>, <em>enable_watchdog=True</em>, <em>prefetch_table_metadata=True</em>, <em>no_workers_timeout=30</em>, <em>grpc_timeout=30</em>, <em>new_job_retries_limit=5</em>, <em>machine_params=None</em>, <em>workers_per_node=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#Database"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.Database" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">scannerpy.database.</code><code class="descname">Database</code><span class="sig-paren">(</span><em>master=None</em>, <em>workers=None</em>, <em>start_cluster=True</em>, <em>config_path=None</em>, <em>config=None</em>, <em>debug=None</em>, <em>enable_watchdog=True</em>, <em>prefetch_table_metadata=True</em>, <em>no_workers_timeout=30</em>, <em>grpc_timeout=30</em>, <em>new_job_retries_limit=5</em>, <em>machine_params=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#Database"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.Database" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.7)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
 <p>Entrypoint for all Scanner operations.</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -500,7 +500,7 @@ it has no workers connected to it.</li>
 
 <dl class="function">
 <dt id="scannerpy.database.start_worker">
-<code class="descclassname">scannerpy.database.</code><code class="descname">start_worker</code><span class="sig-paren">(</span><em>master_address</em>, <em>machine_params=None</em>, <em>port=None</em>, <em>config=None</em>, <em>config_path=None</em>, <em>block=False</em>, <em>watchdog=True</em>, <em>num_workers=None</em>, <em>db=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#start_worker"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.start_worker" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">scannerpy.database.</code><code class="descname">start_worker</code><span class="sig-paren">(</span><em>master_address</em>, <em>machine_params=None</em>, <em>port=None</em>, <em>config=None</em>, <em>config_path=None</em>, <em>block=False</em>, <em>watchdog=True</em>, <em>db=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#start_worker"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.start_worker" title="Permalink to this definition">¶</a></dt>
 <dd><p>Starts a worker instance on this node.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -523,14 +523,7 @@ PokeWatchdog is not called.</li>
 </td>
 </tr>
 <tr class="field-even field"><th class="field-name" colspan="2">Other Parameters:</th></tr>
-<tr class="field-even field"><td>&#160;</td><td class="field-body"><ul class="first simple">
-<li><strong>num_workers</strong> – Specifies the number of workers to create. If unspecified, only one is
-created. This is a legacy feature that exists to deal with kernels that
-can not be executed in the same process due to shared global state. By
-spawning multiple worker processes and using a single pipeline per worker,
-this limitation can be avoided.</li>
-<li><strong>db</strong> – This is for internal usage only.</li>
-</ul>
+<tr class="field-even field"><td>&#160;</td><td class="field-body"><p class="first"><strong>db</strong> – This is for internal usage only.</p>
 </td>
 </tr>
 <tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">A cpp database instance.</p>
@@ -542,11 +535,6 @@ this limitation can be avoided.</li>
 </tbody>
 </table>
 </dd></dl>
-
-<dl class="function">
-<dt id="scannerpy.database.worker_process">
-<code class="descclassname">scannerpy.database.</code><code class="descname">worker_process</code><span class="sig-paren">(</span><em>args</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#worker_process"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.worker_process" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
 
 </div>
 <div class="section" id="module-scannerpy.config">
@@ -1185,6 +1173,11 @@ a binary blob for non-frame columns (optionally processed by the
 <em class="property">class </em><code class="descclassname">scannerpy.kernel.</code><code class="descname">KernelConfig</code><span class="sig-paren">(</span><em>config</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/kernel.html#KernelConfig"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.kernel.KernelConfig" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.7)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
 </dd></dl>
+
+<dl class="function">
+<dt id="scannerpy.kernel.python_kernel_fn">
+<code class="descclassname">scannerpy.kernel.</code><code class="descname">python_kernel_fn</code><span class="sig-paren">(</span><em>n</em>, <em>recv_conn</em>, <em>send_conn</em>, <em>p_conn1</em>, <em>p_conn2</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/kernel.html#python_kernel_fn"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.kernel.python_kernel_fn" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
 
 </div>
 <div class="section" id="module-scannerpy.partitioner">

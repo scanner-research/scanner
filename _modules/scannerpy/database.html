@@ -185,8 +185,7 @@
                  <span class="n">no_workers_timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">30</span><span class="p">,</span>
                  <span class="n">grpc_timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">30</span><span class="p">,</span>
                  <span class="n">new_job_retries_limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
-                 <span class="n">machine_params</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-                 <span class="n">workers_per_node</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+                 <span class="n">machine_params</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">config</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">config</span>
         <span class="k">else</span><span class="p">:</span>
@@ -204,7 +203,6 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_grpc_timeout</span> <span class="o">=</span> <span class="n">grpc_timeout</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_new_job_retries_limit</span> <span class="o">=</span> <span class="n">new_job_retries_limit</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_machine_params</span> <span class="o">=</span> <span class="n">machine_params</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_workers_per_node</span> <span class="o">=</span> <span class="n">workers_per_node</span>
         <span class="k">if</span> <span class="n">debug</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_debug</span> <span class="o">=</span> <span class="p">(</span><span class="n">master</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">workers</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">)</span>
 
@@ -774,8 +772,7 @@
                     <span class="n">config</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">,</span>
                     <span class="n">db</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="p">,</span>
                     <span class="n">watchdog</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_enable_worker_watchdog</span><span class="p">,</span>
-                    <span class="n">machine_params</span><span class="o">=</span><span class="n">machine_params</span><span class="p">,</span>
-                    <span class="n">num_workers</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_workers_per_node</span><span class="p">)</span>
+                    <span class="n">machine_params</span><span class="o">=</span><span class="n">machine_params</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">pickled_config</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
             <span class="n">worker_cmd</span> <span class="o">=</span> <span class="p">(</span>
@@ -1721,34 +1718,6 @@
     <span class="k">return</span> <span class="n">db</span></div>
 
 
-<div class="viewcode-block" id="worker_process"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.database.worker_process">[docs]</a><span class="k">def</span> <span class="nf">worker_process</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
-    <span class="p">[</span>
-        <span class="n">master_address</span><span class="p">,</span> <span class="n">machine_params</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">config_path</span><span class="p">,</span> <span class="n">block</span><span class="p">,</span>
-        <span class="n">watchdog</span><span class="p">,</span> <span class="n">db</span>
-    <span class="p">]</span> <span class="o">=</span> <span class="n">args</span>
-
-    <span class="n">config</span> <span class="o">=</span> <span class="n">config</span> <span class="ow">or</span> <span class="n">Config</span><span class="p">(</span><span class="n">config_path</span><span class="p">)</span>
-    <span class="n">port</span> <span class="o">=</span> <span class="n">port</span> <span class="ow">or</span> <span class="n">config</span><span class="o">.</span><span class="n">worker_port</span>
-
-    <span class="c1"># Load all protobuf types</span>
-    <span class="n">db</span> <span class="o">=</span> <span class="n">db</span> <span class="ow">or</span> <span class="n">bindings</span><span class="o">.</span><span class="n">Database</span><span class="p">(</span>
-        <span class="n">config</span><span class="o">.</span><span class="n">storage_config</span><span class="p">,</span>
-        <span class="n">config</span><span class="o">.</span><span class="n">db_path</span><span class="p">,</span>
-        <span class="n">master_address</span><span class="p">)</span>
-    <span class="n">machine_params</span> <span class="o">=</span> <span class="n">machine_params</span> <span class="ow">or</span> <span class="n">bindings</span><span class="o">.</span><span class="n">default_machine_params</span><span class="p">()</span>
-    <span class="n">result</span> <span class="o">=</span> <span class="n">bindings</span><span class="o">.</span><span class="n">start_worker</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">machine_params</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">port</span><span class="p">),</span> <span class="n">SCRIPT_DIR</span><span class="p">,</span>
-                                   <span class="n">watchdog</span><span class="p">)</span>
-
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">result</span><span class="o">.</span><span class="n">success</span><span class="p">():</span>
-        <span class="k">raise</span> <span class="n">ScannerException</span><span class="p">(</span><span class="s1">&#39;Failed to start worker: </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
-            <span class="n">result</span><span class="o">.</span><span class="n">msg</span><span class="p">()))</span>
-
-    <span class="k">if</span> <span class="n">block</span><span class="p">:</span>
-        <span class="n">bindings</span><span class="o">.</span><span class="n">wait_for_server_shutdown</span><span class="p">(</span><span class="n">db</span><span class="p">)</span>
-
-    <span class="k">return</span> <span class="n">result</span></div>
-
-
 <div class="viewcode-block" id="start_worker"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.database.start_worker">[docs]</a><span class="k">def</span> <span class="nf">start_worker</span><span class="p">(</span><span class="n">master_address</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
                  <span class="n">machine_params</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                  <span class="n">port</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -1756,7 +1725,6 @@
                  <span class="n">config_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                  <span class="n">block</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
                  <span class="n">watchdog</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
-                 <span class="n">num_workers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
                  <span class="n">db</span><span class="p">:</span> <span class="n">Database</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
     <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Starts a worker instance on this node.</span>
 
@@ -1788,13 +1756,6 @@
 
 <span class="sd">    Other Parameters</span>
 <span class="sd">    ----------------</span>
-<span class="sd">    num_workers</span>
-<span class="sd">      Specifies the number of workers to create. If unspecified, only one is</span>
-<span class="sd">      created. This is a legacy feature that exists to deal with kernels that</span>
-<span class="sd">      can not be executed in the same process due to shared global state. By</span>
-<span class="sd">      spawning multiple worker processes and using a single pipeline per worker,</span>
-<span class="sd">      this limitation can be avoided.</span>
-
 <span class="sd">    db</span>
 <span class="sd">      This is for internal usage only.</span>
 
@@ -1812,30 +1773,26 @@
               <span class="n">file</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="p">)</span>
         <span class="n">watchdog</span> <span class="o">=</span> <span class="kc">True</span>
 
-    <span class="k">if</span> <span class="n">num_workers</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">ctx</span> <span class="o">=</span> <span class="n">multiprocessing</span><span class="o">.</span><span class="n">get_context</span><span class="p">(</span><span class="s1">&#39;spawn&#39;</span><span class="p">)</span>
-        <span class="n">subprocesses</span> <span class="o">=</span> <span class="p">[</span>
-            <span class="n">ctx</span><span class="o">.</span><span class="n">Process</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">worker_process</span><span class="p">,</span> <span class="n">daemon</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="p">([</span>
-                <span class="n">master_address</span><span class="p">,</span> <span class="n">machine_params</span><span class="p">,</span>
-                <span class="nb">int</span><span class="p">(</span><span class="n">port</span><span class="p">)</span> <span class="o">+</span> <span class="n">i</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">config_path</span><span class="p">,</span> <span class="kc">True</span><span class="p">,</span> <span class="n">watchdog</span><span class="p">,</span> <span class="kc">None</span>
-            <span class="p">],))</span>
-            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_workers</span><span class="p">)</span>
-        <span class="p">]</span>
+    <span class="n">config</span> <span class="o">=</span> <span class="n">config</span> <span class="ow">or</span> <span class="n">Config</span><span class="p">(</span><span class="n">config_path</span><span class="p">)</span>
+    <span class="n">port</span> <span class="o">=</span> <span class="n">port</span> <span class="ow">or</span> <span class="n">config</span><span class="o">.</span><span class="n">worker_port</span>
 
-        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">subprocesses</span><span class="p">:</span>
-            <span class="n">p</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+    <span class="c1"># Load all protobuf types</span>
+    <span class="n">db</span> <span class="o">=</span> <span class="n">db</span> <span class="ow">or</span> <span class="n">bindings</span><span class="o">.</span><span class="n">Database</span><span class="p">(</span>
+        <span class="n">config</span><span class="o">.</span><span class="n">storage_config</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">.</span><span class="n">db_path</span><span class="p">,</span>
+        <span class="n">master_address</span><span class="p">)</span>
+    <span class="n">machine_params</span> <span class="o">=</span> <span class="n">machine_params</span> <span class="ow">or</span> <span class="n">bindings</span><span class="o">.</span><span class="n">default_machine_params</span><span class="p">()</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">bindings</span><span class="o">.</span><span class="n">start_worker</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">machine_params</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">port</span><span class="p">),</span> <span class="n">SCRIPT_DIR</span><span class="p">,</span>
+                                   <span class="n">watchdog</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="n">block</span><span class="p">:</span>
-            <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">subprocesses</span><span class="p">:</span>
-                <span class="n">p</span><span class="o">.</span><span class="n">join</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">result</span><span class="o">.</span><span class="n">success</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="n">ScannerException</span><span class="p">(</span><span class="s1">&#39;Failed to start worker: </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">msg</span><span class="p">()))</span>
 
-        <span class="k">return</span> <span class="n">ProtobufGenerator</span><span class="p">(</span><span class="n">config</span><span class="p">)</span><span class="o">.</span><span class="n">Result</span><span class="p">(</span><span class="n">success</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">block</span><span class="p">:</span>
+        <span class="n">bindings</span><span class="o">.</span><span class="n">wait_for_server_shutdown</span><span class="p">(</span><span class="n">db</span><span class="p">)</span>
 
-    <span class="k">else</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">worker_process</span><span class="p">([</span>
-            <span class="n">master_address</span><span class="p">,</span> <span class="n">machine_params</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">config_path</span><span class="p">,</span> <span class="n">block</span><span class="p">,</span>
-            <span class="n">watchdog</span><span class="p">,</span> <span class="n">db</span>
-        <span class="p">])</span></div>
+    <span class="k">return</span> <span class="n">result</span></div>
 </pre></div>
 
           </div>

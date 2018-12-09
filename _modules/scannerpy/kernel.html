@@ -74,6 +74,44 @@
 
 <div class="viewcode-block" id="Kernel.execute"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kernel.Kernel.execute">[docs]</a>    <span class="k">def</span> <span class="nf">execute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_columns</span><span class="p">):</span>
         <span class="k">raise</span> <span class="ne">NotImplementedError</span></div></div>
+
+
+<div class="viewcode-block" id="python_kernel_fn"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kernel.python_kernel_fn">[docs]</a><span class="k">def</span> <span class="nf">python_kernel_fn</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">recv_conn</span><span class="p">,</span> <span class="n">send_conn</span><span class="p">,</span> <span class="n">p_conn1</span><span class="p">,</span> <span class="n">p_conn2</span><span class="p">):</span>
+  <span class="kn">import</span> <span class="nn">pickle</span>
+  <span class="kn">import</span> <span class="nn">cloudpickle</span>
+  <span class="kn">import</span> <span class="nn">traceback</span>
+  <span class="kn">import</span> <span class="nn">os</span>
+  <span class="kn">from</span> <span class="nn">scannerpy</span> <span class="k">import</span> <span class="n">Config</span><span class="p">,</span> <span class="n">DeviceType</span><span class="p">,</span> <span class="n">DeviceHandle</span><span class="p">,</span> <span class="n">KernelConfig</span>
+  <span class="kn">from</span> <span class="nn">scannerpy.protobuf_generator</span> <span class="k">import</span> <span class="n">ProtobufGenerator</span>
+
+  <span class="c1"># Close parent connections</span>
+  <span class="n">p_conn1</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+  <span class="n">p_conn2</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+  <span class="k">try</span><span class="p">:</span>
+    <span class="n">user_config</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">n</span><span class="p">[</span><span class="s1">&#39;user_config_str&#39;</span><span class="p">])</span>
+    <span class="n">protobufs</span> <span class="o">=</span> <span class="n">ProtobufGenerator</span><span class="p">(</span><span class="n">user_config</span><span class="p">)</span>
+    <span class="n">kernel_config</span> <span class="o">=</span> <span class="n">KernelConfig</span><span class="p">(</span><span class="n">cloudpickle</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">n</span><span class="p">[</span><span class="s1">&#39;config&#39;</span><span class="p">]))</span>
+    <span class="n">kernel_config</span><span class="o">.</span><span class="n">protobufs</span> <span class="o">=</span> <span class="n">protobufs</span>
+    <span class="n">kernel</span> <span class="o">=</span> <span class="n">cloudpickle</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">n</span><span class="p">[</span><span class="s1">&#39;kernel_code&#39;</span><span class="p">])(</span><span class="n">kernel_config</span><span class="p">)</span>
+    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+      <span class="k">try</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">recv_conn</span><span class="o">.</span><span class="n">recv_bytes</span><span class="p">()</span>
+        <span class="n">msg_type</span><span class="p">,</span> <span class="n">data</span> <span class="o">=</span> <span class="n">cloudpickle</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+      <span class="k">except</span> <span class="ne">EOFError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="k">break</span>
+      <span class="k">if</span> <span class="n">msg_type</span> <span class="o">==</span> <span class="s1">&#39;reset&#39;</span><span class="p">:</span>
+        <span class="n">kernel</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+      <span class="k">elif</span> <span class="n">msg_type</span> <span class="o">==</span> <span class="s1">&#39;new_stream&#39;</span><span class="p">:</span>
+        <span class="n">kernel</span><span class="o">.</span><span class="n">new_stream</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+      <span class="k">elif</span> <span class="n">msg_type</span> <span class="o">==</span> <span class="s1">&#39;execute&#39;</span><span class="p">:</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">kernel</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+        <span class="n">send_conn</span><span class="o">.</span><span class="n">send_bytes</span><span class="p">(</span><span class="n">cloudpickle</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">result</span><span class="p">))</span>
+  <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+    <span class="k">raise</span>
+  <span class="k">finally</span><span class="p">:</span>
+    <span class="n">send_conn</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+    <span class="n">recv_conn</span><span class="o">.</span><span class="n">close</span><span class="p">()</span></div>
 </pre></div>
 
           </div>
