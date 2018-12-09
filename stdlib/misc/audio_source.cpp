@@ -20,8 +20,6 @@ extern "C" {
 
 using storehouse::StorageBackend;
 
-// TODO(wcrichto): check whole impl for memory leaks
-
 namespace scanner {
 
 #define FF_ERROR(EXPR)                \
@@ -88,11 +86,7 @@ class AudioDecoder {
   }
 
   ~AudioDecoder() {
-    avcodec_free_context(&context_);
-
-    // TODO(wcrichto): this causes a double free?
-    // avformat_close_input(&format_context_);
-
+    avformat_close_input(&format_context_);
     av_freep(&io_context_->buffer);
     av_freep(&io_context_);
   }
@@ -154,12 +148,14 @@ class AudioDecoder {
                   samples_to_read * sizeof(f32));
 
       samples_so_far += samples_to_read;
-      av_frame_unref(av_frame);
       cur_av_frame_idx += 1;
 
       // Loop through remaining avframes, refilling from packets when necessary
       while (samples_so_far < target_frame_size_samples) {
         if (cur_av_frame_idx == av_frames.size()) {
+          for (auto& av_frame : av_frames) {
+            av_frame_free(&av_frame);
+          }
           av_frames.clear();
           decode_packet(av_frames);
           cur_av_frame_idx = 0;
@@ -171,7 +167,6 @@ class AudioDecoder {
         std::memcpy(cur_frame + samples_so_far, (f32*)av_frame->data[0],
                     samples_to_read * sizeof(f32));
         samples_so_far += samples_to_read;
-        av_frame_unref(av_frame);
         cur_av_frame_idx += 1;
 
         VLOG(2) << "Samples to read: " << samples_to_read;
@@ -180,9 +175,8 @@ class AudioDecoder {
       LOG_IF(FATAL, samples_so_far > target_frame_size_samples)
           << "Got more samples than target";
 
-      // Dealloc all unused avframes
-      for (i32 i = cur_av_frame_idx; i < av_frames.size(); ++i) {
-        av_frame_unref(av_frames[i]);
+      for (auto& av_frame : av_frames) {
+        av_frame_free(&av_frame);
       }
 
       // Save frame
@@ -202,7 +196,7 @@ class AudioDecoder {
     AVFrame* av_frame = av_frame_alloc();
     while (true) {
       int err = avcodec_receive_frame(context_, av_frame);
-      av_frame_unref(av_frame);
+      av_frame_free(&av_frame);
       if (err == AVERROR_EOF) {
         break;
       } else {
@@ -230,7 +224,7 @@ class AudioDecoder {
       std::vector<AVFrame*> av_frames;
       decode_packet(av_frames);
       for (AVFrame* av_frame : av_frames) {
-        av_frame_unref(av_frame);
+        av_frame_free(&av_frame);
       }
       av_packet_unref(&packet_);
     }
@@ -275,7 +269,7 @@ class AudioDecoder {
         }
       }
 
-      av_frame_unref(av_frame);
+      av_frame_free(&av_frame);
       av_packet_unref(&packet_);
     }
   }
