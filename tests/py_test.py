@@ -23,18 +23,23 @@ import psycopg2
 import json
 import time
 
-try:
-    run(['nvidia-smi'])
-    has_gpu = True
-except (OSError, subprocess.CalledProcessError) as e:
-    has_gpu = False
-
-gpu = pytest.mark.skipif(not has_gpu, reason='need GPU to run')
-slow = pytest.mark.skipif(
-    not pytest.config.getoption('--runslow'),
-    reason='need --runslow option to run')
-
 cwd = os.path.dirname(os.path.abspath(__file__))
+
+if __name__ == "__main__":
+    try:
+        run(['nvidia-smi'])
+        has_gpu = True
+    except (OSError, subprocess.CalledProcessError) as e:
+        has_gpu = False
+
+    gpu = pytest.mark.skipif(not has_gpu, reason='need GPU to run')
+    slow = pytest.mark.skipif(
+        not pytest.config.getoption('--runslow'),
+        reason='need --runslow option to run')
+
+else:
+    gpu = pytest.mark.skipif(True)
+    slow = pytest.mark.skipif(True)
 
 
 @slow
