@@ -351,8 +351,7 @@ EvaluateWorker::EvaluateWorker(const EvaluateWorkerArgs& args)
 #endif
       auto new_instance_start = now();
       auto kernel = factory->new_instance(config);
-      args.profiler.add_interval("new_instance:" + op_info->name(), now(),
-                                 new_instance_start);
+      args.profiler.add_interval("new_instance:" + op_info->name(), new_instance_start, now());
       {
         Result result;
         kernel->validate(&result);
@@ -388,7 +387,7 @@ EvaluateWorker::EvaluateWorker(const EvaluateWorkerArgs& args)
   current_valid_input_idx_.resize(kernels_.size());
   current_valid_output_idx_.assign(kernels_.size(), 0);
 
-  args.profiler.add_interval("setup", now(), setup_start);
+  args.profiler.add_interval("setup", setup_start, now());
 
   // Signal the main worker thread that we've finished startup
   std::unique_lock<std::mutex> lk(args.startup_lock);
