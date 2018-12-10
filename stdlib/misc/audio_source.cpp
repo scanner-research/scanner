@@ -32,7 +32,7 @@ namespace scanner {
 
 class AudioDecoder {
  public:
-  AudioDecoder(std::string& path, std::shared_ptr<StorageBackend> storage, Profiler* profiler)
+  AudioDecoder(std::string& path, std::shared_ptr<StorageBackend> storage, Profiler* profiler, bool init_decoder=true)
     : path_(path), storage_(storage), profiler_(profiler) {
     ProfileBlock _block(profiler_, "audio_decode_setup");
 
@@ -57,8 +57,12 @@ class AudioDecoder {
     format_context_->pb = io_context_;
 
     // Open I/O connection to video
-    FF_ERROR(avformat_open_input(&format_context_, NULL, NULL, NULL));
-
+    {
+      // TODO(wcrichto): avformat_open_input is the bottleneck in audio-decode-bound pipelines.
+      // It's causing global synchronization within the process. Any way to optimize?
+      ProfileBlock _block2(profiler_, "avformat_open_input");
+      FF_ERROR(avformat_open_input(&format_context_, NULL, NULL, NULL));
+    }
     // Get metadata
     FF_ERROR(avformat_find_stream_info(format_context_, NULL));
 
@@ -70,19 +74,21 @@ class AudioDecoder {
     time_base_ = av_q2d(stream_->time_base);
     VLOG(2) << "stream index: " << stream_index;
 
-    // Set all other streams to discard their packets
-    for (i32 i = 0; i < format_context_->nb_streams; ++i) {
-      if (i != stream_index) {
-        format_context_->streams[i]->discard = AVDISCARD_ALL;
+    if (init_decoder) {
+      // Set all other streams to discard their packets
+      for (i32 i = 0; i < format_context_->nb_streams; ++i) {
+        if (i != stream_index) {
+          format_context_->streams[i]->discard = AVDISCARD_ALL;
+        }
       }
+
+      // Prepare the codec context for decoding
+      context_ = stream_->codec;
+      FF_ERROR(avcodec_open2(context_, codec_, NULL));
+
+      // Initialize data packet (raw encoded audio bytes)
+      av_init_packet(&packet_);
     }
-
-    // Prepare the codec context for decoding
-    context_ = stream_->codec;
-    FF_ERROR(avcodec_open2(context_, codec_, NULL));
-
-    // Initialize data packet (raw encoded audio bytes)
-    av_init_packet(&packet_);
   }
 
   ~AudioDecoder() {
@@ -299,12 +305,13 @@ class AudioEnumerator : public Enumerator {
 
     storage_.reset(StorageBackend::make_from_config(config.storage_config));
     std::string path = args_.path();
-    decoder_ = std::make_unique<AudioDecoder>(path, storage_, nullptr);
+    decoder_ = std::make_unique<AudioDecoder>(path, storage_, nullptr, false);
   }
 
   i64 total_elements() override {
     double duration = decoder_->duration();
-    return (i32)std::floor((duration - 1) / args_.frame_size());
+    VLOG(1) << "AudioSource: " << args_.path() << " has duration " << duration;
+    return (i32)std::floor(duration / args_.frame_size());
   }
 
   ElementArgs element_args_at(i64 element_idx) override {
@@ -359,6 +366,8 @@ class AudioSource : public Source {
       path = a.path();
       frame_size = a.frame_size();
     }
+
+    VLOG(1) << "AudioSource: reading " << element_args.size() << " elements from " << path;
 
     // Create a new decoder if the cached one doesn't exist or was for a different video
     if (!decoder_ || last_path_ != path) {
