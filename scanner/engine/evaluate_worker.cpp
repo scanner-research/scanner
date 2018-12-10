@@ -349,7 +349,10 @@ EvaluateWorker::EvaluateWorker(const EvaluateWorkerArgs& args)
 #ifdef HAVE_CUDA
       cudaSetDevice(0);
 #endif
+      auto new_instance_start = now();
       auto kernel = factory->new_instance(config);
+      args.profiler.add_interval("new_instance:" + op_info->name(), now(),
+                                 new_instance_start);
       {
         Result result;
         kernel->validate(&result);
