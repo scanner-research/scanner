@@ -22,13 +22,11 @@ using storehouse::StorageBackend;
 
 namespace scanner {
 
-#define FF_ERROR(EXPR)                \
-  {                                   \
-    i32 err = EXPR;                   \
-    char errbuf[1024];                \
-    av_strerror(err, errbuf, 1024);   \
-    LOG_IF(FATAL, err < 0) << errbuf; \
-  }
+void ff_error(i32 err) {
+  char errbuf[1024];
+  av_strerror(err, errbuf, 1024);
+  LOG_IF(FATAL, err < 0) << errbuf;
+}
 
 class AudioDecoder {
  public:
@@ -61,10 +59,10 @@ class AudioDecoder {
       // TODO(wcrichto): avformat_open_input is the bottleneck in audio-decode-bound pipelines.
       // It's causing global synchronization within the process. Any way to optimize?
       ProfileBlock _block2(profiler_, "avformat_open_input");
-      FF_ERROR(avformat_open_input(&format_context_, NULL, NULL, NULL));
+      ff_error(avformat_open_input(&format_context_, NULL, NULL, NULL));
     }
     // Get metadata
-    FF_ERROR(avformat_find_stream_info(format_context_, NULL));
+    ff_error(avformat_find_stream_info(format_context_, NULL));
 
     // Find index of audio stream
     i32 stream_index = av_find_best_stream(format_context_, AVMEDIA_TYPE_AUDIO,
@@ -84,7 +82,7 @@ class AudioDecoder {
 
       // Prepare the codec context for decoding
       context_ = stream_->codec;
-      FF_ERROR(avcodec_open2(context_, codec_, NULL));
+      ff_error(avcodec_open2(context_, codec_, NULL));
 
       // Initialize data packet (raw encoded audio bytes)
       av_init_packet(&packet_);
@@ -134,7 +132,9 @@ class AudioDecoder {
       // Special case the first frame, since we aren't reading from first sample
       // in packet. Figure out which sample corresponds to the first desired
       // sample at the provided time
-      decode_packet(av_frames);
+      bool not_eof = decode_packet(av_frames);
+      LOG_IF(FATAL, !not_eof) << "Special case frame hit EOF";
+
       AVFrame* av_frame = av_frames[cur_av_frame_idx];
       VLOG(2) << "time: "
               << (av_frame_get_best_effort_timestamp(av_frame) * time_base_);
@@ -163,7 +163,16 @@ class AudioDecoder {
             av_frame_free(&av_frame);
           }
           av_frames.clear();
-          decode_packet(av_frames);
+
+          // If we hit EOF (see decode_packets for why), then fill in the remaining samples
+          // with zeros.
+          if (!decode_packet(av_frames)) {
+            i32 remaining_samples = target_frame_size_samples - samples_so_far;
+            std::memset(cur_frame + samples_so_far, 0, remaining_samples * sizeof(f32));
+            samples_so_far += remaining_samples;
+            break;
+          }
+
           cur_av_frame_idx = 0;
         }
 
@@ -198,7 +207,7 @@ class AudioDecoder {
     i32 source_frame_size_samples = context_->frame_size;
 
     // Reset codec context
-    FF_ERROR(avcodec_send_packet(context_, NULL));
+    ff_error(avcodec_send_packet(context_, NULL));
     AVFrame* av_frame = av_frame_alloc();
     while (true) {
       int err = avcodec_receive_frame(context_, av_frame);
@@ -206,7 +215,7 @@ class AudioDecoder {
       if (err == AVERROR_EOF) {
         break;
       } else {
-        FF_ERROR(err);
+        ff_error(err);
       }
     }
     avcodec_flush_buffers(context_);
@@ -219,16 +228,17 @@ class AudioDecoder {
     // Seek to requested time
     time = std::max(
         time - ((f64)source_frame_size_samples * 2 - 1) / sample_rate, 0.0);
-    FF_ERROR(avformat_seek_file(format_context_, stream_->index, INT64_MIN,
+    ff_error(avformat_seek_file(format_context_, stream_->index, INT64_MIN,
                                 (i64)(time / time_base_),
                                 (i64)(time / time_base_), 0));
 
     // Flush first packet
     if (std::abs(time) > std::numeric_limits<f64>::epsilon()) {
       VLOG(2) << "Flushing first packet";
-      FF_ERROR(av_read_frame(format_context_, &packet_));
+      ff_error(av_read_frame(format_context_, &packet_));
       std::vector<AVFrame*> av_frames;
-      decode_packet(av_frames);
+      bool not_eof = decode_packet(av_frames);
+      LOG_IF(FATAL, !not_eof) << "Special case packet hit EOF";
       for (AVFrame* av_frame : av_frames) {
         av_frame_free(&av_frame);
       }
@@ -236,11 +246,22 @@ class AudioDecoder {
     }
   }
 
-  void decode_packet(std::vector<AVFrame*>& av_frames) {
+  bool decode_packet(std::vector<AVFrame*>& av_frames) {
     while (av_frames.size() == 0) {
       // Read packets until we get one corresponding to the audio stream
       while (true) {
-        FF_ERROR(av_read_frame(format_context_, &packet_));
+        int err = av_read_frame(format_context_, &packet_);
+
+        // wcrichto 12-9-18: Observed with some TV news videos, e.g.
+        // CNNW_20160908_030000_CNN_Tonight_With_Don_Lemon that we're hitting the end of the video
+        // even though the total_elements computation should conservatively provide enough packets
+        // for each output element.
+        if (err == AVERROR_EOF) {
+          return false;
+        } else {
+          ff_error(err);
+        }
+
         if (packet_.stream_index == stream_->index) {
           break;
         }
@@ -248,7 +269,7 @@ class AudioDecoder {
       }
 
       // Give packet to decoder asynchronously
-      FF_ERROR(avcodec_send_packet(context_, &packet_));
+      ff_error(avcodec_send_packet(context_, &packet_));
 
       AVFrame* av_frame = av_frame_alloc();
       LOG_IF(FATAL, av_frame == NULL) << "could not allocate audio frame";
@@ -271,13 +292,15 @@ class AudioDecoder {
           // We've finished decoding frames from the current packet
           break;
         } else {
-          FF_ERROR(error);
+          ff_error(error);
         }
       }
 
       av_frame_free(&av_frame);
       av_packet_unref(&packet_);
     }
+
+    return true;
   }
 
   std::string path_;
