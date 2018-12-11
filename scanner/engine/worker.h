@@ -45,7 +45,7 @@ class WorkerImpl final : public proto::Worker::Service {
                     proto::PingReply* reply);
 
   void start_watchdog(grpc::Server* server, bool enable_timeout,
-                      i32 timeout_ms = 60000);
+                      i32 timeout_ms = 300000);
 
   Result register_with_master();
 
