@@ -143,6 +143,7 @@ class Column(object):
                     buf = data_file.read(buf_len)
                 else:
                     buf = data_contents[i:i + buf_len]
+                assert len(buf) == buf_len
 
                 # len(buf) == 0 when element is null
                 if len(buf) == 0:
@@ -186,7 +187,8 @@ class Column(object):
                 io_requests.append((item_id, select_rows))
             rows_so_far += item_rows
         # Start processing io requests in parallel
-        workers = 16
+        # FIXME: https://github.com/scanner-research/scanner/issues/236
+        workers = 1
         loaded_data = []
         executor = ThreadPoolExecutor(max_workers=workers)
         def eager(item_id, select_rows):

@@ -1,5 +1,5 @@
 import pickle
-
+import traceback
 
 class KernelConfig(object):
     def __init__(self, config):
@@ -61,7 +61,7 @@ def python_kernel_fn(n, recv_conn, send_conn, p_conn1, p_conn2):
         result = kernel.execute(data)
         send_conn.send_bytes(cloudpickle.dumps(result))
   except Exception as e:
-    print(e)
+    traceback.print_exc()
     raise
   finally:
     send_conn.close()

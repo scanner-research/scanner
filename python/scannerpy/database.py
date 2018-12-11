@@ -1280,7 +1280,7 @@ class Database(object):
             load_sparsity_threshold: int = 8,
             tasks_in_queue_per_pu: int = 4,
             task_timeout: int = 0,
-            checkpoint_frequency: int = 1000,
+            checkpoint_frequency: int = 10,
             detach: bool = False,
             profiler_level: int = 1):
         r"""Runs a collection of jobs.
