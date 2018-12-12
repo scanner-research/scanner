@@ -88,20 +88,16 @@ class SQLSink : public Sink {
         for (json::iterator it = jrow.begin(); it != jrow.end(); ++it) {
           auto k = it.key();
           auto v = it.value();
-          try {
-            if (k == "id") {
-              id = v;
+          if (k == "id") {
+            id = v;
+          } else {
+            // Have to special case strings since SQL queries expect single
+            // quotes, while json to string formatter uses double quotes
+            if (v.is_string()) {
+              updates[k] = tfm::format("'%s'", v.get<std::string>());
             } else {
-              // Have to special case strings since SQL queries expect single
-              // quotes, while json to string formatter uses double quotes
-              if (v.is_string()) {
-                updates[k] = tfm::format("'%s'", v.get<std::string>());
-              } else {
-                updates[k] = tfm::format("%s", v);
-              }
+              updates[k] = tfm::format("%s", v);
             }
-          } catch (nlohmann::detail::invalid_iterator) {
-            LOG(FATAL) << "JSON had invalid structure. Each element should be a list of dictionaries.";
           }
         }
 
