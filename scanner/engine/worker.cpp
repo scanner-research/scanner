@@ -35,6 +35,7 @@
 #include <netdb.h>
 #include <sys/socket.h>
 #include <pybind11/embed.h>
+#include <pybind11/numpy.h>
 
 #ifdef __linux__
 #include <omp.h>
@@ -50,7 +51,6 @@ extern "C" {
 using storehouse::StoreResult;
 using storehouse::WriteFile;
 using storehouse::RandomReadFile;
-namespace py = pybind11;
 
 namespace scanner {
 namespace internal {
@@ -499,8 +499,8 @@ WorkerImpl::WorkerImpl(DatabaseParameters& db_params,
     //
     // Solution is to make sure the dtype static is initialized before pipelines are spawned.
     // Creating an empty array_t should (?) do this.
-    py::gil_scoped_acquire acquire;
-    py::array_t<u8> arr;
+    pybind11::gil_scoped_acquire acquire;
+    pybind11::array_t<u8> arr;
   }
 
   set_database_path(db_params.db_path);

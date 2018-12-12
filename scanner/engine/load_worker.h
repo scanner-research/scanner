@@ -63,6 +63,7 @@ class LoadWorker {
   std::vector<std::unique_ptr<Source>>
       sources_;  // Provides the implementation for reading
                  // data under the specified data sources
+  std::vector<std::string> source_names_;
   ThreadPool thread_pool_;
 
   // Continuation state

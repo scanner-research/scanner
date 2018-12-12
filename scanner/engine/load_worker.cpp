@@ -59,7 +59,10 @@ LoadWorker::LoadWorker(const LoadWorkerArgs& args)
       THREAD_RETURN_SUCCESS();
     }
     num_columns_ += args.source_configs[i].output_columns.size();
+
+    source_names_.push_back(args.source_factories[i]->get_name());
   }
+
   source_configs_ = args.source_configs;
 }
 
@@ -147,6 +150,10 @@ bool LoadWorker::yield(i32 item_size,
     } else {
       if (column_type == ColumnType::Video) {
         eval_work_entry.video_encoding_type[i] = proto::VideoDescriptor::RAW;
+      } else {
+        LOG_IF(FATAL, elements[0].size() != element_args.size())
+          << "Source " << source_names_[i] << " produced " << elements[0].size() << " rows, but "
+          << element_args.size() << " rows were expected.";
       }
       eval_work_entry.inplace_video[i] = false;
     }

@@ -599,8 +599,10 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
       i64& current_input_idx = kernel_current_input_idx[i];
       auto input_create_start = now();
       for (size_t r = 0; r < row_ids.size(); ++r) {
-        assert(current_input_idx >= kernel_valid_input_rows.size() ||
-               row_ids[r] <= kernel_valid_input_rows[current_input_idx]);
+        LOG_IF(FATAL, !(current_input_idx >= kernel_valid_input_rows.size() ||
+               row_ids[r] <= kernel_valid_input_rows[current_input_idx]))
+          << "Not enough rows in argument " << i << " for op " << op_name << " at work "
+          << "(" << work_entry.job_index << "/" << work_entry.task_index << ")";
         if (current_input_idx < kernel_valid_input_rows.size() &&
             row_ids[r] == kernel_valid_input_rows[current_input_idx]) {
           // Insert row ids for valid elements into cache
