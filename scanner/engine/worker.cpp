@@ -487,20 +487,6 @@ WorkerImpl::WorkerImpl(DatabaseParameters& db_params,
   {
     // HACK(apoms): to fix this issue: https://github.com/pybind/pybind11/issues/1364
     pybind11::get_shared_data("");
-
-    // wcrichto 12-11-18: observed a deadlock with pybind's numpy support.
-    // 1. C++ static variables have an implicit mutex wrapped around their initialization.
-    //   https://manishearth.github.io/blog/2015/06/26/adventures-in-systems-programming-c-plus-plus-local-statics/
-    // 2. pybind’s numpy library has a hidden static variable around accessing dtypes.
-    //   https://github.com/pybind/pybind11/blob/master/include/pybind11/numpy.h#L470
-    // 3. There is a deadlock when two threads race to create a numpy array. one of them holds the
-    //   gil, takes the static lock, releases the gil during module import. the second thread takes
-    //   the gil, then waits to hold the static lock.
-    //
-    // Solution is to make sure the dtype static is initialized before pipelines are spawned.
-    // Creating an empty array_t should (?) do this.
-    pybind11::gil_scoped_acquire acquire;
-    pybind11::array_t<u8> arr;
   }
 
   set_database_path(db_params.db_path);

@@ -159,23 +159,23 @@ void PythonKernel::execute(const StenciledBatchedElements &input_columns,
           std::vector<py::object> &col = batched_col.back();
           for (i32 k = 0; k < input_columns[j][i].size(); ++k) {
             const Frame *frame = input_columns[j][i][k].as_const_frame();
-            std::string dtype;
+            std::string dtype_str;
             u32 dtype_size;
             if (frame->type == FrameType::U8) {
-              dtype = py::format_descriptor<u8>::format();
+              dtype_str = py::format_descriptor<u8>::format();
               dtype_size = 1;
             } else if (frame->type == FrameType::F32) {
-              dtype = py::format_descriptor<f32>::format();
+              dtype_str = py::format_descriptor<f32>::format();
               dtype_size = 4;
             } else if (frame->type == FrameType::F64) {
-              dtype = py::format_descriptor<f64>::format();
+              dtype_str = py::format_descriptor<f64>::format();
               dtype_size = 8;
             }
 
             py::buffer_info buffer;
             if (frame->shape[2] > 0) {
               buffer = py::buffer_info(
-                  frame->data, (size_t)dtype_size, dtype, 3,
+                  frame->data, (size_t)dtype_size, dtype_str, 3,
                   {(long int)frame->shape[0], (long int)frame->shape[1],
                    (long int)frame->shape[2]},
                   {(long int)frame->shape[1] * frame->shape[2] * dtype_size,
@@ -183,22 +183,38 @@ void PythonKernel::execute(const StenciledBatchedElements &input_columns,
                    (long int)dtype_size});
             } else if (frame->shape[1] > 0) {
               buffer = py::buffer_info(
-                  frame->data, (size_t)dtype_size, dtype, 2,
+                  frame->data, (size_t)dtype_size, dtype_str, 2,
                   {(long int)frame->shape[0], (long int)frame->shape[1]},
                   {(long int)frame->shape[1] * dtype_size, (long int)dtype_size});
             } else {
-              buffer = py::buffer_info(frame->data, (size_t)dtype_size, dtype,
+              buffer = py::buffer_info(frame->data, (size_t)dtype_size, dtype_str,
                                        1, {(long int)frame->shape[0]},
                                        {(long int)dtype_size});
             }
 
+            py::dtype dtype;
             if (frame->type == FrameType::U8) {
-              col.push_back(py::object(py::array_t<u8>(buffer)));
+              dtype = py::dtype::of<u8>();
             } else if (frame->type == FrameType::F32) {
-              col.push_back(py::object(py::array_t<f32>(buffer)));
+              dtype = py::dtype::of<f32>();
             } else if (frame->type == FrameType::F64) {
-              col.push_back(py::object(py::array_t<f64>(buffer)));
+              dtype = py::dtype::of<f64>();
+            } else {
+              LOG(FATAL) << "Invalid frame type " << frame->type;
             }
+
+            // wcrichto 12-11-18: observed a deadlock with pybind's numpy support.
+            // 1. C++ static variables have an implicit mutex wrapped around their initialization.
+            //   https://manishearth.github.io/blog/2015/06/26/adventures-in-systems-programming-c-plus-plus-local-statics/
+            // 2. pybind’s numpy library has a hidden static variable around accessing dtypes.
+            //   https://github.com/pybind/pybind11/blob/master/include/pybind11/numpy.h#L470
+            // 3. There is a deadlock when two threads race to create a numpy array. one of them holds the
+            //   gil, takes the static lock, releases the gil during module import. the second thread takes
+            //   the gil, then waits to hold the static lock.
+            //
+            // Solution is to avoid this code path by ensuring we never enter the _dtype_from_pep3118
+            // function.
+            col.push_back(py::object(py::array(dtype, buffer.shape, buffer.strides, buffer.ptr)));
           }
         }
       } else {
