@@ -34,6 +34,10 @@ SOFTWARE.
 #define NLOHMANN_JSON_VERSION_MINOR 1
 #define NLOHMANN_JSON_VERSION_PATCH 2
 
+// wcrichto 12-12-18: added this because CaptionSource was raising exceptions w/ JSON
+// serialization that were getting eaten by the runtime
+#define JSON_NOEXCEPTION
+
 #include <algorithm> // all_of, find, for_each
 #include <cassert> // assert
 #include <ciso646> // and, not, or
