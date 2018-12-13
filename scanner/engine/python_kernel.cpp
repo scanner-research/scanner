@@ -12,6 +12,8 @@ namespace scanner {
 namespace py = pybind11;
 using namespace pybind11::literals;
 
+std::mutex numpy_init_lock;
+
 void gen_random(char* s, const int len) {
   static const char alphanum[] =
       "0123456789"
@@ -36,6 +38,20 @@ PythonKernel::PythonKernel(const KernelConfig &config,
   py::gil_scoped_acquire acquire;
   can_batch_ = can_batch;
   can_stencil_ = can_stencil;
+
+  // wcrichto 12-12-18: observed a deadlock with pybind's numpy support.
+  // 1. C++ static variables have an implicit mutex wrapped around their initialization.
+  //   https://manishearth.github.io/blog/2015/06/26/adventures-in-systems-programming-c-plus-plus-local-statics/
+  // 2. pybind’s numpy library has a hidden static variable around accessing dtypes.
+  //   https://github.com/pybind/pybind11/blob/v2.2.4/include/pybind11/numpy.h#L476
+  //   (Note: multiple other hidden static variables in the same code)
+  // 3. There is a deadlock when two threads race to create a numpy array. One of them holds the
+  //   gil, takes the static lock, releases the gil during module import. The second thread takes
+  //   the gil, then waits to hold the static lock.
+  {
+    std::lock_guard<std::mutex> guard(numpy_init_lock);
+    py::array_t<u8> arr;
+  }
 
   // Remove uuid from op_name
   op_name_ = op_name_.substr(0, op_name_.find(":"));
@@ -192,29 +208,15 @@ void PythonKernel::execute(const StenciledBatchedElements &input_columns,
                                        {(long int)dtype_size});
             }
 
-            py::dtype dtype;
             if (frame->type == FrameType::U8) {
-              dtype = py::dtype::of<u8>();
+              col.push_back(py::object(py::array_t<u8>(buffer)));
             } else if (frame->type == FrameType::F32) {
-              dtype = py::dtype::of<f32>();
+              col.push_back(py::object(py::array_t<f32>(buffer)));
             } else if (frame->type == FrameType::F64) {
-              dtype = py::dtype::of<f64>();
+              col.push_back(py::object(py::array_t<f64>(buffer)));
             } else {
               LOG(FATAL) << "Invalid frame type " << frame->type;
             }
-
-            // wcrichto 12-11-18: observed a deadlock with pybind's numpy support.
-            // 1. C++ static variables have an implicit mutex wrapped around their initialization.
-            //   https://manishearth.github.io/blog/2015/06/26/adventures-in-systems-programming-c-plus-plus-local-statics/
-            // 2. pybind’s numpy library has a hidden static variable around accessing dtypes.
-            //   https://github.com/pybind/pybind11/blob/master/include/pybind11/numpy.h#L470
-            // 3. There is a deadlock when two threads race to create a numpy array. one of them holds the
-            //   gil, takes the static lock, releases the gil during module import. the second thread takes
-            //   the gil, then waits to hold the static lock.
-            //
-            // Solution is to avoid this code path by ensuring we never enter the _dtype_from_pep3118
-            // function.
-            col.push_back(py::object(py::array(dtype, buffer.shape, buffer.strides, buffer.ptr)));
           }
         }
       } else {
