@@ -327,12 +327,15 @@ class AudioEnumerator : public Enumerator {
     }
 
     storage_.reset(StorageBackend::make_from_config(config.storage_config));
-    std::string path = args_.path();
-    decoder_ = std::make_unique<AudioDecoder>(path, storage_, nullptr, false);
+
+    if (args_.duration() == 0) {
+      std::string path = args_.path();
+      decoder_ = std::make_unique<AudioDecoder>(path, storage_, nullptr, false);
+    }
   }
 
   i64 total_elements() override {
-    double duration = decoder_->duration();
+    double duration = args_.duration() == 0 ? decoder_->duration() : args_.duration();
     VLOG(1) << "AudioSource: " << args_.path() << " has duration " << duration;
     return (i32)std::floor(duration / args_.frame_size());
   }
