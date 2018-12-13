@@ -234,6 +234,7 @@ message AudioSourceArgs {
 message AudioEnumeratorArgs {
   string path = 1;
   double frame_size = 2; // seconds
+  double duration = 3; // seconds
 }
 
 message AudioElementArgs {
