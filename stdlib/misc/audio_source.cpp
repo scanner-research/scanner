@@ -141,19 +141,27 @@ class AudioDecoder {
       i64 sample_offset =
           (time - (av_frame_get_best_effort_timestamp(av_frame) * time_base_)) *
           sample_rate;
-      LOG_IF(FATAL, sample_offset >= source_frame_size_samples)
-          << "sample_offset was bigger than source frame size";
 
       VLOG(2) << "Sample offset: " << sample_offset;
 
-      // Read samples from first avframe into frame
       i32 samples_to_read = source_frame_size_samples - sample_offset;
-      LOG_IF(FATAL, samples_to_read > target_frame_size_samples)
+      if (sample_offset >= source_frame_size_samples) {
+        // wcrichto 12-13-18: observed that some videos empirically had a sample offset
+        // slightly larger than the source frame size. Maybe a bug in the seeking behavior?
+        // See: gs://esper/tvnews/videos/FOXNEWSW_20150708_130000_Americas_Newsroom.mp4
+        LOG(WARNING)
+          << "sample_offset (" << sample_offset << ") was bigger than source frame size ("
+          << source_frame_size_samples << ")";
+      } else {
+        // Read samples from first avframe into frame
+        LOG_IF(FATAL, samples_to_read > target_frame_size_samples)
           << "First packet had more samples than target frame size";
-      std::memcpy(cur_frame, ((f32*)av_frame->data[0]) + sample_offset,
-                  samples_to_read * sizeof(f32));
+        std::memcpy(cur_frame, ((f32*)av_frame->data[0]) + sample_offset,
+                    samples_to_read * sizeof(f32));
 
-      samples_so_far += samples_to_read;
+        samples_so_far += samples_to_read;
+      }
+
       cur_av_frame_idx += 1;
 
       // Loop through remaining avframes, refilling from packets when necessary
