@@ -67,7 +67,7 @@
     <span class="kn">import</span> <span class="nn">prctl</span>
 
 <span class="kn">from</span> <span class="nn">multiprocessing</span> <span class="k">import</span> <span class="n">Process</span><span class="p">,</span> <span class="n">cpu_count</span><span class="p">,</span> <span class="n">Event</span>
-<span class="kn">import</span> <span class="nn">multiprocessing</span>
+<span class="kn">import</span> <span class="nn">multiprocessing</span> <span class="k">as</span> <span class="nn">mp</span>
 <span class="kn">from</span> <span class="nn">subprocess</span> <span class="k">import</span> <span class="n">Popen</span><span class="p">,</span> <span class="n">PIPE</span>
 <span class="kn">from</span> <span class="nn">random</span> <span class="k">import</span> <span class="n">choice</span>
 <span class="kn">from</span> <span class="nn">string</span> <span class="k">import</span> <span class="n">ascii_uppercase</span>
@@ -227,6 +227,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_enumerator_info_cache</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_sink_info_cache</span> <span class="o">=</span> <span class="p">{}</span>
 
+        <span class="bp">self</span><span class="o">.</span><span class="n">_master_conn</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_workers</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_worker_conns</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_worker_paths</span> <span class="o">=</span> <span class="n">workers</span>
@@ -393,7 +394,6 @@
     <span class="k">def</span> <span class="nf">_handle_signal</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">signum</span><span class="p">,</span> <span class="n">frame</span><span class="p">):</span>
         <span class="k">if</span> <span class="p">(</span><span class="n">signum</span> <span class="o">==</span> <span class="n">signal</span><span class="o">.</span><span class="n">SIGINT</span> <span class="ow">or</span> <span class="n">signum</span> <span class="o">==</span> <span class="n">signal</span><span class="o">.</span><span class="n">SIGTERM</span>
                 <span class="ow">or</span> <span class="n">signum</span> <span class="o">==</span> <span class="n">signal</span><span class="o">.</span><span class="n">SIGSEGV</span> <span class="ow">or</span> <span class="n">signum</span> <span class="o">==</span> <span class="n">signal</span><span class="o">.</span><span class="n">SIGABRT</span><span class="p">):</span>
-            <span class="c1"># Stop cluster</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_stop_heartbeat</span><span class="p">()</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">stop_cluster</span><span class="p">()</span>
             <span class="k">if</span> <span class="n">signum</span> <span class="o">==</span> <span class="n">signal</span><span class="o">.</span><span class="n">SIGINT</span><span class="p">:</span>
@@ -1312,6 +1312,18 @@
             <span class="n">params</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_grpc_timeout</span><span class="p">))</span>
         <span class="k">return</span> <span class="n">result</span><span class="o">.</span><span class="n">videos</span></div>
 
+<div class="viewcode-block" id="Database.batch_load"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.database.Database.batch_load">[docs]</a>    <span class="k">def</span> <span class="nf">batch_load</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tables</span><span class="p">,</span> <span class="n">column</span><span class="p">,</span> <span class="n">callback</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">workers</span><span class="o">=</span><span class="mi">16</span><span class="p">):</span>
+        <span class="k">def</span> <span class="nf">batch</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">l</span><span class="p">),</span> <span class="n">n</span><span class="p">):</span>
+                <span class="k">yield</span> <span class="n">l</span><span class="p">[</span><span class="n">i</span><span class="p">:</span><span class="n">i</span><span class="o">+</span><span class="n">n</span><span class="p">]</span>
+
+        <span class="k">with</span> <span class="n">mp</span><span class="o">.</span><span class="n">get_context</span><span class="p">(</span><span class="s1">&#39;spawn&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">Pool</span><span class="p">(</span><span class="n">processes</span><span class="o">=</span><span class="n">workers</span><span class="p">)</span> <span class="k">as</span> <span class="n">pool</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">pool</span><span class="o">.</span><span class="n">imap_unordered</span><span class="p">(</span>
+                    <span class="n">_batch_load_column</span><span class="p">,</span>
+                    <span class="p">[(</span><span class="n">l</span><span class="p">,</span> <span class="n">column</span><span class="p">,</span> <span class="n">callback</span><span class="p">)</span> <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span>
+                     <span class="n">batch</span><span class="p">([</span><span class="n">t</span><span class="o">.</span><span class="n">name</span><span class="p">()</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">tables</span><span class="p">],</span> <span class="n">batch_size</span><span class="p">)])):</span>
+                <span class="k">pass</span></div>
+
 <div class="viewcode-block" id="Database.run"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.database.Database.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
             <span class="n">output</span><span class="p">:</span> <span class="n">Sink</span><span class="p">,</span>
             <span class="n">jobs</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Job</span><span class="p">],</span>
@@ -1793,6 +1805,13 @@
         <span class="n">bindings</span><span class="o">.</span><span class="n">wait_for_server_shutdown</span><span class="p">(</span><span class="n">db</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">result</span></div>
+
+
+<span class="k">def</span> <span class="nf">_batch_load_column</span><span class="p">(</span><span class="n">arg</span><span class="p">):</span>
+    <span class="p">(</span><span class="n">tables</span><span class="p">,</span> <span class="n">column</span><span class="p">,</span> <span class="n">callback</span><span class="p">)</span> <span class="o">=</span> <span class="n">arg</span>
+    <span class="n">db</span> <span class="o">=</span> <span class="n">Database</span><span class="p">(</span><span class="n">start_cluster</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">enable_watchdog</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">tables</span><span class="p">:</span>
+        <span class="n">callback</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">db</span><span class="o">.</span><span class="n">table</span><span class="p">(</span><span class="n">t</span><span class="p">)</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="n">column</span><span class="p">)</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">workers</span><span class="o">=</span><span class="mi">1</span><span class="p">)))</span>
 </pre></div>
 
           </div>

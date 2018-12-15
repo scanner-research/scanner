@@ -50,6 +50,8 @@
 <span class="kn">import</span> <span class="nn">os</span>
 <span class="kn">from</span> <span class="nn">subprocess</span> <span class="k">import</span> <span class="n">Popen</span><span class="p">,</span> <span class="n">PIPE</span>
 <span class="kn">from</span> <span class="nn">concurrent.futures</span> <span class="k">import</span> <span class="n">ThreadPoolExecutor</span>
+<span class="kn">import</span> <span class="nn">multiprocessing</span> <span class="k">as</span> <span class="nn">mp</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 
 
 <span class="kn">from</span> <span class="nn">storehouse</span> <span class="k">import</span> <span class="n">RandomReadFile</span>
@@ -153,7 +155,8 @@
                 <span class="k">yield</span> <span class="n">buf</span>
             <span class="k">return</span>
 
-        <span class="n">sparse_load</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">LOAD_SPARSITY_THRESHOLD</span>
+        <span class="n">sparse_load</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">and</span> \
+                      <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">rows</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">rows</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">)])</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span> <span class="o">&gt;</span> <span class="n">LOAD_SPARSITY_THRESHOLD</span>
 
         <span class="n">metadata_contents</span> <span class="o">=</span> <span class="n">metadata_file</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">sparse_load</span><span class="p">:</span>
@@ -201,7 +204,7 @@
                 <span class="n">rows_idx</span> <span class="o">+=</span> <span class="mi">1</span>
             <span class="n">i</span> <span class="o">+=</span> <span class="n">buf_len</span>
 
-    <span class="k">def</span> <span class="nf">_load</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fn</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_load</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fn</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">workers</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="n">table_descriptor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_table</span><span class="o">.</span><span class="n">_descriptor</span>
         <span class="n">total_rows</span> <span class="o">=</span> <span class="n">table_descriptor</span><span class="o">.</span><span class="n">end_rows</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
 
@@ -232,26 +235,27 @@
             <span class="k">if</span> <span class="n">select_rows</span><span class="p">:</span>
                 <span class="n">io_requests</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">item_id</span><span class="p">,</span> <span class="n">select_rows</span><span class="p">))</span>
             <span class="n">rows_so_far</span> <span class="o">+=</span> <span class="n">item_rows</span>
-        <span class="c1"># Start processing io requests in parallel</span>
-        <span class="c1"># FIXME: https://github.com/scanner-research/scanner/issues/236</span>
-        <span class="n">workers</span> <span class="o">=</span> <span class="mi">1</span>
-        <span class="n">loaded_data</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="n">executor</span> <span class="o">=</span> <span class="n">ThreadPoolExecutor</span><span class="p">(</span><span class="n">max_workers</span><span class="o">=</span><span class="n">workers</span><span class="p">)</span>
+
         <span class="k">def</span> <span class="nf">eager</span><span class="p">(</span><span class="n">item_id</span><span class="p">,</span> <span class="n">select_rows</span><span class="p">):</span>
             <span class="k">return</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load_output_file</span><span class="p">(</span><span class="n">item_id</span><span class="p">,</span> <span class="n">select_rows</span><span class="p">,</span> <span class="n">fn</span><span class="p">)]</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">workers</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">io_requests</span><span class="p">))):</span>
-            <span class="n">item_id</span><span class="p">,</span> <span class="n">select_rows</span> <span class="o">=</span> <span class="n">io_requests</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
-            <span class="n">loaded_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">executor</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">eager</span><span class="p">,</span> <span class="n">item_id</span><span class="p">,</span> <span class="n">select_rows</span><span class="p">))</span>
 
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">io_requests</span><span class="p">)):</span>
-            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">loaded_data</span><span class="p">)</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">io_requests</span><span class="p">):</span>
-                <span class="n">item_id</span><span class="p">,</span> <span class="n">select_rows</span> <span class="o">=</span> <span class="n">io_requests</span><span class="p">[</span><span class="n">workers</span> <span class="o">+</span> <span class="n">i</span><span class="p">]</span>
+        <span class="c1"># Start processing io requests in parallel</span>
+        <span class="c1"># FIXME: https://github.com/scanner-research/scanner/issues/236</span>
+        <span class="n">loaded_data</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">with</span> <span class="n">ThreadPoolExecutor</span><span class="p">(</span><span class="n">max_workers</span><span class="o">=</span><span class="n">workers</span><span class="p">)</span> <span class="k">as</span> <span class="n">executor</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">workers</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">io_requests</span><span class="p">))):</span>
+                <span class="n">item_id</span><span class="p">,</span> <span class="n">select_rows</span> <span class="o">=</span> <span class="n">io_requests</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
                 <span class="n">loaded_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">executor</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">eager</span><span class="p">,</span> <span class="n">item_id</span><span class="p">,</span> <span class="n">select_rows</span><span class="p">))</span>
-            <span class="k">for</span> <span class="n">output</span> <span class="ow">in</span> <span class="n">loaded_data</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">result</span><span class="p">():</span>
-                <span class="k">yield</span> <span class="n">output</span>
+
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">io_requests</span><span class="p">)):</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">loaded_data</span><span class="p">)</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">io_requests</span><span class="p">):</span>
+                    <span class="n">item_id</span><span class="p">,</span> <span class="n">select_rows</span> <span class="o">=</span> <span class="n">io_requests</span><span class="p">[</span><span class="n">workers</span> <span class="o">+</span> <span class="n">i</span><span class="p">]</span>
+                    <span class="n">loaded_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">executor</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">eager</span><span class="p">,</span> <span class="n">item_id</span><span class="p">,</span> <span class="n">select_rows</span><span class="p">))</span>
+                <span class="k">for</span> <span class="n">output</span> <span class="ow">in</span> <span class="n">loaded_data</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">result</span><span class="p">():</span>
+                    <span class="k">yield</span> <span class="n">output</span>
 
     <span class="c1"># TODO(wcrichto): don&#39;t show progress bar when running decode png</span>
-<div class="viewcode-block" id="Column.load"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.column.Column.load">[docs]</a>    <span class="k">def</span> <span class="nf">load</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fn</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="Column.load"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.column.Column.load">[docs]</a>    <span class="k">def</span> <span class="nf">load</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fn</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">workers</span><span class="o">=</span><span class="mi">16</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Loads the results of a Scanner computation into Python.</span>
 
@@ -299,9 +303,9 @@
             <span class="n">parser_fn</span> <span class="o">=</span> <span class="n">readers</span><span class="o">.</span><span class="n">raw_frame_gen</span><span class="p">(</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_video_descriptor</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_video_descriptor</span><span class="o">.</span><span class="n">width</span><span class="p">,</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_video_descriptor</span><span class="o">.</span><span class="n">channels</span><span class="p">,</span> <span class="n">dtype</span><span class="p">)</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load</span><span class="p">(</span><span class="n">fn</span><span class="o">=</span><span class="n">parser_fn</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="n">rows</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load</span><span class="p">(</span><span class="n">fn</span><span class="o">=</span><span class="n">parser_fn</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="n">rows</span><span class="p">,</span> <span class="n">workers</span><span class="o">=</span><span class="n">workers</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load</span><span class="p">(</span><span class="n">fn</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="n">rows</span><span class="p">)</span></div>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load</span><span class="p">(</span><span class="n">fn</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="n">rows</span><span class="p">,</span> <span class="n">workers</span><span class="o">=</span><span class="n">workers</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="Column.save_mp4"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.column.Column.save_mp4">[docs]</a>    <span class="k">def</span> <span class="nf">save_mp4</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">output_name</span><span class="p">,</span> <span class="n">fps</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_load_meta</span><span class="p">()</span>

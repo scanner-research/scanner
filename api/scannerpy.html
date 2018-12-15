@@ -117,6 +117,11 @@ of the outputs of Ops.</li>
 </tbody>
 </table>
 <dl class="method">
+<dt id="scannerpy.database.Database.batch_load">
+<code class="descname">batch_load</code><span class="sig-paren">(</span><em>tables</em>, <em>column</em>, <em>callback</em>, <em>batch_size=1000</em>, <em>workers=16</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#Database.batch_load"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.Database.batch_load" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
 <dt id="scannerpy.database.Database.bulk_fetch_video_metadata">
 <code class="descname">bulk_fetch_video_metadata</code><span class="sig-paren">(</span><em>tables</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/database.html#Database.bulk_fetch_video_metadata"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.database.Database.bulk_fetch_video_metadata" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -1035,7 +1040,7 @@ Sink in the servers registry.</p>
 
 <dl class="method">
 <dt id="scannerpy.column.Column.load">
-<code class="descname">load</code><span class="sig-paren">(</span><em>fn=None</em>, <em>rows=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/column.html#Column.load"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.column.Column.load" title="Permalink to this definition">¶</a></dt>
+<code class="descname">load</code><span class="sig-paren">(</span><em>fn=None</em>, <em>rows=None</em>, <em>workers=16</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/column.html#Column.load"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.column.Column.load" title="Permalink to this definition">¶</a></dt>
 <dd><p>Loads the results of a Scanner computation into Python.</p>
 <dl class="docutils">
 <dt>Kwargs:</dt>
