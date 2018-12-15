@@ -21,7 +21,7 @@ if sys.platform == 'linux' or sys.platform == 'linux2':
     import prctl
 
 from multiprocessing import Process, cpu_count, Event
-import multiprocessing
+import multiprocessing as mp
 from subprocess import Popen, PIPE
 from random import choice
 from string import ascii_uppercase
@@ -181,6 +181,7 @@ class Database(object):
         self._enumerator_info_cache = {}
         self._sink_info_cache = {}
 
+        self._master_conn = None
         self._workers = {}
         self._worker_conns = None
         self._worker_paths = workers
@@ -347,7 +348,6 @@ class Database(object):
     def _handle_signal(self, signum, frame):
         if (signum == signal.SIGINT or signum == signal.SIGTERM
                 or signum == signal.SIGSEGV or signum == signal.SIGABRT):
-            # Stop cluster
             self._stop_heartbeat()
             self.stop_cluster()
             if signum == signal.SIGINT:
@@ -1266,6 +1266,18 @@ class Database(object):
             params, timeout=self._grpc_timeout))
         return result.videos
 
+    def batch_load(self, tables, column, callback, batch_size=1000, workers=16):
+        def batch(l, n):
+            for i in range(0, len(l), n):
+                yield l[i:i+n]
+
+        with mp.get_context('spawn').Pool(processes=workers) as pool:
+            for _ in tqdm(pool.imap_unordered(
+                    _batch_load_column,
+                    [(l, column, callback) for l in
+                     batch([t.name() for t in tables], batch_size)])):
+                pass
+
     def run(self,
             output: Sink,
             jobs: Sequence[Job],
@@ -1747,3 +1759,10 @@ def start_worker(master_address: str,
         bindings.wait_for_server_shutdown(db)
 
     return result
+
+
+def _batch_load_column(arg):
+    (tables, column, callback) = arg
+    db = Database(start_cluster=False, enable_watchdog=False)
+    for t in tables:
+        callback(t, list(db.table(t).column(column).load(workers=1)))
