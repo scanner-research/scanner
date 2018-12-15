@@ -4,6 +4,8 @@ import tempfile
 import os
 from subprocess import Popen, PIPE
 from concurrent.futures import ThreadPoolExecutor
+import multiprocessing as mp
+import numpy as np
 
 
 from storehouse import RandomReadFile
@@ -107,7 +109,8 @@ class Column(object):
                 yield buf
             return
 
-        sparse_load = len(rows) < LOAD_SPARSITY_THRESHOLD
+        sparse_load = len(rows) > 1 and \
+                      np.array([rows[i+1] - rows[i] for i in range(len(rows)-1)]).mean() > LOAD_SPARSITY_THRESHOLD
 
         metadata_contents = metadata_file.read()
         if not sparse_load:
@@ -155,7 +158,7 @@ class Column(object):
                 rows_idx += 1
             i += buf_len
 
-    def _load(self, fn=None, rows=None):
+    def _load(self, fn=None, rows=None, workers=None):
         table_descriptor = self._table._descriptor
         total_rows = table_descriptor.end_rows[-1]
 
@@ -186,26 +189,27 @@ class Column(object):
             if select_rows:
                 io_requests.append((item_id, select_rows))
             rows_so_far += item_rows
-        # Start processing io requests in parallel
-        # FIXME: https://github.com/scanner-research/scanner/issues/236
-        workers = 1
-        loaded_data = []
-        executor = ThreadPoolExecutor(max_workers=workers)
+
         def eager(item_id, select_rows):
             return [x for x in self._load_output_file(item_id, select_rows, fn)]
-        for i in range(min(workers, len(io_requests))):
-            item_id, select_rows = io_requests[i]
-            loaded_data.append(executor.submit(eager, item_id, select_rows))
 
-        for i in range(len(io_requests)):
-            if len(loaded_data) < len(io_requests):
-                item_id, select_rows = io_requests[workers + i]
+        # Start processing io requests in parallel
+        # FIXME: https://github.com/scanner-research/scanner/issues/236
+        loaded_data = []
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            for i in range(min(workers, len(io_requests))):
+                item_id, select_rows = io_requests[i]
                 loaded_data.append(executor.submit(eager, item_id, select_rows))
-            for output in loaded_data[i].result():
-                yield output
+
+            for i in range(len(io_requests)):
+                if len(loaded_data) < len(io_requests):
+                    item_id, select_rows = io_requests[workers + i]
+                    loaded_data.append(executor.submit(eager, item_id, select_rows))
+                for output in loaded_data[i].result():
+                    yield output
 
     # TODO(wcrichto): don't show progress bar when running decode png
-    def load(self, fn=None, rows=None):
+    def load(self, fn=None, rows=None, workers=16):
         """
         Loads the results of a Scanner computation into Python.
 
@@ -253,9 +257,9 @@ class Column(object):
             parser_fn = readers.raw_frame_gen(
                 self._video_descriptor.height, self._video_descriptor.width,
                 self._video_descriptor.channels, dtype)
-            return self._load(fn=parser_fn, rows=rows)
+            return self._load(fn=parser_fn, rows=rows, workers=workers)
         else:
-            return self._load(fn, rows=rows)
+            return self._load(fn, rows=rows, workers=workers)
 
     def save_mp4(self, output_name, fps=None, scale=None):
         self._load_meta()
