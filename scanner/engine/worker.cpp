@@ -1727,21 +1727,23 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       std::fflush(NULL);
       sync();
     }
+    // Inform master that this task was finished
+    proto::FinishedWorkRequest params;
+    params.set_node_id(node_id_);
+    params.set_bulk_job_id(active_bulk_job_id_);
     for (std::tuple<i32, i64, i64>& task_retired : batched_retired_tasks) {
-      // Inform master that this task was finished
-      proto::FinishedWorkRequest params;
-
-      params.set_node_id(node_id_);
-      params.set_bulk_job_id(active_bulk_job_id_);
-      params.set_job_id(std::get<1>(task_retired));
-      params.set_task_id(std::get<2>(task_retired));
-
-      proto::Empty empty;
-      grpc::Status status;
-      GRPC_BACKOFF(master_->FinishedWork(&ctx, params, &empty), status);
+      proto::FinishedWorkRequest::WorkID* work_id = params.add_work_ids();
+      work_id->set_job_id(std::get<1>(task_retired));
+      work_id->set_task_id(std::get<2>(task_retired));
 
       // Update how much is in each pipeline instances work queue
       retired_work_for_queues[std::get<0>(task_retired)] += 1;
+    }
+
+    {
+      proto::Empty empty;
+      grpc::Status status;
+      GRPC_BACKOFF(master_->FinishedWork(&ctx, params, &empty), status);
 
       if (!status.ok()) {
         RESULT_ERROR(job_result,
@@ -1750,6 +1752,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
         break;
       }
     }
+
     i64 total_tasks_processed = 0;
     for (i64 t : retired_work_for_queues) {
       total_tasks_processed += t;
@@ -1773,12 +1776,15 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
                     (milliseconds_since_start / MILLISECONDS_TO_WAIT_RAMP) +
                 MILLISECONDS_TO_WAIT_ALPHA));
     i32 local_work = accepted_tasks - total_tasks_processed;
-    if (local_work <
-            pipeline_instances_per_node * job_params->tasks_in_queue_per_pu() &&
+    i32 work_to_request =
+        pipeline_instances_per_node * job_params->tasks_in_queue_per_pu() -
+        local_work;
+    if (work_to_request > 0 &&
         ms_since(last_wait_for_work_time) > milliseconds_to_wait) {
       proto::NextWorkRequest node_info;
       node_info.set_node_id(node_id_);
       node_info.set_bulk_job_id(active_bulk_job_id_);
+      node_info.set_num_work(work_to_request);
 
       proto::NextWorkReply new_work;
       grpc::Status status;
@@ -1799,34 +1805,36 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
         VLOG(1) << "Node " << node_id_ << " received done signal.";
         finished = true;
       } else {
-        // Perform analysis on load work entry to determine upstream
-        // requirements and when to discard elements.
-        std::deque<TaskStream> task_stream;
-        LoadWorkEntry stenciled_entry;
-        derive_stencil_requirements(
-            meta, table_meta, jobs.at(new_work.job_index()), ops,
-            analysis_results, job_params->boundary_condition(),
-            new_work.table_id(), new_work.job_index(), new_work.task_index(),
-            std::vector<i64>(new_work.output_rows().begin(),
-                             new_work.output_rows().end()),
-            stenciled_entry, task_stream,
-            db_params_.storage_config);
+        for (auto& work_packet : new_work.work_packets()) {
+          // Perform analysis on load work entry to determine upstream
+          // requirements and when to discard elements.
+          std::deque<TaskStream> task_stream;
+          LoadWorkEntry stenciled_entry;
+          derive_stencil_requirements(
+              meta, table_meta, jobs.at(work_packet.job_index()), ops,
+              analysis_results, job_params->boundary_condition(),
+              work_packet.table_id(), work_packet.job_index(),
+              work_packet.task_index(),
+              std::vector<i64>(work_packet.output_rows().begin(),
+                               work_packet.output_rows().end()),
+              stenciled_entry, task_stream, db_params_.storage_config);
 
-        // Determine which pipeline instance to allocate to
-        i32 target_work_queue = -1;
-        i32 min_work = std::numeric_limits<i32>::max();
-        for (int i = 0; i < pipeline_instances_per_node; ++i) {
-          i64 outstanding_work =
-              allocated_work_to_queues[i] - retired_work_for_queues[i];
-          if (outstanding_work < min_work) {
-            min_work = outstanding_work;
-            target_work_queue = i;
+          // Determine which pipeline instance to allocate to
+          i32 target_work_queue = -1;
+          i32 min_work = std::numeric_limits<i32>::max();
+          for (int i = 0; i < pipeline_instances_per_node; ++i) {
+            i64 outstanding_work =
+                allocated_work_to_queues[i] - retired_work_for_queues[i];
+            if (outstanding_work < min_work) {
+              min_work = outstanding_work;
+              target_work_queue = i;
+            }
           }
+          load_work.push(
+              std::make_tuple(target_work_queue, task_stream, stenciled_entry));
+          allocated_work_to_queues[target_work_queue]++;
+          accepted_tasks++;
         }
-        load_work.push(
-            std::make_tuple(target_work_queue, task_stream, stenciled_entry));
-        allocated_work_to_queues[target_work_queue]++;
-        accepted_tasks++;
       }
     }
 

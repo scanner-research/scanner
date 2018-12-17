@@ -931,82 +931,90 @@ void MasterServerImpl::NextWorkHandler(
     auto& state = bulk_jobs_state_.at(bulk_job_id);
 
     // If we do not have any outstanding work, try and create more
-    if (state->to_assign_job_tasks.empty()) {
-      // If we have no more samples for this task, try and get another task
-      if (state->next_task == state->num_tasks) {
-        // Check if there are any tasks left
-        if (state->next_job < state->num_jobs && state->task_result.success()) {
-          state->next_task = 0;
-          state->num_tasks = state->job_tasks.at(state->next_job).size();
-          state->next_job++;
-          VLOG(1) << "Tasks left: "
-                  << state->total_tasks - state->total_tasks_used;
+    i32 tasks_to_assign = node_info->num_work();
+    bool no_more_work = false;
+    bool wait_for_work = false;
+    while (tasks_to_assign > 0) {
+      if (state->to_assign_job_tasks.empty()) {
+        // If we have no more samples for this task, try and get another task
+        if (state->next_task == state->num_tasks) {
+          // Check if there are any tasks left
+          if (state->next_job < state->num_jobs &&
+              state->task_result.success()) {
+            state->next_task = 0;
+            state->num_tasks = state->job_tasks.at(state->next_job).size();
+            state->next_job++;
+            VLOG(1) << "Tasks left: "
+                    << state->total_tasks - state->total_tasks_used;
+          }
+        }
+
+        // Create more work if possible
+        if (state->next_task < state->num_tasks) {
+          i64 current_job = state->next_job - 1;
+          i64 current_task = state->next_task;
+
+          auto jt = std::make_tuple(current_job, current_task);
+          state->active_job_tasks.insert(jt);
+          state->to_assign_job_tasks.push_front(jt);
+          state->next_task++;
         }
       }
 
-      // Create more work if possible
-      if (state->next_task < state->num_tasks) {
-        i64 current_job = state->next_job - 1;
-        i64 current_task = state->next_task;
-
-        auto jt = std::make_tuple(current_job, current_task);
-        state->active_job_tasks.insert(jt);
-        state->to_assign_job_tasks.push_front(jt);
-        state->next_task++;
+      if (state->to_assign_job_tasks.empty()) {
+        if (finished_) {
+          // No more work
+          no_more_work = true;
+        } else {
+          // Still have tasks that might be reassigned
+          wait_for_work = true;
+        }
+        break;
       }
-    }
 
-    if (state->to_assign_job_tasks.empty()) {
-      if (finished_) {
-        // No more work
-        new_work->set_no_more_work(true);
-      } else {
-        // Still have tasks that might be reassigned
-        new_work->set_wait_for_work(true);
+      // Grab the next task sample
+      std::tuple<i64, i64> job_task_id = state->to_assign_job_tasks.back();
+      state->to_assign_job_tasks.pop_back();
+
+      assert(state->next_task <= state->num_tasks);
+
+      i64 job_idx;
+      i64 task_idx;
+      std::tie(job_idx, task_idx) = job_task_id;
+
+      // If the job was blacklisted, then we throw it away
+      if (state->blacklisted_jobs.count(job_idx) > 0) {
+        continue;
       }
-      REQUEST_RPC(NextWork, proto::NextWorkRequest, proto::NextWorkReply);
-      call->Respond(grpc::Status::OK);
-      return;
+
+      proto::NextWorkReply::WorkPacket* work_packet =
+          new_work->add_work_packets();
+      if (state->dag_info.is_table_output) {
+        work_packet->set_table_id(state->job_to_table_id.at(job_idx));
+      }
+      work_packet->set_job_index(job_idx);
+      work_packet->set_task_index(task_idx);
+      const auto& task_rows = state->job_tasks.at(job_idx).at(task_idx);
+      for (i64 r : task_rows) {
+        work_packet->add_output_rows(r);
+      }
+
+      auto task_start = std::chrono::duration_cast<std::chrono::seconds>(
+                            now().time_since_epoch())
+                            .count();
+      // Track sample assigned to worker
+      state->worker_job_tasks[node_info->node_id()].insert(job_task_id);
+      state->worker_job_tasks_starts[std::make_tuple(
+          (i64)node_info->node_id(), job_idx, task_idx)] = task_start;
+      state->worker_histories[node_info->node_id()].tasks_assigned += 1;
+
+      tasks_to_assign -= 1;
     }
 
-    // Grab the next task sample
-    std::tuple<i64, i64> job_task_id = state->to_assign_job_tasks.back();
-    state->to_assign_job_tasks.pop_back();
-
-    assert(state->next_task <= state->num_tasks);
-
-    i64 job_idx;
-    i64 task_idx;
-    std::tie(job_idx, task_idx) = job_task_id;
-
-    // If the job was blacklisted, then we throw it away
-    if (state->blacklisted_jobs.count(job_idx) > 0) {
-      // TODO(apoms): we are telling the worker to re request work here
-      // but we should just loop this whole process again
-      new_work->set_wait_for_work(true);
-      REQUEST_RPC(NextWork, proto::NextWorkRequest, proto::NextWorkReply);
-      call->Respond(grpc::Status::OK);
-      return;
+    if (new_work->work_packets_size() == 0) {
+      new_work->set_no_more_work(no_more_work);
+      new_work->set_wait_for_work(wait_for_work);
     }
-
-    if (state->dag_info.is_table_output) {
-      new_work->set_table_id(state->job_to_table_id.at(job_idx));
-    }
-    new_work->set_job_index(job_idx);
-    new_work->set_task_index(task_idx);
-    const auto& task_rows = state->job_tasks.at(job_idx).at(task_idx);
-    for (i64 r : task_rows) {
-      new_work->add_output_rows(r);
-    }
-
-    auto task_start = std::chrono::duration_cast<std::chrono::seconds>(
-                          now().time_since_epoch())
-                          .count();
-    // Track sample assigned to worker
-    state->worker_job_tasks[node_info->node_id()].insert(job_task_id);
-    state->worker_job_tasks_starts[std::make_tuple(
-        (i64)node_info->node_id(), job_idx, task_idx)] = task_start;
-    state->worker_histories[node_info->node_id()].tasks_assigned += 1;
 
     REQUEST_RPC(NextWork, proto::NextWorkRequest, proto::NextWorkReply);
     call->Respond(grpc::Status::OK);
@@ -1025,84 +1033,87 @@ void MasterServerImpl::FinishedWorkHandler(
     i32 worker_id = params->node_id();
     i32 bulk_job_id = params->bulk_job_id();
 
-    i64 job_id = params->job_id();
-    i64 task_id = params->task_id();
-    i64 num_rows = params->num_rows();
+    for (auto& work_id : params->work_ids()) {
+      i64 job_id = work_id.job_id();
+      i64 task_id = work_id.task_id();
+      i64 num_rows = work_id.num_rows();
 
-    if (workers_.count(worker_id) == 0) {
-      LOG(WARNING) << "Master got FinishedWork from non-existent worker id "
-                   << worker_id << ". Ignoring.";
-      REQUEST_RPC(FinishedWork, proto::FinishedWorkRequest, proto::Empty);
-      call->Respond(grpc::Status::OK);
-      return;
-    }
-
-    {
-      if (bulk_job_id != active_bulk_job_id_) {
-        LOG(WARNING) << "Worker " << worker_id << " ("
-                     << workers_.at(worker_id)->address
-                     << ") requested FinishedWork for bulk job " << bulk_job_id
-                     << " but active job is " << active_bulk_job_id_;
+      if (workers_.count(worker_id) == 0) {
+        LOG(WARNING) << "Master got FinishedWork from non-existent worker id "
+                     << worker_id << ". Ignoring.";
         REQUEST_RPC(FinishedWork, proto::FinishedWorkRequest, proto::Empty);
         call->Respond(grpc::Status::OK);
         return;
       }
-    }
 
-    auto& state = bulk_jobs_state_.at(bulk_job_id);
-
-    auto& worker_tasks = state->worker_job_tasks.at(worker_id);
-
-    std::tuple<i64, i64> job_task = std::make_tuple(job_id, task_id);
-
-    // Remove the task from the list of assigned tasks to the worker
-    assert(worker_tasks.count(job_task) > 0);
-    worker_tasks.erase(job_task);
-    state->worker_job_tasks_starts.erase(
-        std::make_tuple((i64)worker_id, job_id, task_id));
-
-    // Increment the number of tasks finished by this worker
-    state->worker_histories[worker_id].tasks_retired += 1;
-
-    i64 active_job = state->next_job - 1;
-
-    // If job was blacklisted, then we have already updated total tasks
-    // used to reflect that and we should ignore it
-    bool not_blacklisted = state->blacklisted_jobs.count(job_id) == 0;
-    // It's possible for a task to be assigned to multiple workers, so
-    // this condition makes sure that we only mark the task as finished
-    // the first time it is processed.
-    bool still_active = state->active_job_tasks.count(job_task) > 0;
-    if (not_blacklisted && still_active) {
-      // Remove from active job task list since it has been finished
-      state->active_job_tasks.erase(job_task);
-
-      state->total_tasks_used++;
-      state->tasks_used_per_job[job_id]++;
-
-      if (state->tasks_used_per_job[job_id] ==
-          state->job_tasks[job_id].size()) {
-        if (state->dag_info.is_table_output) {
-          i32 tid = state->job_uncommitted_tables[job_id];
-          meta_.commit_table(tid);
-        }
-
-        // Commit database metadata every so often
-        if (job_id % state->job_params.checkpoint_frequency() == 0) {
-          VLOG(1) << "Saving database metadata checkpoint";
-          write_database_metadata(storage_, meta_);
-        }
-      }
-    }
-
-    if (state->total_tasks_used == state->total_tasks) {
-      VLOG(1) << "Master FinishedWork triggered finished!";
-      assert(state->next_job == state->num_jobs);
       {
-        std::unique_lock<std::mutex> lock(finished_mutex_);
-        finished_ = true;
+        if (bulk_job_id != active_bulk_job_id_) {
+          LOG(WARNING) << "Worker " << worker_id << " ("
+                       << workers_.at(worker_id)->address
+                       << ") requested FinishedWork for bulk job "
+                       << bulk_job_id << " but active job is "
+                       << active_bulk_job_id_;
+          REQUEST_RPC(FinishedWork, proto::FinishedWorkRequest, proto::Empty);
+          call->Respond(grpc::Status::OK);
+          return;
+        }
       }
-      finished_cv_.notify_all();
+
+      auto& state = bulk_jobs_state_.at(bulk_job_id);
+
+      auto& worker_tasks = state->worker_job_tasks.at(worker_id);
+
+      std::tuple<i64, i64> job_task = std::make_tuple(job_id, task_id);
+
+      // Remove the task from the list of assigned tasks to the worker
+      assert(worker_tasks.count(job_task) > 0);
+      worker_tasks.erase(job_task);
+      state->worker_job_tasks_starts.erase(
+          std::make_tuple((i64)worker_id, job_id, task_id));
+
+      // Increment the number of tasks finished by this worker
+      state->worker_histories[worker_id].tasks_retired += 1;
+
+      i64 active_job = state->next_job - 1;
+
+      // If job was blacklisted, then we have already updated total tasks
+      // used to reflect that and we should ignore it
+      bool not_blacklisted = state->blacklisted_jobs.count(job_id) == 0;
+      // It's possible for a task to be assigned to multiple workers, so
+      // this condition makes sure that we only mark the task as finished
+      // the first time it is processed.
+      bool still_active = state->active_job_tasks.count(job_task) > 0;
+      if (not_blacklisted && still_active) {
+        // Remove from active job task list since it has been finished
+        state->active_job_tasks.erase(job_task);
+
+        state->total_tasks_used++;
+        state->tasks_used_per_job[job_id]++;
+
+        if (state->tasks_used_per_job[job_id] ==
+            state->job_tasks[job_id].size()) {
+          if (state->dag_info.is_table_output) {
+            i32 tid = state->job_uncommitted_tables[job_id];
+            meta_.commit_table(tid);
+          }
+
+          // Commit database metadata every so often
+          if (job_id % state->job_params.checkpoint_frequency() == 0) {
+            VLOG(1) << "Saving database metadata checkpoint";
+            write_database_metadata(storage_, meta_);
+          }
+        }
+      }
+
+      if (state->total_tasks_used == state->total_tasks) {
+        VLOG(1) << "Master FinishedWork triggered finished!";
+        assert(state->next_job == state->num_jobs);
+        {
+          std::unique_lock<std::mutex> lock(finished_mutex_);
+          finished_ = true;
+        }
+        finished_cv_.notify_all();
+      }
     }
 
     REQUEST_RPC(FinishedWork, proto::FinishedWorkRequest, proto::Empty);
