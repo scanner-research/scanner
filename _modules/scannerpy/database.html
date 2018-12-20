@@ -1247,7 +1247,9 @@
                 <span class="k">if</span> <span class="n">show_progress</span> <span class="ow">and</span> <span class="n">pbar</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">job_status</span><span class="o">.</span><span class="n">total_jobs</span> <span class="o">!=</span> <span class="mi">0</span> \
                    <span class="ow">and</span> <span class="n">job_status</span><span class="o">.</span><span class="n">total_tasks</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
                     <span class="n">total_tasks</span> <span class="o">=</span> <span class="n">job_status</span><span class="o">.</span><span class="n">total_tasks</span>
-                    <span class="n">pbar</span> <span class="o">=</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">total</span><span class="o">=</span><span class="n">total_tasks</span><span class="p">)</span>
+                    <span class="c1"># Lower smoothing provides more accurate ETAs over long jobs.</span>
+                    <span class="c1"># See: https://tqdm.github.io/docs/tqdm/</span>
+                    <span class="n">pbar</span> <span class="o">=</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">total</span><span class="o">=</span><span class="n">total_tasks</span><span class="p">,</span> <span class="n">smoothing</span><span class="o">=</span><span class="mf">0.01</span><span class="p">)</span>
             <span class="k">except</span> <span class="n">grpc</span><span class="o">.</span><span class="n">RpcError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="n">ScannerException</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">job_status</span><span class="o">.</span><span class="n">finished</span><span class="p">:</span>
