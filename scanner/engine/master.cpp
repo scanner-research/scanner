@@ -1821,7 +1821,7 @@ void MasterServerImpl::start_worker_pinger() {
   pinger_active_ = true;
   pinger_thread_ = std::thread([this]() {
     while (pinger_active_) {
-      VLOG(2) << "Start of pinger loop";
+      VLOG(3) << "Start of pinger loop";
 
       std::shared_ptr<BulkJob> state;
       {
@@ -1926,7 +1926,7 @@ void MasterServerImpl::start_worker_pinger() {
       }
       cq.Shutdown();
 
-      VLOG(2) << "All pings sent/received";
+      VLOG(3) << "All pings sent/received";
       // Sleep for 5 seconds or wake up if the job has finished before then
       std::unique_lock<std::mutex> lk(pinger_wake_mutex_);
       pinger_wake_cv_.wait_for(lk, std::chrono::seconds(5),
