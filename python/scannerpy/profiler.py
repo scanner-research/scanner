@@ -224,6 +224,12 @@ class Profiler:
         # Counters
         t, offset = read_advance('q', bytes_buffer, offset)
         num_counters = t[0]
+
+        # wcrichto 12-27-18: seeing a strange issue where # of counters is corrupted in
+        # output file. Putting in temporary sanity check until this is fixed.
+        if num_counters > 1000000:
+            num_counters = 0
+
         counters = {}
         for i in range(num_counters):
             # Counter name
