@@ -14,6 +14,7 @@
     <script type="text/javascript" src="../../_static/jquery.js"></script>
     <script type="text/javascript" src="../../_static/underscore.js"></script>
     <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../_static/language_data.js"></script>
     <link rel="author" title="About these documents" href="../../about.html" />
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
@@ -270,6 +271,12 @@
         <span class="c1"># Counters</span>
         <span class="n">t</span><span class="p">,</span> <span class="n">offset</span> <span class="o">=</span> <span class="n">read_advance</span><span class="p">(</span><span class="s1">&#39;q&#39;</span><span class="p">,</span> <span class="n">bytes_buffer</span><span class="p">,</span> <span class="n">offset</span><span class="p">)</span>
         <span class="n">num_counters</span> <span class="o">=</span> <span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="c1"># wcrichto 12-27-18: seeing a strange issue where # of counters is corrupted in</span>
+        <span class="c1"># output file. Putting in temporary sanity check until this is fixed.</span>
+        <span class="k">if</span> <span class="n">num_counters</span> <span class="o">&gt;</span> <span class="mi">1000000</span><span class="p">:</span>
+            <span class="n">num_counters</span> <span class="o">=</span> <span class="mi">0</span>
+
         <span class="n">counters</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_counters</span><span class="p">):</span>
             <span class="c1"># Counter name</span>
@@ -465,7 +472,7 @@
     </div>
   <div class="footer">
     &copy; Copyright 2018, Alex Poms, Will Crichton.
-    Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.2.
+    Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.3.
   </div>
   
   </body>
