@@ -71,7 +71,6 @@ namespace scanner {
     return db.wait_for_server_shutdown();
   }
 
-
   PYBIND11_MODULE(_python, m) {
     m.doc() = "Scanner C library";
     m.attr("__name__") = "scannerpy._python";
@@ -131,9 +130,15 @@ namespace scanner {
 
     py::class_<DeviceHandle>(m, "DeviceHandle")
       .def_readonly("id", &DeviceHandle::id)
-      .def_readonly("type", &DeviceHandle::type);
+      .def_readonly("type", &DeviceHandle::type)
+      .def(py::pickle([](const DeviceHandle& d) {
+        return py::make_tuple(d.type, d.id);
+      },
+      [](py::tuple t) {
+         return DeviceHandle((DeviceType) t[0].cast<i32>(), t[1].cast<i32>());
+      }));
 
-    py::enum_<DeviceType>(m, "DeviceType")
+    py::enum_<DeviceType>(m, "DeviceType", py::arithmetic())
       .value("GPU", DeviceType::GPU)
       .value("CPU", DeviceType::CPU);
 
