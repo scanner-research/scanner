@@ -107,6 +107,7 @@ html_theme_options = {
     'navbar_title': " ",
     'theme_navbar_title': " ",
     'navbar_links': False,
+    'navbar_fixed_top': False,
     'navbar_pagenav': False,
     'navbar_links': [
         ("Overview", "overview"),
