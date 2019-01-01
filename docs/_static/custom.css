@@ -190,3 +190,21 @@ div.body code.xref:hover  {
 #scanner-efficient-video-analysis-at-scale h1 {
     font-size: 200%;
 }
+
+.navbar-nav {
+    float: right;
+}
+.navbar-link {
+    color: #777;
+}
+
+.homepage-video {
+    position: relative;
+    padding-bottom: 56.25%;
+    padding-top: 25px;
+    height: 100%;
+}
+
+.footer {
+    margin-top: 10px;
+}
