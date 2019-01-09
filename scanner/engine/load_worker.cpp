@@ -100,6 +100,7 @@ bool LoadWorker::yield(i32 item_size,
   eval_work_entry.column_handles.resize(sources_.size());
 
   auto load_source = [&](i32 i) {
+    auto load_source_start = now();
     // For each source, pass an item_size worth of EnumeratorArgs to the
     // source to read those elements from storage
     const auto& source_args = load_work_entry.source_args(i);
@@ -161,6 +162,9 @@ bool LoadWorker::yield(i32 item_size,
     eval_work_entry.row_ids[i] = output_rows;
     eval_work_entry.column_types[i] = column_type;
     eval_work_entry.column_handles[i] = CPU_DEVICE;
+
+    profiler_.add_interval("load_worker:load_source_" + std::to_string(i),
+                           load_source_start, now());
   };
 
   // HACK(apoms): When a pipeline has a large number of sources, loading each
