@@ -112,7 +112,7 @@ package_data = {
 }
 
 REQUIRED_PACKAGES = [
-    'protobuf == 3.6.1', 'grpcio == 1.16.0', 'toml >= 0.9.2', 'enum34 >= 1.1.6',
+    'protobuf == 3.6.1', 'grpcio == 1.16.0', 'toml >= 0.9.2',
     'numpy >= 1.12.0,<=1.15.2', 'scipy >= 0.18.1', 'tqdm >= 4.19.5',
     'cloudpickle == 0.5.3', 'psycopg2 == 2.7.4', 'testing.postgresql == 1.3.0'
 ]
