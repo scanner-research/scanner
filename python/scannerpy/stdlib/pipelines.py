@@ -18,7 +18,6 @@ import scannerpy.stdlib.bboxes as bboxes
 class BBoxNMS(scannerpy.Kernel):
     def __init__(self, config):
         self.protobufs = config.protobufs
-        self.scale = config.args['scale']
 
     def close(self):
         pass
@@ -36,7 +35,7 @@ def detect_faces(db,
                  output_sampler,
                  output_sampler_args,
                  output_names,
-                 width=960,
+                 max_width=960,
                  prototxt_path=None,
                  model_weights_path=None,
                  templates_path=None,
@@ -98,13 +97,13 @@ def detect_faces(db,
         caffe_args.batch_size = batch
 
         frame = db.sources.FrameColumn()
-        #resized = db.ops.Resize(
-        #    frame = frame,
-        #    width = width, height = 0,
-        #    min = True, preserve_aspect = True,
-        frame_info = db.ops.InfoFromFrame(frame=frame)
+        resized = db.ops.Resize(
+            frame = frame,
+            width = max_width, height = 0,
+            min = True, preserve_aspect = True)
+        frame_info = db.ops.InfoFromFrame(frame=resized)
         facenet_input = db.ops.FacenetInput(
-            frame=frame, args=facenet_args, device=device)
+            frame=resized, args=facenet_args, device=device)
         facenet = db.ops.Facenet(
             facenet_input=facenet_input, args=facenet_args, device=device)
         facenet_output = db.ops.FacenetOutput(
@@ -135,11 +134,8 @@ def detect_faces(db,
         profilers['scale_{}'.format(scale)] = output[0].profiler()
         outputs.append(output)
 
-    # scale = max(width / float(max_width), 1.0)
-    scale = 1.0
-
     bbox_inputs = [db.sources.Column() for _ in outputs]
-    nmsed_bboxes = db.ops.BBoxNMS(*bbox_inputs, scale=scale)
+    nmsed_bboxes = db.ops.BBoxNMS(*bbox_inputs)
     output = db.sinks.Column(columns={'bboxes': nmsed_bboxes})
 
     jobs = []
@@ -238,3 +234,18 @@ def detect_poses(db,
         work_packet_size=8,
         pipeline_instances_per_node=pipeline_instances)
     return output
+
+
+def ingest_images(db, image_paths, table_name, force=False):
+    img = db.sources.Files()
+    frame = db.ops.ImageDecoder(img=img)
+    output = db.sinks.FrameColumn(columns={'frame': frame})
+
+    job = Job(
+        op_args={
+            img: {'paths': image_paths},
+            output: table_name
+        })
+    output = db.run(output, [job], force=force)
+    return output
+
