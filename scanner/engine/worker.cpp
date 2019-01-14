@@ -1726,30 +1726,31 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       // Make sure the retired tasks were flushed to disk before confirming
       std::fflush(NULL);
       sync();
-    }
-    // Inform master that this task was finished
-    proto::FinishedWorkRequest params;
-    params.set_node_id(node_id_);
-    params.set_bulk_job_id(active_bulk_job_id_);
-    for (std::tuple<i32, i64, i64>& task_retired : batched_retired_tasks) {
-      proto::FinishedWorkRequest::WorkID* work_id = params.add_work_ids();
-      work_id->set_job_id(std::get<1>(task_retired));
-      work_id->set_task_id(std::get<2>(task_retired));
 
-      // Update how much is in each pipeline instances work queue
-      retired_work_for_queues[std::get<0>(task_retired)] += 1;
-    }
+      // Inform master that this task was finished
+      proto::FinishedWorkRequest params;
+      params.set_node_id(node_id_);
+      params.set_bulk_job_id(active_bulk_job_id_);
+      for (std::tuple<i32, i64, i64>& task_retired : batched_retired_tasks) {
+        proto::FinishedWorkRequest::WorkID* work_id = params.add_work_ids();
+        work_id->set_job_id(std::get<1>(task_retired));
+        work_id->set_task_id(std::get<2>(task_retired));
 
-    {
-      proto::Empty empty;
-      grpc::Status status;
-      GRPC_BACKOFF(master_->FinishedWork(&ctx, params, &empty), status);
+        // Update how much is in each pipeline instances work queue
+        retired_work_for_queues[std::get<0>(task_retired)] += 1;
+      }
 
-      if (!status.ok()) {
-        RESULT_ERROR(job_result,
-                     "Worker %d could not tell finished work to master",
-                     node_id_);
-        break;
+      {
+        proto::Empty empty;
+        grpc::Status status;
+        GRPC_BACKOFF(master_->FinishedWork(&ctx, params, &empty), status);
+
+        if (!status.ok()) {
+          RESULT_ERROR(job_result,
+                       "Worker %d could not tell finished work to master",
+                       node_id_);
+          break;
+        }
       }
     }
 
