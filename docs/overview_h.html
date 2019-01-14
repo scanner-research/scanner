@@ -1,0 +1,62 @@
+<div class="row">
+  <div class="col-xs-12 text-center banner">
+    <h1>
+      Overview
+    </h1>
+    <h2>
+      An aerial view of the major concepts in Scanner and how they work together to make Scanner applications efficient and scalable.
+    </h2>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-xs-12">
+    <div class="col-xs-8 col-xs-offset-2">
+      <h3>
+        Videos as Streams
+      </h3>
+      <p>
+        Videos are first-class citizens in Scanner and are represented as streams of frames, even if the video is stored in a compressed format like h.264. Scanner supports arbitrary sparse gather operations from these streams so your application only needs to read (and possibly decode) exeactly the frames it needs.
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-xs-12">
+    <div class="col-xs-8 col-xs-offset-2">
+      <h3>
+        Video processing as Streams and Ops 
+      </h3>
+      <p>
+        Applications are expressed in Scanner as <i> dataflow </i> graphs. Dataflow graphs are composed of <b>streams</b>, which may be videos or other sequences of data, and <b>ops</b>, stateful functions which process elements from streams.
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-xs-12">
+    <div class="col-xs-8 col-xs-offset-2">
+      <h3>
+        Parallelizing within a single machine
+      </h3>
+      <p>
+        Given a dataflow graph, Scanner manages all the details of executing your application on machines with both CPUs and GPUs. This includes reading the data efficiently from local or networked storage, decoding video frames if necessary, scheduling ops to both CPUs and GPUs, handling data movement between ops, and writing data out to an external storage system.
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-xs-12">
+    <div class="col-xs-8 col-xs-offset-2">
+      <h3>
+        Scaling to hundreds of machines in the cloud
+      </h3>
+      <p>
+        Scanner's dataflow graphs are designed to be split up and distributed across machines.
+      </p>
+    </div>
+  </div>
+</div>
