@@ -135,10 +135,10 @@ class FacenetOutputKernel : public BatchedKernel, public VideoKernel {
             // Clamp values to border
 
             BoundingBox bbox;
-            bbox.set_x1(x - width / 2);
-            bbox.set_y1(y - height / 2);
-            bbox.set_x2(x + width / 2);
-            bbox.set_y2(y + height / 2);
+            bbox.set_x1((x - width / 2) / frame_info_.width());
+            bbox.set_y1((y - height / 2) / frame_info_.height());
+            bbox.set_x2((x + width / 2) / frame_info_.width());
+            bbox.set_y2((y + height / 2) / frame_info_.height());
             bbox.set_score(confidence);
 
             // if (bbox.x1() < 0 || bbox.y1() < 0 || bbox.x2() >

@@ -31,9 +31,11 @@ class DrawBoxKernelCPU : public BatchedKernel {
 
       // Draw all bboxes
       for (auto& bbox : bboxes) {
-        i32 width = bbox.x2() - bbox.x1();
-        i32 height = bbox.y2() - bbox.y1();
-        cv::rectangle(out_img, cv::Rect(bbox.x1(), bbox.y1(), width, height),
+        i32 x1 = bbox.x1() * img.cols;
+        i32 y1 = bbox.y1() * img.rows;
+        i32 width = (bbox.x2() - bbox.x1()) * img.cols;
+        i32 height = (bbox.y2() - bbox.y1()) * img.rows;
+        cv::rectangle(out_img, cv::Rect(x1, y1, width, height),
                       cv::Scalar(255, 0, 0), 2);
       }
       insert_frame(output_columns[0], output_frames[i]);
