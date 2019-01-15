@@ -65,7 +65,6 @@
 <span class="k">class</span> <span class="nc">BBoxNMS</span><span class="p">(</span><span class="n">scannerpy</span><span class="o">.</span><span class="n">Kernel</span><span class="p">):</span>
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">protobufs</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">protobufs</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">scale</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="s1">&#39;scale&#39;</span><span class="p">]</span>
 
 <div class="viewcode-block" id="BBoxNMS.close"><a class="viewcode-back" href="../../../api/scannerpy.stdlib.html#scannerpy.stdlib.pipelines.BBoxNMS.close">[docs]</a>    <span class="k">def</span> <span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">pass</span></div>
@@ -83,7 +82,7 @@
                  <span class="n">output_sampler</span><span class="p">,</span>
                  <span class="n">output_sampler_args</span><span class="p">,</span>
                  <span class="n">output_names</span><span class="p">,</span>
-                 <span class="n">width</span><span class="o">=</span><span class="mi">960</span><span class="p">,</span>
+                 <span class="n">max_width</span><span class="o">=</span><span class="mi">960</span><span class="p">,</span>
                  <span class="n">prototxt_path</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                  <span class="n">model_weights_path</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                  <span class="n">templates_path</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
@@ -145,13 +144,13 @@
         <span class="n">caffe_args</span><span class="o">.</span><span class="n">batch_size</span> <span class="o">=</span> <span class="n">batch</span>
 
         <span class="n">frame</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">sources</span><span class="o">.</span><span class="n">FrameColumn</span><span class="p">()</span>
-        <span class="c1">#resized = db.ops.Resize(</span>
-        <span class="c1">#    frame = frame,</span>
-        <span class="c1">#    width = width, height = 0,</span>
-        <span class="c1">#    min = True, preserve_aspect = True,</span>
-        <span class="n">frame_info</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">InfoFromFrame</span><span class="p">(</span><span class="n">frame</span><span class="o">=</span><span class="n">frame</span><span class="p">)</span>
+        <span class="n">resized</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Resize</span><span class="p">(</span>
+            <span class="n">frame</span> <span class="o">=</span> <span class="n">frame</span><span class="p">,</span>
+            <span class="n">width</span> <span class="o">=</span> <span class="n">max_width</span><span class="p">,</span> <span class="n">height</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="nb">min</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">preserve_aspect</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="n">frame_info</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">InfoFromFrame</span><span class="p">(</span><span class="n">frame</span><span class="o">=</span><span class="n">resized</span><span class="p">)</span>
         <span class="n">facenet_input</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">FacenetInput</span><span class="p">(</span>
-            <span class="n">frame</span><span class="o">=</span><span class="n">frame</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="n">facenet_args</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
+            <span class="n">frame</span><span class="o">=</span><span class="n">resized</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="n">facenet_args</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
         <span class="n">facenet</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Facenet</span><span class="p">(</span>
             <span class="n">facenet_input</span><span class="o">=</span><span class="n">facenet_input</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="n">facenet_args</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
         <span class="n">facenet_output</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">FacenetOutput</span><span class="p">(</span>
@@ -182,11 +181,8 @@
         <span class="n">profilers</span><span class="p">[</span><span class="s1">&#39;scale_</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">scale</span><span class="p">)]</span> <span class="o">=</span> <span class="n">output</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">profiler</span><span class="p">()</span>
         <span class="n">outputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
 
-    <span class="c1"># scale = max(width / float(max_width), 1.0)</span>
-    <span class="n">scale</span> <span class="o">=</span> <span class="mf">1.0</span>
-
     <span class="n">bbox_inputs</span> <span class="o">=</span> <span class="p">[</span><span class="n">db</span><span class="o">.</span><span class="n">sources</span><span class="o">.</span><span class="n">Column</span><span class="p">()</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">outputs</span><span class="p">]</span>
-    <span class="n">nmsed_bboxes</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">BBoxNMS</span><span class="p">(</span><span class="o">*</span><span class="n">bbox_inputs</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="n">scale</span><span class="p">)</span>
+    <span class="n">nmsed_bboxes</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">BBoxNMS</span><span class="p">(</span><span class="o">*</span><span class="n">bbox_inputs</span><span class="p">)</span>
     <span class="n">output</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">sinks</span><span class="o">.</span><span class="n">Column</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;bboxes&#39;</span><span class="p">:</span> <span class="n">nmsed_bboxes</span><span class="p">})</span>
 
     <span class="n">jobs</span> <span class="o">=</span> <span class="p">[]</span>
@@ -285,6 +281,21 @@
         <span class="n">work_packet_size</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span>
         <span class="n">pipeline_instances_per_node</span><span class="o">=</span><span class="n">pipeline_instances</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">output</span></div>
+
+
+<div class="viewcode-block" id="ingest_images"><a class="viewcode-back" href="../../../api/scannerpy.stdlib.html#scannerpy.stdlib.pipelines.ingest_images">[docs]</a><span class="k">def</span> <span class="nf">ingest_images</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">image_paths</span><span class="p">,</span> <span class="n">table_name</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="n">img</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">sources</span><span class="o">.</span><span class="n">Files</span><span class="p">()</span>
+    <span class="n">frame</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">ImageDecoder</span><span class="p">(</span><span class="n">img</span><span class="o">=</span><span class="n">img</span><span class="p">)</span>
+    <span class="n">output</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">sinks</span><span class="o">.</span><span class="n">FrameColumn</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;frame&#39;</span><span class="p">:</span> <span class="n">frame</span><span class="p">})</span>
+
+    <span class="n">job</span> <span class="o">=</span> <span class="n">Job</span><span class="p">(</span>
+        <span class="n">op_args</span><span class="o">=</span><span class="p">{</span>
+            <span class="n">img</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;paths&#39;</span><span class="p">:</span> <span class="n">image_paths</span><span class="p">},</span>
+            <span class="n">output</span><span class="p">:</span> <span class="n">table_name</span>
+        <span class="p">})</span>
+    <span class="n">output</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="p">[</span><span class="n">job</span><span class="p">],</span> <span class="n">force</span><span class="o">=</span><span class="n">force</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">output</span></div>
+
 </pre></div>
 
           </div>
