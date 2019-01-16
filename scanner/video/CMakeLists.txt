@@ -16,9 +16,11 @@ if (MFX_FOUND)
     intel/intel_video_decoder.cpp)
 endif()
 
-list(APPEND SOURCE_FILES
-  software/software_video_decoder.cpp
-  software/software_video_encoder.cpp)
+if (NO_FFMPEG STREQUAL "false")
+  list(APPEND SOURCE_FILES
+    software/software_video_decoder.cpp
+    software/software_video_encoder.cpp)
+endif()
 
 add_library(video OBJECT
   ${SOURCE_FILES})

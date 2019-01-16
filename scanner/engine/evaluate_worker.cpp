@@ -56,25 +56,56 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
   i32 media_col_idx = 0;
   if (decoders_.empty()) {
     auto init_start = now();
-    VideoDecoderType decoder_type;
-    i32 num_devices;
-    // Select a decoder type based on the type of the first op and
-    // the available decoders
-    if (device_handle_.type == DeviceType::GPU &&
-        VideoDecoder::has_decoder_type(VideoDecoderType::NVIDIA)) {
-      decoder_output_handle_.type = DeviceType::GPU;
-      decoder_output_handle_.id = device_handle_.id;
-      decoder_type = VideoDecoderType::NVIDIA;
-      num_devices = 1;
-    } else {
-      decoder_output_handle_ = CPU_DEVICE;
-      decoder_type = VideoDecoderType::SOFTWARE;
-      num_devices = decoder_cpus_;
-    }
+    auto select_decoder_type = [this](const DeviceHandle& device_handle, Result& result) {
+      VideoDecoderType decoder_type;
+      i32 num_devices;
+      DeviceHandle decoder_output_handle;
+      // Select a decoder type based on the type of the first op and
+      // the available decoders
+      if (device_handle.type == DeviceType::GPU &&
+          VideoDecoder::has_decoder_type(VideoDecoderType::NVIDIA)) {
+        decoder_output_handle.type = DeviceType::GPU;
+        decoder_output_handle.id = device_handle.id;
+        decoder_type = VideoDecoderType::NVIDIA;
+        num_devices = 1;
+      } else if (VideoDecoder::has_decoder_type(VideoDecoderType::SOFTWARE)) {
+        decoder_output_handle = CPU_DEVICE;
+        decoder_type = VideoDecoderType::SOFTWARE;
+        num_devices = decoder_cpus_;
+      } else {
+        /* select first available decoder type */
+        std::vector<VideoDecoderType> decoder_types =
+            VideoDecoder::get_supported_decoder_types();
+        if (decoder_types.empty()) {
+          std::string message =
+              "Scanner was not built with support for decoding video, but "
+              "pipeline attempted to read a compressed video data source. "
+              "Please recompile Scanner with support for ffmpeg or the NVIDIA "
+              "hardware decoder.";
+          LOG(ERROR) << message;
+          result.set_msg(message);
+          result.set_success(false);
+        } else {
+          decoder_output_handle = CPU_DEVICE;
+          decoder_type = decoder_types[0];
+          num_devices = 1;
+        }
+      }
+      return std::make_tuple(decoder_type, num_devices, decoder_output_handle);
+    };
     for (size_t c = 0; c < work_entry.columns.size(); ++c) {
       if (work_entry.column_types[c] == ColumnType::Video &&
           work_entry.video_encoding_type[media_col_idx] ==
               proto::VideoDescriptor::H264) {
+        // Select device type
+        VideoDecoderType decoder_type;
+        i32 num_devices;
+        std::tie(decoder_type, num_devices, decoder_output_handle_) =
+            select_decoder_type(device_handle_, result_);
+        if (!result_.success()) {
+          THREAD_RETURN_SUCCESS();
+        }
+
         if (work_entry.inplace_video[c]) {
           hwang::DeviceHandle hd;
           switch (device_handle_.type) {

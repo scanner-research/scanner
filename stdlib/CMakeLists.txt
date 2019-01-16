@@ -19,12 +19,14 @@ if(APPLE)
   set(BUILD_OPENPOSE_OPS OFF)
 endif()
 
-find_package(Halide REQUIRED)
-set(HALIDE_DISTRIB_DIR "${Halide_DIR}")
-set(HALIDE_DISTRIB_USE_STATIC_LIBRARY TRUE)
-include(${Halide_DIR}/halide.cmake)
-#include_directories("${HALIDE_INCLUDE_DIR}")
-#include_directories("${PROJECT_BINARY_DIR}/generator_genfiles")
+if (NO_HALIDE STREQUAL "false")
+  find_package(Halide REQUIRED)
+  set(HALIDE_DISTRIB_DIR "${Halide_DIR}")
+  set(HALIDE_DISTRIB_USE_STATIC_LIBRARY TRUE)
+  include(${Halide_DIR}/halide.cmake)
+  #include_directories("${HALIDE_INCLUDE_DIR}")
+  #include_directories("${PROJECT_BINARY_DIR}/generator_genfiles")
+endif()
 
 if (BUILD_CUDA)
   find_package(CUDA REQUIRED)
@@ -38,14 +40,14 @@ else()
   add_definitions(-DCPU_ONLY)
 endif()
 
-if (BUILD_OPENPOSE_OPS)
+if ((NO_OPENPOSE STREQUAL "false") AND BUILD_OPENPOSE_OPS)
   find_package(OpenPose REQUIRED)
   include_directories(${OPENPOSE_INCLUDE_DIRS})
   list(APPEND STDLIB_LIBRARIES "${OPENPOSE_LIBRARIES}")
 endif()
 
 set(TARGETS)
-if (BUILD_CAFFE_OPS)
+if ((NO_CAFFE STREQUAL "false") AND BUILD_CAFFE_OPS)
   add_subdirectory(caffe)
   list(APPEND TARGETS caffe)
   #list(APPEND STDLIB_LIBRARIES
@@ -97,8 +99,11 @@ build_op(
 add_dependencies(scanner_stdlib scanner)
 
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(libpqxx REQUIRED libpqxx)
-list(APPEND STDLIB_LIBRARIES "${libpqxx_LIBRARY_DIRS}/libpqxx.a" pq)
+
+if (NO_LIBPQXX STREQUAL "false")
+  pkg_check_modules(libpqxx REQUIRED libpqxx)
+  list(APPEND STDLIB_LIBRARIES "${libpqxx_LIBRARY_DIRS}/libpqxx.a" pq)
+endif()
 
 add_custom_command(TARGET scanner_stdlib POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/__init__.py)

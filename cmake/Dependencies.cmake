@@ -39,10 +39,15 @@ if (BUILD_CUDA)
   list(APPEND OPENCV_DESIRED_COMPONENTS cudaimgproc cudaarithm)
 endif()
 
+if (NO_FFMPEG STREQUAL "false")
+  find_package(FFmpeg REQUIRED)
+  include_directories("${FFMPEG_INCLUDE_DIR}")
+  add_definitions(-DHAVE_FFMPEG)
+endif()
+
 ###### Required Dependencies #######
 find_package(SaneProtobuf REQUIRED)
 find_package(GRPC REQUIRED)
-find_package(FFmpeg REQUIRED)
 find_package(LibLZMA REQUIRED)
 if (APPLE)
   set(OPENSSL_ROOT_DIR "/usr/local/opt/openssl")
@@ -99,7 +104,6 @@ include_directories(
   "${HWANG_INCLUDE_DIRS}"
   "${PROTOBUF_INCLUDE_DIRS}"
   "${GRPC_INCLUDE_DIRS}"
-  "${FFMPEG_INCLUDE_DIR}"
   "${TINYTOML_INCLUDE_DIR}"
   "${STOREHOUSE_INCLUDE_DIRS}"
   "${OPENSSL_INCLUDE_DIR}"
