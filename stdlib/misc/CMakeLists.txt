@@ -8,10 +8,18 @@ set(SOURCE_FILES
   python_source.cpp
   files_source.cpp
   files_sink.cpp
-  sql_source.cpp
-  sql_sink.cpp
-  sql.cpp
-  audio_source.cpp
   captions_source.cpp)
+
+if (NO_FFMPEG STREQUAL "false")
+  list(APPEND SOURCE_FILES
+    audio_source.cpp)
+endif()
+
+if (NO_LIBPQXX STREQUAL "false")
+  list(APPEND SOURCE_FILES
+    sql_source.cpp
+    sql_sink.cpp
+    sql.cpp)
+endif()
 
 add_library(misc OBJECT ${SOURCE_FILES})

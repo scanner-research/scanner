@@ -20,25 +20,35 @@ PYTHON_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_inf
 
 POSITIONAL=()
 
-# Ask if installed
-INSTALL_FFMPEG=true
+# Required, ask if installed
 INSTALL_OPENCV=true
 INSTALL_PROTOBUF=true
 INSTALL_GRPC=true
-INSTALL_CAFFE=true
-INSTALL_HALIDE=true
-INSTALL_OPENPOSE=true
 
-USE_GPU=false
-NO_USE_GPU=false
-
-# Assume not installed
+# Required, and assume not installed
 INSTALL_GOOGLETEST=true
 INSTALL_HWANG=true
 INSTALL_TINYTOML=true
 INSTALL_STOREHOUSE=true
 INSTALL_PYBIND=true
+
+# Optional, ask if needed
+NO_FFMPEG=false
+INSTALL_FFMPEG=true
+NO_OPENPOSE=false
+INSTALL_OPENPOSE=true
+NO_HALIDE=false
+INSTALL_HALIDE=true
+NO_CAFFE=false
+INSTALL_CAFFE=true
+
+# Optional, and assume not installed
+NO_LIBPQXX=false
 INSTALL_LIBPQXX=true
+
+
+USE_GPU=false
+NO_USE_GPU=false
 
 INSTALL_PREFIX=$DEFAULT_INSTALL_DIR
 
@@ -76,11 +86,6 @@ case $key in
         INSTALL_NONE=true
         shift # past arg
         ;;
-    --with-ffmpeg)
-        WITH_FFMPEG="$2"
-        shift # past arg
-        shift # past value
-        ;;
     --with-opencv)
         WITH_OPENCV="$2"
         shift # past arg
@@ -93,21 +98,6 @@ case $key in
         ;;
     --with-grpc)
         WITH_GRPC="$2"
-        shift # past arg
-        shift # past value
-        ;;
-    --with-caffe)
-        WITH_CAFFE="$2"
-        shift # past arg
-        shift # past value
-        ;;
-    --with-halide)
-        WITH_HALIDE="$2"
-        shift # past arg
-        shift # past value
-        ;;
-    --with-openpose)
-        WITH_OPENPOSE="$2"
         shift # past arg
         shift # past value
         ;;
@@ -125,6 +115,46 @@ case $key in
         WITH_PYBIND="$2"
         shift # past arg
         shift # past value
+        ;;
+    --without-ffmpeg)
+        NO_FFMPEG=true
+        shift # past arg
+        ;;
+    --with-ffmpeg)
+        WITH_FFMPEG="$2"
+        shift # past arg
+        shift # past value
+        ;;
+    --without-caffe)
+        NO_CAFFE=true
+        shift # past arg
+        ;;
+    --with-caffe)
+        WITH_CAFFE="$2"
+        shift # past arg
+        shift # past value
+        ;;
+    --without-halide)
+        NO_HALIDE=true
+        shift # past arg
+        ;;
+    --with-halide)
+        WITH_HALIDE="$2"
+        shift # past arg
+        shift # past value
+        ;;
+    --without-openpose)
+        NO_OPENPOSE=true
+        shift # past arg
+        ;;
+    --with-openpose)
+        WITH_OPENPOSE="$2"
+        shift # past arg
+        shift # past value
+        ;;
+    --without-libpqxx)
+        NO_LIBPQXX=true
+        shift # past arg
         ;;
     --with-libpqxx)
         WITH_LIBPQXX="$2"
@@ -145,7 +175,7 @@ echo "--------------------------------------------------------------"
 echo "The script will ask if required dependencies are installed and"
 echo "then install missing dependencies to "
 echo "$INSTALL_PREFIX"
-echo "(customized by specifying (--prefix <dir>)"
+echo "(customized by specifying (--prefix <dir>)."
 
 set -- "${POSITIONAL[@]}" # restore positional parameters
 
@@ -268,23 +298,8 @@ if [[ $INSTALL_NONE == true ]]; then
 
 elif [[ $INSTALL_ALL == false ]]; then
     # Ask about each library
-    if [[ -z ${WITH_FFMPEG+x} ]]; then
-        echo -n "Do you have ffmpeg>=3.3.1 installed? [y/N]: "
-        read yn
-        if [[ $yn == y ]] || [[ $yn == Y ]]; then
-            INSTALL_FFMPEG=false
-            echo -n "Where is your ffmpeg install? [/usr/local]: "
-            read install_location
-            if [[ $install_location == "" ]]; then
-                FFMPEG_DIR=/usr/local
-            else
-                FFMPEG_DIR=$install_location
-            fi
-        else
-            INSTALL_FFMPEG=true
-        fi
-    fi
 
+    echo "Required dependencies: "
     if [[ -z ${WITH_OPENCV+x} ]]; then
         echo -n "Do you have opencv>=3.4.0 with contrib installed? [y/N]: "
         read yn
@@ -336,25 +351,61 @@ elif [[ $INSTALL_ALL == false ]]; then
         fi
     fi
 
-    if [[ -z ${WITH_HALIDE+x} ]]; then
-        echo -n "Do you have halide (release_2018_02_15) installed? [y/N]: "
+    echo "Optional dependencies: "
+    if [[ -z ${WITH_FFMPEG+x} ]] && [[ ${NO_FFMPEG+x} != true ]]; then
+        echo -n "Do you need support for processing video files (e.g. mp4)? [Y/n]: "
         read yn
-        if [[ $yn == y ]] || [[ $yn == Y ]]; then
-            INSTALL_HALIDE=false
-            echo -n "Where is your halide install? [/usr/local]: "
-            read install_location
-            if [[ $install_location == "" ]]; then
-                HALIDE_DIR=/usr/local
+        if [[ $yn != n ]] && [[ $yn != N ]]; then
+            echo -n "Do you have ffmpeg>=3.3.1 installed? [y/N]: "
+            read yn
+            if [[ $yn == y ]] || [[ $yn == Y ]]; then
+                INSTALL_FFMPEG=false
+                echo -n "Where is your ffmpeg install? [/usr/local]: "
+                read install_location
+                if [[ $install_location == "" ]]; then
+                    FFMPEG_DIR=/usr/local
+                else
+                    FFMPEG_DIR=$install_location
+                fi
             else
-                HALIDE_DIR=$install_location
+                INSTALL_FFMPEG=true
+                echo "ffmpeg 3.3.1 will be installed at ${FFMPEG_DIR}."
             fi
         else
-            INSTALL_HALIDE=true
+            INSTALL_FFMPEG=false
+            NO_FFMPEG=true
         fi
     fi
 
-    if [[ $HAVE_GPU == true ]]; then
-        if [[ -z ${WITH_OPENPOSE+x} ]]; then
+    if [[ -z ${WITH_HALIDE+x} ]] && [[ ${NO_HALIDE+x} != true ]]; then
+        echo -n "Do you need support for halide pipelines? [y/N]: "
+        read yn
+        if [[ $yn == y ]] || [[ $yn == Y ]]; then
+            echo -n "Do you have halide (release_2018_02_15) installed? [y/N]: "
+            read yn
+            if [[ $yn == y ]] || [[ $yn == Y ]]; then
+                INSTALL_HALIDE=false
+                echo -n "Where is your halide install? [/usr/local]: "
+                read install_location
+                if [[ $install_location == "" ]]; then
+                    HALIDE_DIR=/usr/local
+                else
+                    HALIDE_DIR=$install_location
+                fi
+            else
+                INSTALL_HALIDE=true
+                echo "halide will be installed at ${HALIDE_DIR}."
+            fi
+        else
+            INSTALL_HALIDE=false
+            NO_HALIDE=true
+        fi
+    fi
+
+    if [[ -z ${WITH_OPENPOSE+x} ]] && [[ ${NO_OPENPOSE+x} != true ]]; then
+        echo -n "Do you need support for Pose Detection (openpose)? [Y/n]: "
+        read yn
+        if [[ $yn != n ]] && [[ $yn != N ]]; then
             echo -n "Do you have OpenPose (v1.3.0) installed? [y/N]: "
             read yn
             if [[ $yn == y ]] || [[ $yn == Y ]]; then
@@ -369,69 +420,58 @@ elif [[ $INSTALL_ALL == false ]]; then
             else
                 INSTALL_OPENPOSE=true
             fi
+        else
+            INSTALL_OPENPOSE=false
+            NO_OPENPOSE=true
         fi
     fi
 
-    if [[ -z ${WITH_CAFFE+x} ]]; then
-        echo -n "Do you have caffe>=rc5 or intel-caffe>=1.0.6 installed? [y/N]: "
+    if [[ -z ${WITH_CAFFE+x} ]] && [[ ${NO_CAFFE+x} != true ]]; then
+        echo -n "Do you need support for Caffe operations? [Y/n]: "
         read yn
-        if [[ $yn == y ]] || [[ $yn == Y ]]; then
-            INSTALL_CAFFE=false
-            echo -n "Where is your caffe install? [/usr/local]: "
-            read install_location
-            if [[ $install_location == "" ]]; then
-                CAFFE_DIR=/usr/local
-            else
-                CAFFE_DIR=$install_location
-            fi
-        else
-            INSTALL_CAFFE=true
-            if [[ $HAVE_GPU == true ]]; then
-                echo -n "Do you plan to use GPUs for CNN evaluation? [Y/n]: "
-                read yn
-                if [[ $yn == n ]] || [[ $yn == N ]]; then
-                    USE_GPU=false
+        if [[ $yn != n ]] && [[ $yn != N ]]; then
+            echo -n "Do you have caffe>=rc5 or intel-caffe>=1.0.6 installed? [y/N]: "
+            read yn
+            if [[ $yn == y ]] || [[ $yn == Y ]]; then
+                INSTALL_CAFFE=false
+                echo -n "Where is your caffe install? [/usr/local]: "
+                read install_location
+                if [[ $install_location == "" ]]; then
+                    CAFFE_DIR=/usr/local
                 else
-                    USE_GPU=true
+                    CAFFE_DIR=$install_location
                 fi
             else
-                USE_GPU=false
+                INSTALL_CAFFE=true
+                if [[ $HAVE_GPU == true ]]; then
+                    echo -n "Do you plan to use GPUs for CNN evaluation? [Y/n]: "
+                    read yn
+                    if [[ $yn == n ]] || [[ $yn == N ]]; then
+                        USE_GPU=false
+                    else
+                        USE_GPU=true
+                    fi
+                else
+                    USE_GPU=false
+                fi
             fi
+        else
+            INSTALL_CAFFE=false
+            NO_CAFFE=true
         fi
     fi
-fi
 
-if [[ $INSTALL_FFMPEG == true ]] && [[ ! -f $BUILD_DIR/ffmpeg.done ]] ; then
-    echo "Installing ffmpeg 3.3.1..."
-
-    # Determine command string to use
-    if [[ "$OSTYPE" == "linux-gnu" ]]; then
-        # Linux
-        CMDS="--extra-version=0ubuntu0.16.04.1
-              --toolchain=hardened
-              --cc=cc --cxx=g++"
-        # ...
-    elif [[ "$OSTYPE" == "darwin"* ]]; then
-        # Mac OSX
-        CMDS=""
+    if [[ -z ${WITH_LIBPQXX+x} ]] && [[ ${NO_LIBPQXX+x} != true ]]; then
+        echo -n "Do you need support for SQL input/output? [y/N]: "
+        read yn
+        if [[ $yn == y ]] || [[ $yn == Y ]]; then
+            INSTALL_LIBPQXX=true
+            echo "libpqxx will be installed at ${LIBPQXX_DIR}."
+        else
+            INSTALL_LIBPQXX=false
+            NO_LIBPQXX=true
+        fi
     fi
-
-    # FFMPEG
-    cd $BUILD_DIR
-    rm -fr ffmpeg
-    git clone -b n3.3.1 https://git.ffmpeg.org/ffmpeg.git && cd ffmpeg && \
-    ./configure --prefix=$INSTALL_PREFIX \
-                --enable-shared --disable-stripping \
-                --disable-decoder=libschroedinger \
-                --enable-avresample \
-                --enable-libx264 \
-                --enable-nonfree \
-                --enable-gpl \
-                --enable-gnutls \
-                $(echo $CMDS) && \
-    make -j${cores} && make install && touch $BUILD_DIR/ffmpeg.done \
-        || { echo 'Installing ffmpeg failed!' ; exit 1; }
-    echo "Done installing ffmpeg 3.3.1"
 fi
 
 if [[ $INSTALL_OPENCV == true ]] && [[ ! -f $BUILD_DIR/opencv.done ]]; then
@@ -516,63 +556,37 @@ if [[ $INSTALL_GRPC == true ]] && [[ ! -f $BUILD_DIR/grpc.done ]] ; then
     echo "Done installing gRPC 1.16.0"
 fi
 
-if [[ $INSTALL_HALIDE == true ]] && [[ ! -f $BUILD_DIR/halide.done ]] ; then
-    # Halide
-    echo "Installing Halide..."
+if [[ $INSTALL_FFMPEG == true ]] && [[ ! -f $BUILD_DIR/ffmpeg.done ]] ; then
+    echo "Installing ffmpeg 3.3.1..."
 
-    cd $BUILD_DIR
-    rm -fr Halide
-    mkdir Halide
-    cd Halide
+    # Determine command string to use
     if [[ "$OSTYPE" == "linux-gnu" ]]; then
-        # If CLANG is not set, we should set it to clang or clang-5.0
-        if [ -z ${CLANG+x} ]; then
-            if command -v clang >/dev/null 2>&1 &&
-                   [[ $(clang++ -v 2>&1 |
-                         grep version |
-                         sed 's/.*version \([0-9]*.[0-9]*.[0-9]*\) .*/\1/g' |
-                         perl -pe '($_)=/([0-9]+([.][0-9]+)+)/') > '4.0.0' ]]; then
-                export CLANG=clang
-            elif command -v clang-5.0 >/dev/null 2>&1; then
-                export CLANG=clang-5.0
-            fi
-            echo $CLANG
-        fi
-        # If LLVM_CONFIG is not set, we should set it to llvm-config or
-        # llvm-config-5.0
-        if [ -z ${LLVM_CONFIG+x} ]; then
-            if command -v llvm-config >/dev/null 2>&1 &&
-                   [[ $(llvm-config --version) > '4.0.0' ]]; then
-                export LLVM_CONFIG=llvm-config
-            elif command -v llvm-config-5.0 >/dev/null 2>&1; then
-                export LLVM_CONFIG=llvm-config-5.0
-            fi
-        fi
-        git clone -b release_2018_02_15 https://github.com/halide/Halide --depth 1 && \
-            cd Halide && \
-            make distrib -j$cores && \
-            cp -r distrib/* $INSTALL_PREFIX && \
-            touch $BUILD_DIR/halide.done \
-                || { echo 'Installing Halide failed!' ; exit 1; }
+        # Linux
+        CMDS="--extra-version=0ubuntu0.16.04.1
+              --toolchain=hardened
+              --cc=cc --cxx=g++"
+        # ...
     elif [[ "$OSTYPE" == "darwin"* ]]; then
-        TAR_NAME=halide-mac-64-trunk-46d8e9e0cdae456489f1eddfd6d829956fc3c843.tgz
-        wget --retry-on-http-error=403 https://github.com/halide/Halide/releases/download/release_2018_02_15/$TAR_NAME && \
-            wget --retry-on-http-error=403 https://raw.githubusercontent.com/halide/Halide/release_2018_02_15/src/Generator.h && \
-            tar -zxf $TAR_NAME && \
-            cp Generator.h halide/include && \
-            mkdir -p $INSTALL_PREFIX/lib && \
-            find ./halide -type f -exec chmod 644 {} + && \
-            find ./halide -type d -exec chmod 755 {} + && \
-            find ./halide/bin -type f -exec chmod 755 {} + && \
-            cp -r halide/bin/* $INSTALL_PREFIX/lib && \
-            rm -r halide/bin && \
-            cp -r halide/* $INSTALL_PREFIX && \
-            install_name_tool -id "@rpath/libHalide.dylib" $INSTALL_PREFIX/lib/libHalide.dylib
-            touch $BUILD_DIR/halide.done \
-                || { echo 'Installing Halide failed!' ; exit 1; }
+        # Mac OSX
+        CMDS=""
     fi
 
-    echo "Done installing Halide"
+    # FFMPEG
+    cd $BUILD_DIR
+    rm -fr ffmpeg
+    git clone -b n3.3.1 https://git.ffmpeg.org/ffmpeg.git && cd ffmpeg && \
+    ./configure --prefix=$INSTALL_PREFIX \
+                --enable-shared --disable-stripping \
+                --disable-decoder=libschroedinger \
+                --enable-avresample \
+                --enable-libx264 \
+                --enable-nonfree \
+                --enable-gpl \
+                --enable-gnutls \
+                $(echo $CMDS) && \
+    make -j${cores} && make install && touch $BUILD_DIR/ffmpeg.done \
+        || { echo 'Installing ffmpeg failed!' ; exit 1; }
+    echo "Done installing ffmpeg 3.3.1"
 fi
 
 if [[ $INSTALL_PYBIND == true ]] && [[ ! -f $BUILD_DIR/pybind.done ]] ; then
@@ -651,6 +665,67 @@ if [[ $INSTALL_TINYTOML == true ]] && [[ ! -f $BUILD_DIR/tinytoml.done ]]; then
         touch $BUILD_DIR/tinytoml.done \
             || { echo 'Installing tinytoml failed!' ; exit 1; }
     echo "Done installing tinytoml"
+fi
+
+
+
+if [[ $INSTALL_HALIDE == true ]] && [[ ! -f $BUILD_DIR/halide.done ]] ; then
+    # Halide
+    echo "Installing Halide..."
+
+    cd $BUILD_DIR
+    rm -fr Halide
+    mkdir Halide
+    cd Halide
+    if [[ "$OSTYPE" == "linux-gnu" ]]; then
+        # If CLANG is not set, we should set it to clang or clang-5.0
+        if [ -z ${CLANG+x} ]; then
+            if command -v clang >/dev/null 2>&1 &&
+                   [[ $(clang++ -v 2>&1 |
+                         grep version |
+                         sed 's/.*version \([0-9]*.[0-9]*.[0-9]*\) .*/\1/g' |
+                         perl -pe '($_)=/([0-9]+([.][0-9]+)+)/') > '4.0.0' ]]; then
+                export CLANG=clang
+            elif command -v clang-5.0 >/dev/null 2>&1; then
+                export CLANG=clang-5.0
+            fi
+            echo $CLANG
+        fi
+        # If LLVM_CONFIG is not set, we should set it to llvm-config or
+        # llvm-config-5.0
+        if [ -z ${LLVM_CONFIG+x} ]; then
+            if command -v llvm-config >/dev/null 2>&1 &&
+                   [[ $(llvm-config --version) > '4.0.0' ]]; then
+                export LLVM_CONFIG=llvm-config
+            elif command -v llvm-config-5.0 >/dev/null 2>&1; then
+                export LLVM_CONFIG=llvm-config-5.0
+            fi
+        fi
+        git clone -b release_2018_02_15 https://github.com/halide/Halide --depth 1 && \
+            cd Halide && \
+            make distrib -j$cores && \
+            cp -r distrib/* $INSTALL_PREFIX && \
+            touch $BUILD_DIR/halide.done \
+                || { echo 'Installing Halide failed!' ; exit 1; }
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        TAR_NAME=halide-mac-64-trunk-46d8e9e0cdae456489f1eddfd6d829956fc3c843.tgz
+        wget --retry-on-http-error=403 https://github.com/halide/Halide/releases/download/release_2018_02_15/$TAR_NAME && \
+            wget --retry-on-http-error=403 https://raw.githubusercontent.com/halide/Halide/release_2018_02_15/src/Generator.h && \
+            tar -zxf $TAR_NAME && \
+            cp Generator.h halide/include && \
+            mkdir -p $INSTALL_PREFIX/lib && \
+            find ./halide -type f -exec chmod 644 {} + && \
+            find ./halide -type d -exec chmod 755 {} + && \
+            find ./halide/bin -type f -exec chmod 755 {} + && \
+            cp -r halide/bin/* $INSTALL_PREFIX/lib && \
+            rm -r halide/bin && \
+            cp -r halide/* $INSTALL_PREFIX && \
+            install_name_tool -id "@rpath/libHalide.dylib" $INSTALL_PREFIX/lib/libHalide.dylib
+            touch $BUILD_DIR/halide.done \
+                || { echo 'Installing Halide failed!' ; exit 1; }
+    fi
+
+    echo "Done installing Halide"
 fi
 
 if [[ $INSTALL_CAFFE == true ]] && [[ $USE_GPU == false ]] && \
@@ -784,19 +859,26 @@ DEP_FILE=$LOCAL_DIR/dependencies.txt
 rm -f $DEP_FILE
 echo "HAVE_GPU=$HAVE_GPU" >> $DEP_FILE
 echo "CAFFE_GPU=$USE_GPU" >> $DEP_FILE
-echo "PYBIND11_DIR=$PYBIND_DIR" >> $DEP_FILE
-echo "FFMPEG_DIR=$FFMPEG_DIR" >> $DEP_FILE
+
 echo "OpenCV_DIR=$OPENCV_DIR" >> $DEP_FILE
 echo "PROTOBUF_DIR=$PROTOBUF_DIR" >> $DEP_FILE
 echo "GRPC_DIR=$GRPC_DIR" >> $DEP_FILE
-echo "Caffe_DIR=$CAFFE_DIR" >> $DEP_FILE
-echo "Halide_DIR=$HALIDE_DIR" >> $DEP_FILE
 echo "Hwang_DIR=$HWANG_DIR" >> $DEP_FILE
-echo "STOREHOUSE_DIR=$STOREHOUSE_DIR" >> $DEP_FILE
 echo "TinyToml_DIR=$TINYTOML_DIR" >> $DEP_FILE
+echo "STOREHOUSE_DIR=$STOREHOUSE_DIR" >> $DEP_FILE
+echo "PYBIND11_DIR=$PYBIND_DIR" >> $DEP_FILE
+
+echo "NO_FFMPEG=$NO_FFMPEG" >> $DEP_FILE
+echo "FFMPEG_DIR=$FFMPEG_DIR" >> $DEP_FILE
+echo "NO_OPENPOSE=$NO_OPENPOSE" >> $DEP_FILE
+echo "NO_CAFFE=$NO_CAFFE" >> $DEP_FILE
+echo "Caffe_DIR=$CAFFE_DIR" >> $DEP_FILE
+echo "NO_HALIDE=$NO_HALIDE" >> $DEP_FILE
+echo "Halide_DIR=$HALIDE_DIR" >> $DEP_FILE
+echo "NO_LIBPQXX=$NO_LIBPQXX" >> $DEP_FILE
 echo "LIBPQXX_DIR=$LIBPQXX_DIR" >> $DEP_FILE
 
-echo "Done installing required dependencies!"
+echo "Done installing dependencies!"
 echo -n "Add $INSTALL_PREFIX/lib to your LD_LIBRARY_PATH, "
 echo -n "add $INSTALL_PREFIX/bin to your PATH, and "
 echo -n "add $INSTALL_PREFIX/lib/pkgconfig to your PKG_CONFIG_PATH so the installed "

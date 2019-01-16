@@ -13,6 +13,10 @@
  * limitations under the License.
  */
 
+#pragma once
+
+#ifdef HAVE_FFMPEG
+
 #include "scanner/util/common.h"
 #include "storehouse/storage_backend.h"
 
@@ -52,3 +56,5 @@ i32 ffmpeg_storehouse_read_packet(void* opaque, u8* buf, i32 buf_size);
 i64 ffmpeg_storehouse_seek(void* opaque, i64 offset, i32 whence);
 
 }  // namespace scanner
+
+#endif

@@ -21,7 +21,6 @@
 
 #include "scanner/util/common.h"
 #include "scanner/util/h264.h"
-#include "scanner/util/ffmpeg.h"
 #include "scanner/util/util.h"
 
 #include "storehouse/storage_backend.h"
@@ -31,6 +30,10 @@
 
 #include <glog/logging.h>
 #include <thread>
+
+#ifdef HAVE_FFMPEG
+
+#include "scanner/util/ffmpeg.h"
 
 // For video
 extern "C" {
@@ -43,6 +46,8 @@ extern "C" {
 #include "libavutil/pixdesc.h"
 #include "libswscale/swscale.h"
 }
+
+#endif
 
 #include <cassert>
 #include <fstream>
@@ -57,6 +62,7 @@ namespace {
 
 const std::string BAD_VIDEOS_FILE_PATH = "bad_videos.txt";
 
+#ifdef HAVE_FFMPEG
 struct CodecState {
   AVPacket av_packet;
   AVFrame* picture;
@@ -162,154 +168,6 @@ void cleanup_video_codec(CodecState state) {
   }
   av_frame_free(&state.picture);
   av_bitstream_filter_close(state.annexb);
-}
-
-bool parse_video_inplace(storehouse::StorageBackend* storage,
-                         const std::string& table_name, i32 table_id,
-                         const std::string& path, std::string& error_message) {
-  proto::TableDescriptor table_desc;
-  table_desc.set_id(table_id);
-  table_desc.set_name(table_name);
-  table_desc.set_job_id(-1);
-  table_desc.set_timestamp(
-      std::chrono::duration_cast<std::chrono::seconds>(now().time_since_epoch())
-          .count());
-
-  {
-    Column* index_col = table_desc.add_columns();
-    index_col->set_name(index_column_name());
-    index_col->set_id(0);
-    index_col->set_type(ColumnType::Other);
-
-    Column* frame_col = table_desc.add_columns();
-    frame_col->set_name(frame_column_name());
-    frame_col->set_id(1);
-    frame_col->set_type(ColumnType::Video);
-  }
-
-  StoreResult result;
-  std::unique_ptr<RandomReadFile> file = nullptr;
-  EXP_BACKOFF(make_unique_random_read_file(storage, path, file),
-              result);
-  if (result != StoreResult::Success) {
-    error_message = "Can not open video file";
-    return false;
-  }
-
-  u64 file_size;
-  EXP_BACKOFF(file->get_size(file_size), result);
-  if (result != StoreResult::Success) {
-    error_message = "Can not get file size";
-    return false;
-  }
-  if (file_size <= 0) {
-    error_message = "Can not ingest empty video file";
-    return false;
-  }
-
-  hwang::MP4IndexCreator index_creator(file_size);
-  u64 offset = 0;
-  u64 size_to_read = 1024;
-  while (!index_creator.is_done()) {
-    VLOG(2) << "Reading " << size_to_read << " bytes";
-    std::vector<u8> data(size_to_read);
-    size_t size_read;
-    EXP_BACKOFF(
-        file->read(offset, size_to_read, data.data(), size_read),
-        result);
-    exit_on_error(result);
-    assert(size_read == size_to_read);
-    u64 next_offset;
-    u64 next_size;
-    index_creator.feed(data.data(), size_read,
-                       next_offset,
-                       next_size);
-    offset = next_offset;
-    size_to_read = next_size;
-  }
-  if (index_creator.is_error()) {
-    error_message = index_creator.error_message();
-    return false;
-  }
-  hwang::VideoIndex index = index_creator.get_video_index();
-
-  VideoMetadata video_meta;
-  proto::VideoDescriptor& video_descriptor = video_meta.get_descriptor();
-  video_descriptor.set_table_id(table_id);
-  video_descriptor.set_column_id(1);
-  video_descriptor.set_item_id(0);
-
-  video_descriptor.set_width(index.frame_width());
-  video_descriptor.set_height(index.frame_height());
-  video_descriptor.set_channels(3);
-  video_descriptor.set_frame_type(FrameType::U8);
-  video_descriptor.set_chroma_format(proto::VideoDescriptor::YUV_420);
-  video_descriptor.set_codec_type(proto::VideoDescriptor::H264);
-
-  video_descriptor.set_data_path(path);
-  video_descriptor.set_inplace(true);
-
-  i64 frame = index.sample_sizes().size();
-  const std::vector<u8>& metadata_bytes = index.metadata_bytes();
-  const std::vector<u64>& keyframe_indices = index.keyframe_indices();
-  const std::vector<u64>& sample_offsets = index.sample_offsets();
-  const std::vector<u64>& sample_sizes = index.sample_sizes();
-
-  VLOG(2) << "Num frames: " << frame;
-  VLOG(2) << "Average GOP length: " << frame / (float)keyframe_indices.size();
-
-  // Create index column
-  std::string index_path = table_item_output_path(table_id, 0, 0);
-  std::unique_ptr<WriteFile> index_file{};
-  BACKOFF_FAIL(make_unique_write_file(storage, index_path, index_file),
-               "while trying to make write file for " + index_path);
-
-  std::string index_metadata_path = table_item_metadata_path(table_id, 0, 0);
-  std::unique_ptr<WriteFile> index_metadata_file{};
-  BACKOFF_FAIL(
-      make_unique_write_file(storage, index_metadata_path, index_metadata_file),
-      "while trying to make write file for " + index_metadata_path);
-  s_write<i64>(index_metadata_file.get(), frame);
-  for (i64 i = 0; i < frame; ++i) {
-    s_write(index_metadata_file.get(), sizeof(i64));
-  }
-  BACKOFF_FAIL(index_metadata_file->save(),
-               "while trying to save " + index_metadata_file->path());
-  for (i64 i = 0; i < frame; ++i) {
-    s_write(index_file.get(), i);
-  }
-  BACKOFF_FAIL(index_file->save(),
-               "while trying to save " + index_file->path());
-
-  table_desc.add_end_rows(frame);
-  video_descriptor.set_frames(frame);
-  video_descriptor.set_num_encoded_videos(1);
-  video_descriptor.add_frames_per_video(frame);
-  video_descriptor.add_keyframes_per_video(keyframe_indices.size());
-  video_descriptor.add_size_per_video(file_size);
-  video_descriptor.set_metadata_packets(metadata_bytes.data(),
-                                        metadata_bytes.size());
-
-  for (u64 v : keyframe_indices) {
-    video_descriptor.add_keyframe_indices(v);
-  }
-  for (u64 v : sample_offsets) {
-    video_descriptor.add_sample_offsets(v);
-  }
-  for (u64 v : sample_sizes) {
-    video_descriptor.add_sample_sizes(v);
-  }
-
-  // Save our metadata for the frame column
-  write_video_metadata(storage, video_meta);
-
-  // Save the table descriptor
-  write_table_metadata(storage, TableMetadata(table_desc));
-
-  std::fflush(NULL);
-  sync();
-
-  return true;
 }
 
 bool parse_and_write_video(storehouse::StorageBackend* storage,
@@ -515,6 +373,156 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
   sync();
 
   return succeeded;
+}
+
+#endif
+
+bool parse_video_inplace(storehouse::StorageBackend* storage,
+                         const std::string& table_name, i32 table_id,
+                         const std::string& path, std::string& error_message) {
+  proto::TableDescriptor table_desc;
+  table_desc.set_id(table_id);
+  table_desc.set_name(table_name);
+  table_desc.set_job_id(-1);
+  table_desc.set_timestamp(
+      std::chrono::duration_cast<std::chrono::seconds>(now().time_since_epoch())
+          .count());
+
+  {
+    Column* index_col = table_desc.add_columns();
+    index_col->set_name(index_column_name());
+    index_col->set_id(0);
+    index_col->set_type(ColumnType::Other);
+
+    Column* frame_col = table_desc.add_columns();
+    frame_col->set_name(frame_column_name());
+    frame_col->set_id(1);
+    frame_col->set_type(ColumnType::Video);
+  }
+
+  StoreResult result;
+  std::unique_ptr<RandomReadFile> file = nullptr;
+  EXP_BACKOFF(make_unique_random_read_file(storage, path, file),
+              result);
+  if (result != StoreResult::Success) {
+    error_message = "Can not open video file";
+    return false;
+  }
+
+  u64 file_size;
+  EXP_BACKOFF(file->get_size(file_size), result);
+  if (result != StoreResult::Success) {
+    error_message = "Can not get file size";
+    return false;
+  }
+  if (file_size <= 0) {
+    error_message = "Can not ingest empty video file";
+    return false;
+  }
+
+  hwang::MP4IndexCreator index_creator(file_size);
+  u64 offset = 0;
+  u64 size_to_read = 1024;
+  while (!index_creator.is_done()) {
+    VLOG(2) << "Reading " << size_to_read << " bytes";
+    std::vector<u8> data(size_to_read);
+    size_t size_read;
+    EXP_BACKOFF(
+        file->read(offset, size_to_read, data.data(), size_read),
+        result);
+    exit_on_error(result);
+    assert(size_read == size_to_read);
+    u64 next_offset;
+    u64 next_size;
+    index_creator.feed(data.data(), size_read,
+                       next_offset,
+                       next_size);
+    offset = next_offset;
+    size_to_read = next_size;
+  }
+  if (index_creator.is_error()) {
+    error_message = index_creator.error_message();
+    return false;
+  }
+  hwang::VideoIndex index = index_creator.get_video_index();
+
+  VideoMetadata video_meta;
+  proto::VideoDescriptor& video_descriptor = video_meta.get_descriptor();
+  video_descriptor.set_table_id(table_id);
+  video_descriptor.set_column_id(1);
+  video_descriptor.set_item_id(0);
+
+  video_descriptor.set_width(index.frame_width());
+  video_descriptor.set_height(index.frame_height());
+  video_descriptor.set_channels(3);
+  video_descriptor.set_frame_type(FrameType::U8);
+  video_descriptor.set_chroma_format(proto::VideoDescriptor::YUV_420);
+  video_descriptor.set_codec_type(proto::VideoDescriptor::H264);
+
+  video_descriptor.set_data_path(path);
+  video_descriptor.set_inplace(true);
+
+  i64 frame = index.sample_sizes().size();
+  const std::vector<u8>& metadata_bytes = index.metadata_bytes();
+  const std::vector<u64>& keyframe_indices = index.keyframe_indices();
+  const std::vector<u64>& sample_offsets = index.sample_offsets();
+  const std::vector<u64>& sample_sizes = index.sample_sizes();
+
+  VLOG(2) << "Num frames: " << frame;
+  VLOG(2) << "Average GOP length: " << frame / (float)keyframe_indices.size();
+
+  // Create index column
+  std::string index_path = table_item_output_path(table_id, 0, 0);
+  std::unique_ptr<WriteFile> index_file{};
+  BACKOFF_FAIL(make_unique_write_file(storage, index_path, index_file),
+               "while trying to make write file for " + index_path);
+
+  std::string index_metadata_path = table_item_metadata_path(table_id, 0, 0);
+  std::unique_ptr<WriteFile> index_metadata_file{};
+  BACKOFF_FAIL(
+      make_unique_write_file(storage, index_metadata_path, index_metadata_file),
+      "while trying to make write file for " + index_metadata_path);
+  s_write<i64>(index_metadata_file.get(), frame);
+  for (i64 i = 0; i < frame; ++i) {
+    s_write(index_metadata_file.get(), sizeof(i64));
+  }
+  BACKOFF_FAIL(index_metadata_file->save(),
+               "while trying to save " + index_metadata_file->path());
+  for (i64 i = 0; i < frame; ++i) {
+    s_write(index_file.get(), i);
+  }
+  BACKOFF_FAIL(index_file->save(),
+               "while trying to save " + index_file->path());
+
+  table_desc.add_end_rows(frame);
+  video_descriptor.set_frames(frame);
+  video_descriptor.set_num_encoded_videos(1);
+  video_descriptor.add_frames_per_video(frame);
+  video_descriptor.add_keyframes_per_video(keyframe_indices.size());
+  video_descriptor.add_size_per_video(file_size);
+  video_descriptor.set_metadata_packets(metadata_bytes.data(),
+                                        metadata_bytes.size());
+
+  for (u64 v : keyframe_indices) {
+    video_descriptor.add_keyframe_indices(v);
+  }
+  for (u64 v : sample_offsets) {
+    video_descriptor.add_sample_offsets(v);
+  }
+  for (u64 v : sample_sizes) {
+    video_descriptor.add_sample_sizes(v);
+  }
+
+  // Save our metadata for the frame column
+  write_video_metadata(storage, video_meta);
+
+  // Save the table descriptor
+  write_table_metadata(storage, TableMetadata(table_desc));
+
+  std::fflush(NULL);
+  sync();
+
+  return true;
 }
 
 // void ingest_images(storehouse::StorageBackend* storage,
@@ -842,7 +850,17 @@ Result ingest_videos(storehouse::StorageConfig* storage_config,
   result.set_success(true);
 
   internal::set_database_path(db_path);
+
+#ifdef HAVE_FFMPEG
   av_register_all();
+#else
+  if (!inplace) {
+    RESULT_ERROR(&result,
+                 "Only inplace ingest is supported when Scanner is compiled "
+                 "without ffmpeg support.");
+    return result;
+  }
+#endif
 
   std::unique_ptr<storehouse::StorageBackend> storage{
       storehouse::StorageBackend::make_from_config(storage_config)};
@@ -899,6 +917,7 @@ Result ingest_videos(storehouse::StorageConfig* storage_config,
                       << " inplace: " << inplace_error_string;
           }
         }
+#ifdef HAVE_FFMPEG
         // If inplace failed or not specified, copy
         if (!inplace_succeeded) {
           if (!internal::parse_and_write_video(storage.get(), table_names[i],
@@ -908,6 +927,11 @@ Result ingest_videos(storehouse::StorageConfig* storage_config,
             bad_videos[i] = true;
           }
         }
+#else
+        if (!inplace_succeeded) {
+          bad_videos[i] = true;
+        }
+#endif
       }
     });
   }
@@ -958,5 +982,6 @@ void ingest_images(storehouse::StorageConfig* storage_config,
 
   VLOG(1) << "Creating image table " << table_name << "..." << std::endl;
 }
+
 }
 }
