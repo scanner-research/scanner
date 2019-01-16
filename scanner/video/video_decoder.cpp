@@ -24,7 +24,9 @@
 #include "scanner/video/intel/intel_video_decoder.h"
 #endif
 
+#ifdef HAVE_FFMPEG
 #include "scanner/video/software/software_video_decoder.h"
+#endif
 
 #include <cassert>
 
@@ -39,7 +41,9 @@ std::vector<VideoDecoderType> VideoDecoder::get_supported_decoder_types() {
 #ifdef HAVE_INTEL_VIDEO_HARDWARE
   decoder_types.push_back(VideoDecoderType::INTEL);
 #endif
+#ifdef HAVE_FFMPEG
   decoder_types.push_back(VideoDecoderType::SOFTWARE);
+#endif
 
   return decoder_types;
 }
@@ -80,6 +84,7 @@ VideoDecoder* VideoDecoder::make_from_config(DeviceHandle device_handle,
       decoder = new NVIDIAVideoDecoder(device_handle.id, device_handle.type,
                                        cuda_context);
 #else
+      LOG(WARNING) << "Requested NVIDIA video decoder, but it is not available.";
 #endif
       break;
     }
@@ -87,12 +92,17 @@ VideoDecoder* VideoDecoder::make_from_config(DeviceHandle device_handle,
 #ifdef HAVE_INTEL_VIDEO_HARDWARE
       decoder = new IntelVideoDecoder(device_handle.id, device_handle.type);
 #else
+      LOG(WARNING) << "Requested Intel video decoder, but it is not available.";
 #endif
       break;
     }
     case VideoDecoderType::SOFTWARE: {
+#ifdef HAVE_FFMPEG
       decoder = new SoftwareVideoDecoder(device_handle.id, device_handle.type,
                                          num_devices);
+#else
+      LOG(WARNING) << "Requested ffmpeg software video decoder, but it is not available.";
+#endif
       break;
     }
     default: {}
@@ -104,3 +114,4 @@ VideoDecoder* VideoDecoder::make_from_config(DeviceHandle device_handle,
 void VideoDecoder::set_profiler(Profiler* profiler) { profiler_ = profiler; }
 }
 }
+

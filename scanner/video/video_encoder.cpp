@@ -24,7 +24,9 @@
 #include "scanner/video/intel/intel_video_encoder.h"
 #endif
 
+#ifdef HAVE_FFMPEG
 #include "scanner/video/software/software_video_encoder.h"
+#endif
 
 #include <cassert>
 
@@ -39,7 +41,9 @@ std::vector<VideoEncoderType> VideoEncoder::get_supported_encoder_types() {
 #ifdef HAVE_INTEL_VIDEO_HARDWARE
   encoder_types.push_back(VideoEncoderType::INTEL);
 #endif
+#ifdef HAVE_FFMPEG
   encoder_types.push_back(VideoEncoderType::SOFTWARE);
+#endif
 
   return encoder_types;
 }
@@ -80,6 +84,7 @@ VideoEncoder* VideoEncoder::make_from_config(DeviceHandle device_handle,
 // encoder = new NVIDIAVideoEncoder(device_handle.id, device_handle.type,
 //                                  cuda_context);
 #else
+      LOG(WARNING) << "Requested NVIDIA video encoder, but it is not available.";
 #endif
       break;
     }
@@ -87,12 +92,18 @@ VideoEncoder* VideoEncoder::make_from_config(DeviceHandle device_handle,
 #ifdef HAVE_INTEL_VIDEO_HARDWARE
       encoder = new IntelVideoEncoder(device_handle.id, device_handle.type);
 #else
+      LOG(WARNING) << "Requested Intel video encoder, but it is not available.";
 #endif
       break;
     }
     case VideoEncoderType::SOFTWARE: {
+#ifdef HAVE_FFMPEG
       encoder = new SoftwareVideoEncoder(device_handle.id, device_handle.type,
                                          num_devices);
+#else
+      LOG(WARNING) << "Requested ffmpeg software video encoder, but it is not "
+                      "available.";
+#endif
       break;
     }
     default: {}

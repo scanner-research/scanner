@@ -18,8 +18,12 @@ set(SOURCE_FILES
   profiler.cpp
   fs.cpp
   bbox.cpp
-  glog.cpp
-  ffmpeg.cpp)
+  glog.cpp)
+
+if (NO_FFMPEG STREQUAL "false")
+  list(APPEND SOURCE_FILES
+    ffmpeg.cpp)
+endif()
 
 if (OpenCV_FOUND)
   list(APPEND SOURCE_FILES opencv.cpp)
