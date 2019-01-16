@@ -576,10 +576,10 @@ Result determine_input_rows_to_slices(
                 first_input_column_slice_groups.at(i)) {
               RESULT_ERROR(
                   &result,
-                  "Job %s specified multiple inputs with a differing "
+                  "Job %s (%lu) specified multiple inputs with a differing "
                   "number of rows for slice group %lu for %s Op at %ld "
                   "(%lu vs %lu).",
-                  job.output_table_name().c_str(), i,
+                  job.output_table_name().c_str(), job_idx, i,
                   ops[op_idx].name().c_str(), op_idx,
                   input_column_slice_groups.at(i),
                   first_input_column_slice_groups.at(i));
