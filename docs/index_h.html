@@ -29,73 +29,81 @@
     <h3>
       Standard library of DNN modules
     </h3>
-    <div class="col-sm-4 col-xs-12">
-      <h4>Face Detection</h4>
-      <img src="_static/face_detection.jpg" class="rounded float-left img-fluid" alt="...">
-      <a style="background-color:black;color:white;text-decoration:none;padding:4px 6px;font-family:-apple-system, BlinkMacSystemFont, &quot;San Francisco&quot;, &quot;Helvetica Neue&quot;, Helvetica, Ubuntu, Roboto, Noto, &quot;Segoe UI&quot;, Arial, sans-serif;font-size:12px;font-weight:bold;line-height:1.2;display:inline-block;border-radius:3px" href="https://unsplash.com/@karla12107?utm_medium=referral&amp;utm_campaign=photographer-credit&amp;utm_content=creditBadge" target="_blank" rel="noopener noreferrer" title="Download free do whatever you want high-resolution photos from Karla Martinez"><span style="display:inline-block;padding:2px 3px"><svg xmlns="http://www.w3.org/2000/svg" style="height:12px;width:auto;position:relative;vertical-align:middle;top:-2px;fill:white" viewBox="0 0 32 32"><title>unsplash-logo</title><path d="M10 9V0h12v9H10zm12 5h10v18H0V14h10v9h12v-9z"></path></svg></span><span style="display:inline-block;padding:2px 3px">Karla Martinez</span></a>
-    </div>
+    <div class="row">
+      <div class="col-sm-4 col-xs-12">
+        <h4>Face Detection</h4>
+        <img src="_static/face_detection.png" class="rounded float-left img-fluid" alt="...">
+      </div>
 
-    <div class="col-sm-4 col-xs-12">
-      <h4>Pose Detection</h4>
-      <img src="_static/pose_detection.jpg" class="rounded float-left img-fluid" alt="...">
-      <a style="background-color:black;color:white;text-decoration:none;padding:4px 6px;font-family:-apple-system, BlinkMacSystemFont, &quot;San Francisco&quot;, &quot;Helvetica Neue&quot;, Helvetica, Ubuntu, Roboto, Noto, &quot;Segoe UI&quot;, Arial, sans-serif;font-size:12px;font-weight:bold;line-height:1.2;display:inline-block;border-radius:3px" href="https://unsplash.com/@rawpixel?utm_medium=referral&amp;utm_campaign=photographer-credit&amp;utm_content=creditBadge" target="_blank" rel="noopener noreferrer" title="Download free do whatever you want high-resolution photos from rawpixel"><span style="display:inline-block;padding:2px 3px"><svg xmlns="http://www.w3.org/2000/svg" style="height:12px;width:auto;position:relative;vertical-align:middle;top:-2px;fill:white" viewBox="0 0 32 32"><title>unsplash-logo</title><path d="M10 9V0h12v9H10zm12 5h10v18H0V14h10v9h12v-9z"></path></svg></span><span style="display:inline-block;padding:2px 3px">rawpixel</span></a>
+      <div class="col-sm-4 col-xs-12">
+        <h4>Pose Detection</h4>
+        <img src="_static/pose_detection.png" class="rounded float-left img-fluid" alt="...">
+      </div>
+      <div class="col-sm-4 col-xs-12">
+        <h4>Object Detection</h4>
+        <img src="_static/object_detection.png" class="rounded float-left img-fluid" alt="...">
+      </div>
     </div>
-    <div class="col-sm-4 col-xs-12">
-      <h4>Object Detection</h4>
-      <img src="_static/pose_detection.jpg" class="rounded float-left img-fluid" alt="...">
-      <a style="background-color:black;color:white;text-decoration:none;padding:4px 6px;font-family:-apple-system, BlinkMacSystemFont, &quot;San Francisco&quot;, &quot;Helvetica Neue&quot;, Helvetica, Ubuntu, Roboto, Noto, &quot;Segoe UI&quot;, Arial, sans-serif;font-size:12px;font-weight:bold;line-height:1.2;display:inline-block;border-radius:3px" href="https://unsplash.com/@rawpixel?utm_medium=referral&amp;utm_campaign=photographer-credit&amp;utm_content=creditBadge" target="_blank" rel="noopener noreferrer" title="Download free do whatever you want high-resolution photos from rawpixel"><span style="display:inline-block;padding:2px 3px"><svg xmlns="http://www.w3.org/2000/svg" style="height:12px;width:auto;position:relative;vertical-align:middle;top:-2px;fill:white" viewBox="0 0 32 32"><title>unsplash-logo</title><path d="M10 9V0h12v9H10zm12 5h10v18H0V14h10v9h12v-9z"></path></svg></span><span style="display:inline-block;padding:2px 3px">rawpixel</span></a>
+    <div style="margin-top: 10px;">
+      <a href="https://github.com/scanner-research/scannertools" class="btn btn-primary outline btn-sm">
+        And more, with scannertools
+      </a>
     </div>
-
-    <a href="/guide.html" class="btn btn-primary outline btn-lg">
-      Check out scannertools for more
-    </a>
-  </div>
-  <div class="col-md-6 col-xs-12">
-    <h3>
-      Built-in support for compressed video
-    </h3>
   </div>
 
   <div class="col-md-6 col-xs-12">
     <h3>
-      Easy to use Python API
+      Simple Python API
     </h3>
-    <pre><code class="jljs python">from scannerpy import Database, Job
+    <pre><code class="jljs python">from scannertools import face_detection, vis, sample_video
+import scannerpy
 
-# Ingest a video 
-db = Database()
-db.ingest_videos([('example_table', 'example.mp4')])
+def main():
+    with sample_video() as video: # get an example video
+        db = scannerpy.Database() # start up Scanner
+        frames = list(range(50))  # select the first 50 frames
+        bboxes = face_detection.detect_faces(
+            db, videos=[video], frames=[frames])
+        vis.draw_bboxes(
+            db, videos=[video], frames=[frames],
+            bboxes=bboxes, paths=['sample_faces.mp4'])
+        # output video is saved to 'sample_faces.mp4'
 
-# Define a Computation Graph
-frame = db.sources.FrameColumn()                                    
-hist = db.ops.Histogram(input=frame)            
-output_frame = db.sinks.Column(columns={'hist': hist})         
-
-# Set parameters of computation graph ops
-job = Job(op_args={
-  # Column to read input frames from
-  frame: db.table('example_table').column('frame'),
-  # Table name for computation output
-  output_frame: 'resized_example'                 
-})
-
-# Execute the computation graph 
-output_tables = db.run(output=output_frame, jobs=[job])
-    </code></pre>
-    <a href="/overview.html" class="btn btn-default btn-sm">
+if __name__ == "__main__":
+    main()</code></pre>
+    <a href="/overview.html" class="btn btn-primary outline btn-sm">
       Dive into this example
     </a>
   </div>
   
   <div class="col-md-6 col-xs-12">
     <h3>
-      Makes use of all of your CPUs and GPUs
+      Designed for Performance
     </h3>
-    <ul>
-    <li><b>Efficient:</b> maximize uss of many-core CPUs and GPU accelerators.</li>
-    <li><b>Scalable:</b> scale out to hundreds of machines in the cloud or your local cluster.</li>
-    <li><b>Cloud integration:</b> integrated with Kubernetes, Google Cloud Platform, and AWS.</li>
-    </ul>
+    <div>
+      <h4>
+        1. Never convert your videos into images again
+      </h4> 
+      <p>
+      Scanner provides native compressed video support, which enables directly accessing compressed videos to keep your storage and bandwidth costs low.
+      </p>
+    </div>
+    <div>
+      <h4>
+        2. First-class support for GPUs
+      </h4> 
+      <p>
+        Scanner supports machines with CPUs and GPUs out of the box so that you can make the most out of your hardware.
+      </p>
+    </div>
+    <div>
+      <h4>
+        3. Cloud & cluster ready
+      </h4> 
+      <p>
+        Scanner is integrated with Kubernetes, Google Cloud Platform, and AWS to make it easy to spin up machines to get your results back faster.
+      </p>
+    </div>
   </div>
 
 </div>
@@ -103,7 +111,7 @@ output_tables = db.run(output=output_frame, jobs=[job])
 <div class="row">
   <div class="col-xs-12">
     <h3>
-    Where Scanner is being actively used
+    Scanner in Production
     </h3>
   </div>
 </div>
@@ -111,7 +119,7 @@ output_tables = db.run(output=output_frame, jobs=[job])
 <div class="row">
   <div class="col-md-6 col-xs-12">
     <h4>
-     Analyzing videos with machine learning and computer vision
+     Analyzing the Internet Archive's TV News Database
     </h4>
     <p>
       Use modern neural networks to automatically detect objects, people, and faces in your videos.
@@ -125,7 +133,7 @@ output_tables = db.run(output=output_frame, jobs=[job])
 
   <div class="col-md-6 col-xs-12">
     <h4>
-      VR video synthesis from multiple cameras
+      Facebook's Manifold VR Camera
     </h4>
     <p>
       Scanner is currently being used as the compute engine behind the <a href="https://facebook360.fb.com/2018/09/26/film-the-future-with-red-and-facebook-360/">Manifold</a> 360 video camera from Facebook and RED. Scanner has also been integrated into the open-source version of the previous generation Surround 360 system on <a href="https://github.com/scanner-research/Surround360">GitHub</a>.
