@@ -24,9 +24,9 @@ test_docker() {
     if [[ "$TEST_TYPE" = "cpp" ]]; then
         TEST_COMMAND="cd /opt/scanner/build && CTEST_OUTPUT_ON_FAILURE=1 make test ARGS='-V -E PythonTests'"
     elif [[ "$TEST_TYPE" = "tutorials" ]]; then
-        TEST_COMMAND="cd /opt/scanner/ && pytest -x -vv -k test_tutorial"
+        TEST_COMMAND="cd /opt/scanner/ && python3 setup.py test --addopts '-k test_tutorial'"
     elif [[ "$TEST_TYPE" = "integration" ]]; then
-        TEST_COMMAND="cd /opt/scanner/ && pytest -x -vv -k 'not test_tutorial'"
+        TEST_COMMAND="cd /opt/scanner/ && python3 setup.py test --addopts '-k \'not test_tutorial\''"
     fi
     # We add -local to make sure it doesn't run the remote image if the build fails.
     docker pull $DOCKER_TEST_REPO:$1-$TRAVIS_BUILD_NUMBER
