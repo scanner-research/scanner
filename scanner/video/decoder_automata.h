@@ -29,10 +29,12 @@ class DecoderAutomata {
   DecoderAutomata() = delete;
   DecoderAutomata(const DecoderAutomata&) = delete;
   DecoderAutomata(const DecoderAutomata&& other) = delete;
+  DecoderAutomata(DeviceHandle device_handle, i32 num_devices,
+                  VideoDecoderType decoder_type, VideoDecoder* decoder);
 
  public:
-  DecoderAutomata(DeviceHandle device_handle, i32 num_devices,
-                  VideoDecoderType decoder_type);
+  static DecoderAutomata* make_instance(DeviceHandle device_handle, i32 num_devices,
+                                        VideoDecoderType decoder_type);
   ~DecoderAutomata();
 
   void initialize(const std::vector<proto::DecodeArgs>& encoded_data);
