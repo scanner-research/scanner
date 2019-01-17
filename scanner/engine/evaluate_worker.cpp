@@ -137,8 +137,18 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
           //decoders_.back()->set_profiler(&profiler_);
           decoders_.emplace_back(nullptr);
         } else {
-          decoders_.emplace_back(
-              new DecoderAutomata(device_handle_, num_devices, decoder_type));
+          DecoderAutomata* decoder = DecoderAutomata::make_instance(
+              device_handle_, num_devices, decoder_type);
+          if (decoder == nullptr) {
+            std::string message =
+                "Unable to create a decoder for requested device and decoder "
+                "type.";
+            LOG(ERROR) << message;
+            result_.set_msg(message);
+            result_.set_success(false);
+            THREAD_RETURN_SUCCESS();
+          }
+          decoders_.emplace_back(decoder);
           decoders_.back()->set_profiler(&profiler_);
           inplace_decoders_.emplace_back(nullptr);
         }

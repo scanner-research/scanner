@@ -25,17 +25,27 @@ namespace scanner {
 namespace internal {
 
 DecoderAutomata::DecoderAutomata(DeviceHandle device_handle, i32 num_devices,
-                                 VideoDecoderType decoder_type)
+                                 VideoDecoderType decoder_type, VideoDecoder* decoder)
   : device_handle_(device_handle),
     num_devices_(num_devices),
     decoder_type_(decoder_type),
-    decoder_(VideoDecoder::make_from_config(device_handle, num_devices,
-                                            decoder_type)),
+    decoder_(decoder),
     feeder_waiting_(false),
     not_done_(true),
     frames_retrieved_(0),
     skip_frames_(false) {
   feeder_thread_ = std::thread(&DecoderAutomata::feeder, this);
+}
+
+DecoderAutomata* DecoderAutomata::make_instance(
+    DeviceHandle device_handle, i32 num_devices,
+    VideoDecoderType decoder_type) {
+  auto decoder =
+      VideoDecoder::make_from_config(device_handle, num_devices, decoder_type);
+  if (decoder == nullptr) {
+    return nullptr;
+  }
+  return new DecoderAutomata(device_handle, num_devices, decoder_type, decoder);
 }
 
 DecoderAutomata::~DecoderAutomata() {
