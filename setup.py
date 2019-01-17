@@ -112,9 +112,12 @@ package_data = {
 }
 
 REQUIRED_PACKAGES = [
-    'protobuf == 3.6.1', 'grpcio == 1.16.0', 'toml >= 0.9.2', 'enum34 >= 1.1.6',
-    'numpy >= 1.12.0,<=1.15.2', 'scipy >= 0.18.1', 'tqdm >= 4.19.5',
-    'cloudpickle == 0.5.3', 'psycopg2 == 2.7.4', 'testing.postgresql == 1.3.0'
+    'protobuf == 3.6.1', 'grpcio == 1.16.0', 'toml >= 0.9.2',
+    'numpy >= 1.12.0,<=1.16.0', 'tqdm >= 4.19.5', 'cloudpickle >=0.5.3,<=0.6.1'
+]
+
+TEST_PACKAGES = [
+    'pytest', 'psycopg2 == 2.7.4', 'testing.postgresql == 1.3.0'
 ]
 
 if platform == 'linux' or platform == 'linux2':
@@ -152,6 +155,8 @@ setup(
     package_dir={'': PIP_DIR},
     packages=find_packages(where=PIP_DIR),
     install_requires=REQUIRED_PACKAGES,
+    setup_requires=['pytest-runner'],
+    tests_require=TEST_PACKAGES,
     include_package_data=True,
     package_data=package_data,
     zip_safe=False,
