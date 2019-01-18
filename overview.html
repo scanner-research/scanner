@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>&lt;no title&gt; &#8212; Scanner 0.2.22 documentation</title>
+    <link rel="stylesheet" href="_static/bootstrap-sphinx.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="_static/custom.css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/language_data.js"></script>
+    <script type="text/javascript" src="_static/js/jquery-1.11.0.min.js"></script>
+    <script type="text/javascript" src="_static/js/jquery-fix.js"></script>
+    <script type="text/javascript" src="_static/bootstrap-3.3.7/js/bootstrap.min.js"></script>
+    <script type="text/javascript" src="_static/bootstrap-sphinx.js"></script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+<meta charset='utf-8'>
+<meta http-equiv='X-UA-Compatible' content='IE=edge,chrome=1'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1'>
+<meta name="apple-mobile-web-app-capable" content="yes">
+
+  </head><body>
+
+<link rel="stylesheet"
+      href="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.13.1/build/styles/atelier-cave-light.min.css">
+<script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.13.1/build/highlight.min.js"></script>
+<script>hljs.initHighlightingOnLoad();</script>
+
+ <div id="navbar" class="navbar navbar-default ">
+    <div class="container">
+      <div class="navbar-header">
+        <!-- .btn-navbar is used as the toggle for collapsed navbar content -->
+        <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".nav-collapse">
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+        </button>
+        <a class="navbar-brand" href="index.html"><span><img src="_static/scanner_logo.png"></span>
+           </a>
+      </div>
+
+        <div class="collapse navbar-collapse nav-collapse">
+          <ul class="nav navbar-nav">
+            
+                <li><a href="#" class="navbar-link">Overview</a></li>
+                <li><a href="guide.html" class="navbar-link">Guide</a></li>
+                <li><a href="api.html" class="navbar-link">API</a></li>
+            
+            
+              <li class="dropdown globaltoc-container">
+  <a role="button"
+     id="dLabelGlobalToc"
+     data-toggle="dropdown"
+     data-target="#"
+     href="index.html">Site <b class="caret"></b></a>
+  <ul class="dropdown-menu globaltoc"
+      role="menu"
+      aria-labelledby="dLabelGlobalToc"></ul>
+</li>
+              
+            
+            
+              
+                
+              
+            
+            
+            
+            
+          </ul>
+        </div>
+    </div>
+  </div>
+
+<div class="container">
+  <div class="row">
+    <div class="col-md-12 content">
+      
+  <div class="row">
+  <div class="col-xs-12 text-center banner">
+    <h1>
+      Overview
+    </h1>
+    <h2>
+      An aerial view of the major concepts in Scanner and how they work together to make Scanner applications efficient and scalable.
+    </h2>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-xs-12">
+    <div class="col-xs-8 col-xs-offset-2">
+      <h3>
+        Videos as Streams
+      </h3>
+      <p>
+        Videos are first-class citizens in Scanner and are represented as streams of frames, even if the video is stored in a compressed format like h.264. Scanner supports arbitrary sparse gather operations from these streams so your application only needs to read (and possibly decode) exeactly the frames it needs.
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-xs-12">
+    <div class="col-xs-8 col-xs-offset-2">
+      <h3>
+        Video processing as Streams and Ops 
+      </h3>
+      <p>
+        Applications are expressed in Scanner as <i> dataflow </i> graphs. Dataflow graphs are composed of <b>streams</b>, which may be videos or other sequences of data, and <b>ops</b>, stateful functions which process elements from streams.
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-xs-12">
+    <div class="col-xs-8 col-xs-offset-2">
+      <h3>
+        Parallelizing within a single machine
+      </h3>
+      <p>
+        Given a dataflow graph, Scanner manages all the details of executing your application on machines with both CPUs and GPUs. This includes reading the data efficiently from local or networked storage, decoding video frames if necessary, scheduling ops to both CPUs and GPUs, handling data movement between ops, and writing data out to an external storage system.
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-xs-12">
+    <div class="col-xs-8 col-xs-offset-2">
+      <h3>
+        Scaling to hundreds of machines in the cloud
+      </h3>
+      <p>
+        Scanner's dataflow graphs are designed to be split up and distributed across machines.
+      </p>
+    </div>
+  </div>
+</div>
+
+
+    </div>
+      
+  </div>
+</div>
+<footer class="footer">
+  <div class="container">
+    <p class="pull-right">
+      <a href="#">Back to top</a>
+      
+    </p>
+    <p>
+        &copy; Copyright 2018, Alex Poms, Will Crichton.<br/>
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.3.<br/>
+    </p>
+  </div>
+</footer>
+  </body>
+</html>

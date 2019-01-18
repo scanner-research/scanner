@@ -1,13 +1,11 @@
-
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!DOCTYPE html>
 
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    <title>Key Features &#8212; Scanner 0.0.1 documentation</title>
-    <link rel="stylesheet" href="_static/readable.css" type="text/css" />
+    <title>&lt;no title&gt; &#8212; Scanner 0.2.22 documentation</title>
+    <link rel="stylesheet" href="_static/bootstrap-sphinx.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <link rel="stylesheet" type="text/css" href="_static/custom.css" />
     <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
@@ -15,229 +13,237 @@
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
     <script type="text/javascript" src="_static/language_data.js"></script>
+    <script type="text/javascript" src="_static/js/jquery-1.11.0.min.js"></script>
+    <script type="text/javascript" src="_static/js/jquery-fix.js"></script>
+    <script type="text/javascript" src="_static/bootstrap-3.3.7/js/bootstrap.min.js"></script>
+    <script type="text/javascript" src="_static/bootstrap-sphinx.js"></script>
     <link rel="author" title="About these documents" href="about.html" />
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Installation" href="installation.html" />
-   
-  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
+<meta charset='utf-8'>
+<meta http-equiv='X-UA-Compatible' content='IE=edge,chrome=1'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1'>
+<meta name="apple-mobile-web-app-capable" content="yes">
 
   </head><body>
-  
-  
-  <div class="indexwrapper">
-  
 
-    <div class="related" role="navigation" aria-label="related navigation">
-      <h3>Navigation</h3>
-      <ul>
-        <li class="right" style="margin-right: 10px">
-          <a href="genindex.html" title="General Index"
-             accesskey="I">index</a></li>
-        <li class="right" >
-          <a href="py-modindex.html" title="Python Module Index"
-             >modules</a> |</li>
-        <li class="right" >
-          <a href="installation.html" title="Installation"
-             accesskey="N">next</a> |</li>
-        <li class="nav-item nav-item-0"><a href="#">Scanner 0.0.1 documentation</a> &#187;</li> 
-      </ul>
-    </div>  
+<link rel="stylesheet"
+      href="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.13.1/build/styles/atelier-cave-light.min.css">
+<script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.13.1/build/highlight.min.js"></script>
+<script>hljs.initHighlightingOnLoad();</script>
 
-    <div class="document">
-      <div class="documentwrapper">
-        <div class="bodywrapper">
-          <div class="body" role="main">
+ <div id="navbar" class="navbar navbar-default ">
+    <div class="container">
+      <div class="navbar-header">
+        <!-- .btn-navbar is used as the toggle for collapsed navbar content -->
+        <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".nav-collapse">
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+        </button>
+        <a class="navbar-brand" href="#"><span><img src="_static/scanner_logo.png"></span>
+           </a>
+      </div>
+
+        <div class="collapse navbar-collapse nav-collapse">
+          <ul class="nav navbar-nav">
             
-  <img alt="_images/scanner_logo.png" src="_images/scanner_logo.png" />
-<hr class="docutils" />
-<p>Scanner is a system for developing applications that efficiently process large video datasets. Scanner applications can run on a multi-core laptop, a server packed with multiple GPUs, or a large number of machines in the cloud. Scanner has been used for:</p>
-<ul class="simple">
-<li><strong>Labeling and data mining large video collections:</strong> Scanner is in use at Stanford University as the compute engine for visual data mining applications that detect faces, commercials, human poses, etc. in datasets as big as 70,000 hours of TV news (12 billion frames, 20 TB) or 600 feature length movies (106 million frames).</li>
-<li><strong>VR Video synthesis:</strong> Scanner is in use at Facebook to scale the <a class="reference external" href="https://github.com/scanner-research/Surround360">Surround 360 VR video stitching software</a>, which processes fourteen 2048x2048 input videos to produce 8k stereo video output.</li>
-</ul>
-<p>To learn more about Scanner, see the documentation below or read the SIGGRAPH
-2018 Technical Paper: <a class="reference external" href="http://graphics.stanford.edu/papers/scanner/scanner_sig18.pdf">“Scanner: Efficient Video Analysis at Scale”</a> by Poms, Crichton, Hanrahan, and Fatahalian.</p>
-<p>For easy access to off-the-shelf pipelines built using Scanner like face detection and optical flow, check out our <a class="reference external" href="https://github.com/scanner-research/scannertools">scannertools</a> library.</p>
-<div class="section" id="key-features">
-<h1>Key Features<a class="headerlink" href="#key-features" title="Permalink to this headline">¶</a></h1>
-<p>Scanner’s key features include:</p>
-<ul class="simple">
-<li><strong>Video processing computations as dataflow graphs</strong>.  Like many modern ML frameworks, Scanner structures video analysis tasks as dataflow graphs whose nodes produce and consume sequences of per-frame data. Scanner’s embodiment of the dataflow model includes operators useful for video processing tasks such as sparse frame sampling (e.g., “frames known to contain a face”), sliding window frame access (e.g., stencils for temporal smoothing), and stateful processing across frames (e.g., tracking).</li>
-<li><strong>Videos as logical tables</strong> To simplify the management of and access to large-numbers of videos, Scanner represents video collections and the pixel-level products of video frame analysis (e.g., flow fields, depth maps, activations) as tables in a data store. Scanner’s data store features first-class support for video frame column types to facilitate key performance optimizations, such as storing video in compressed form and providing fast access to sparse lists of video frames.</li>
-<li><strong>First-class support for GPU acceleration:</strong> Since many video processing algorithms benefit from GPU acceleration, Scanner provides first-class support for writing dataflow graph operations that utilize GPU execution. Scanner also leverages specialized GPU hardware for video decoding when available.</li>
-<li><strong>Fault tolerant, distributed execution:</strong> Scanner applications can be run on the cores of a single machine, on a multi-GPU server, or scaled to hundreds of machines (potentially with heterogeneous numbers of GPUs), without significant source-level change.  Scanner also provides fault tolerance, so your applications can not only utilize many machines, but use cheaper preemptible machines on cloud computing platforms.</li>
-</ul>
-<p>What Scanner <strong>is not</strong>:</p>
-<p>Scanner is not a system for implementing new high-performance image and video processing kernels from scratch.  However, Scanner can be used to create scalable video processing applications by composing kernels that already exist as part of popular libraries such as OpenCV, Caffe, TensorFlow, etc. or have been implemented in popular performance-oriented languages like <a class="reference external" href="https://developer.nvidia.com/cuda-zone">CUDA</a> or <a class="reference external" href="http://halide-lang.org/">Halide</a>. Yes, you can write your own dataflow graph operations in Python or C++ too!</p>
-<div class="toctree-wrapper compound">
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="docker.html">Docker</a></li>
-<li class="toctree-l2"><a class="reference internal" href="from_source.html">Building Scanner from source</a></li>
-</ul>
+                <li><a href="overview.html" class="navbar-link">Overview</a></li>
+                <li><a href="guide.html" class="navbar-link">Guide</a></li>
+                <li><a href="api.html" class="navbar-link">API</a></li>
+            
+            
+              <li class="dropdown globaltoc-container">
+  <a role="button"
+     id="dLabelGlobalToc"
+     data-toggle="dropdown"
+     data-target="#"
+     href="#">Site <b class="caret"></b></a>
+  <ul class="dropdown-menu globaltoc"
+      role="menu"
+      aria-labelledby="dLabelGlobalToc"></ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="getting-started.html">Getting Started</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
-<li class="toctree-l2"><a class="reference internal" href="walkthrough.html">Interactive Jupyter Walkthrough</a></li>
-<li class="toctree-l2"><a class="reference internal" href="tutorial.html">Tutorials</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="programming-handbook.html">Programming Handbook</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="handbook/kubernetes.html">Scanner on Kubernetes</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="api.html">API Reference</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="api/stdlib.html">Scanner Standard Library</a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/scannerpy.html">Scanner Python API</a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/scanner.html">Scanner C++ API</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="about.html">Citation &amp; About</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="about.html#paper-citation">Paper citation</a></li>
-</ul>
-</li>
-</ul>
-</div>
-</div>
-
-
-          </div>
+              
+            
+            
+              
+                
+              
+            
+            
+            
+            
+          </ul>
         </div>
-      </div>
-      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
-        <div class="sphinxsidebarwrapper"><!-- Copyright (c) 2018 Jeff Forcier.
-
-     Based on original work copyright (c) 2011 Kenneth Reitz and copyright (c) 2010
-     Armin Ronacher.
-
-     Some rights reserved.
-
-     Redistribution and use in source and binary forms of the theme, with or
-     without modification, are permitted provided that the following conditions
-     are met:
-
-     * Redistributions of source code must retain the above copyright
-     notice, this list of conditions and the following disclaimer.
-
-     * Redistributions in binary form must reproduce the above
-     copyright notice, this list of conditions and the following
-     disclaimer in the documentation and/or other materials provided
-     with the distribution.
-
-     * The names of the contributors may not be used to endorse or
-     promote products derived from this software without specific
-     prior written permission.
-
-     THIS THEME IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-     AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-     IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-     ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
-     LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-     CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-     SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-     INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-     CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-     ARISING IN ANY WAY OUT OF THE USE OF THIS THEME, EVEN IF ADVISED OF THE
-     POSSIBILITY OF SUCH DAMAGE.
-   -->
-
-<h1 class="logo"><a href="#">Scanner</a></h1>
-
-
-
-<p class="blurb">Efficient Video Analysis at Scale</p>
-
-
-
-
-<p style="margin-bottom: 0px">
-<a href="https://github.com/scanner-research/scanner" class="gh-btn" target="_blank" style="margin-bottom: 5px; display: inline-block;"> <span class="gh-text">View on GitHub</span> </a>
-<iframe src="https://ghbtns.com/github-btn.html?user=scanner-research&repo=scanner&type=star&count=true&v=2"
-  allowtransparency="true" frameborder="0" scrolling="0" width="170px" height="20px"></iframe>
-<a href="https://travis-ci.org/scanner-research/scanner">
-  <img
-     style="margin-top:5px;"
-     alt="https://secure.travis-ci.org/scanner-research/scanner.svg?branch=master"
-     src="https://secure.travis-ci.org/scanner-research/scanner.svg?branch=master"
-     />
-</a>
-</p>
-
-
-
-<p style="padding-bottom: 1px; margin-top: 0px; margin-bottom: 20px;">
-</p><!-- Copyright (c) 2018 Jeff Forcier.
-
-     Based on original work copyright (c) 2011 Kenneth Reitz and copyright (c) 2010
-     Armin Ronacher.
-
-     Some rights reserved.
-
-     Redistribution and use in source and binary forms of the theme, with or
-     without modification, are permitted provided that the following conditions
-     are met:
-
-     * Redistributions of source code must retain the above copyright
-     notice, this list of conditions and the following disclaimer.
-
-     * Redistributions in binary form must reproduce the above
-     copyright notice, this list of conditions and the following
-     disclaimer in the documentation and/or other materials provided
-     with the distribution.
-
-     * The names of the contributors may not be used to endorse or
-     promote products derived from this software without specific
-     prior written permission.
-
-     THIS THEME IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-     AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-     IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-     ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
-     LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-     CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-     SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-     INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-     CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-     ARISING IN ANY WAY OUT OF THE USE OF THIS THEME, EVEN IF ADVISED OF THE
-     POSSIBILITY OF SUCH DAMAGE.
-   -->
-<h3>Navigation</h3>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="getting-started.html">Getting Started</a></li>
-<li class="toctree-l1"><a class="reference internal" href="programming-handbook.html">Programming Handbook</a></li>
-<li class="toctree-l1"><a class="reference internal" href="api.html">API Reference</a></li>
-<li class="toctree-l1"><a class="reference internal" href="about.html">Citation &amp; About</a></li>
-</ul>
-<h3>Related Topics</h3>
-<ul>
-  <li><a href="#">Documentation index</a><ul>
-      <li>Next: <a href="installation.html" title="next chapter">Installation</a></li>
-  </ul></li>
-</ul>
-<div id="searchbox" style="display: none" role="search">
-  <h3>Quick search</h3>
-    <div class="searchformwrapper">
-    <form class="search" action="search.html" method="get">
-      <input type="text" name="q" />
-      <input type="submit" value="Go" />
-      <input type="hidden" name="check_keywords" value="yes" />
-      <input type="hidden" name="area" value="default" />
-    </form>
     </div>
+  </div>
+
+<div class="container">
+  <div class="row">
+    <div class="col-md-12 content">
+      
+  <div class="row">
+  <div class="col-lg-8 col-lg-offset-2
+              col-xs-12">
+    <div class="banner text-center">
+      <h1> Scanner: efficient video analysis at scale </h2>
+      <h2 class=subtitle>
+        Scanner is a distributed system for authoring <b>efficient</b> video processing applications that <b>scale.</b>
+      </h2>
+      <a href="/guide.html" class="btn btn-primary outline btn-lg">
+         Get started
+      </a>
+      <a href="/overview.html" class="btn btn-primary outline btn-lg">
+         Explain it to me
+      </a>
+    </div>
+  </div>
 </div>
-<script type="text/javascript">$('#searchbox').show(0);</script>
-        </div>
+
+<div class="row">
+  <div class="col-md-6 col-xs-12">
+    <h2>
+      Why Scanner?
+    </h2>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-xs-12">
+    <h3>
+      Standard library of DNN modules
+    </h3>
+    <div class="row">
+      <div class="col-sm-4 col-xs-12">
+        <h4>Face Detection</h4>
+        <img src="_static/face_detection.png" class="rounded float-left img-fluid" alt="...">
       </div>
-      <div class="clearer"></div>
+
+      <div class="col-sm-4 col-xs-12">
+        <h4>Pose Detection</h4>
+        <img src="_static/pose_detection.png" class="rounded float-left img-fluid" alt="...">
+      </div>
+      <div class="col-sm-4 col-xs-12">
+        <h4>Object Detection</h4>
+        <img src="_static/object_detection.png" class="rounded float-left img-fluid" alt="...">
+      </div>
     </div>
-  <div class="footer">
-    &copy; Copyright 2018, Alex Poms, Will Crichton.
-    Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.3.
+    <div style="margin-top: 10px;">
+      <a href="https://github.com/scanner-research/scannertools" class="btn btn-primary outline btn-sm">
+        And more, with scannertools
+      </a>
+    </div>
+  </div>
+
+  <div class="col-md-6 col-xs-12">
+    <h3>
+      Simple Python API
+    </h3>
+    <pre><code class="jljs python">from scannertools import face_detection, vis, sample_video
+import scannerpy
+
+def main():
+    with sample_video() as video: # get an example video
+        db = scannerpy.Database() # start up Scanner
+        frames = list(range(50))  # select the first 50 frames
+        bboxes = face_detection.detect_faces(
+            db, videos=[video], frames=[frames])
+        vis.draw_bboxes(
+            db, videos=[video], frames=[frames],
+            bboxes=bboxes, paths=['sample_faces.mp4'])
+        # output video is saved to 'sample_faces.mp4'
+
+if __name__ == "__main__":
+    main()</code></pre>
+    <a href="/overview.html" class="btn btn-primary outline btn-sm">
+      Dive into this example
+    </a>
   </div>
   
+  <div class="col-md-6 col-xs-12">
+    <h3>
+      Designed for Performance
+    </h3>
+    <div>
+      <h4>
+        1. Never convert your videos into images again
+      </h4> 
+      <p>
+      Scanner provides native compressed video support, which enables directly accessing compressed videos to keep your storage and bandwidth costs low.
+      </p>
+    </div>
+    <div>
+      <h4>
+        2. First-class support for GPUs
+      </h4> 
+      <p>
+        Scanner supports machines with CPUs and GPUs out of the box so that you can make the most out of your hardware.
+      </p>
+    </div>
+    <div>
+      <h4>
+        3. Cloud & cluster ready
+      </h4> 
+      <p>
+        Scanner is integrated with Kubernetes, Google Cloud Platform, and AWS to make it easy to spin up machines to get your results back faster.
+      </p>
+    </div>
   </div>
-  
+
+</div>
+
+<div class="row">
+  <div class="col-xs-12">
+    <h3>
+    Scanner in Production
+    </h3>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-md-6 col-xs-12">
+    <h4>
+     Analyzing the Internet Archive's TV News Database
+    </h4>
+    <p>
+      Use modern neural networks to automatically detect objects, people, and faces in your videos.
+      Check out <a href="https://scanner-research.github.io/scannertools/">scannertools</a> for an
+      easy to use toolkit that's setup to download and run these models.
+    </p>
+    <div class="homepage-video">
+      <iframe style="position: absolute; top: 0; left: 0;" width="100%" height="100%" src="https://www.youtube.com/embed/IQsb_nbPf9M" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+    </div>
+  </div>
+
+  <div class="col-md-6 col-xs-12">
+    <h4>
+      Facebook's Manifold VR Camera
+    </h4>
+    <p>
+      Scanner is currently being used as the compute engine behind the <a href="https://facebook360.fb.com/2018/09/26/film-the-future-with-red-and-facebook-360/">Manifold</a> 360 video camera from Facebook and RED. Scanner has also been integrated into the open-source version of the previous generation Surround 360 system on <a href="https://github.com/scanner-research/Surround360">GitHub</a>.
+    </p>
+    <div class="homepage-video">
+      <iframe style="position: absolute; top: 0; left: 0;" src="https://www.facebook.com/plugins/video.php?href=https%3A%2F%2Fwww.facebook.com%2FFacebook360%2Fvideos%2F370097893531240%2F%3Ft%3D0&&show_text=false" width="100%" height="100%" style="border:none;overflow:hidden" scrolling="no" frameborder="0" allowTransparency="true" allow="encrypted-media" allowFullScreen="true"></iframe>
+    </div>
+  </div>
+</div>
+
+
+    </div>
+      
+  </div>
+</div>
+<footer class="footer">
+  <div class="container">
+    <p class="pull-right">
+      <a href="#">Back to top</a>
+      
+    </p>
+    <p>
+        &copy; Copyright 2018, Alex Poms, Will Crichton.<br/>
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.3.<br/>
+    </p>
+  </div>
+</footer>
   </body>
 </html>

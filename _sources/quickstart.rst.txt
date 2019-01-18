@@ -32,6 +32,7 @@ The first step in any Scanner program is to create a :py:class:`~scannerpy.datab
 Ingesting a video into the Database
 -----------------------------------
 Scanner is designed to provide fast access to frames in videos, even under random access patterns. In order to provide this functionality, Scanner first needs to analyze the video to build an index on the video. For example, given an mp4 video named :code:`example.mp4`, we can ingest this video as follow:
+
 .. code-block:: python
 
    db.ingest_videos([('table_name', 'example.mp4')])
