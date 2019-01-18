@@ -110,7 +110,7 @@ html_theme_options = {
     'navbar_fixed_top': False,
     'navbar_pagenav': False,
     'navbar_links': [
-        ("Overview", "overview"),
+        #("Overview", "overview"),
         ("Guide", "guide"),
         ("API", "api"),
     ],
