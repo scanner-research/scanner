@@ -199,6 +199,12 @@ div.body code.xref:hover  {
     font-size: 200%;
 }
 
+.round-border-img {
+    border: 1px solid;
+    border-radius: 4px;
+    border-color: #888;
+}
+
 /* navbar */
 
 .navbar-scanner {
