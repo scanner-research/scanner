@@ -1,3 +1,11 @@
+/* github header */
+@media (max-width: 767.98px) {
+    .github-corner
+    {
+        display: none;
+    }
+}
+
 pre {
     padding: 7px 15px;
 }
@@ -193,9 +201,38 @@ div.body code.xref:hover  {
 
 /* navbar */
 
+.navbar-scanner {
+    background-image: none;
+    background-color: none;
+    border-color: none;
+}
+
+.navbar-scanner .navbar-toggle {
+    border-color: #ddd;
+}
+.navbar-scanner .navbar-toggle .icon-bar {
+    background-color: #888;
+}
+
+.navbar-container {
+    margin-top: 2em;
+    /*margin-left: 2em; */
+    /*margin-right: 2em; */
+}
+
+.navbar-header {
+    margin-left: 0px;
+    margin-right: 0px;
+}
+
 .navbar-nav {
     float: right;
+    border: 1px solid;
+    border-color: #ddd;
+    border-radius: 5px;
+    margin: 7.5px 0px;
 }
+
 .navbar-link {
     color: #777;
 }
