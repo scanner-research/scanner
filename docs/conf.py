@@ -113,6 +113,7 @@ html_theme_options = {
         #("Overview", "overview"),
         ("Guide", "guide"),
         ("API", "api"),
+        ("Github", "https://github.com/scanner-research/scanner"),
     ],
     'globaltoc_includehidden': "true",
     'globaltoc_depth': 0,
