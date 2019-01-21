@@ -256,6 +256,19 @@ div.body code.xref:hover  {
     font-weight: 290;
 }
 
+/* code formatting */
+.code-container {
+    overflow-x: auto;
+}
+
+pre code {
+    white-space: pre;
+}
+
+.hljs {
+    background: none !important;
+}
+
 /* Custom button styling */
 .btn {
     padding: 14px 24px;
