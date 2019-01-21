@@ -1,10 +1,5 @@
-<link rel="stylesheet"
-      href="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.13.1/build/styles/atelier-cave-light.min.css">
-<script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.13.1/build/highlight.min.js"></script>
-<script>hljs.initHighlightingOnLoad();</script>
-
- <div id="navbar" class="{{ theme_navbar_class }} navbar-default {% if theme_navbar_fixed_top|tobool -%} navbar-fixed-top{%- endif -%}">
-    <div class="container">
+ <div id="navbar" class="{{ theme_navbar_class }} navbar-scanner {% if theme_navbar_fixed_top|tobool -%} navbar-fixed-top{%- endif -%}">
+    <div class="container navbar-container">
       <div class="navbar-header">
         <!-- .btn-navbar is used as the toggle for collapsed navbar content -->
         <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".nav-collapse">
@@ -24,7 +19,7 @@
           <ul class="nav navbar-nav">
             {% if theme_navbar_links %}
               {%- for link in theme_navbar_links %}
-                <li><a href="{{ pathto(*link[1:]) }}" class="navbar-link">{{ link[0] }}</a></li>
+                <li><a href="{{ link[1] if link[1].startswith('http') else pathto(*link[1:]) }}" class="navbar-link">{{ link[0] }}</a></li>
               {%- endfor %}
             {% endif %}
             {% block navbartoc %}
