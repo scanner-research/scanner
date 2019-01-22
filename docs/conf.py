@@ -114,11 +114,15 @@ html_theme_options = {
         ("Guide", "guide"),
         ("API", "api"),
         ("Github", "https://github.com/scanner-research/scanner"),
+        ("About", "about"),
     ],
     'globaltoc_includehidden': "true",
-    'globaltoc_depth': 0,
+    'globaltoc_depth': 2,
     'source_link_position': '',
+    'sidebar_pages': [''],
 }
+
+html_sidebars = { 'guide*/**': ['guidetoc.html'] }
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
