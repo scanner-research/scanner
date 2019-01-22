@@ -53,6 +53,7 @@
             
                 <li><a href="guide.html" class="navbar-link">Guide</a></li>
                 <li><a href="api.html" class="navbar-link">API</a></li>
+                <li><a href="https://github.com/scanner-research/scanner" class="navbar-link">Github</a></li>
             
             
               <li class="dropdown globaltoc-container">
@@ -118,16 +119,16 @@
     <div class="row">
       <div class="col-sm-4 col-xs-12">
         <h4>Face Detection</h4>
-        <img src="_static/face_detection.png" class="rounded float-left img-fluid" alt="...">
+        <img src="_static/face_detection.png" class="round-border-img float-left img-fluid" alt="...">
       </div>
 
       <div class="col-sm-4 col-xs-12">
         <h4>Pose Detection</h4>
-        <img src="_static/pose_detection.png" class="rounded float-left img-fluid" alt="...">
+        <img src="_static/pose_detection.png" class="round-border-img float-left img-fluid" alt="...">
       </div>
       <div class="col-sm-4 col-xs-12">
         <h4>Object Detection</h4>
-        <img src="_static/object_detection.png" class="rounded float-left img-fluid" alt="...">
+        <img src="_static/object_detection.png" class="round-border-img float-left img-fluid" alt="...">
       </div>
     </div>
     <div style="margin-top: 10px;">
@@ -141,7 +142,12 @@
     <h3>
       Simple Python API
     </h3>
-    <pre><code class="jljs python">from scannertools import face_detection, vis, sample_video
+    <div class="code-container">
+      <table>
+        <tbody>
+          <tr>
+            <td>
+              <pre><code class="jljs python">from scannertools import face_detection, vis, sample_video
 import scannerpy
 
 def main():
@@ -157,6 +163,11 @@ def main():
 
 if __name__ == "__main__":
     main()</code></pre>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
     <a href="https://github.com/scanner-research/scannertools" class="btn btn-primary outline btn-sm">
       Check out this example and more
     </a>
@@ -208,7 +219,7 @@ if __name__ == "__main__":
      Analyzing decades worth of Hollywood Films
     </h4>
     <p>
-      Scanner makes it much easier to analyze large video datasets to extract trends and statistics that rely on the content of the videos, instead of just the metadata. For example, we have been able to use Scanner to analyze over 600 feature-length films to determine how director's taste in cinematography and casting demographics has changed over the years. These sorts of analysis involved performing human pose detection, face detection, color composition featurization, and detailed facial analysis. Check out <a href="https://scanner-research.github.io/scannertools/">scannertools</a> for an easy to use toolkit that includes most of these tools to get started on your own analysis.
+      Scanner makes it much easier to analyze large video datasets to extract trends and statistics that rely on the content of the videos, instead of just the metadata. For example, we have been able to use Scanner to analyze over 600 feature-length films to determine how director's taste in cinematography and casting demographics has changed over the years. Check out <a href="https://scanner-research.github.io/scannertools/">scannertools</a> for an easy to use toolkit that includes most of these tools to get started on your own analysis.
     </p>
     <div class="homepage-video">
       <iframe style="position: absolute; top: 0; left: 0;" width="100%" height="100%" src="https://www.youtube.com/embed/IQsb_nbPf9M" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>

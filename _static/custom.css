@@ -199,6 +199,12 @@ div.body code.xref:hover  {
     font-size: 200%;
 }
 
+.round-border-img {
+    border: 1px solid;
+    border-radius: 4px;
+    border-color: #888;
+}
+
 /* navbar */
 
 .navbar-scanner {
@@ -254,6 +260,19 @@ div.body code.xref:hover  {
 
 .banner h2 {
     font-weight: 290;
+}
+
+/* code formatting */
+.code-container {
+    overflow-x: auto;
+}
+
+pre code {
+    white-space: pre;
+}
+
+.hljs {
+    background: none !important;
 }
 
 /* Custom button styling */
