@@ -6,3 +6,12 @@
 .. raw:: html
    :file: index_h.html
 
+
+.. toctree::
+   :hidden:
+
+   guide/quickstart
+   guide/getting-started
+   guide/walkthrough
+   guide/tutorial
+   guide/kubernetes
