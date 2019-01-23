@@ -6,7 +6,6 @@
 .. raw:: html
    :file: index_h.html
 
-
 .. toctree::
    :hidden:
 
@@ -14,4 +13,6 @@
    guide/getting-started
    guide/walkthrough
    guide/tutorial
+   guide/tutorial
+   guide/extensions
    guide/kubernetes

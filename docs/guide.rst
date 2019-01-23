@@ -5,22 +5,17 @@ The guide is designed to get you quickly started using Scanner for your applicat
 
 The guide is organized into the following sections:
 
-.. toctree::
-   :maxdepth: 1
-
-   guide/quickstart
-   guide/getting-started
-   guide/walkthrough
-   guide/tutorial
-   guide/kubernetes
+- :ref:`quickstart`: run a simple Scanner program in as few steps as possible.
+- :ref:`getting-started`: get Scanner set up on your machine and ready for writing your own applications.
+- :ref:`walkthrough`: step-by-step walkthroughs of example applications.
+- :ref:`tutorial`: a multi-part tutorial that introduces the main features in Scanner progressively.
+- :ref:`extension`: learn how to extend Scanner with custom functionality.
+- :ref:`kubernetes`: run Scanner in the cloud with Kubernetes.
 
 Support
 -------
-Once you have a handle on the basics, you can checkout :ref:`walkthrough`, which provides a more full fledged walkthrough of using Scanner in a real application. Or you can take a look at the numerous Scanner `tutorials <https://github.com/scanner-research/scanner/blob/master/examples/tutorials/>`__ available on github which provide examples of using key features of the Scanner API.
+If you're having trouble using Scanner, feel free to reach out to either of the core developers:
+- Alex Poms (https://www.cs.cmu.edu/~apoms/)
+- Will Crichton (http://willcrichton.net/)
 
-
-.. handbook/concepts
-   handbook/distributed
-   handbook/custom-ops
-   handbook/custom-source
-   handbook/custom-sink
+If you want to request a new feature or file a bug report, please do so using the `GitHub page <https://github.com/scanner-research/scanner/issues>`__.
