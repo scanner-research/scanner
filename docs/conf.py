@@ -89,7 +89,6 @@ pygments_style = 'sphinx'
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True
 
-
 # -- Options for HTML output ----------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
@@ -97,7 +96,6 @@ todo_include_todos = True
 #
 html_theme = 'bootstrap'
 html_logo = 'scanner_logo.png'
-
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -122,7 +120,10 @@ html_theme_options = {
     'sidebar_pages': [''],
 }
 
-html_sidebars = { 'guide*/**': ['guidetoc.html'] }
+html_sidebars = {
+    'guide': ['guidetoc.html'],
+    'guide/**': ['guidetoc.html']
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
