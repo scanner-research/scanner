@@ -39,6 +39,7 @@ OpRegistration::OpRegistration(const OpBuilder& builder) {
     col.set_id(i++);
     col.set_name(std::get<0>(name_type));
     col.set_type(std::get<1>(name_type));
+    col.set_type_name((std::get<2>(name_type)));
     output_columns.push_back(col);
   }
   bool can_stencil = builder.can_stencil_;

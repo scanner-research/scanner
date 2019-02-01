@@ -1,6 +1,6 @@
 import scannerpy
 from scannerpy import (Database, Config, DeviceType, FrameType, Job,
-                       ProtobufGenerator, ScannerException, Kernel)
+                       ScannerException, Kernel, protobufs)
 from scannerpy.stdlib import readers
 from typing import Dict, List, Sequence, Tuple
 import tempfile
@@ -148,14 +148,14 @@ def test_summarize(db):
 
 def test_load_video_column(db):
     for name in ['test1', 'test1_inplace']:
-        next(db.table(name).load(['frame']))
+        next(db.table(name).column('frame').load())
 
 
 def test_gather_video_column(db):
     for name in ['test1', 'test1_inplace']:
         # Gather rows
         rows = [0, 10, 100, 200]
-        frames = [_ for _ in db.table(name).load(['frame'], rows=rows)]
+        frames = [_ for _ in db.table(name).column('frame').load(rows=rows)]
         assert len(frames) == len(rows)
 
 
@@ -249,7 +249,7 @@ def test_space(db):
     spacing_distance = 8
     table = run_spacer_job(db.streams.Repeat, spacing_distance)
     num_rows = 0
-    for hist in table.column('histogram').load(readers.histograms):
+    for hist in table.column('histogram').load():
         # Verify outputs are repeated correctly
         if num_rows % spacing_distance == 0:
             ref_hist = hist
@@ -262,7 +262,7 @@ def test_space(db):
     # Null
     table = run_spacer_job(db.streams.RepeatNull, spacing_distance)
     num_rows = 0
-    for hist in table.column('histogram').load(readers.histograms):
+    for hist in table.column('histogram').load():
         # Verify outputs are None for null rows
         if num_rows % spacing_distance == 0:
             assert hist is not None
@@ -324,7 +324,7 @@ def test_overlapping_slice(db):
 @scannerpy.register_python_op()
 class TestSliceArgs(Kernel):
     def __init__(self, config):
-        self.protobufs = config.protobufs
+        pass
 
     def close(self):
         pass
@@ -429,7 +429,7 @@ class TestHistogram:
 
     def run(self, db, job):
         tables = db.run(job[0], job[1], force=True, show_progress=False)
-        next(tables[0].column('histogram').load(readers.histograms))
+        next(tables[0].column('histogram').load())
 
 @builder
 class TestInplace:
@@ -447,7 +447,7 @@ class TestInplace:
 
     def run(self, db, job):
         tables = db.run(job[0], job[1], force=True, show_progress=False)
-        next(tables[0].column('histogram').load(readers.histograms))
+        next(tables[0].column('histogram').load())
 
 
 @builder
@@ -471,8 +471,7 @@ class TestOpticalFlow:
             num_rows += 1
         assert num_rows == 50
 
-        flows = next(table.load(['flow']))
-        flow_array = flows[0]
+        flow_array = next(table.column('flow').load())
         assert flow_array.dtype == np.float32
         assert flow_array.shape[0] == 480
         assert flow_array.shape[1] == 640
@@ -715,7 +714,6 @@ def test_python_source(db):
 @scannerpy.register_python_op()
 class TestPy(Kernel):
     def __init__(self, config):
-        self.protobufs = config.protobufs
         assert (config.args['kernel_arg'] == 1)
         self.x = 20
         self.y = 20
@@ -749,20 +747,20 @@ def test_python_kernel(db):
     })
 
     tables = db.run(output_op, [job], force=True, show_progress=False)
-    next(tables[0].load(['dummy']))
+    next(tables[0].column('dummy').load())
 
 
 @scannerpy.register_python_op(batch=50)
 class TestPyBatch(Kernel):
     def __init__(self, config):
-        self.protobufs = config.protobufs
         pass
 
     def close(self):
         pass
 
     def execute(self, frame: Sequence[FrameType]) -> Sequence[bytes]:
-        point = self.protobufs.Point()
+        from scannerpy import protobufs
+        point = protobufs.Point()
         point.x = 10
         point.y = 5
         input_count = len(frame)
@@ -781,21 +779,21 @@ def test_python_batch_kernel(db):
     })
 
     tables = db.run(output_op, [job], force=True, show_progress=False)
-    next(tables[0].load(['dummy']))
+    next(tables[0].column('dummy').load())
 
 
 @scannerpy.register_python_op(stencil=[0, 1])
 class TestPyStencil(Kernel):
     def __init__(self, config):
-        self.protobufs = config.protobufs
         pass
 
     def close(self):
         pass
 
     def execute(self, frame: Sequence[FrameType]) -> bytes:
+        from scannerpy import protobufs
         assert len(frame) == 2
-        point = self.protobufs.Point()
+        point = protobufs.Point()
         point.x = 10
         point.y = 5
         return point.SerializeToString()
@@ -812,21 +810,21 @@ def test_python_stencil_kernel(db):
     })
 
     tables = db.run(output_op, [job], force=True, show_progress=False)
-    next(tables[0].load(['dummy']))
+    next(tables[0].column('dummy').load())
 
 
 @scannerpy.register_python_op(stencil=[0, 1], batch=50)
 class TestPyStencilBatch(Kernel):
     def __init__(self, config):
-        self.protobufs = config.protobufs
         pass
 
     def close(self):
         pass
 
     def execute(self, frame: Sequence[Sequence[FrameType]]) -> Sequence[bytes]:
+        from scannerpy import protobufs
         assert len(frame[0]) == 2
-        point = self.protobufs.Point()
+        point = protobufs.Point()
         point.x = 10
         point.y = 5
         input_count = len(frame)
@@ -845,7 +843,7 @@ def test_python_stencil_batch_kernel(db):
     })
 
     tables = db.run(output_op, [job], force=True, show_progress=False)
-    next(tables[0].load(['dummy']))
+    next(tables[0].column('dummy').load())
 
 
 def test_bind_op_args(db):
@@ -889,8 +887,7 @@ def test_blur(db):
     tables = db.run(output_op, [job], force=True, show_progress=False)
     table = tables[0]
 
-    frames = next(table.load(['frame']))
-    frame_array = frames[0]
+    frame_array = next(table.column('frame').load())
     assert frame_array.dtype == np.uint8
     assert frame_array.shape[0] == 480
     assert frame_array.shape[1] == 640
@@ -910,7 +907,7 @@ def test_lossless(db):
 
     tables = db.run(output_op, [job], force=True, show_progress=False)
     table = tables[0]
-    next(table.load(['frame']))
+    next(table.column('frame').load())
 
 
 def test_compress(db):
@@ -927,7 +924,7 @@ def test_compress(db):
 
     tables = db.run(output_op, [job], force=True, show_progress=False)
     table = tables[0]
-    next(table.load(['frame']))
+    next(table.column('frame').load())
 
 
 def test_save_mp4(db):
@@ -1109,20 +1106,17 @@ def test_fault_tolerance(fault_db):
     normal_spawn_port = 5013
 
     def worker_killer_task(config, master_address):
-        from scannerpy import ProtobufGenerator, Config, start_worker
+        from scannerpy import Config, start_worker, protobufs
         import time
         import grpc
         import subprocess
         import signal
         import os
 
-        c = Config(None)
-
         import scanner.metadata_pb2 as metadata_types
         import scanner.engine.rpc_pb2 as rpc_types
         import scanner.types_pb2 as misc_types
 
-        protobufs = ProtobufGenerator(config)
 
         # Spawn a worker that we will force kill
         script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -1185,10 +1179,10 @@ def test_fault_tolerance(fault_db):
     channel = grpc.insecure_channel(
         'localhost:' + str(normal_spawn_port),
         options=[('grpc.max_message_length', 24499183 * 2)])
-    worker = fault_db.protobufs.WorkerStub(channel)
+    worker = protobufs.WorkerStub(channel)
 
     try:
-        worker.Shutdown(fault_db.protobufs.Empty())
+        worker.Shutdown(protobufs.Empty())
     except grpc.RpcError as e:
         status = e.code()
         if status == grpc.StatusCode.UNAVAILABLE:
@@ -1234,7 +1228,6 @@ def test_job_blacklist(blacklist_db):
     @scannerpy.register_python_op()
     class TestPyFail(Kernel):
         def __init__(self, config):
-            self.protobufs = config.protobufs
             pass
 
         def close(self):
@@ -1286,10 +1279,10 @@ def timeout_db():
 
         for worker in workers:
             channel = grpc.insecure_channel(worker)
-            worker_stub = db.protobufs.WorkerStub(channel)
+            worker_stub = protobufs.WorkerStub(channel)
             try:
                 worker_stub.Shutdown(
-                    db.protobufs.Empty(), timeout=db._grpc_timeout)
+                    protobufs.Empty(), timeout=db._grpc_timeout)
             except grpc.RpcError as e:
                 pass
 
@@ -1353,7 +1346,7 @@ def sql_db(db):
         conn.commit()
 
         sql_params = postgresql.dsn()
-        sql_config = db.protobufs.SQLConfig(
+        sql_config = protobufs.SQLConfig(
             hostaddr=sql_params['host'],
             port=sql_params['port'],
             dbname=sql_params['database'],
@@ -1377,7 +1370,7 @@ def test_sql(sql_db):
 
     row = db.sources.SQL(
         config=sql_config,
-        query=db.protobufs.SQLQuery(
+        query=protobufs.SQLQuery(
             fields='test.id as id, test.a, test.c, test.d, test.e, test.f',
             table='test',
             id='test.id',
@@ -1421,7 +1414,7 @@ def test_sql_grouped(sql_db):
 
     row = db.sources.SQL(
         config=sql_config,
-        query=db.protobufs.SQLQuery(
+        query=protobufs.SQLQuery(
             fields='test.id as id, test.a',
             table='test',
             id='test.id',
@@ -1448,7 +1441,7 @@ def test_sql_insert(sql_db):
 
     row = db.sources.SQL(
         config=sql_config,
-        query=db.protobufs.SQLQuery(
+        query=protobufs.SQLQuery(
             fields='test.id as id, test.a',
             table='test',
             id='test.id',

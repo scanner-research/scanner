@@ -376,7 +376,7 @@ void MasterServerImpl::NewTableHandler(
     proto::Column* col = table_desc.add_columns();
     col->set_id(i);
     col->set_name(columns[i]);
-    col->set_type(proto::ColumnType::Other);
+    col->set_type(proto::ColumnType::Bytes);
   }
 
   table_desc.add_end_rows(rows.size());
@@ -759,6 +759,7 @@ void MasterServerImpl::RegisterOpHandler(
       col.set_id(i++);
       col.set_name(c.name());
       col.set_type(c.type());
+      col.set_type_name(c.type_name());
       input_columns.push_back(col);
     }
     std::vector<Column> output_columns;
@@ -768,6 +769,7 @@ void MasterServerImpl::RegisterOpHandler(
       col.set_id(i++);
       col.set_name(c.name());
       col.set_type(c.type());
+      col.set_type_name(c.type_name());
       output_columns.push_back(col);
     }
     bool can_stencil = op_registration->can_stencil();
@@ -812,7 +814,6 @@ void MasterServerImpl::RegisterPythonKernelHandler(
     const std::string& op_name = python_kernel->op_name();
     DeviceType device_type = python_kernel->device_type();
     const std::string& kernel_code = python_kernel->kernel_code();
-    const std::string& pickled_config = python_kernel->pickled_config();
     const int batch_size = python_kernel->batch_size();
 
     // Set all input and output columns to be CPU
@@ -837,10 +838,10 @@ void MasterServerImpl::RegisterPythonKernelHandler(
     }
 
     // Create a kernel builder function
-    auto constructor = [op_name, kernel_code, pickled_config,
-                        can_batch, can_stencil](const KernelConfig& config) {
-      return new PythonKernel(config, op_name, kernel_code, pickled_config,
-                              can_batch, can_stencil);
+    auto constructor = [op_name, kernel_code, can_batch,
+                        can_stencil](const KernelConfig& config) {
+      return new PythonKernel(config, op_name, kernel_code, can_batch,
+                              can_stencil);
     };
 
     // Create a new kernel factory

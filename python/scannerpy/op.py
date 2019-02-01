@@ -1,11 +1,12 @@
 import grpc
 import copy
 import pickle
-import types
+import types as pytypes
 import uuid
 
 from scannerpy.common import *
-from scannerpy.protobuf_generator import python_to_proto
+from scannerpy.protobufs import python_to_proto, protobufs
+from scannerpy import types as scannertypes
 from typing import Dict, List, Union, Tuple, Optional, Sequence
 from inspect import signature
 from itertools import islice
@@ -20,7 +21,7 @@ class OpColumn:
         self._col = col
         self._type = typ
         self._encode_options = None
-        if self._type == self._db.protobufs.Video:
+        if self._type == protobufs.Video:
             self._encode_options = {'codec': 'default'}
 
     def compress(self, codec='video', **kwargs):
@@ -58,11 +59,11 @@ class OpColumn:
         return self._new_compressed_column(encode_options)
 
     def _assert_is_video(self):
-        if self._type != self._db.protobufs.Video:
+        if self._type != protobufs.Video:
             raise ScannerException('Compression only supported for columns of'
                                    'type "video". Column {} type is {}.'.format(
                                        self._col,
-                                       self.db.protobufs.ColumnType.Name(
+                                       protobufs.ColumnType.Name(
                                            self._type)))
 
     def _new_compressed_column(self, encode_options):
@@ -100,7 +101,7 @@ class OpGenerator:
                 if py_op_info['device_sets']:
                     for d in py_op_info['device_sets']:
                         devices.append(d[0])
-                    
+
                 self._db.register_op(
                     pseudo_name, py_op_info['input_columns'],
                     py_op_info['output_columns'], py_op_info['variadic_inputs'],
@@ -180,9 +181,9 @@ class Op:
             return tuple(self._outputs)
 
     def to_proto(self, indices):
-        e = self._db.protobufs.Op()
+        e = protobufs.Op()
         e.name = self._name
-        e.device_type = DeviceType.to_proto(self._db.protobufs, self._device)
+        e.device_type = DeviceType.to_proto(protobufs, self._device)
         e.stencil.extend(self._stencil)
         e.batch = self._batch
         e.warmup = self._warmup
@@ -208,7 +209,7 @@ class Op:
                 op_info = self._db._get_op_info(self._name)
                 if len(op_info.protobuf_name) > 0:
                     proto_name = op_info.protobuf_name
-                    e.kernel_args = python_to_proto(self._db.protobufs,
+                    e.kernel_args = python_to_proto(protobufs,
                                                     proto_name, self._args)
                 else:
                     e.kernel_args = self._args
@@ -268,8 +269,8 @@ def register_python_op(name: str = None,
     """
     def dec(fn_or_class):
         is_fn = False
-        if isinstance(fn_or_class, types.FunctionType) or isinstance(
-                fn_or_class, types.BuiltinFunctionType):
+        if isinstance(fn_or_class, pytypes.FunctionType) or isinstance(
+                fn_or_class, pytypes.BuiltinFunctionType):
             is_fn = True
 
         if name is None:
@@ -327,16 +328,17 @@ def register_python_op(name: str = None,
                          ))
                 typ = typ.__args__[0]
 
-            if typ == bytes:
-                column_type = ColumnType.Blob
-            elif typ == FrameType:
+            if typ == FrameType:
                 column_type = ColumnType.Video
+            elif typ == bytes:
+                column_type = ColumnType.Blob
             else:
-                raise ScannerException(
-                    ('Invalid type annotation specified for input {:s}. Must '
-                     'specify an annotation of type "bytes" or '
-                     '"FrameType".').format(param_name))
-            return column_type
+                column_type = ColumnType.Blob
+                # raise ScannerException(
+                #     ('Invalid type annotation specified for input {:s}. Must '
+                #      'specify an annotation of type "bytes" or '
+                #      '"FrameType".').format(param_name))
+            return column_type, typ
 
         # Analyze exec_fn parameters to determine the input types
         for param_name, param in fn_params.items():
@@ -364,8 +366,9 @@ def register_python_op(name: str = None,
                     .format(param_name))
 
             typ = param.annotation
-            column_type = parse_annotation_to_column_type(typ, is_input=True)
-            input_columns.append((param_name, column_type))
+            column_type, typ = parse_annotation_to_column_type(typ, is_input=True)
+            type_info = scannertypes.get_type_info(typ)
+            input_columns.append((param_name, column_type, type_info))
 
         output_columns = []
         # Analyze exec_fn return type to determine output types
@@ -397,18 +400,27 @@ def register_python_op(name: str = None,
 
         # Parse the return types into Scanner column types
         for i, typ in enumerate(tuple_params):
-            column_type = parse_annotation_to_column_type(typ)
-            output_columns.append(('ret{:d}'.format(i), column_type))
+            column_type, typ = parse_annotation_to_column_type(typ)
+            type_info = scannertypes.get_type_info(typ)
+            output_columns.append(('ret{:d}'.format(i), column_type, type_info))
 
         if kname in PYTHON_OP_REGISTRY:
             raise ScannerException(
                 'Attempted to register Op with name {:s} twice'.format(kname))
 
         def parse_ret(r):
-            if return_is_tuple:
-                return r
-            else:
-                return (r, )
+            columns = r if return_is_tuple else (r, )
+            outputs = []
+            for (_1, _2, type_info), column in zip(output_columns, columns):
+                if can_batch:
+                    outputs.append([
+                        type_info.serializer(element)
+                        for element in column
+                    ])
+                else:
+                    outputs.append(
+                        type_info.serializer(column))
+            return tuple(outputs)
 
         # Wrap exec_fn to destructure input and outputs to proper python inputs
         if is_fn:
@@ -422,9 +434,11 @@ def register_python_op(name: str = None,
                 @wraps(fn_or_class)
                 def wrapper_exec(config, in_cols):
                     args = {}
-                    for (param_name, _), c in zip(input_columns, in_cols):
-                        args[param_name] = c
+                    for (param_name, _1, type_info), c in zip(input_columns, in_cols):
+                        args[param_name] = type_info.deserializer(c)
+
                     return parse_ret(exec_fn(config, **args))
+
             wrapped_fn_or_class = wrapper_exec
         else:
             wrapped_fn_or_class = type(fn_or_class.__name__ + 'Kernel', fn_or_class.__bases__,
@@ -437,8 +451,8 @@ def register_python_op(name: str = None,
 
                 def execute(self, in_cols):
                     args = {}
-                    for (param_name, _), c in zip(input_columns, in_cols):
-                        args[param_name] = c
+                    for (param_name, _, type_info), c in zip(input_columns, in_cols):
+                        args[param_name] = type_info.deserializer(c)
                     return parse_ret(exec_fn(self, **args))
             wrapped_fn_or_class.execute = execute
 
@@ -449,7 +463,7 @@ def register_python_op(name: str = None,
         if device_type is not None and device_sets is not None:
             raise ScannerException(
                 'Must only specify one of "device_type" or "device_sets" for python Op.')
-            
+
         PYTHON_OP_REGISTRY[kname] = {
             'input_columns': input_columns,
             'output_columns': output_columns,

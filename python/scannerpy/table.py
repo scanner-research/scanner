@@ -4,6 +4,7 @@ import struct
 from timeit import default_timer as now
 
 from scannerpy.common import *
+from scannerpy.protobufs import protobufs
 from scannerpy.column import Column
 
 
@@ -40,9 +41,9 @@ class Table:
             self._video_descriptors = []
             for c in self._descriptor.columns:
                 video_descriptor = None
-                if c.type == self._db.protobufs.Video:
+                if c.type == protobufs.Video:
                     video_descriptor = self._db._load_descriptor(
-                        self._db.protobufs.VideoDescriptor,
+                        protobufs.VideoDescriptor,
                         'tables/{:d}/{:d}_0_video_metadata.bin'.format(
                             self._id, c.id))
                 self._video_descriptors.append(video_descriptor)
@@ -56,7 +57,7 @@ class Table:
         self._need_descriptor()
         if self._descriptor.job_id != -1:
             self._job = self._db._load_descriptor(
-                self._db.protobufs.JobDescriptor,
+                protobufs.JobDescriptor,
                 'jobs/{}/descriptor.bin'.format(self._descriptor.job_id))
             self._task = None
             for task in self._job.tasks:

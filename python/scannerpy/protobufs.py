@@ -16,7 +16,7 @@ from google.protobuf.descriptor import FieldDescriptor
 
 
 class ProtobufGenerator:
-    def __init__(self, cfg):
+    def __init__(self):
         self._mods = []
         for mod in [
                 misc_types, rpc_types, grpc_types, metadata_types,
@@ -109,3 +109,5 @@ def python_to_proto(protos, proto_name, obj):
         return proto_obj
 
     return create_obj(args_proto, p, obj).SerializeToString()
+
+protobufs = ProtobufGenerator()
