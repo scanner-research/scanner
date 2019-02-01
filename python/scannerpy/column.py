@@ -12,6 +12,8 @@ from storehouse import RandomReadFile
 from scannerpy.stdlib import readers
 from scannerpy.common import *
 from scannerpy.job import Job
+from scannerpy import types as scannertypes
+from scannerpy.protobufs import protobufs
 
 LOAD_SPARSITY_THRESHOLD = 10
 
@@ -52,9 +54,9 @@ class Column(object):
 
     def keyframes(self):
         self._load_meta()
-        if (self._descriptor.type == self._db.protobufs.Video
+        if (self._descriptor.type == protobufs.Video
                 and self._video_descriptor.codec_type ==
-                self._db.protobufs.VideoDescriptor.H264):
+                protobufs.VideoDescriptor.H264):
             # For each encoded video, add start frame offset
             frame_offset = 0
             kf_offset = 0
@@ -104,7 +106,7 @@ class Column(object):
             if len(buf) == 0:
                 yield None
             elif fn is not None:
-                yield fn(buf, self._db.protobufs)
+                yield fn(buf)
             else:
                 yield buf
             return
@@ -152,7 +154,7 @@ class Column(object):
                 if len(buf) == 0:
                     yield None
                 elif fn is not None:
-                    yield fn(buf, self._db.protobufs)
+                    yield fn(buf)
                 else:
                     yield buf
                 rows_idx += 1
@@ -209,7 +211,7 @@ class Column(object):
                     yield output
 
     # TODO(wcrichto): don't show progress bar when running decode png
-    def load(self, fn=None, rows=None, workers=16):
+    def load(self, ty=None, fn=None, rows=None, workers=16):
         """
         Loads the results of a Scanner computation into Python.
 
@@ -226,9 +228,9 @@ class Column(object):
         self._load_meta()
         # If the column is a video, then dump the requested frames to disk as
         # PNGs and return the decoded PNGs
-        if (self._descriptor.type == self._db.protobufs.Video
+        if (self._descriptor.type == protobufs.Video
                 and self._video_descriptor.codec_type ==
-                self._db.protobufs.VideoDescriptor.H264):
+                protobufs.VideoDescriptor.H264):
             png_table_name = self._db._png_dump_prefix.format(
                 self._table.name(), self._name)
             pair = [(self._table.name(), png_table_name)]
@@ -245,27 +247,37 @@ class Column(object):
             job = Job(op_args=op_args)
             [out_tbl] = self._db.run(
                 output_op, [job], force=True, show_progress=False)
-            return out_tbl.column('img').load(readers.image)
-        elif self._descriptor.type == self._db.protobufs.Video:
+            return out_tbl.column('img').load(fn=readers.image)
+        elif self._descriptor.type == protobufs.Video:
             frame_type = self._video_descriptor.frame_type
-            if frame_type == self._db.protobufs.U8:
+            if frame_type == protobufs.U8:
                 dtype = np.uint8
-            elif frame_type == self._db.protobufs.F32:
+            elif frame_type == protobufs.F32:
                 dtype = np.float32
-            elif frame_type == self._db.protobufs.F64:
+            elif frame_type == protobufs.F64:
                 dtype = np.float64
             parser_fn = readers.raw_frame_gen(
                 self._video_descriptor.height, self._video_descriptor.width,
                 self._video_descriptor.channels, dtype)
             return self._load(fn=parser_fn, rows=rows, workers=workers)
         else:
+            if fn is None:
+                if ty is None:
+                    type_name = self._descriptor.type_name
+                    if type_name != "":
+                        ty = scannertypes.get_type_info_cpp(type_name)
+
+                if ty is not None:
+                    fn = ty.deserializer
+
+
             return self._load(fn, rows=rows, workers=workers)
 
     def save_mp4(self, output_name, fps=None, scale=None):
         self._load_meta()
-        if not (self._descriptor.type == self._db.protobufs.Video
+        if not (self._descriptor.type == protobufs.Video
                 and self._video_descriptor.codec_type ==
-                self._db.protobufs.VideoDescriptor.H264):
+                protobufs.VideoDescriptor.H264):
             raise ScannerException('Attempted to save a non-h264-compressed '
                                    'column as an mp4. Try compressing the '
                                    'column first by saving the output as '

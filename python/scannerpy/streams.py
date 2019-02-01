@@ -1,13 +1,14 @@
 import scannerpy.op
 
 from scannerpy.common import *
+from scannerpy.protobufs import protobufs
 from typing import Sequence, Union, Tuple, Optional
 
 class StreamsGenerator:
     r"""Provides Ops for sampling elements from streams.
 
     The methods of this class construct Scanner Ops that enable selecting
-    subsets of the elements in a stream to produce new streams. 
+    subsets of the elements in a stream to produce new streams.
 
     This class should not be constructed directly, but accessed via a Database
     object like:
@@ -76,7 +77,7 @@ class StreamsGenerator:
           The sampled stream.
         """
         def arg_builder():
-            sampling_args = self._db.protobufs.SamplingArgs()
+            sampling_args = protobufs.SamplingArgs()
             sampling_args.sampling_function = "All"
             return sampling_args
         return self._db.ops.Sample(
@@ -104,9 +105,9 @@ class StreamsGenerator:
           The sampled stream.
         """
         def arg_builder(stride=stride):
-            args = self._db.protobufs.StridedSamplerArgs()
+            args = protobufs.StridedSamplerArgs()
             args.stride = stride
-            sampling_args = self._db.protobufs.SamplingArgs()
+            sampling_args = protobufs.SamplingArgs()
             sampling_args.sampling_function = "Strided"
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
@@ -140,11 +141,11 @@ class StreamsGenerator:
           The sampled stream.
         """
         def arg_builder(start=start, end=end):
-            args = self._db.protobufs.StridedRangeSamplerArgs()
+            args = protobufs.StridedRangeSamplerArgs()
             args.stride = 1
             args.starts.append(start)
             args.ends.append(end)
-            sampling_args = self._db.protobufs.SamplingArgs()
+            sampling_args = protobufs.SamplingArgs()
             sampling_args.sampling_function = "StridedRanges"
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
@@ -183,12 +184,12 @@ class StreamsGenerator:
         db.streams.Ranges(input=input, intervals=[(0, 11), (100, 201)])
         """
         def arg_builder(intervals=intervals):
-            args = self._db.protobufs.StridedRangeSamplerArgs()
+            args = protobufs.StridedRangeSamplerArgs()
             args.stride = 1
             for start, end in intervals:
                 args.starts.append(start)
                 args.ends.append(end)
-            sampling_args = self._db.protobufs.SamplingArgs()
+            sampling_args = protobufs.SamplingArgs()
             sampling_args.sampling_function = "StridedRanges"
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
@@ -226,11 +227,11 @@ class StreamsGenerator:
           The sampled stream.
         """
         def arg_builder(start=start, end=end, stride=stride):
-            args = self._db.protobufs.StridedRangeSamplerArgs()
+            args = protobufs.StridedRangeSamplerArgs()
             args.stride = stride
             args.starts.append(start)
             args.ends.append(end)
-            sampling_args = self._db.protobufs.SamplingArgs()
+            sampling_args = protobufs.SamplingArgs()
             sampling_args.sampling_function = "StridedRanges"
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
@@ -268,12 +269,12 @@ class StreamsGenerator:
           The sampled stream.
         """
         def arg_builder(intervals=intervals, stride=stride):
-            args = self._db.protobufs.StridedRangeSamplerArgs()
+            args = protobufs.StridedRangeSamplerArgs()
             args.stride = stride
             for start, end in intervals:
                 args.starts.append(start)
                 args.ends.append(end)
-            sampling_args = self._db.protobufs.SamplingArgs()
+            sampling_args = protobufs.SamplingArgs()
             sampling_args.sampling_function = "StridedRanges"
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
@@ -304,9 +305,9 @@ class StreamsGenerator:
           The sampled stream.
         """
         def arg_builder(rows=rows):
-            args = self._db.protobufs.GatherSamplerArgs()
+            args = protobufs.GatherSamplerArgs()
             args.rows[:] = rows
-            sampling_args = self._db.protobufs.SamplingArgs()
+            sampling_args = protobufs.SamplingArgs()
             sampling_args.sampling_function = 'Gather'
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
@@ -335,9 +336,9 @@ class StreamsGenerator:
           The sampled stream.
         """
         def arg_builder(spacing=spacing):
-            args = self._db.protobufs.SpaceNullSamplerArgs()
+            args = protobufs.SpaceNullSamplerArgs()
             args.spacing = spacing
-            sampling_args = self._db.protobufs.SamplingArgs()
+            sampling_args = protobufs.SamplingArgs()
             sampling_args.sampling_function = "SpaceNull"
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
@@ -366,9 +367,9 @@ class StreamsGenerator:
           The sampled stream.
         """
         def arg_builder(spacing=spacing):
-            args = self._db.protobufs.SpaceRepeatSamplerArgs()
+            args = protobufs.SpaceRepeatSamplerArgs()
             args.spacing = spacing
-            sampling_args = self._db.protobufs.SamplingArgs()
+            sampling_args = protobufs.SamplingArgs()
             sampling_args.sampling_function = "SpaceRepeat"
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args

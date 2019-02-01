@@ -41,7 +41,7 @@ enum ImageColorSpace {
 }
 
 enum ColumnType {
-  Other = 0;
+  Bytes = 0;
   Video = 1;
   Image = 2;
 }
@@ -57,6 +57,7 @@ message Column {
   int32 id = 1;
   string name = 2;
   ColumnType type = 3;
+  string type_name = 4;
 }
 
 message VideoDescriptor {

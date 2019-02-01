@@ -1,4 +1,5 @@
 from scannerpy.common import *
+from scannerpy.protobufs import protobufs
 
 DEFAULT_TASK_SIZE = 125
 
@@ -13,7 +14,7 @@ class Sampler:
 
     def All(self, input):
         def arg_builder():
-            sampling_args = self._db.protobufs.SamplingArgs()
+            sampling_args = protobufs.SamplingArgs()
             sampling_args.sampling_function = "All"
             return sampling_args
         return self._db.ops.Sample(
@@ -23,9 +24,9 @@ class Sampler:
 
     def Stride(self, input, stride=None):
         def arg_builder(stride=stride):
-            args = self._db.protobufs.StridedSamplerArgs()
+            args = protobufs.StridedSamplerArgs()
             args.stride = stride
-            sampling_args = self._db.protobufs.SamplingArgs()
+            sampling_args = protobufs.SamplingArgs()
             sampling_args.sampling_function = "Strided"
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
@@ -43,9 +44,9 @@ class Sampler:
 
     def Gather(self, input, rows=None):
         def arg_builder(rows=rows):
-            args = self._db.protobufs.GatherSamplerArgs()
+            args = protobufs.GatherSamplerArgs()
             args.rows[:] = rows
-            sampling_args = self._db.protobufs.SamplingArgs()
+            sampling_args = protobufs.SamplingArgs()
             sampling_args.sampling_function = 'Gather'
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
@@ -61,12 +62,12 @@ class Sampler:
 
     def StridedRanges(self, input, intervals=None, stride=None):
         def arg_builder(intervals=intervals, stride=stride):
-            args = self._db.protobufs.StridedRangeSamplerArgs()
+            args = protobufs.StridedRangeSamplerArgs()
             args.stride = stride
             for start, end in intervals:
                 args.starts.append(start)
                 args.ends.append(end)
-            sampling_args = self._db.protobufs.SamplingArgs()
+            sampling_args = protobufs.SamplingArgs()
             sampling_args.sampling_function = "StridedRanges"
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
@@ -78,9 +79,9 @@ class Sampler:
 
     def RepeatNull(self, input, spacing=None):
         def arg_builder(spacing=spacing):
-            args = self._db.protobufs.SpaceNullSamplerArgs()
+            args = protobufs.SpaceNullSamplerArgs()
             args.spacing = spacing
-            sampling_args = self._db.protobufs.SamplingArgs()
+            sampling_args = protobufs.SamplingArgs()
             sampling_args.sampling_function = "SpaceNull"
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
@@ -93,9 +94,9 @@ class Sampler:
 
     def Repeat(self, input, spacing=None):
         def arg_builder(spacing=spacing):
-            args = self._db.protobufs.SpaceRepeatSamplerArgs()
+            args = protobufs.SpaceRepeatSamplerArgs()
             args.spacing = spacing
-            sampling_args = self._db.protobufs.SamplingArgs()
+            sampling_args = protobufs.SamplingArgs()
             sampling_args.sampling_function = "SpaceRepeat"
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args

@@ -479,7 +479,7 @@ void ColumnSource::read(const std::vector<ElementArgs>& element_args,
   RowIntervals intervals = slice_into_row_intervals(table_meta, rows);
   size_t num_items = intervals.item_ids.size();
 
-  ColumnType column_type = ColumnType::Other;
+  ColumnType column_type = ColumnType::Bytes;
   if (table_meta.column_type(col_id) == ColumnType::Video) {
     column_type = ColumnType::Video;
     // video frame column

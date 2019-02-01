@@ -2,7 +2,6 @@ import numpy as np
 import enum
 from collections import defaultdict
 
-
 class ScannerException(Exception):
     pass
 
@@ -42,7 +41,7 @@ class ColumnType(enum.Enum):
     @staticmethod
     def to_proto(protobufs, ty):
         if ty == ColumnType.Blob:
-            return protobufs.Other
+            return protobufs.Bytes
         elif ty == ColumnType.Video:
             return protobufs.Video
         else:

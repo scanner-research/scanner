@@ -15,7 +15,6 @@ class KernelConfig(object):
 class Kernel(object):
     def __init__(self, config):
         self.config = config
-        self.protobufs = config.protobufs
 
     def close(self):
         pass
@@ -36,16 +35,12 @@ def python_kernel_fn(n, recv_conn, send_conn, p_conn1, p_conn2):
   import traceback
   import os
   from scannerpy import Config, DeviceType, DeviceHandle, KernelConfig
-  from scannerpy.protobuf_generator import ProtobufGenerator
 
   # Close parent connections
   p_conn1.close()
   p_conn2.close()
   try:
-    user_config = pickle.loads(n['user_config_str'])
-    protobufs = ProtobufGenerator(user_config)
     kernel_config = KernelConfig(cloudpickle.loads(n['config']))
-    kernel_config.protobufs = protobufs
     kernel = cloudpickle.loads(n['kernel_code'])(kernel_config)
     while True:
       try:

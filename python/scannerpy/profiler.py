@@ -6,7 +6,7 @@ import tarfile
 import os
 
 from scannerpy.common import *
-
+from scannerpy.protobufs import protobufs
 
 def read_advance(fmt, buf, offset):
     new_offset = offset + struct.calcsize(fmt)
@@ -31,7 +31,7 @@ class Profiler:
 
     def __init__(self, db, job_id, load_threads=8, subsample=None):
         self._storage = db._storage
-        job = db._load_descriptor(db.protobufs.BulkJobDescriptor,
+        job = db._load_descriptor(protobufs.BulkJobDescriptor,
                                   'jobs/{}/descriptor.bin'.format(job_id))
 
         def get_prof(path, worker=True):
