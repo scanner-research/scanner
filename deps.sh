@@ -27,7 +27,6 @@ INSTALL_GRPC=true
 
 # Required, and assume not installed
 INSTALL_GOOGLETEST=true
-INSTALL_HWANG=true
 INSTALL_TINYTOML=true
 INSTALL_STOREHOUSE=true
 INSTALL_PYBIND=true
@@ -41,6 +40,8 @@ NO_HALIDE=false
 INSTALL_HALIDE=true
 NO_CAFFE=false
 INSTALL_CAFFE=true
+NO_HWANG=false
+INSTALL_HWANG=true
 
 # Optional, and assume not installed
 NO_LIBPQXX=false
@@ -101,11 +102,6 @@ case $key in
         shift # past arg
         shift # past value
         ;;
-    --with-hwang)
-        WITH_HWANG="$2"
-        shift # past arg
-        shift # past value
-        ;;
     --with-storehouse)
         WITH_STOREHOUSE="$2"
         shift # past arg
@@ -158,6 +154,15 @@ case $key in
         ;;
     --with-libpqxx)
         WITH_LIBPQXX="$2"
+        shift # past arg
+        shift # past value
+        ;;
+    --without-hwang)
+        NO_HWANG=true
+        shift # past arg
+        ;;
+    --with-hwang)
+        WITH_HWANG="$2"
         shift # past arg
         shift # past value
         ;;
@@ -471,6 +476,11 @@ elif [[ $INSTALL_ALL == false ]]; then
             INSTALL_LIBPQXX=false
             NO_LIBPQXX=true
         fi
+    fi
+
+    if [[ ${NO_HWANG+x} == true ]]; then
+        INSTALL_HWANG=false
+        NO_HWANG=true
     fi
 fi
 
@@ -863,7 +873,6 @@ echo "CAFFE_GPU=$USE_GPU" >> $DEP_FILE
 echo "OpenCV_DIR=$OPENCV_DIR" >> $DEP_FILE
 echo "PROTOBUF_DIR=$PROTOBUF_DIR" >> $DEP_FILE
 echo "GRPC_DIR=$GRPC_DIR" >> $DEP_FILE
-echo "Hwang_DIR=$HWANG_DIR" >> $DEP_FILE
 echo "TinyToml_DIR=$TINYTOML_DIR" >> $DEP_FILE
 echo "STOREHOUSE_DIR=$STOREHOUSE_DIR" >> $DEP_FILE
 echo "PYBIND11_DIR=$PYBIND_DIR" >> $DEP_FILE
@@ -877,6 +886,8 @@ echo "NO_HALIDE=$NO_HALIDE" >> $DEP_FILE
 echo "Halide_DIR=$HALIDE_DIR" >> $DEP_FILE
 echo "NO_LIBPQXX=$NO_LIBPQXX" >> $DEP_FILE
 echo "LIBPQXX_DIR=$LIBPQXX_DIR" >> $DEP_FILE
+echo "Hwang_DIR=$HWANG_DIR" >> $DEP_FILE
+echo "NO_HWANG=$NO_HWANG" >> $DEP_FILE
 
 echo "Done installing dependencies!"
 echo -n "Add $INSTALL_PREFIX/lib to your LD_LIBRARY_PATH, "
