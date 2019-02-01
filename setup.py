@@ -113,8 +113,8 @@ def main():
        }
 
     REQUIRED_PACKAGES = [
-        # 'protobuf == 3.6.1', 'grpcio == 1.16.0', 'toml >= 0.9.2',
-        # 'numpy >= 1.12.0,<=1.16.0', 'tqdm >= 4.19.5', 'cloudpickle >=0.5.3,<=0.6.1'
+        'protobuf == 3.6.1', 'grpcio == 1.16.0', 'toml >= 0.9.2',
+        'numpy >= 1.12.0,<=1.16.0', 'tqdm >= 4.19.5', 'cloudpickle >=0.5.3,<=0.6.1'
        ]
 
     TEST_PACKAGES = [
