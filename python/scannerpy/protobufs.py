@@ -18,6 +18,7 @@ from google.protobuf.descriptor import FieldDescriptor
 class ProtobufGenerator:
     def __init__(self):
         self._mods = []
+        self._paths = []
         for mod in [
                 misc_types, rpc_types, grpc_types, metadata_types,
                 source_types, sink_types, sampler_types, stdlib_types
@@ -34,13 +35,35 @@ class ProtobufGenerator:
             imp.release_lock()
         else:
             mod = path
+        self._paths.append(path)
         self._mods.append(mod)
+
+    # By default, ProtobufGenerator does not work correctly with pickle.
+    # If you pickle something that closes over a ProtobufGenerator instance,
+    # then pickle will save the dynamically imported modules (imp.load_source)
+    # just as the name of module and not the path, i.e. just "_ignore". It will
+    # then try to re-import "_ignore" upon unpickling, and that module will not exist.
+    #
+    # The solution is to override the default mechanism for pickling the object:
+    # https://docs.python.org/3/library/pickle.html#object.__reduce__
+    #
+    # We capture the information necessary to recreate the ProtobufGenerator (its paths)
+    # and provide a function that creates the new instance.
+    def __reduce__(self):
+        def make_gen(paths):
+            p = ProtobufGenerator()
+            for path in paths:
+                p.add_module(path)
+        return (make_gen, (self._paths,))
 
     def __getattr__(self, name):
         for mod in self._mods:
             if hasattr(mod, name):
                 return getattr(mod, name)
-        raise ScannerException('No protobuf with name {}'.format(name))
+
+        # This has to be an AttributeError (as opposed to an Exception) or else
+        # APIs that use reflection like pickle will break
+        raise AttributeError('No protobuf with name {}'.format(name))
 
 
 def python_to_proto(protos, proto_name, obj):
