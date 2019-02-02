@@ -49,7 +49,7 @@ class HistogramKernelCPU : public BatchedKernel {
   DeviceHandle device_;
 };
 
-REGISTER_OP(Histogram).frame_input("frame").output("histogram");
+REGISTER_OP(Histogram).frame_input("frame").output("histogram", ColumnType::Bytes, "Histogram");
 
 REGISTER_KERNEL(Histogram, HistogramKernelCPU)
     .device(DeviceType::CPU)

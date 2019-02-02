@@ -4,19 +4,6 @@ import struct
 from scannerpy.stdlib.poses import Pose
 
 
-def bboxes(buf, protobufs):
-    (num_bboxes, ) = struct.unpack("=Q", buf[:8])
-    buf = buf[8:]
-    bboxes = []
-    for i in range(num_bboxes):
-        (bbox_size, ) = struct.unpack("=Q", buf[:8])
-        buf = buf[8:]
-        box = protobufs.BoundingBox()
-        box.ParseFromString(buf[:bbox_size])
-        buf = buf[bbox_size:]
-        bboxes.append(box)
-    return bboxes
-
 
 def poses(buf, protobufs):
     if len(buf) == 4:
@@ -68,14 +55,14 @@ def array(ty, size=None):
     return parser
 
 
-def image(buf, protobufs):
+def image(buf):
     import cv2
     return cv2.imdecode(
         np.frombuffer(buf, dtype=np.dtype(np.uint8)), cv2.IMREAD_COLOR)
 
 
 def raw_frame_gen(shape0, shape1, shape2, typ):
-    def parser(bufs, protobufs):
+    def parser(bufs):
         output = np.frombuffer(bufs, dtype=typ)
         return output.reshape((shape0, shape1, shape2))
 

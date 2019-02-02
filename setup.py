@@ -20,7 +20,7 @@ def main():
     #os.makedirs(PIP_DIR, exist_ok=True)
     #os.makedirs(PIP_DIR + '/scanner', exist_ok=True)
     #os.makedirs(PIP_DIR + '/scanner/stdlib', exist_ok=True)
-    
+
     # Copy python into pip directory
     #shutil.copytree(SCANNERPY_DIR, PIP_DIR + '/scannerpy')
 
@@ -28,7 +28,7 @@ def main():
         EXT = '.so'
     else:
         EXT = '.dylib'
-    
+
     # Copy libraries into pip directory
     LIBRARIES = [
         os.path.join(BUILD_DIR, 'libscanner' + EXT),
@@ -38,8 +38,8 @@ def main():
     for library in LIBRARIES:
         name = os.path.splitext(os.path.basename(library))[0]
         shutil.copyfile(library, os.path.join(PIP_DIR, 'scannerpy', 'lib', name + EXT))
-    
-    
+
+
     def copy_partial_tree(from_dir, to_dir, pattern):
         dest_paths = []
         try:
@@ -50,7 +50,7 @@ def main():
             print(f)
             shutil.copy(f, to_dir)
             dest_paths.append(os.path.join(to_dir, os.path.basename(f)))
-    
+
         # List all directories in from_dir
         for d in [
                 p for p in os.listdir(from_dir)
@@ -60,8 +60,8 @@ def main():
             dest_paths += copy_partial_tree(
                 os.path.join(from_dir, d), os.path.join(to_dir, d), pattern)
         return dest_paths
-    
-    
+
+
     def glob_files(path, prefix=''):
         all_paths = os.listdir(path)
         files = [
@@ -72,8 +72,8 @@ def main():
             files += glob_files(
                 os.path.join(path, d), prefix=os.path.join(prefix, d))
         return files
-    
-    
+
+
     # Copy built protobuf python files
     copy_partial_tree(
         os.path.join(BUILD_DIR, 'scanner'), os.path.join(PIP_DIR, 'scanner'),
@@ -81,7 +81,7 @@ def main():
     copy_partial_tree(
         os.path.join(BUILD_DIR, 'stdlib'),
         os.path.join(PIP_DIR, 'scanner', 'stdlib'), '*.py')
-    
+
     # Copy cmake files
     os.makedirs(os.path.join(PIP_DIR, 'scannerpy', 'cmake'))
     shutil.copy(
@@ -90,9 +90,9 @@ def main():
     copy_partial_tree(
         os.path.join(SCANNER_DIR, 'cmake', 'Modules'),
         os.path.join(PIP_DIR, 'scannerpy', 'cmake', 'Modules'), '*')
-    
+
     cmake_files = glob_files(os.path.join(PIP_DIR, 'scannerpy', 'cmake'), 'cmake')
-    
+
     # Copy scanner headers
     copy_partial_tree(
         os.path.join(SCANNER_DIR, 'scanner'),
@@ -100,38 +100,39 @@ def main():
     copy_partial_tree(
         os.path.join(SCANNER_DIR, 'scanner'),
         os.path.join(PIP_DIR, 'scannerpy', 'include', 'scanner'), '*.inl')
-    
+
     copy_partial_tree(
         os.path.join(BUILD_DIR, 'scanner'),
         os.path.join(PIP_DIR, 'scannerpy', 'include', 'scanner'), '*.h')
-    
+
     include_files = glob_files(
         os.path.join(PIP_DIR, 'scannerpy', 'include'), 'include')
-    
+
     package_data = {
         'scannerpy': ['lib/*.so', 'lib/*' + EXT] + include_files + cmake_files
        }
-    
+
     REQUIRED_PACKAGES = [
         'protobuf == 3.6.1', 'grpcio == 1.16.0', 'toml >= 0.9.2',
-        'numpy >= 1.12.0,<=1.16.0', 'tqdm >= 4.19.5', 'cloudpickle >=0.5.3,<=0.6.1'
+        'numpy >= 1.12.0,<=1.16.0', 'tqdm >= 4.19.5', 'cloudpickle >=0.5.3,<=0.6.1',
+        'attrs == 18.2.0'
        ]
-    
+
     TEST_PACKAGES = [
         'pytest', 'psycopg2-binary == 2.7.6.1', 'testing.postgresql == 1.3.0'
        ]
-    
+
     if platform == 'linux' or platform == 'linux2':
         REQUIRED_PACKAGES.append('python-prctl >= 1.7.0')
-    
+
     # Borrowed from https://github.com/pytorch/pytorch/blob/master/setup.py
     def make_relative_rpath(path):
         if platform == 'linux' or platform == 'linux2':
             return '-Wl,-rpath,$ORIGIN/' + path
         else:
             return '-Wl,-rpath,@loader_path/' + path
-    
-    
+
+
     module1 = Extension(
         'scannerpy._python',
         include_dirs = [ROOT_DIR,
@@ -144,7 +145,7 @@ def main():
         sources = [os.path.join(ROOT_DIR, 'scanner/engine/python.cpp')],
         extra_compile_args=['-std=c++11'],
         extra_link_args=[make_relative_rpath('lib')])
-    
+
     setup(
         name='scannerpy',
         version='0.2.22',
