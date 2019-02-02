@@ -261,6 +261,10 @@ class Column(object):
                 self._video_descriptor.channels, dtype)
             return self._load(fn=parser_fn, rows=rows, workers=workers)
         else:
+            # Use a deserializer function if provided.
+            # If not, use a type if provided.
+            # If not, attempt to determine the type from the column's table descriptor.
+            # If that doesn't work, then assume no deserialization function, and return bytes.
             if fn is None:
                 if ty is None:
                     type_name = self._descriptor.type_name
