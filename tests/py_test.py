@@ -759,7 +759,7 @@ class TestPyBatch(Kernel):
         pass
 
     def execute(self, frame: Sequence[FrameType]) -> Sequence[bytes]:
-        from scannerpy import protobufs
+
         point = protobufs.Point()
         point.x = 10
         point.y = 5
@@ -791,7 +791,7 @@ class TestPyStencil(Kernel):
         pass
 
     def execute(self, frame: Sequence[FrameType]) -> bytes:
-        from scannerpy import protobufs
+
         assert len(frame) == 2
         point = protobufs.Point()
         point.x = 10
@@ -822,7 +822,7 @@ class TestPyStencilBatch(Kernel):
         pass
 
     def execute(self, frame: Sequence[Sequence[FrameType]]) -> Sequence[bytes]:
-        from scannerpy import protobufs
+
         assert len(frame[0]) == 2
         point = protobufs.Point()
         point.x = 10
