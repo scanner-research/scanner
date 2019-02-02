@@ -741,6 +741,7 @@ void WorkerImpl::register_op(const proto::OpRegistration* op_registration) {
     col.set_id(i++);
     col.set_name(c.name());
     col.set_type(c.type());
+    col.set_type_name(c.type_name());
     input_columns.push_back(col);
   }
   std::vector<Column> output_columns;
@@ -750,6 +751,7 @@ void WorkerImpl::register_op(const proto::OpRegistration* op_registration) {
     col.set_id(i++);
     col.set_name(c.name());
     col.set_type(c.type());
+    col.set_type_name(c.type_name());
     output_columns.push_back(col);
   }
   bool can_stencil = op_registration->can_stencil();
@@ -773,7 +775,6 @@ void WorkerImpl::register_python_kernel(const proto::PythonKernelRegistration* p
   const std::string& op_name = python_kernel->op_name();
   DeviceType device_type = python_kernel->device_type();
   const std::string& kernel_code = python_kernel->kernel_code();
-  const std::string& pickled_config = python_kernel->pickled_config();
   const int batch_size = python_kernel->batch_size();
 
   // Set all input and output columns to be CPU
@@ -798,9 +799,9 @@ void WorkerImpl::register_python_kernel(const proto::PythonKernelRegistration* p
   }
 
   // Create a kernel builder function
-  auto constructor = [op_name, kernel_code, pickled_config,
+  auto constructor = [op_name, kernel_code,
                       can_batch, can_stencil](const KernelConfig& config) {
-      return new PythonKernel(config, op_name, kernel_code, pickled_config,
+      return new PythonKernel(config, op_name, kernel_code,
                               can_batch, can_stencil);
   };
 
@@ -1137,7 +1138,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       kernel_config.input_columns.push_back(input.column());
       if (input_columns.size() == 0) {
         // We ccan have 0 columns in op info if variadic arguments
-        kernel_config.input_column_types.push_back(ColumnType::Other);
+        kernel_config.input_column_types.push_back(ColumnType::Bytes);
       } else {
         kernel_config.input_column_types.push_back(input_columns[i].type());
       }

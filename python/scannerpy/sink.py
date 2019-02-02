@@ -4,7 +4,7 @@ import copy
 
 from scannerpy.common import *
 from scannerpy.op import OpColumn
-from scannerpy.protobuf_generator import python_to_proto
+from scannerpy.protobufs import python_to_proto, protobufs
 
 
 class Sink:
@@ -50,7 +50,7 @@ class Sink:
         return self._inputs
 
     def to_proto(self, indices):
-        e = self._db.protobufs.Op()
+        e = protobufs.Op()
         e.name = self._name
         e.is_sink = True
 
@@ -70,7 +70,7 @@ class Sink:
                 if len(sink_info.protobuf_name) > 0:
                     proto_name = sink_info.protobuf_name
                     e.kernel_args = python_to_proto(
-                        self._db.protobufs, proto_name, self._args)
+                        protobufs, proto_name, self._args)
                 else:
                     e.kernel_args = self._args
         else:

@@ -1,4 +1,5 @@
 from scannerpy.common import *
+from scannerpy.protobufs import protobufs
 
 DEFAULT_GROUP_SIZE = 250
 
@@ -15,10 +16,10 @@ class TaskPartitioner:
         return self.strided(1, group_size=group_size)
 
     def strided(self, stride, group_size=DEFAULT_GROUP_SIZE):
-        args = self._db.protobufs.StridedPartitionerArgs()
+        args = protobufs.StridedPartitionerArgs()
         args.stride = stride
         args.group_size = group_size
-        sampling_args = self._db.protobufs.SamplingArgs()
+        sampling_args = protobufs.SamplingArgs()
         sampling_args.sampling_function = 'Strided'
         sampling_args.sampling_args = args.SerializeToString()
         return sampling_args
@@ -30,11 +31,11 @@ class TaskPartitioner:
         return self.strided_ranges(intervals, 1)
 
     def gather(self, groups):
-        args = self._db.protobufs.GatherSamplerArgs()
+        args = protobufs.GatherSamplerArgs()
         for rows in groups:
             gather_group = args.groups_add()
             gather_group.rows[:] = rows
-        sampling_args = self._db.protobufs.SamplingArgs()
+        sampling_args = protobufs.SamplingArgs()
         sampling_args.sampling_function = 'Gather'
         sampling_args.sampling_args = args.SerializeToString()
         return sampling_args
@@ -43,12 +44,12 @@ class TaskPartitioner:
         return self.strided_ranges([(start, end)], stride)
 
     def strided_ranges(self, intervals, stride):
-        args = self._db.protobufs.StridedRangePartitionerArgs()
+        args = protobufs.StridedRangePartitionerArgs()
         args.stride = stride
         for start, end in intervals:
             args.starts.append(start)
             args.ends.append(end)
-        sampling_args = self._db.protobufs.SamplingArgs()
+        sampling_args = protobufs.SamplingArgs()
         sampling_args.sampling_function = 'StridedRange'
         sampling_args.sampling_args = args.SerializeToString()
         return sampling_args

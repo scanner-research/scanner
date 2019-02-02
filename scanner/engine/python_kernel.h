@@ -10,7 +10,6 @@ class PythonKernel : public StenciledBatchedKernel {
   PythonKernel(const KernelConfig& config,
                const std::string& op_name,
                const std::string& kernel_code,
-               const std::string& pickled_config,
                const bool can_batch,
                const bool con_stencil);
 

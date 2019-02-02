@@ -3,7 +3,7 @@ import copy
 
 from scannerpy.common import *
 from scannerpy.op import OpColumn
-from scannerpy.protobuf_generator import python_to_proto
+from scannerpy.protobufs import python_to_proto, protobufs
 
 
 class Source:
@@ -42,7 +42,7 @@ class Source:
             return tuple(self._outputs)
 
     def to_proto(self, indices):
-        e = self._db.protobufs.Op()
+        e = protobufs.Op()
         e.name = self._name
         e.is_source = True
 
@@ -59,7 +59,7 @@ class Source:
                 source_info = self._db._get_source_info(self._name)
                 if len(source_info.protobuf_name) > 0:
                     proto_name = source_info.protobuf_name
-                    e.kernel_args = python_to_proto(self._db.protobufs,
+                    e.kernel_args = python_to_proto(protobufs,
                                                     proto_name, self._args)
                 else:
                     e.kernel_args = self._args

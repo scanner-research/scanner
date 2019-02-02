@@ -1,4 +1,4 @@
-from scannerpy import ProtobufGenerator, Config, start_worker
+from scannerpy import protobufs, Config, start_worker
 import time
 import grpc
 import sys
@@ -11,7 +11,6 @@ import scanner.types_pb2 as misc_types
 import scannerpy._python as bindings
 
 con = Config(config_path='/tmp/config_test')
-protobufs = ProtobufGenerator(con)
 
 master_address = str(con.master_address) + ':' + str(con.master_port)
 port = int(sys.argv[1])

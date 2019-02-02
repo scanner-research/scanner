@@ -36,9 +36,10 @@ from scannerpy.streams import StreamsGenerator
 from scannerpy.partitioner import TaskPartitioner
 from scannerpy.table import Table
 from scannerpy.column import Column
-from scannerpy.protobuf_generator import ProtobufGenerator, python_to_proto
+from scannerpy.protobufs import protobufs, python_to_proto
 from scannerpy.job import Job
 from scannerpy.kernel import Kernel
+from scannerpy import types as scannertypes
 
 from storehouse import StorageConfig, StorageBackend
 
@@ -47,6 +48,8 @@ import scanner.metadata_pb2 as metadata_types
 import scanner.engine.rpc_pb2 as rpc_types
 import scanner.engine.rpc_pb2_grpc as grpc_types
 import scanner.types_pb2 as misc_types
+
+
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -175,7 +178,6 @@ class Database(object):
         self.sinks = SinkGenerator(self)
         self.streams = StreamsGenerator(self)
         self.partitioner = TaskPartitioner(self)
-        self.protobufs = ProtobufGenerator(self.config)
         self._op_cache = {}
         self._python_ops = set()
         self._enumerator_info_cache = {}
@@ -219,7 +221,7 @@ class Database(object):
         NUM_TABLES_TO_READ = 100000
         tables = []
         for i in range(0, len(table_names), NUM_TABLES_TO_READ):
-            get_tables_params = self.protobufs.GetTablesParams()
+            get_tables_params = protobufs.GetTablesParams()
             for table_name in table_names[i:i + NUM_TABLES_TO_READ]:
                 get_tables_params.tables.append(table_name)
             get_tables_result = self._try_rpc(
@@ -233,7 +235,7 @@ class Database(object):
 
     def _load_db_metadata(self):
         if self._cached_db_metadata is None:
-            desc = self._load_descriptor(self.protobufs.DatabaseDescriptor,
+            desc = self._load_descriptor(protobufs.DatabaseDescriptor,
                                          'db_metadata.bin')
             self._cached_db_metadata = desc
             # table id cache
@@ -268,10 +270,10 @@ class Database(object):
 
     def _connect_to_worker(self, address):
         channel = self._make_grpc_channel(address)
-        worker = self.protobufs.WorkerStub(channel)
+        worker = protobufs.WorkerStub(channel)
         try:
             self._worker.Ping(
-                self.protobufs.Empty(), timeout=self._grpc_timeout)
+                protobufs.Empty(), timeout=self._grpc_timeout)
             return worker
         except grpc.RpcError as e:
             status = e.code()
@@ -284,11 +286,11 @@ class Database(object):
 
     def _connect_to_master(self):
         channel = self._make_grpc_channel(self._master_address)
-        self._master = self.protobufs.MasterStub(channel)
+        self._master = protobufs.MasterStub(channel)
         result = False
         try:
             self._master.Ping(
-                self.protobufs.Empty(), timeout=self._grpc_timeout)
+                protobufs.Empty(), timeout=self._grpc_timeout)
             result = True
         except grpc.RpcError as e:
             status = e.code()
@@ -361,14 +363,14 @@ class Database(object):
         except grpc.RpcError as e:
             raise ScannerException(e)
 
-        if isinstance(result, self.protobufs.Result):
+        if isinstance(result, protobufs.Result):
             if not result.success:
                 raise ScannerException(result.msg)
 
         return result
 
     def _get_source_info(self, source_name):
-        source_info_args = self.protobufs.SourceInfoArgs()
+        source_info_args = protobufs.SourceInfoArgs()
         source_info_args.source_name = source_name
 
         source_info = self._try_rpc(
@@ -383,7 +385,7 @@ class Database(object):
         if enumerator_name in self._enumerator_info_cache:
             return self._enumerator_info_cache[enumerator_name]
 
-        enumerator_info_args = self.protobufs.EnumeratorInfoArgs()
+        enumerator_info_args = protobufs.EnumeratorInfoArgs()
         enumerator_info_args.enumerator_name = enumerator_name
 
         enumerator_info = self._try_rpc(
@@ -400,7 +402,7 @@ class Database(object):
         if sink_name in self._sink_info_cache:
             return self._sink_info_cache[sink_name]
 
-        sink_info_args = self.protobufs.SinkInfoArgs()
+        sink_info_args = protobufs.SinkInfoArgs()
         sink_info_args.sink_name = sink_name
 
         sink_info = self._try_rpc(
@@ -417,7 +419,7 @@ class Database(object):
         if op_name in self._op_cache:
             op_info = self._op_cache[op_name]
         else:
-            op_info_args = self.protobufs.OpInfoArgs()
+            op_info_args = protobufs.OpInfoArgs()
             op_info_args.op_name = op_name
 
             op_info = self._try_rpc(
@@ -525,8 +527,8 @@ class Database(object):
 
         """
         if proto_path is not None:
-            self.protobufs.add_module(proto_path)
-        op_path = self.protobufs.OpPath()
+            protobufs.add_module(proto_path)
+        op_path = protobufs.OpPath()
         op_path.path = so_path
         self._try_rpc(
             lambda: self._master.LoadOp(op_path, timeout=self._grpc_timeout))
@@ -762,7 +764,7 @@ class Database(object):
             sleep_time = 60
             while slept_so_far < sleep_time:
                 active_workers = self._master.ActiveWorkers(
-                    self.protobufs.Empty(), timeout=self._grpc_timeout)
+                    protobufs.Empty(), timeout=self._grpc_timeout)
                 if (len(active_workers.workers) > len(self._worker_conns)):
                     raise ScannerException(
                         ('Master has more workers than requested ' +
@@ -793,7 +795,7 @@ class Database(object):
                 try:
                     self._try_rpc(
                         lambda: self._master.Shutdown(
-                            self.protobufs.Empty(), timeout=self._grpc_timeout))
+                            protobufs.Empty(), timeout=self._grpc_timeout))
                 except:
                     pass
                 self._master = None
@@ -868,7 +870,7 @@ class Database(object):
         ScannerException
           Raised when the master fails to register the Op.
         """
-        op_registration = self.protobufs.OpRegistration()
+        op_registration = protobufs.OpRegistration()
         op_registration.name = name
         op_registration.variadic_inputs = variadic_inputs
         op_registration.has_unbounded_state = unbounded_state
@@ -877,11 +879,12 @@ class Database(object):
             if isinstance(col, str):
                 c = columns.add()
                 c.name = col
-                c.type = self.protobufs.Other
+                c.type = protobufs.Bytes
             elif isinstance(col, collections.Iterable):
                 c = columns.add()
                 c.name = col[0]
-                c.type = ColumnType.to_proto(self.protobufs, col[1])
+                c.type = ColumnType.to_proto(protobufs, col[1])
+                c.type_name = col[2].cpp_name
             else:
                 raise ScannerException(
                     'Column ' + col + ' must be a string name or a tuple of '
@@ -904,7 +907,7 @@ class Database(object):
             op_registration.warmup = bounded_state
 
         if proto_path is not None:
-            self.protobufs.add_module(proto_path)
+            protobufs.add_module(proto_path)
 
         self._try_rpc(lambda: self._master.RegisterOp(
             op_registration, timeout=self._grpc_timeout))
@@ -953,12 +956,11 @@ class Database(object):
         else:
             kernel_cls = kernel
 
-        py_registration = self.protobufs.PythonKernelRegistration()
+        py_registration = protobufs.PythonKernelRegistration()
         py_registration.op_name = op_name
         py_registration.device_type = DeviceType.to_proto(
-            self.protobufs, device_type)
+            protobufs, device_type)
         py_registration.kernel_code = cloudpickle.dumps(kernel_cls)
-        py_registration.pickled_config = pickle.dumps(self.config)
         py_registration.batch_size = batch
         self._try_rpc(
             lambda: self._master.RegisterPythonKernel(
@@ -1009,7 +1011,7 @@ class Database(object):
                         'Attempted to ingest over existing table {}'
                         .format(table_name))
         self.delete_tables(to_delete)
-        ingest_params = self.protobufs.IngestParameters()
+        ingest_params = protobufs.IngestParameters()
         ingest_params.table_names.extend(table_names)
         ingest_params.video_paths.extend(paths)
         ingest_params.inplace = inplace
@@ -1052,7 +1054,7 @@ class Database(object):
         names
           The names of the tables to delete.
         """
-        delete_tables_params = self.protobufs.DeleteTablesParams()
+        delete_tables_params = protobufs.DeleteTablesParams()
         for name in names:
             delete_tables_params.tables.append(name)
         self._try_rpc(lambda: self._master.DeleteTables(delete_tables_params))
@@ -1107,10 +1109,10 @@ class Database(object):
                     'Attempted to create table with existing '
                     'name {}'.format(name))
         if fns is not None:
-            rows = [[fn(col, self.protobufs) for fn, col in zip(fns, row)]
+            rows = [[fn(col, protobufs) for fn, col in zip(fns, row)]
                     for row in rows]
 
-        params = self.protobufs.NewTableParams()
+        params = protobufs.NewTableParams()
         params.table_name = name
         params.columns[:] = columns
 
@@ -1181,7 +1183,7 @@ class Database(object):
         return Profiler(self, job_id, **kwargs)
 
     def get_active_jobs(self):
-        req = self.protobufs.GetJobsRequest()
+        req = protobufs.GetJobsRequest()
         reply = self._try_rpc(lambda: self._master.GetJobs(
             req, timeout=self._grpc_timeout))
         return [x for x in reply.active_bulk_jobs]
@@ -1194,7 +1196,7 @@ class Database(object):
         last_failed_workers = 0
         while True:
             try:
-                req = self.protobufs.GetJobStatusRequest()
+                req = protobufs.GetJobStatusRequest()
                 req.bulk_job_id = bulk_job_id
                 job_status = self._master.GetJobStatus(
                     req, timeout=self._grpc_timeout)
@@ -1262,7 +1264,7 @@ class Database(object):
         return job_status
 
     def bulk_fetch_video_metadata(self, tables):
-        params = self.protobufs.GetVideoMetadataParams(
+        params = protobufs.GetVideoMetadataParams(
             tables=[t.name() for t in tables])
         result = self._try_rpc(lambda: self._master.GetVideoMetadata(
             params, timeout=self._grpc_timeout))
@@ -1363,9 +1365,9 @@ class Database(object):
         compression_options = []
         output_op = output
         for out_col in output_op.inputs():
-            opts = self.protobufs.OutputColumnCompression()
+            opts = protobufs.OutputColumnCompression()
             opts.codec = 'default'
-            if out_col._type == self.protobufs.Video:
+            if out_col._type == protobufs.Video:
                 for k, v in out_col._encode_options.items():
                     if k == 'codec':
                         opts.codec = v
@@ -1378,7 +1380,7 @@ class Database(object):
         sorted_ops, op_index, source_ops, stream_ops, output_ops = (
             self._toposort(output))
 
-        job_params = self.protobufs.BulkJobParameters()
+        job_params = protobufs.BulkJobParameters()
         job_name = ''.join(choice(ascii_uppercase) for _ in range(12))
         job_params.job_name = job_name
         job_params.ops.extend([e.to_proto(op_index) for e in sorted_ops])
@@ -1436,7 +1438,7 @@ class Database(object):
                         if len(enumerator_info.protobuf_name) > 0:
                             enumerator_proto_name = enumerator_info.protobuf_name
                             source_input.enumerator_args = python_to_proto(
-                                self.protobufs, enumerator_proto_name,
+                                protobufs, enumerator_proto_name,
                                 full_args)
                         else:
                             source_input.enumerator_args = full_args
@@ -1508,7 +1510,7 @@ class Database(object):
                             if len(sink_info.stream_protobuf_name) > 0:
                                 sink_proto_name = sink_info.stream_protobuf_name
                                 sink_args.args = python_to_proto(
-                                    self.protobufs, sink_proto_name, args)
+                                    protobufs, sink_proto_name, args)
                             else:
                                 sink_args.args = args
                         output_table_name = ''
@@ -1534,7 +1536,7 @@ class Database(object):
                                 if len(op_info.protobuf_name) > 0:
                                     proto_name = op_info.protobuf_name
                                     return python_to_proto(
-                                        self.protobufs, proto_name, args)
+                                        protobufs, proto_name, args)
                                 else:
                                     return args
 
@@ -1571,7 +1573,7 @@ class Database(object):
         job_params.tasks_in_queue_per_pu = tasks_in_queue_per_pu
         job_params.load_sparsity_threshold = load_sparsity_threshold
         job_params.boundary_condition = (
-            self.protobufs.BulkJobParameters.REPEAT_EDGE)
+            protobufs.BulkJobParameters.REPEAT_EDGE)
         job_params.task_timeout = task_timeout
         job_params.checkpoint_frequency = checkpoint_frequency
         job_params.profiler_level = profiler_level

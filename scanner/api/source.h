@@ -103,7 +103,7 @@ class SourceBuilder {
       constructor_(constructor) {}
 
   SourceBuilder& output(const std::string& name,
-                    ColumnType type = ColumnType::Other) {
+                    ColumnType type = ColumnType::Bytes) {
     if (output_columns_.size() > 0) {
       LOG(FATAL) << "Sources can only have one output column.";
     }
