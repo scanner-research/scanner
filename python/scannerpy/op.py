@@ -333,11 +333,8 @@ def register_python_op(name: str = None,
             elif typ == bytes:
                 column_type = ColumnType.Blob
             else:
+                # For now, all non-FrameType types are equivalent to bytes.
                 column_type = ColumnType.Blob
-                # raise ScannerException(
-                #     ('Invalid type annotation specified for input {:s}. Must '
-                #      'specify an annotation of type "bytes" or '
-                #      '"FrameType".').format(param_name))
             return column_type, typ
 
         # Analyze exec_fn parameters to determine the input types

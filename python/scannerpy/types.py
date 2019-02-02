@@ -42,6 +42,7 @@ _register_type(bytes, "Bytes", lambda x: x, lambda x: x)
 _register_type(Any, "Any", pickle.dumps, pickle.loads)
 _register_type(FrameType, "FrameType", lambda x: x, lambda x: x)
 
+# TODO: document this
 def register_type(cls):
     name = cls.__name__
     _register_type(cls, name, cls.serializer, cls.deserializer)
