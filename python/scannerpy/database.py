@@ -40,6 +40,8 @@ from scannerpy.protobufs import protobufs, python_to_proto
 from scannerpy.job import Job
 from scannerpy.kernel import Kernel
 from scannerpy import types as scannertypes
+from scannerpy.storage import Storage
+from scannerpy.io import IOGenerator
 
 from storehouse import StorageConfig, StorageBackend
 
@@ -178,6 +180,7 @@ class Database(object):
         self.sinks = SinkGenerator(self)
         self.streams = StreamsGenerator(self)
         self.partitioner = TaskPartitioner(self)
+        self.io = IOGenerator(self)
         self._op_cache = {}
         self._python_ops = set()
         self._enumerator_info_cache = {}
@@ -1165,6 +1168,11 @@ class Database(object):
 
         return table
 
+    def sequence(self, name: str) -> Column:
+        t = self.table(name)
+        column_names = t.column_names()
+        return t.column('frame' if 'frame' in column_names else 'column')
+
     def profiler(self, job_name, **kwargs):
         db_meta = self._load_db_metadata()
         if isinstance(job_name, str):
@@ -1283,7 +1291,6 @@ class Database(object):
 
     def run(self,
             outputs: Union[Sink, List[Sink]],
-            jobs: Sequence[Job],
             force: bool = False,
             work_packet_size: int = 32,
             io_packet_size: int = 128,
@@ -1353,17 +1360,17 @@ class Database(object):
           The new table objects if `output` is a db.sinks.Column, otherwise an
           empty list.
         """
-        assert (isinstance(outputs, Sink) or
-                (isinstance(outputs, list) and
-                 len([0 for x in outputs if isinstance(x, Sink)]) == len(outputs)))
+        # assert (isinstance(outputs, Sink) or
+        #         (isinstance(outputs, list) and
+        #          len([0 for x in outputs if isinstance(x, Sink)]) == len(outputs)))
 
         if not isinstance(outputs, list):
             outputs = [outputs]
 
-        is_table_output = False
-        for output in outputs:
-            if (output._name == 'FrameColumn' or output._name == 'Column'):
-                is_table_output = True
+        # is_table_output = False
+        # for output in outputs:
+        #     if (output._name == 'FrameColumn' or output._name == 'Column'):
+        #         is_table_output = True
 
         sorted_ops, op_index, source_ops, stream_ops, output_ops = (
             self._toposort(outputs))
@@ -1390,21 +1397,25 @@ class Database(object):
         job_name = ''.join(choice(ascii_uppercase) for _ in range(12))
         job_params.job_name = job_name
         job_params.ops.extend([e.to_proto(op_index) for e in sorted_ops])
-        job_output_table_names = []
-        job_params.output_column_names[:] = output_column_names
+
+        N = None
+        for op in sorted_ops:
+            if op._job_args is not None:
+                N = len(op._job_args)
+        assert N is not None
+
+        # Struct of arrays to array of structs conversion
+        jobs = []
+        for i in range(N):
+            op_args = {}
+            for op in sorted_ops:
+                if op._job_args is not None:
+                    op_args[op] = op._job_args[i]
+            jobs.append(Job(op_args=op_args))
 
         for job in jobs:
             j = job_params.jobs.add()
-            output_table_name = None
-            # Build lookup from op to op_args
-            op_to_op_args = {}
-            for op_col, args in job.op_args().items():
-                if isinstance(op_col, Op) or isinstance(op_col, Sink):
-                    op = op_col
-                else:
-                    op = op_col._op
-
-                op_to_op_args[op] = args
+            op_to_op_args = job.op_args()
 
             for op in sorted_ops:
                 if op in source_ops:
@@ -1419,52 +1430,15 @@ class Database(object):
                     args = op_to_op_args[op]
                     source_input = j.inputs.add()
                     source_input.op_index = op_idx
-                    # We special case on Column to transform it into a
-                    # (table, col) pair that is then transformed into a
-                    # protobuf object
-                    if isinstance(args, Column):
-                        if not args._table.committed():
-                            raise ScannerException(
-                                'Attempted to bind table {name} to Input Op '
-                                'but table {name} is not committed.'.format(
-                                    name=args._table.name()))
-                        args = {
-                            'table_name': args._table.name(),
-                            'column_name': args.name()
-                        }
-                        full_args = args
-                    else:
-                        if not isinstance(args, dict):
-                            raise ScannerException('Op arguments must be a dictionary, recevied: {}'.format(args))
-                        full_args = {**op._args, **args}
 
-                    n = op._name
-                    enumerator_info = self._get_enumerator_info(n)
-                    if len(full_args) > 0:
-                        if len(enumerator_info.protobuf_name) > 0:
-                            enumerator_proto_name = enumerator_info.protobuf_name
-                            source_input.enumerator_args = python_to_proto(
-                                protobufs, enumerator_proto_name,
-                                full_args)
-                        else:
-                            source_input.enumerator_args = full_args
+                    source_input.enumerator_args = args
+
                 elif op in stream_ops:
                     op_idx = stream_ops[op]
                     # If this is an Unslice Op, ignore it since it has no args
                     if op._name == 'Unslice':
                         continue
-                    # Check for default. If no default
-                    if not op in op_to_op_args:
-                        # If no args specified, check for default args
-                        if op._extra['default'] is not None:
-                            args = op._extra['default']
-                        else:
-                            raise ScannerException(
-                                'No arguments bound to stream operation {:s} '
-                                'and no default arguments specified.'.format(
-                                    op._extra['type']))
-                    else:
-                        args = op_to_op_args[op]
+                    args = op._extra['job_args']
 
                     saa = j.sampling_args_assignment.add()
                     saa.op_index = op_idx
@@ -1495,30 +1469,28 @@ class Database(object):
                     sink_args = j.outputs.add()
                     sink_args.op_index = op_idx
 
-                    if not op in op_to_op_args:
-                        raise ScannerException(
-                            'No arguments bound to sink {:s}.'.format(
-                                op._name))
-                    else:
-                        args = op_to_op_args[op]
+                    args = op_to_op_args[op]
 
-                    # We special case on FrameColumn or Column sinks to catch
-                    # the output table name
-                    n = op._name
-                    if n == 'FrameColumn' or n == 'Column':
-                        assert isinstance(args, str)
-                        job_output_table_names.append(args)
-                        sink_args.args = args.encode('utf-8')
-                    else:
-                        # Encode the args
-                        if len(args) > 0:
-                            sink_info = self._get_sink_info(n)
-                            if len(sink_info.stream_protobuf_name) > 0:
-                                sink_proto_name = sink_info.stream_protobuf_name
-                                sink_args.args = python_to_proto(
-                                    protobufs, sink_proto_name, args)
-                            else:
-                                sink_args.args = args
+# <<<<<<< HEAD
+#                     # We special case on FrameColumn or Column sinks to catch
+#                     # the output table name
+#                     n = op._name
+#                     if n == 'FrameColumn' or n == 'Column':
+#                         assert isinstance(args, str)
+#                         job_output_table_names.append(args)
+#                         sink_args.args = args.encode('utf-8')
+#                     else:
+#                         # Encode the args
+#                         if len(args) > 0:
+#                             sink_info = self._get_sink_info(n)
+#                             if len(sink_info.stream_protobuf_name) > 0:
+#                                 sink_proto_name = sink_info.stream_protobuf_name
+#                                 sink_args.args = python_to_proto(
+#                                     protobufs, sink_proto_name, args)
+#                             else:
+#                                 sink_args.args = args
+# =======
+                    sink_args.args = args
                 else:
                     # Regular old Op
                     op_idx = op_index[op]
@@ -1530,38 +1502,40 @@ class Database(object):
                     else:
                         args = op_to_op_args[op]
 
-                    # Encode the args
-                    n = op._name
-                    def serialize_args(args):
-                        if n in self._python_ops:
-                            return pickle.dumps(args)
-                        else:
-                            if len(args) > 0:
-                                op_info = self._get_op_info(n)
-                                if len(op_info.protobuf_name) > 0:
-                                    proto_name = op_info.protobuf_name
-                                    return python_to_proto(
-                                        protobufs, proto_name, args)
-                                else:
-                                    return args
+                    # TODO(will): op args
 
-                    if not isinstance(args, list):
-                        args = [args]
-                    for arg in args:
-                        oargs.op_args.append(serialize_args(arg))
+                    # # Encode the args
+                    # n = op._name
+                    # def serialize_args(args):
+                    #     if n in self._python_ops:
+                    #         return pickle.dumps(args)
+                    #     else:
+                    #         if len(args) > 0:
+                    #             op_info = self._get_op_info(n)
+                    #             if len(op_info.protobuf_name) > 0:
+                    #                 proto_name = op_info.protobuf_name
+                    #                 return python_to_proto(
+                    #                     protobufs, proto_name, args)
+                    #             else:
+                    #                 return args
 
-        # Delete tables if they exist and force was specified
-        if is_table_output:
-            to_delete = []
-            for name in job_output_table_names:
-                if self.has_table(name):
-                    if force:
-                        to_delete.append(name)
-                    else:
-                        raise ScannerException(
-                            'Job would overwrite existing table {}'.format(
-                                name))
-            self.delete_tables(to_delete)
+                    # if not isinstance(args, list):
+                    #     args = [args]
+                    # for arg in args:
+                    #     oargs.op_args.append(serialize_args(arg))
+
+        # # Delete tables if they exist and force was specified
+        # if is_table_output:
+        #     to_delete = []
+        #     for name in job_output_table_names:
+        #         if self.has_table(name):
+        #             if force:
+        #                 to_delete.append(name)
+        #             else:
+        #                 raise ScannerException(
+        #                     'Job would overwrite existing table {}'.format(
+        #                         name))
+        #     self.delete_tables(to_delete)
 
         job_params.compression.extend(compression_options)
 
@@ -1622,6 +1596,12 @@ class Database(object):
         if job_id is None:
             raise ScannerException(
                 'Internal error: job id not found after run')
+
+
+    def input(self, args):
+        example = args[0]
+        assert isinstance(example, Storage)
+        return example.source(self)
 
 
 def start_master(port: int = None,

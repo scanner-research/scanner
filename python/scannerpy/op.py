@@ -5,13 +5,41 @@ import types as pytypes
 import uuid
 
 from scannerpy.common import *
-from scannerpy.protobufs import python_to_proto, protobufs
-from scannerpy import types as scannertypes
+from scannerpy.protobufs import python_to_proto, protobufs, analyze_proto
+from scannerpy import scannertypes
 from typing import Dict, List, Union, Tuple, Optional, Sequence
 from inspect import signature
 from itertools import islice
 from collections import OrderedDict
 from functools import wraps
+
+
+
+def collect_per_stream_args(name, protobuf_name, kwargs):
+    stream_arg_names = list(analyze_proto(getattr(protobufs, protobuf_name)).keys())
+    stream_args = {k: kwargs.pop(k) for k in stream_arg_names if k in kwargs}
+
+    if len(stream_args) == 0:
+        raise ScannerException(
+            "Op `{}` received no per-stream arguments. Options: {}" \
+            .format(name, ', '.join(stream_args)))
+
+    # if 'EnumeratorArgs' in protobuf_name:
+    #     return python_to_proto(protobuf_name, stream_args)
+
+    # else:
+
+    N = len(next(iter(stream_args.values())))
+
+    job_args = [
+        python_to_proto(protobuf_name, {
+            k: v[i] if isinstance(v, list) else v
+            for k, v in stream_args.items()
+        })
+        for i in range(N)
+    ]
+
+    return job_args
 
 
 class OpColumn:
@@ -60,8 +88,8 @@ class OpColumn:
 
     def _assert_is_video(self):
         if self._type != protobufs.Video:
-            raise ScannerException('Compression only supported for columns of'
-                                   'type "video". Column {} type is {}.'.format(
+            raise ScannerException('Compression only supported for sequences of'
+                                   'type "video". Sequence {} type is {}.'.format(
                                        self._col,
                                        protobufs.ColumnType.Name(
                                            self._type)))
@@ -124,9 +152,10 @@ class OpGenerator:
                     val = kwargs.pop(c.name, None)
                     if val is None:
                         raise ScannerException(
-                            'Op {} required column {} as input'.format(
+                            'Op {} required sequence {} as input'.format(
                                 name, c.name))
                     inputs.append(val)
+
             device = kwargs.pop('device', DeviceType.CPU)
             batch = kwargs.pop('batch', -1)
             bounded_state = kwargs.pop('bounded_state', -1)
@@ -160,6 +189,7 @@ class Op:
         self._stencil = stencil
         self._args = args
         self._extra = extra
+        self._job_args = None
 
         if (name == 'Space' or name == 'Sample' or name == 'Slice'
                 or name == 'Unslice'):
@@ -209,8 +239,7 @@ class Op:
                 op_info = self._db._get_op_info(self._name)
                 if len(op_info.protobuf_name) > 0:
                     proto_name = op_info.protobuf_name
-                    e.kernel_args = python_to_proto(protobufs,
-                                                    proto_name, self._args)
+                    e.kernel_args = python_to_proto(proto_name, self._args)
                 else:
                     e.kernel_args = self._args
         else:
