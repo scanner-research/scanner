@@ -3,15 +3,16 @@ import grpc
 import copy
 
 from scannerpy.common import *
-from scannerpy.op import OpColumn
-from scannerpy.protobufs import python_to_proto, protobufs
+from scannerpy.op import OpColumn, collect_per_stream_args
+from scannerpy.protobufs import python_to_proto, protobufs, analyze_proto
 
 
 class Sink:
-    def __init__(self, db, name, inputs, sink_args={}):
+    def __init__(self, db, name, inputs, job_args, sink_args={}):
         self._db = db
         self._name = name
         self._args = sink_args
+        self._job_args = job_args
 
         sink_info = self._db._get_sink_info(self._name)
         cols = sink_info.input_columns
@@ -69,8 +70,7 @@ class Sink:
                 sink_info = self._db._get_sink_info(self._name)
                 if len(sink_info.protobuf_name) > 0:
                     proto_name = sink_info.protobuf_name
-                    e.kernel_args = python_to_proto(
-                        protobufs, proto_name, self._args)
+                    e.kernel_args = python_to_proto(proto_name, self._args)
                 else:
                     e.kernel_args = self._args
         else:
@@ -93,26 +93,40 @@ class SinkGenerator:
         self._db = db
 
     def __getattr__(self, name):
-        # This will raise an exception if the source does not exist.
-        sink_info = self._db._get_sink_info(name)
+        # Use Sequence as alias of Column
+        if name == 'Sequence' or name == 'FrameSequence':
+            name = name.replace('Sequence', 'Column')
+            def make_sink(*args, **kwargs):
+                column_name = 'frame' if 'Frame' in name else 'column'
+                return Sink(self._db, name, [], dict(columns={column_name: args[0]}))
+            return make_sink
+        else:
+            # This will raise an exception if the source does not exist.
+            sink_info = self._db._get_sink_info(name)
 
-        def make_sink(*args, **kwargs):
-            inputs = []
-            if sink_info.variadic_inputs:
-                inputs.extend(args)
-            else:
-                for c in sink_info.input_columns:
-                    val = kwargs.pop(c.name, None)
-                    if val is None:
-                        raise ScannerException(
-                            'sink {} required column {} as input'
-                            .format(name, c.name))
-                    inputs.append(val)
+            def make_sink(*args, **kwargs):
+                inputs = []
+                if sink_info.variadic_inputs:
+                    inputs.extend(args)
+                else:
+                    for c in sink_info.input_columns:
+                        val = kwargs.pop(c.name, None)
+                        if val is None:
+                            raise ScannerException(
+                                'sink {} required column {} as input'
+                                .format(name, c.name))
+                        inputs.append(val)
 
-            sink_args = kwargs.pop('args', kwargs)
-            sink = Sink(self._db, name,
-                        inputs,
-                        kwargs if args is None else sink_args)
-            return sink
+                print(sink_info)
+                assert sink_info.stream_protobuf_name != ''
 
-        return make_sink
+                job_args = collect_per_stream_args(name, sink_info.stream_protobuf_name, kwargs)
+
+                sink_args = kwargs.pop('args', kwargs)
+                sink = Sink(self._db, name,
+                            inputs,
+                            job_args,
+                            kwargs if args is None else sink_args)
+                return sink
+
+            return make_sink

@@ -288,7 +288,7 @@ class StreamsGenerator:
 
     def Gather(self,
                input: scannerpy.op.OpColumn,
-               rows: Sequence[int] = None) -> scannerpy.op.OpColumn:
+               indices: Sequence[Sequence[int]]) -> scannerpy.op.OpColumn:
         r"""Samples a list of elements from the input stream.
 
         Parameters
@@ -304,7 +304,7 @@ class StreamsGenerator:
         scannerpy.op.OpColumn
           The sampled stream.
         """
-        def arg_builder(rows=rows):
+        def arg_builder(rows):
             args = protobufs.GatherSamplerArgs()
             args.rows[:] = rows
             sampling_args = protobufs.SamplingArgs()
@@ -316,7 +316,9 @@ class StreamsGenerator:
             col=input,
             extra={'type': 'Gather',
                    'arg_builder': arg_builder,
-                   'default': {'rows': rows}})
+                   'job_args': indices,
+                   'default': None})
+
 
     def RepeatNull(self,
                    input: scannerpy.op.OpColumn,

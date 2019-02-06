@@ -2,15 +2,16 @@ import grpc
 import copy
 
 from scannerpy.common import *
-from scannerpy.op import OpColumn
+from scannerpy.op import OpColumn, collect_per_stream_args
 from scannerpy.protobufs import python_to_proto, protobufs
 
 
 class Source:
-    def __init__(self, db, name, source_args={}):
+    def __init__(self, db, name, enumerator_args, source_args={}):
         self._db = db
         self._name = name
         self._args = source_args
+        self._job_args = enumerator_args
 
         source_info = self._db._get_source_info(self._name)
         cols = source_info.output_columns
@@ -59,8 +60,7 @@ class Source:
                 source_info = self._db._get_source_info(self._name)
                 if len(source_info.protobuf_name) > 0:
                     proto_name = source_info.protobuf_name
-                    e.kernel_args = python_to_proto(protobufs,
-                                                    proto_name, self._args)
+                    e.kernel_args = python_to_proto(proto_name, self._args)
                 else:
                     e.kernel_args = self._args
         else:
@@ -75,7 +75,7 @@ class SourceGenerator:
     Creates Source instances to define a computation.
 
     When a particular Source is requested from the generator, e.g.
-    `db.source.Column`, the generator does a dynamic lookup for the
+    `db.source.Sequence`, the generator does a dynamic lookup for the
     Source in the servers registry.
     """
 
@@ -83,11 +83,17 @@ class SourceGenerator:
         self._db = db
 
     def __getattr__(self, name):
+        # Use Sequence as alias of Column
+        if name == 'Sequence' or name == 'FrameSequence':
+            name = name.replace('Sequence', 'Column')
+
         # This will raise an exception if the source does not exist.
         source_info = self._db._get_source_info(name)
+        enumerator_info = self._db._get_enumerator_info(name)
 
         def make_source(*args, **kwargs):
-            source = Source(self._db, name, kwargs)
+            enumerator_args = collect_per_stream_args(name, enumerator_info.protobuf_name, kwargs)
+            source = Source(self._db, name, enumerator_args, kwargs)
             return source.outputs()
 
         return make_source
