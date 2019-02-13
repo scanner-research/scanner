@@ -12,7 +12,7 @@
    guide/quickstart
    guide/getting-started
    guide/walkthrough
-   guide/tutorial
-   guide/tutorial
+   guide/graphs
+   guide/ops
    guide/extensions
    guide/kubernetes

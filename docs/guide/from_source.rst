@@ -3,23 +3,11 @@
 Building Scanner from source
 ----------------------------
 
-Scanner provides a dependency script :code:`deps.sh` to automatically install any or all
-of its major dependencies if they are not already installed. Each of these
-dependencies has a set of required system-level packages.
+Building Scanner from source is a three step process:
 
-Scanner depends on the following major dependencies:
-  - Python >= 3.5
-  - pybind >= 1.58.0
-  - ffmpeg >= 3.3.1
-  - opencv >= 3.4.0
-  - protobuf == 3.4.0
-  - grpc == 1.7.2
-  - caffe >= rc5 OR intel-caffe >= 1.0.6
-
-To compile with CUDA support, it requires:
-
-  - `CUDA <https://developer.nvidia.com/cuda-downloads>`__ 8.0 or above
-  - `cuDNN <https://developer.nvidia.com/cudnn>`__ v6.x or above
+1. Install system-wide packages (e.g. via apt-get or homebrew)
+2. Run our dependency script `deps.sh` to find or install dependencies not provided by common package managers.
+3. Build and install the scanner python package using the `build.sh` script.
 
 Install system-level packages
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -63,6 +51,32 @@ Install `homebrew <https://brew.sh/>`__ then run the following command:
 
 Run deps.sh
 ~~~~~~~~~~~
+
+Scanner provides a dependency script :code:`deps.sh` to automatically install any or all
+of its major dependencies if they are not already installed. Each of these
+dependencies has a set of required system-level packages.
+
+Scanner requires the following major dependencies which are not commonly
+available via system package managers on all platforms:
+  - pybind >= 1.58.0
+  - opencv >= 3.4.0
+  - protobuf == 3.4.0
+  - grpc == 1.7.2
+  - storehouse
+
+Scanner also has several optional dependencies which add additional functionality
+to the system:
+  - ffmpeg >= 3.3.1
+  - caffe >= rc5 OR intel-caffe >= 1.0.6
+  - openpose (enables pose detection)
+  - hwang (enables in-place processing of videos, instead of copying them)
+  - halide (enables high-performance image processing operations)
+  - libpqxx (enables reading and writing data to Postgress SQL databases)
+
+Additionally, to compile with CUDA support, Scanner requires:
+
+  - `CUDA <https://developer.nvidia.com/cuda-downloads>`__ 8.0 or above
+  - `cuDNN <https://developer.nvidia.com/cudnn>`__ v6.x or above
 
 To install or specify where your major dependencies are, from the top-level directory run:
 
