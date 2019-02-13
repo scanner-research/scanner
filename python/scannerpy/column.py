@@ -245,8 +245,9 @@ class Column(object):
             output_op = self._db.sinks.Column(columns={'img': img})
             op_args[output_op] = png_table_name
             job = Job(op_args=op_args)
-            [out_tbl] = self._db.run(
+            self._db.run(
                 output_op, [job], force=True, show_progress=False)
+            out_tbl = self._db.table(png_table_name)
             return out_tbl.column('img').load(fn=readers.image)
         elif self._descriptor.type == protobufs.Video:
             frame_type = self._video_descriptor.frame_type

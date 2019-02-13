@@ -32,9 +32,17 @@ using storehouse::RandomReadFile;
 namespace scanner {
 namespace internal {
 
+// FIXME(apoms): This should be a configuration option
+const i32 MAX_SINK_THREADS = 16;
+
 SaveWorker::SaveWorker(const SaveWorkerArgs& args)
-    : node_id_(args.node_id), worker_id_(args.worker_id),
-      profiler_(args.profiler), sink_args_(args.sink_args) {
+  : node_id_(args.node_id),
+    worker_id_(args.worker_id),
+    profiler_(args.profiler),
+    sink_args_(args.sink_args),
+    column_sink_to_table_ids_(args.column_sink_to_table_ids),
+    sink_op_idx_(args.sink_op_idxs),
+    thread_pool_(MAX_SINK_THREADS) {
   auto setup_start = now();
   // Setup a distinct storage backend for each IO thread
 
@@ -46,7 +54,6 @@ SaveWorker::SaveWorker(const SaveWorkerArgs& args)
         args.sink_factories[i]->new_instance(args.sink_configs[i]));
 
     sink->set_profiler(&profiler_);
-    sink_op_idx_.push_back(0);
 
     sink->validate(&args.result);
     VLOG(1) << "Sink finished validation " << args.result.success();
@@ -94,24 +101,46 @@ void SaveWorker::feed(EvalWorkEntry& input_entry) {
     }
   }
 
-  auto io_start = now();
+  auto write_sink = [&](i32 i) {
+    auto write_sink_start = now();
 
-  auto& sink = sinks_.at(0);
-  if (auto column_sink = dynamic_cast<ColumnSink*>(sink.get())) {
-    column_sink->provide_column_info(compressed, frame_info);
-  }
-  // Provide index to sink
-  for (size_t i = 0; i < work_entry.columns.size(); ++i) {
-    for (size_t j = 0; j < work_entry.columns[i].size(); ++j) {
-      work_entry.columns[i][j].index = work_entry.row_ids[i][j];
+    auto& sink = sinks_.at(i);
+    if (auto column_sink = dynamic_cast<ColumnSink*>(sink.get())) {
+      column_sink->provide_column_info(compressed, frame_info);
     }
-  }
-  sink->write(work_entry.columns);
+    // Provide index to sink
+    BatchedElements inputs(1);
+    auto column = work_entry.columns[i];
+    inputs[0] = column;
+    for (size_t j = 0; j < column.size(); ++j) {
+      inputs[0][j].index = work_entry.row_ids[i][j];
+    }
+    if (inputs[0].size() > 0) {
+      sink->write(inputs);
+    }
 
-  profiler_.add_interval("io", io_start, now());
+    profiler_.add_interval("load_worker:write_sink_" + std::to_string(i),
+                           write_sink_start, now());
+  };
+
+  // HACK(apoms): When a pipeline has a large number of sinks, writing each
+  // sink serially can take ages. This is a quick hack to overlap writes
+  // for pipelines with a large number of sinks. The real fix is to process
+  // multiple sinks as different Ops in a DAG scheduler.
+  auto sink_start = now();
+  std::vector<std::future<void>> futures;
+  for (size_t i = 0; i < sinks_.size(); ++i) {
+    futures.push_back(thread_pool_.enqueue(write_sink, i));
+  }
+
+  for (auto& future : futures) {
+    future.wait();
+  }
+
+  profiler_.add_interval("save_worker::write_sinks", sink_start, now());
 
   {
-    ProfileBlock _block(&profiler_, "cleanup");
+    ProfileBlock _block(&profiler_, "save_worker::cleanup");
     for (size_t out_idx = 0; out_idx < work_entry.columns.size(); ++out_idx) {
       u64 num_elements = static_cast<u64>(work_entry.columns[out_idx].size());
       for (size_t i = 0; i < num_elements; ++i) {
@@ -121,18 +150,20 @@ void SaveWorker::feed(EvalWorkEntry& input_entry) {
   }
 }
 
-void SaveWorker::new_task(i32 job_id, i32 task_id, i32 output_table_id,
-                          std::vector<ColumnType> column_types) {
-  auto io_start = now();
+void SaveWorker::new_task(i32 job_id, i32 task_id, std::vector<ColumnType> column_types) {
+  auto new_task_start = now();
 
-  for (auto& sink : sinks_) {
+  for (size_t i = 0; i < sinks_.size(); ++i) {
+    i32 sink_op_idx = sink_op_idx_[i];
+    auto& sink = sinks_[i];
     if (auto column_sink = dynamic_cast<ColumnSink*>(sink.get())) {
+      i64 output_table_id = column_sink_to_table_ids_.at(job_id).at(sink_op_idx);
       column_sink->new_task(output_table_id, task_id, column_types);
     }
-    sink->new_stream(sink_args_.at(job_id).at(0));
+    sink->new_stream(sink_args_.at(job_id).at(sink_op_idx));
   }
 
-  profiler_.add_interval("io", io_start, now());
+  profiler_.add_interval("save_worker::new_task", new_task_start, now());
 }
 
 void SaveWorker::finished() {

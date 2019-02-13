@@ -171,7 +171,8 @@ def test_profiler(db):
     })
 
     time_start = time.time()
-    output = db.run(output_op, [job], show_progress=False, force=True)
+    db.run(output_op, [job], show_progress=False, force=True)
+    output = [db.table('_ignore')]
     print('Time', time.time() - time_start)
     profiler = output[0].profiler()
     f = tempfile.NamedTemporaryFile(delete=False, suffix='.trace')
@@ -192,6 +193,56 @@ def test_new_table(db):
     assert (next(t.column('col2').load()) == b('r01'))
 
 
+def test_multiple_outputs(db):
+    sampler = db.streams.Range
+    def run_job(args_1, args_2):
+        frame = db.sources.FrameColumn()
+        sample_frame_1 = db.streams.Range(input=frame)
+        sample_frame_2 = db.streams.Range(input=frame)
+        output_op_1 = db.sinks.Column(columns={'frame': sample_frame_1})
+        output_op_2 = db.sinks.Column(columns={'frame': sample_frame_2})
+
+        job = Job(
+            op_args={
+                frame: db.table('test1').column('frame'),
+                sample_frame_1: sampler_args_1,
+                sample_frame_2: sampler_args_2,
+                output_op_1: 'test_mp_1',
+                output_op_2: 'test_mp_2',
+            })
+
+        db.run([output_op_1, output_op_2], [job], force=True, show_progress=False)
+
+    # This should fail
+    sampler_args_1 = {'start': 0, 'end': 30}
+    sampler_args_2 = {'start': 0, 'end': 15}
+    exc = False
+    try:
+        run_job(sampler_args_1, sampler_args_2)
+    except ScannerException:
+        exc = True
+
+    assert exc
+        
+    # This should succeed
+    sampler_args_1 = {'start': 0, 'end': 30}
+    expected_rows_1 = 30
+    sampler_args_2 = {'start': 30, 'end': 60}
+    expected_rows_2 = 30
+
+    run_job(sampler_args_1, sampler_args_2)
+
+    num_rows = 0
+    for _ in db.table('test_mp_1').column('frame').load():
+        num_rows += 1
+    assert num_rows == expected_rows_1
+
+    num_rows = 0
+    for _ in db.table('test_mp_2').column('frame').load():
+        num_rows += 1
+    assert num_rows == expected_rows_2
+
+
 def test_sample(db):
     def run_sampler_job(sampler, sampler_args, expected_rows):
         frame = db.sources.FrameColumn()
@@ -205,7 +256,8 @@ def test_sample(db):
                 output_op: 'test_sample',
             })
 
-        tables = db.run(output_op, [job], force=True, show_progress=False)
+        db.run(output_op, [job], force=True, show_progress=False)
+        tables = [db.table('test_sample')]
         num_rows = 0
         for _ in tables[0].column('frame').load():
             num_rows += 1
@@ -242,8 +294,8 @@ def test_space(db):
                 output_op: 'test_space',
             })
 
-        tables = db.run(output_op, [job], force=True, show_progress=False)
-        return tables[0]
+        db.run(output_op, [job], force=True, show_progress=False)
+        return db.table('test_space')
 
     # Repeat
     spacing_distance = 8
@@ -284,7 +336,8 @@ def test_slice(db):
         output_op: 'test_slicing',
     })
 
-    tables = db.run(output_op, [job], force=True, show_progress=False)
+    db.run(output_op, [job], force=True, show_progress=False)
+    tables = [db.table('test_slicing')]
 
     num_rows = 0
     for _ in tables[0].column('frame').load():
@@ -313,7 +366,8 @@ def test_overlapping_slice(db):
             'test_slicing',
         })
 
-    tables = db.run(output_op, [job], force=True, show_progress=False)
+    db.run(output_op, [job], force=True, show_progress=False)
+    tables = [db.table('test_slicing')]
 
     num_rows = 0
     for _ in tables[0].column('frame').load():
@@ -349,7 +403,8 @@ def test_slice_args(db):
         output_op: 'test_slicing',
     })
 
-    tables = db.run(output_op, [job], force=True, show_progress=False)
+    db.run(output_op, [job], force=True, show_progress=False)
+    tables = [db.table('test_slicing')]
 
     num_rows = 0
     for x in tables[0].column('frame').load():
@@ -365,10 +420,11 @@ def test_bounded_state(db):
     output_op = db.sinks.Column(columns={'integer': sampled_increment})
     job = Job(op_args={
         frame: db.table('test1').column('frame'),
-        output_op: 'test_slicing',
+        output_op: 'test_bounded_state',
     })
 
-    tables = db.run(output_op, [job], force=True, show_progress=False)
+    db.run(output_op, [job], force=True, show_progress=False)
+    tables = [db.table('test_bounded_state')]
 
     num_rows = 0
     expected_output = [0, warmup, warmup, warmup + 1, warmup + 2]
@@ -388,10 +444,11 @@ def test_unbounded_state(db):
     output_op = db.sinks.Column(columns={'integer': unsliced_increment})
     job = Job(op_args={
         frame: db.table('test1').column('frame'),
-        output_op: 'test_slicing',
+        output_op: 'test_unbounded_state',
     })
 
-    tables = db.run(output_op, [job], force=True, show_progress=False)
+    db.run(output_op, [job], force=True, show_progress=False)
+    tables = [db.table('test_unbounded_state')]
 
     num_rows = 0
     for _ in tables[0].column('integer').load():
@@ -430,6 +487,9 @@ class TestHistogram:
     def run(self, db, job):
         tables = db.run(job[0], job[1], force=True, show_progress=False)
         next(tables[0].column('histogram').load())
+        db.run(job[0], job[1], force=True, show_progress=False)
+        tables = [db.table('test_hist')]
+        next(tables[0].column('histogram').load())
 
 @builder
 class TestInplace:
@@ -446,7 +506,8 @@ class TestInplace:
         return output_op, [job_inplace]
 
     def run(self, db, job):
-        tables = db.run(job[0], job[1], force=True, show_progress=False)
+        db.run(job[0], job[1], force=True, show_progress=False)
+        tables = [db.table('test_inplace_hist')]
         next(tables[0].column('histogram').load())
 
 
@@ -465,7 +526,8 @@ class TestOpticalFlow:
         return out, [job]
 
     def run(self, db, job):
-        [table] = db.run(job[0], job[1], force=True, show_progress=False)
+        db.run(job[0], job[1], force=True, show_progress=False)
+        table = db.table('test_flow')
         num_rows = 0
         for _ in table.column('flow').load():
             num_rows += 1
@@ -485,14 +547,14 @@ def test_stencil(db):
     output_op = db.sinks.Column(columns={'flow': flow})
     job = Job(op_args={
         frame: db.table('test1').column('frame'),
-        output_op: 'test_sencil',
+        output_op: 'test_stencil',
     })
 
-    tables = db.run(
-        output_op, [job],
-        force=True,
-        show_progress=False,
-        pipeline_instances_per_node=1)
+    db.run(output_op, [job],
+           force=True,
+           show_progress=False,
+           pipeline_instances_per_node=1)
+    tables = [db.table('test_stencil')]
 
     num_rows = 0
     for _ in tables[0].column('flow').load():
@@ -505,14 +567,14 @@ def test_stencil(db):
     output_op = db.sinks.Column(columns={'flow': flow})
     job = Job(op_args={
         frame: db.table('test1').column('frame'),
-        output_op: 'test_sencil',
+        output_op: 'test_stencil',
     })
 
-    tables = db.run(
-        output_op, [job],
-        force=True,
-        show_progress=False,
-        pipeline_instances_per_node=1)
+    db.run(output_op, [job],
+           force=True,
+           show_progress=False,
+           pipeline_instances_per_node=1)
+    tables = [db.table('test_stencil')]
 
     frame = db.sources.FrameColumn()
     sample_frame = db.streams.Range(frame, 0, 2)
@@ -520,14 +582,14 @@ def test_stencil(db):
     output_op = db.sinks.Column(columns={'flow': flow})
     job = Job(op_args={
         frame: db.table('test1').column('frame'),
-        output_op: 'test_sencil',
+        output_op: 'test_stencil',
     })
 
-    tables = db.run(
-        output_op, [job],
-        force=True,
-        show_progress=False,
-        pipeline_instances_per_node=1)
+    db.run(output_op, [job],
+           force=True,
+           show_progress=False,
+           pipeline_instances_per_node=1)
+    tables = [db.table('test_stencil')]
 
     num_rows = 0
     for _ in tables[0].column('flow').load():
@@ -540,14 +602,14 @@ def test_stencil(db):
     output_op = db.sinks.Column(columns={'flow': sample_flow})
     job = Job(op_args={
         frame: db.table('test1').column('frame'),
-        output_op: 'test_sencil',
+        output_op: 'test_stencil',
     })
 
-    tables = db.run(
-        output_op, [job],
-        force=True,
-        show_progress=False,
-        pipeline_instances_per_node=1)
+    db.run(output_op, [job],
+           force=True,
+           show_progress=False,
+           pipeline_instances_per_node=1)
+    tables = [db.table('test_stencil')]
 
     num_rows = 0
     for _ in tables[0].column('flow').load():
@@ -562,16 +624,17 @@ def test_wider_than_packet_stencil(db):
     output_op = db.sinks.Column(columns={'flow': flow})
     job = Job(op_args={
         frame: db.table('test1').column('frame'),
-        output_op: 'test_sencil',
+        output_op: 'test_stencil',
     })
 
-    tables = db.run(
+    db.run(
         output_op, [job],
         force=True,
         show_progress=False,
         io_packet_size=1,
         work_packet_size=1,
         pipeline_instances_per_node=1)
+    tables = [db.table('test_stencil')]
 
     num_rows = 0
     for _ in tables[0].column('flow').load():
@@ -602,7 +665,8 @@ def test_packed_file_source(db):
         output_op: 'test_cpp_source',
     })
 
-    tables = db.run(output_op, [job], force=True, show_progress=False)
+    db.run(output_op, [job], force=True, show_progress=False)
+    tables = [db.table('test_cpp_source')]
 
     num_rows = 0
     for buf in tables[0].column('integer').load():
@@ -634,7 +698,8 @@ def test_files_source(db):
         output_op: 'test_files_source',
     })
 
-    tables = db.run(output_op, [job], force=True, show_progress=False)
+    db.run(output_op, [job], force=True, show_progress=False)
+    tables = [db.table('test_files_source')]
 
     num_rows = 0
     for buf in tables[0].column('integer').load():
@@ -676,7 +741,7 @@ def test_files_sink(db):
         }
     })
 
-    tables = db.run(output_op, [job], force=True, show_progress=False)
+    db.run(output_op, [job], force=True, show_progress=False)
 
     # Read output test files
     for i in range(num_elements):
@@ -701,7 +766,8 @@ def test_python_source(db):
         output_op: 'test_python_source',
     })
 
-    tables = db.run(output_op, [job], force=True, show_progress=False)
+    db.run(output_op, [job], force=True, show_progress=False)
+    tables = [db.table('test_python_source')]
 
     num_rows = 0
     for i, buf in enumerate(tables[0].column('dict').load()):
@@ -746,7 +812,8 @@ def test_python_kernel(db):
         output_op: 'test_hist'
     })
 
-    tables = db.run(output_op, [job], force=True, show_progress=False)
+    db.run(output_op, [job], force=True, show_progress=False)
+    tables = [db.table('test_hist')]
     next(tables[0].column('dummy').load())
 
 
@@ -778,7 +845,8 @@ def test_python_batch_kernel(db):
         output_op: 'test_hist'
     })
 
-    tables = db.run(output_op, [job], force=True, show_progress=False)
+    db.run(output_op, [job], force=True, show_progress=False)
+    tables = [db.table('test_hist')]
     next(tables[0].column('dummy').load())
 
 
@@ -808,8 +876,8 @@ def test_python_stencil_kernel(db):
         frame: db.table('test1').column('frame'),
         output_op: 'test_hist'
     })
-
-    tables = db.run(output_op, [job], force=True, show_progress=False)
+    db.run(output_op, [job], force=True, show_progress=False)
+    tables = [db.table('test_hist')]
     next(tables[0].column('dummy').load())
 
 
@@ -842,7 +910,8 @@ def test_python_stencil_batch_kernel(db):
         output_op: 'test_hist'
     })
 
-    tables = db.run(output_op, [job], force=True, show_progress=False)
+    db.run(output_op, [job], force=True, show_progress=False)
+    tables = [db.table('test_hist')]
     next(tables[0].column('dummy').load())
 
 
@@ -866,9 +935,9 @@ def test_bind_op_args(db):
             })
         jobs.append(job)
 
-    tables = db.run(output_op, jobs, force=True, show_progress=False)
+    db.run(output_op, jobs, force=True, show_progress=False)
     for i, (x, y) in enumerate(pairs):
-        values = [v for v in tables[i].column('dummy').load()]
+        values = [v for v in db.table('test_hist_{:d}'.format(x)).column('dummy').load()]
         p = pickle.loads(values[0])
         assert p['x'] == x
         assert p['y'] == y
@@ -884,8 +953,8 @@ def test_blur(db):
         output_op: 'test_blur',
     })
 
-    tables = db.run(output_op, [job], force=True, show_progress=False)
-    table = tables[0]
+    db.run(output_op, [job], force=True, show_progress=False)
+    table = db.table('test_blur')
 
     frame_array = next(table.column('frame').load())
     assert frame_array.dtype == np.uint8
@@ -905,8 +974,8 @@ def test_lossless(db):
         output_op: 'test_blur_lossless'
     })
 
-    tables = db.run(output_op, [job], force=True, show_progress=False)
-    table = tables[0]
+    db.run(output_op, [job], force=True, show_progress=False)
+    table = db.table('test_blur_lossless')
     next(table.column('frame').load())
 
 
@@ -922,8 +991,8 @@ def test_compress(db):
         output_op: 'test_blur_compressed'
     })
 
-    tables = db.run(output_op, [job], force=True, show_progress=False)
-    table = tables[0]
+    db.run(output_op, [job], force=True, show_progress=False)
+    table = db.table('test_blur_compressed')
     next(table.column('frame').load())
 
 
@@ -938,8 +1007,8 @@ def test_save_mp4(db):
         output_op: 'test_save_mp4'
     })
 
-    tables = db.run(output_op, [job], force=True, show_progress=False)
-    table = tables[0]
+    db.run(output_op, [job], force=True, show_progress=False)
+    table = db.table('test_save_mp4')
     f = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
     f.close()
     table.column('frame').save_mp4(f.name)
@@ -981,7 +1050,7 @@ def test_no_workers(no_workers_db):
 
     exc = False
     try:
-        output = db.run(output_op, [job], show_progress=False, force=True)
+        db.run(output_op, [job], show_progress=False, force=True)
     except ScannerException:
         exc = True
 
@@ -1166,12 +1235,12 @@ def test_fault_tolerance(fault_db):
         output_op: 'test_fault',
     })
 
-    table = fault_db.run(
+    fault_db.run(
         output_op, [job],
         pipeline_instances_per_node=1,
         force=True,
         show_progress=False)
-    table = table[0]
+    table = fault_db.table('test_fault')
 
     assert len([_ for _ in table.column('dummy').load()]) == 20
 
@@ -1248,12 +1317,12 @@ def test_job_blacklist(blacklist_db):
         output_op: 'test_py_fail'
     })
 
-    tables = db.run(
+    db.run(
         output_op, [job],
         force=True,
         show_progress=False,
         pipeline_instances_per_node=1)
-    table = tables[0]
+    table = db.table('test_py_fail')
     assert table.committed() == False
 
 
@@ -1311,13 +1380,13 @@ def test_job_timeout(timeout_db):
         output_op: 'test_timeout',
     })
 
-    table = db.run(
+    db.run(
         output_op, [job],
         pipeline_instances_per_node=1,
         task_timeout=0.1,
         force=True,
         show_progress=False)
-    table = table[0]
+    table = db.table('test_timeout')
 
     assert table.committed() == False
 

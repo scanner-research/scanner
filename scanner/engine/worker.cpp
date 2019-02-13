@@ -432,8 +432,7 @@ void save_driver(SaveInputQueue& save_work,
         std::make_tuple(work_entry.job_index, work_entry.task_index);
     if (workers.count(job_task_id) == 0) {
       SaveWorker* worker = new SaveWorker(args);
-      worker->new_task(work_entry.job_index, work_entry.task_index,
-                       work_entry.table_id, work_entry.column_types);
+      worker->new_task(work_entry.job_index, work_entry.task_index, work_entry.column_types);
       workers[job_task_id].reset(worker);
     }
 
@@ -995,13 +994,18 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   //
   // - remap_input_op_edges: Remap multiple inputs to a single input op
   //
+  // - remap_sink_op_edges: Remap multiple sinks to a single sink op
+  //
   // - perform_liveness_analysis: When to retire elements (liveness analysis)
   auto dag_analysis_start = now();
   DAGAnalysisInfo analysis_results;
-  populate_analysis_info(ops, analysis_results);
+  populate_analysis_info(jobs, ops, analysis_results);
+  // NOTE(apoms): must occur before determine_input_rows_to_slices because that
+  // function expects a single output op
   // Need slice input rows to know which slice we are in
   determine_input_rows_to_slices(meta, table_meta, jobs, ops, analysis_results, db_params_.storage_config);
   remap_input_op_edges(ops, analysis_results);
+  remap_sink_op_edges(ops, analysis_results);
   // Analyze op DAG to determine what inputs need to be pipped along
   // and when intermediates can be retired -- essentially liveness analysis
   perform_liveness_analysis(ops, analysis_results);
@@ -1151,8 +1155,11 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   // stencil
   // Op -> job -> slice -> rows
   std::vector<std::vector<std::vector<i64>>> op_input_domain_size(ops.size());
-  for (size_t i = 0; i < ops.size(); ++i) {
+  for (size_t i = 0; i < ops.size() - 1; ++i) {
     // Grab one of the inputs to this op to figure out this ops input domain
+    if (ops.at(i).inputs_size() == 0) {
+      continue;
+    }
     i64 input_op_idx = i;
     if (!ops.at(i).is_source()) {
       input_op_idx = ops.at(i).inputs(0).op_index();
@@ -1167,6 +1174,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   std::vector<OpArgGroup> groups;
   if (!kernel_factories.empty()) {
     auto source_registry = get_source_registry();
+    auto sink_registry = get_sink_registry();
 
     bool first_op = true;
     DeviceType last_device_type;
@@ -1187,6 +1195,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       }
       auto& op_group = groups.back().op_names;
       auto& op_source = groups.back().is_source;
+      auto& op_sink = groups.back().is_sink;
       auto& op_sampling = groups.back().sampling_args;
       auto& group = groups.back().kernel_factories;
       auto& op_input = groups.back().op_input_domain_size;
@@ -1203,6 +1212,11 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
         op_source.push_back(true);
       } else {
         op_source.push_back(false);
+      }
+      if (sink_registry->has_sink(op_name)) {
+        op_sink.push_back(true);
+      } else {
+        op_sink.push_back(false);
       }
       if (analysis_results.slice_ops.count(i) > 0) {
         i64 local_op_idx = group.size();
@@ -1354,28 +1368,37 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   // to instantiate save worker instances
   std::vector<SinkFactory*> sink_factories;
   std::vector<SinkConfig> sink_configs;
+  std::vector<i32> sink_op_idxs;
   {
+    auto sink_remapping = analysis_results.sink_ops_to_last_op_columns;
+    size_t num_sinks = sink_remapping.size();
     auto registry = get_sink_registry();
-    sink_factories.resize(1);
-    sink_configs.resize(1);
+    sink_factories.resize(num_sinks);
+    sink_configs.resize(num_sinks);
+    sink_op_idxs.resize(num_sinks);
 
-    auto& output_op = ops.back();
-    auto sink_factory = registry->get_sink(output_op.name());
-    sink_factories[0] = sink_factory;
+    for (auto& kv : sink_remapping) {
+      i64 sink_op_idx = kv.first;
+      i64 sink_column_idx = kv.second;
 
-    auto& in_cols = sink_factory->input_columns();
-    SinkConfig config;
-    config.storage_config = db_params_.storage_config;
-    for (auto& col : in_cols) {
-      config.input_columns.push_back(col.name());
-      config.input_column_types.push_back(col.type());
+      auto& output_op = ops.at(sink_op_idx);
+      auto sink_factory = registry->get_sink(output_op.name());
+      sink_factories[sink_column_idx] = sink_factory;
+
+      auto& in_cols = sink_factory->input_columns();
+      SinkConfig config;
+      config.storage_config = db_params_.storage_config;
+      for (auto& col : in_cols) {
+        config.input_columns.push_back(col.name());
+        config.input_column_types.push_back(col.type());
+      }
+      config.args = std::vector<u8>(output_op.kernel_args().begin(),
+                                    output_op.kernel_args().end());
+      config.node_id = node_id_;
+
+      sink_configs[sink_column_idx] = config;
+      sink_op_idxs[sink_column_idx] = sink_op_idx;
     }
-    config.args =
-        std::vector<u8>(output_op.kernel_args().begin(),
-                        output_op.kernel_args().end());
-    config.node_id = node_id_;
-
-    sink_configs[0] = config;
   }
 
   // Setup sink args that will be passed to sinks when processing
@@ -1386,9 +1409,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     sink_args.emplace_back();
     auto& sargs = sink_args.back();
     for (auto& so : job.outputs()) {
-      // TODO(apoms): use real op_idx when we support multiple outputs
-      //sargs[so.op_index()] =
-      sargs[0] =
+      sargs[so.op_index()] =
           std::vector<u8>(so.args().begin(), so.args().end());
     }
   }
@@ -1652,17 +1673,27 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   for (i32 i = 0; i < num_save_workers; ++i) {
     save_thread_profilers.emplace_back(Profiler(base_time));
   }
+
+  std::vector<std::map<i32, i64>> column_sink_to_table_ids;
+  for (const std::map<i64, std::string>& sink_table_names :
+       analysis_results.column_sink_table_names) {
+    column_sink_to_table_ids.emplace_back();
+    std::map<i32, i64>& sink_table_ids = column_sink_to_table_ids.back();
+    for (const auto& kv : sink_table_names) {
+      sink_table_ids[kv.first] = meta.get_table_id(kv.second);
+    }
+  }
+
   std::vector<std::thread> save_threads;
   for (i32 i = 0; i < num_save_workers; ++i) {
-    SaveWorkerArgs args{// Uniform arguments
-                        node_id_,
-                        std::ref(sink_args),
+    SaveWorkerArgs args{
+        // Uniform arguments
+        node_id_, std::ref(sink_args), std::ref(column_sink_to_table_ids),
 
-                        // Per worker arguments
-                        i, db_params_.storage_config,
-                        sink_factories, sink_configs,
-                        std::ref(save_thread_profilers[i]),
-                        std::ref(save_results[i])};
+        // Per worker arguments
+        i, db_params_.storage_config, sink_factories, sink_configs,
+        sink_op_idxs, std::ref(save_thread_profilers[i]),
+        std::ref(save_results[i])};
 
     save_threads.emplace_back(save_driver, std::ref(save_work[i]),
                               std::ref(retired_tasks), args);
@@ -1815,8 +1846,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           derive_stencil_requirements(
               meta, table_meta, jobs.at(work_packet.job_index()), ops,
               analysis_results, job_params->boundary_condition(),
-              work_packet.table_id(), work_packet.job_index(),
-              work_packet.task_index(),
+              work_packet.job_index(), work_packet.task_index(),
               std::vector<i64>(work_packet.output_rows().begin(),
                                work_packet.output_rows().end()),
               stenciled_entry, task_stream, db_params_.storage_config);

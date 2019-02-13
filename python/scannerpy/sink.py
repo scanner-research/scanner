@@ -30,7 +30,7 @@ class Sink:
 
             del sink_args['columns']
         else:
-            self._output_names = []
+            self._output_names = ['']
             self._inputs = inputs
 
         if name == 'FrameColumn' or name == 'Column':
