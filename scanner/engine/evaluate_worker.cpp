@@ -253,7 +253,6 @@ bool PreEvaluateWorker::yield(i32 item_size,
   bool first_item = (start_row == 0);
   i32 media_col_idx = 0;
   EvalWorkEntry entry;
-  entry.table_id = work_entry.table_id;
   entry.job_index = work_entry.job_index;
   entry.task_index = work_entry.task_index;
   entry.needs_configure = first_item ? needs_configure_ : false;
@@ -476,7 +475,7 @@ void EvaluateWorker::new_task(i64 job_idx, i64 task_idx,
   slice_group_ = -1;
   for (size_t k = 0; k < task_streams.size(); ++k) {
     auto& ts = task_streams[k];
-    if (ts.slice_group != -1) {
+    if (!arg_group_.is_sink[k] && ts.slice_group != -1) {
       slice_group_ = ts.slice_group;
     }
     valid_input_rows_.push_back(ts.valid_input_rows);
@@ -592,6 +591,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
     auto op_start = now();
     const std::string& op_name = arg_group_.op_names.at(k);
     bool is_source = arg_group_.is_source.at(k);
+    bool is_sink = arg_group_.is_sink.at(k);
     DeviceHandle current_handle = kernel_devices_[k];
     const std::vector<DeviceHandle>& current_input_handles =
         kernel_input_devices_[k];
@@ -624,7 +624,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
     // Place all new input elements in side output columns into intermediate
     // cache. If different device, move all required values in the side output
     // columns to the proper device for this kernel
-    assert(is_source ||
+    assert(is_source || is_sink ||
            current_input_handles.size() == input_column_idx.size());
     if (kernel_cache_devices.empty()) {
       for (i32 i = 0; i < input_column_idx.size(); ++i) {
@@ -701,7 +701,9 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
 
     // Determine input op max rows for handling boundary
     i64 max_rows;
-    if (arg_group_.op_input_domain_size.at(k).at(job_idx_).size() == 1) {
+    if (is_sink) {
+      max_rows = 0;
+    } else if (arg_group_.op_input_domain_size.at(k).at(job_idx_).size() == 1) {
       // HACK(apoms): we can only do this because we guarantee that there is
       // only one slice per pipeline
       max_rows = arg_group_.op_input_domain_size.at(k).at(job_idx_).at(0);
@@ -745,11 +747,11 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
     i32 num_output_columns = 0;
     std::vector<i32> kernel_stencil;
 
-    if (is_source || is_builtin_op(op_name)) {
+    if (is_source || is_sink || is_builtin_op(op_name)) {
       producible_elements = compute_producible_elements(0, 1);
       num_output_columns = 1;
       kernel_stencil = {0};
-      if (is_source) {
+      if (is_source || is_sink) {
         num_output_columns = 0;
       }
     } else {
@@ -807,7 +809,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
     }
 
     auto full_eval_start = now();
-    if (is_source) {
+    if (is_source || is_sink) {
       // Should ignore it since we remapped inputs
     } else if (op_name == SAMPLE_OP_NAME) {
       // Filter and remap row ids
@@ -1126,7 +1128,6 @@ bool EvaluateWorker::yield(i32 item_size, EvalWorkEntry& output_entry) {
   auto yield_start = now();
 
   EvalWorkEntry output_work_entry;
-  output_work_entry.table_id = work_entry.table_id;
   output_work_entry.job_index = work_entry.job_index;
   output_work_entry.task_index = work_entry.task_index;
   output_work_entry.needs_configure = work_entry.needs_configure;
@@ -1238,7 +1239,6 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
   {
     i32 encoder_idx = 0;
     if (buffered_entry_.columns.size() == 0) {
-      buffered_entry_.table_id = work_entry.table_id;
       buffered_entry_.job_index = work_entry.job_index;
       buffered_entry_.task_index = work_entry.task_index;
       buffered_entry_.last_in_task = work_entry.last_in_task;

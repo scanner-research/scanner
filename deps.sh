@@ -314,6 +314,7 @@ elif [[ $INSTALL_ALL == false ]]; then
             fi
         else
             INSTALL_OPENCV=true
+            echo "opencv 3.4.0 will be installed at ${OPENCV_DIR}."
         fi
     fi
 
@@ -331,6 +332,7 @@ elif [[ $INSTALL_ALL == false ]]; then
             fi
         else
             INSTALL_PROTOBUF=true
+            echo "protobuf 3.6.1 will be installed at ${PROTOBUF_DIR}."
         fi
     fi
 
@@ -348,6 +350,7 @@ elif [[ $INSTALL_ALL == false ]]; then
             fi
         else
             INSTALL_GRPC=true
+            echo "grpc 1.16.0 will be installed at ${GRPC_DIR}."
         fi
     fi
 
@@ -419,6 +422,7 @@ elif [[ $INSTALL_ALL == false ]]; then
                 fi
             else
                 INSTALL_OPENPOSE=true
+                echo "openpose 1.3.0 will be installed at ${OPENPOSE_DIR}."
             fi
         else
             INSTALL_OPENPOSE=false
@@ -454,6 +458,7 @@ elif [[ $INSTALL_ALL == false ]]; then
                 else
                     USE_GPU=false
                 fi
+                echo "caffe will be installed at ${CAFFE_DIR}."
             fi
         else
             INSTALL_CAFFE=false

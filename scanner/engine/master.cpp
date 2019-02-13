@@ -990,9 +990,6 @@ void MasterServerImpl::NextWorkHandler(
 
       proto::NextWorkReply::WorkPacket* work_packet =
           new_work->add_work_packets();
-      if (state->dag_info.is_table_output) {
-        work_packet->set_table_id(state->job_to_table_id.at(job_idx));
-      }
       work_packet->set_job_index(job_idx);
       work_packet->set_task_index(task_idx);
       const auto& task_rows = state->job_tasks.at(job_idx).at(task_idx);
@@ -1093,9 +1090,10 @@ void MasterServerImpl::FinishedWorkHandler(
 
         if (state->tasks_used_per_job[job_id] ==
             state->job_tasks[job_id].size()) {
-          if (state->dag_info.is_table_output) {
-            i32 tid = state->job_uncommitted_tables[job_id];
-            meta_.commit_table(tid);
+          if (state->dag_info.has_table_output) {
+            for (i32 tid : state->job_uncommitted_tables[job_id]) {
+              meta_.commit_table(tid);
+            }
           }
 
           // Commit database metadata every so often
@@ -1436,10 +1434,8 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
   const std::map<i64, i64>& input_op_idx_to_column_idx = dag_info.source_ops;
 
   VLOG(1) << "Finding output columns";
-  // Get output columns from last output op to set as output table columns
+  // Get output columns from sink ops to set as output table columns
   OpRegistry* op_registry = get_op_registry();
-  auto& last_op = ops.at(ops.size() - 1);
-  assert(last_op.is_sink());
   std::vector<std::vector<Column>> job_output_columns;
   for (const auto& job : jobs) {
     // Get input columns from column inputs specified for each job
@@ -1497,10 +1493,14 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
       }
       assert(false);
     };
-    for (const auto& input : last_op.inputs()) {
-      Column c = determine_column_info(input);
-      c.set_id(output_columns.size());
-      output_columns.push_back(c);
+    for (size_t op_idx = 0; op_idx < ops.size(); ++op_idx) {
+      if (dag_info.sink_ops.count(op_idx) > 0) {
+        for (const auto& input : ops.at(op_idx).inputs()) {
+          Column c = determine_column_info(input);
+          c.set_id(output_columns.size());
+          output_columns.push_back(c);
+        }
+      }
     }
     for (size_t i = 0; i < job_params->output_column_names_size(); ++i) {
       output_columns[i].set_name(job_params->output_column_names(i));
@@ -1608,38 +1608,46 @@ bool MasterServerImpl::process_job(const proto::BulkJobParameters* job_params,
 
   VLOG(1) << "Updating db metadata";
   state->job_uncommitted_tables.clear();
-  if (dag_info.is_table_output) {
+  if (dag_info.has_table_output) {
     for (i64 job_idx = 0; job_idx < job_params->jobs_size(); ++job_idx) {
       auto& job = job_params->jobs(job_idx);
-      i32 table_id = meta_.add_table(job.output_table_name());
-      state->job_to_table_id[job_idx] = table_id;
-      proto::TableDescriptor table_desc;
-      table_desc.set_id(table_id);
-      table_desc.set_name(job.output_table_name());
-      table_desc.set_timestamp(std::chrono::duration_cast<std::chrono::seconds>(
-                                   now().time_since_epoch())
-                                   .count());
-      // Set columns equal to the last op's output columns
-      for (size_t i = 0; i < job_output_columns[job_idx].size(); ++i) {
-        Column* col = table_desc.add_columns();
-        col->CopyFrom(job_output_columns[job_idx][i]);
-      }
-      table_metas_->update(TableMetadata(table_desc));
+      state->job_uncommitted_tables.emplace_back();
+      auto& uncommitted_tables = state->job_uncommitted_tables.back();
+      for (i64 sink_op_idx : dag_info.column_sink_ops) {
+        std::string& table_name =
+            dag_info.column_sink_table_names.at(job_idx).at(
+                sink_op_idx);
+        i32 table_id = meta_.add_table(table_name);
+        state->job_to_table_ids[job_idx].push_back(table_id);
+        proto::TableDescriptor table_desc;
+        table_desc.set_id(table_id);
+        table_desc.set_name(table_name);
+        table_desc.set_timestamp(
+            std::chrono::duration_cast<std::chrono::seconds>(
+                now().time_since_epoch())
+                .count());
+        // Set columns equal to the last op's output columns
+        for (size_t i = 0; i < job_output_columns[job_idx].size(); ++i) {
+          Column* col = table_desc.add_columns();
+          col->CopyFrom(job_output_columns[job_idx][i]);
+        }
+        table_metas_->update(TableMetadata(table_desc));
 
-      i64 total_rows = 0;
-      std::vector<i64> end_rows;
-      auto& tasks = state->job_tasks.at(job_idx);
-      for (i64 task_id = 0; task_id < tasks.size(); ++task_id) {
-        i64 task_rows = tasks.at(task_id).size();
-        total_rows += task_rows;
-        end_rows.push_back(total_rows);
+        i64 total_rows = 0;
+        std::vector<i64> end_rows;
+        auto& tasks = state->job_tasks.at(job_idx);
+        for (i64 task_id = 0; task_id < tasks.size(); ++task_id) {
+          i64 task_rows = tasks.at(task_id).size();
+          total_rows += task_rows;
+          end_rows.push_back(total_rows);
+        }
+        for (i64 r : end_rows) {
+          table_desc.add_end_rows(r);
+        }
+        table_desc.set_job_id(bulk_job_id);
+        table_metas_->update(TableMetadata(table_desc));
+        uncommitted_tables.push_back(table_id);
       }
-      for (i64 r : end_rows) {
-        table_desc.add_end_rows(r);
-      }
-      table_desc.set_job_id(bulk_job_id);
-      state->job_uncommitted_tables.push_back(table_id);
-      table_metas_->update(TableMetadata(table_desc));
     }
     // Write table metadata
     table_metas_->write_megafile();

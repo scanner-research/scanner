@@ -442,15 +442,14 @@ class Database(object):
     def _get_output_columns(self, op_name):
         return self._get_op_info(op_name).output_columns
 
-    def _toposort(self, dag):
-        op = dag
+    def _toposort(self, outputs):
         # Perform DFS on modified graph
         edges = defaultdict(list)
         in_edges_left = defaultdict(int)
 
         source_nodes = []
         explored_nodes = set()
-        stack = [op]
+        stack = list(outputs)
         while len(stack) > 0:
             c = stack.pop()
             if c in explored_nodes:
@@ -1283,7 +1282,7 @@ class Database(object):
                 pass
 
     def run(self,
-            output: Sink,
+            outputs: Union[Sink, List[Sink]],
             jobs: Sequence[Job],
             force: bool = False,
             work_packet_size: int = 32,
@@ -1303,8 +1302,8 @@ class Database(object):
 
         Parameters
         ----------
-        output
-          The Sink that should be processed.
+        outputs
+          The Sink or Sinks that should be processed.
 
         jobs
           The set of jobs to process. All of these jobs should share the same
@@ -1354,31 +1353,38 @@ class Database(object):
           The new table objects if `output` is a db.sinks.Column, otherwise an
           empty list.
         """
-        assert isinstance(output, Sink)
+        assert (isinstance(outputs, Sink) or
+                (isinstance(outputs, list) and
+                 len([0 for x in outputs if isinstance(x, Sink)]) == len(outputs)))
 
-        if (output._name == 'FrameColumn' or output._name == 'Column'):
-            is_table_output = True
-        else:
-            is_table_output = False
+        if not isinstance(outputs, list):
+            outputs = [outputs]
 
-        # Collect compression annotations to add to job
-        compression_options = []
-        output_op = output
-        for out_col in output_op.inputs():
-            opts = protobufs.OutputColumnCompression()
-            opts.codec = 'default'
-            if out_col._type == protobufs.Video:
-                for k, v in out_col._encode_options.items():
-                    if k == 'codec':
-                        opts.codec = v
-                    else:
-                        opts.options[k] = str(v)
-            compression_options.append(opts)
-        # Get output columns
-        output_column_names = output_op._output_names
+        is_table_output = False
+        for output in outputs:
+            if (output._name == 'FrameColumn' or output._name == 'Column'):
+                is_table_output = True
 
         sorted_ops, op_index, source_ops, stream_ops, output_ops = (
-            self._toposort(output))
+            self._toposort(outputs))
+
+        # Collect compression annotations to add to job
+        output_column_names = []
+        compression_options = []
+        for op in sorted_ops:
+            if op in outputs:
+                for out_col in op.inputs():
+                    opts = protobufs.OutputColumnCompression()
+                    opts.codec = 'default'
+                    if out_col._type == protobufs.Video:
+                        for k, v in out_col._encode_options.items():
+                            if k == 'codec':
+                                opts.codec = v
+                            else:
+                                opts.options[k] = str(v)
+                    compression_options.append(opts)
+                # Get output columns
+                output_column_names += op._output_names
 
         job_params = protobufs.BulkJobParameters()
         job_name = ''.join(choice(ascii_uppercase) for _ in range(12))
@@ -1501,8 +1507,8 @@ class Database(object):
                     n = op._name
                     if n == 'FrameColumn' or n == 'Column':
                         assert isinstance(args, str)
-                        output_table_name = args
                         job_output_table_names.append(args)
+                        sink_args.args = args.encode('utf-8')
                     else:
                         # Encode the args
                         if len(args) > 0:
@@ -1513,7 +1519,6 @@ class Database(object):
                                     protobufs, sink_proto_name, args)
                             else:
                                 sink_args.args = args
-                        output_table_name = ''
                 else:
                     # Regular old Op
                     op_idx = op_index[op]
@@ -1544,12 +1549,6 @@ class Database(object):
                         args = [args]
                     for arg in args:
                         oargs.op_args.append(serialize_args(arg))
-
-            if is_table_output and output_table_name is None:
-                raise ScannerException(
-                    'Did not specify the output table name by binding a '
-                    'string to the output Op.')
-            j.output_table_name = output_table_name
 
         # Delete tables if they exist and force was specified
         if is_table_output:
@@ -1623,11 +1622,6 @@ class Database(object):
         if job_id is None:
             raise ScannerException(
                 'Internal error: job id not found after run')
-
-        if is_table_output:
-            return [self.table(t) for t in job_output_table_names]
-        else:
-            return []
 
 
 def start_master(port: int = None,
