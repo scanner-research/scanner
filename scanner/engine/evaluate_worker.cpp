@@ -1244,13 +1244,13 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
       buffered_entry_.last_in_task = work_entry.last_in_task;
       buffered_entry_.columns.resize(column_mapping_.size());
       buffered_entry_.row_ids.resize(column_mapping_.size());
-      assert(work_entry.column_handles.size() == columns_.size());
       buffered_entry_.column_types.clear();
       buffered_entry_.column_handles.clear();
       buffered_entry_.frame_sizes.clear();
       buffered_entry_.compressed.clear();
       for (size_t i = 0; i < columns_.size(); ++i) {
         i32 col_idx = column_mapping_[i];
+        assert(col_idx < work_entry.column_handles.size());
         buffered_entry_.column_types.push_back(columns_[i].type());
         buffered_entry_.column_handles.push_back(CPU_DEVICE);
         buffered_entry_.compressed.push_back(compression_enabled_[i]);
@@ -1270,6 +1270,7 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
 
   // Swizzle columns correctly
   {
+    std::set<Element*> encoded_elements_to_delete;
     i32 encoder_idx = 0;
     for (size_t i = 0; i < column_mapping_.size(); ++i) {
       i32 col_idx = column_mapping_[i];
@@ -1326,7 +1327,7 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
                 << actual_size << ")";
             insert_element(buffered_entry_.columns[i], buffer, actual_size);
           }
-          delete_element(encoder_handle_, row);
+          encoded_elements_to_delete.insert(&row);
         }
         profiler_.add_interval("encode", encode_start, now());
       } else {
@@ -1355,6 +1356,11 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
       for (i32 b = 0; b < work_entry.columns[i].size(); ++b) {
         delete_element(work_entry.column_handles[i], work_entry.columns[i][b]);
       }
+    }
+    // Delete elements used by encoder
+    // NOTE(apoms): we wait to delete these since multiple encoders might use the same element
+    for (auto element : encoded_elements_to_delete) {
+      delete_element(encoder_handle_, *element);
     }
   }
 

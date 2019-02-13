@@ -242,6 +242,27 @@ def test_multiple_outputs(db):
         num_rows += 1
     assert num_rows == expected_rows_2
 
+    # This should succeed
+    frame = db.sources.FrameColumn()
+    sample_frame_1 = db.streams.Range(input=frame)
+    output_op_1 = db.sinks.Column(columns={'frame': sample_frame_1})
+    output_op_2 = db.sinks.Column(columns={'frame': sample_frame_1})
+
+    job = Job(
+        op_args={
+            frame: db.table('test1').column('frame'),
+            sample_frame_1: sampler_args_1,
+            output_op_1: 'test_mp_1',
+            output_op_2: 'test_mp_2',
+        })
+
+    db.run([output_op_1, output_op_2], [job], force=True, show_progress=False)
+
+    num_rows = 0
+    for _ in db.table('test_mp_1').column('frame').load():
+        num_rows += 1
+    assert num_rows == expected_rows_1
+
 
 def test_sample(db):
     def run_sampler_job(sampler, sampler_args, expected_rows):
