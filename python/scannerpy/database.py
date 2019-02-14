@@ -40,7 +40,7 @@ from scannerpy.protobufs import protobufs, python_to_proto
 from scannerpy.job import Job
 from scannerpy.kernel import Kernel
 from scannerpy import types as scannertypes
-from scannerpy.storage import Storage
+from scannerpy.storage import Storage, StoredStream
 from scannerpy.io import IOGenerator
 
 from storehouse import StorageConfig, StorageBackend
@@ -1146,32 +1146,29 @@ class Database(object):
         table_name = None
         table_id = None
         if isinstance(name, str):
+            table_name = name
             if name in self._table_name:
-                table_name = name
                 table_id = db_meta.tables[self._table_name[name]].id
-            if table_id is None:
-                raise ScannerException(
-                    'Table with name {} not found'.format(name))
         elif isinstance(name, int):
+            table_id = name
             if name in self._table_id:
-                table_id = name
                 table_name = db_meta.tables[self._table_id[name]].name
-            if table_id is None:
-                raise ScannerException(
-                    'Table with id {} not found'.format(name))
         else:
             raise ScannerException('Invalid table identifier')
 
         table = Table(self, table_name, table_id)
-        if self._prefetch_table_metadata:
+        if self._prefetch_table_metadata and table_id in self._table_descriptor:
             table._descriptor = self._table_descriptor[table_id]
 
         return table
 
     def sequence(self, name: str) -> Column:
         t = self.table(name)
-        column_names = t.column_names()
-        return t.column('frame' if 'frame' in column_names else 'column')
+        if t.committed():
+            column_names = t.column_names()
+            return t.column('frame' if 'frame' in column_names else 'column')
+        else:
+            return t.column('column')
 
     def profiler(self, job_name, **kwargs):
         db_meta = self._load_db_metadata()
@@ -1360,17 +1357,9 @@ class Database(object):
           The new table objects if `output` is a db.sinks.Column, otherwise an
           empty list.
         """
-        # assert (isinstance(outputs, Sink) or
-        #         (isinstance(outputs, list) and
-        #          len([0 for x in outputs if isinstance(x, Sink)]) == len(outputs)))
 
         if not isinstance(outputs, list):
             outputs = [outputs]
-
-        # is_table_output = False
-        # for output in outputs:
-        #     if (output._name == 'FrameColumn' or output._name == 'Column'):
-        #         is_table_output = True
 
         sorted_ops, op_index, source_ops, stream_ops, output_ops = (
             self._toposort(outputs))
@@ -1397,6 +1386,7 @@ class Database(object):
         job_name = ''.join(choice(ascii_uppercase) for _ in range(12))
         job_params.job_name = job_name
         job_params.ops.extend([e.to_proto(op_index) for e in sorted_ops])
+        job_params.output_column_names.extend(output_column_names)
 
         N = None
         for op in sorted_ops:
@@ -1471,26 +1461,12 @@ class Database(object):
 
                     args = op_to_op_args[op]
 
-# <<<<<<< HEAD
-#                     # We special case on FrameColumn or Column sinks to catch
-#                     # the output table name
-#                     n = op._name
-#                     if n == 'FrameColumn' or n == 'Column':
-#                         assert isinstance(args, str)
-#                         job_output_table_names.append(args)
-#                         sink_args.args = args.encode('utf-8')
-#                     else:
-#                         # Encode the args
-#                         if len(args) > 0:
-#                             sink_info = self._get_sink_info(n)
-#                             if len(sink_info.stream_protobuf_name) > 0:
-#                                 sink_proto_name = sink_info.stream_protobuf_name
-#                                 sink_args.args = python_to_proto(
-#                                     protobufs, sink_proto_name, args)
-#                             else:
-#                                 sink_args.args = args
-# =======
                     sink_args.args = args
+
+                    streams = op._streams
+                    storage = streams[0].storage()
+                    storage.delete(self, [s for s in streams if s.exists()])
+
                 else:
                     # Regular old Op
                     op_idx = op_index[op]
@@ -1502,40 +1478,12 @@ class Database(object):
                     else:
                         args = op_to_op_args[op]
 
-                    # TODO(will): op args
+                    if not isinstance(args, list):
+                        args = [args]
+                    for arg in args:
+                        oargs.op_args.append(arg)
+                        #oargs.op_args.append(serialize_args(arg))
 
-                    # # Encode the args
-                    # n = op._name
-                    # def serialize_args(args):
-                    #     if n in self._python_ops:
-                    #         return pickle.dumps(args)
-                    #     else:
-                    #         if len(args) > 0:
-                    #             op_info = self._get_op_info(n)
-                    #             if len(op_info.protobuf_name) > 0:
-                    #                 proto_name = op_info.protobuf_name
-                    #                 return python_to_proto(
-                    #                     protobufs, proto_name, args)
-                    #             else:
-                    #                 return args
-
-                    # if not isinstance(args, list):
-                    #     args = [args]
-                    # for arg in args:
-                    #     oargs.op_args.append(serialize_args(arg))
-
-        # # Delete tables if they exist and force was specified
-        # if is_table_output:
-        #     to_delete = []
-        #     for name in job_output_table_names:
-        #         if self.has_table(name):
-        #             if force:
-        #                 to_delete.append(name)
-        #             else:
-        #                 raise ScannerException(
-        #                     'Job would overwrite existing table {}'.format(
-        #                         name))
-        #     self.delete_tables(to_delete)
 
         job_params.compression.extend(compression_options)
 
@@ -1596,12 +1544,6 @@ class Database(object):
         if job_id is None:
             raise ScannerException(
                 'Internal error: job id not found after run')
-
-
-    def input(self, args):
-        example = args[0]
-        assert isinstance(example, Storage)
-        return example.source(self)
 
 
 def start_master(port: int = None,

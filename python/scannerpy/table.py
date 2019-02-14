@@ -88,7 +88,10 @@ class Table:
         return struct.unpack("=Q", bufs[0])[0]
 
     def committed(self):
-        return self._db._table_committed[self._id]
+        return self.exists() and self._db._table_committed[self._id]
+
+    def exists(self):
+        return self._id in self._db._table_committed
 
     def parent_rows(self):
         self._need_descriptor()

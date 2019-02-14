@@ -45,12 +45,12 @@ class SQLEnumerator : public Enumerator {
   i64 total_elements() override {
     if (args_.num_elements() == 0) {
       if (total_elements_cached_ == -1) {
-        auto query = args_.query();
+        auto query = args_.enum_query();
         std::string query_str = tfm::format(
                                             "SELECT COUNT(DISTINCT(%s)) FROM %s WHERE %s", query.group(),
                                             query.table(), args_.filter());
         try {
-          std::unique_ptr<pqxx::connection> conn = sql_connect(args_.config());
+          std::unique_ptr<pqxx::connection> conn = sql_connect(args_.enum_config());
           pqxx::work txn{*conn};
           // Count the number the number of groups
           pqxx::row r = txn.exec1(query_str);
