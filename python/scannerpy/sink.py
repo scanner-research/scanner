@@ -117,10 +117,12 @@ class SinkGenerator:
                                 .format(name, c.name))
                         inputs.append(val)
 
-                print(sink_info)
-                assert sink_info.stream_protobuf_name != ''
-
-                job_args = collect_per_stream_args(name, sink_info.stream_protobuf_name, kwargs)
+                if name == 'Column' or name == 'FrameColumn':
+                    job_args = [s.encode('utf-8') for s in kwargs.pop('table_name', None)]
+                    kwargs.pop('column_name', None)
+                else:
+                    assert sink_info.stream_protobuf_name != ''
+                    job_args = collect_per_stream_args(name, sink_info.stream_protobuf_name, kwargs)
 
                 sink_args = kwargs.pop('args', kwargs)
                 sink = Sink(self._db, name,

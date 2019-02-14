@@ -19,7 +19,7 @@ class Kernel(object):
     def close(self):
         pass
 
-    def new_stream(self, args):
+    def new_stream(self):
         pass
 
     def reset(self):
@@ -41,7 +41,7 @@ def python_kernel_fn(n, recv_conn, send_conn, p_conn1, p_conn2):
   p_conn2.close()
   try:
     kernel_config = KernelConfig(cloudpickle.loads(n['config']))
-    kernel = cloudpickle.loads(n['kernel_code'])(kernel_config)
+    kernel = cloudpickle.loads(n['kernel_code'])(kernel_config, **kernel_config.args)
     while True:
       try:
         data = recv_conn.recv_bytes()
@@ -51,7 +51,7 @@ def python_kernel_fn(n, recv_conn, send_conn, p_conn1, p_conn2):
       if msg_type == 'reset':
         kernel.reset()
       elif msg_type == 'new_stream':
-        kernel.new_stream(data)
+        kernel.new_stream(**(data if data is not None else {}))
       elif msg_type == 'execute':
         result = kernel.execute(data)
         send_conn.send_bytes(cloudpickle.dumps(result))

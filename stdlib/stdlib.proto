@@ -182,8 +182,8 @@ message SQLQuery {
 }
 
 message SQLEnumeratorArgs {
-  SQLConfig config = 1;
-  SQLQuery query = 2;
+  SQLConfig enum_config = 1;
+  SQLQuery enum_query = 2;
   string filter = 3;
   int32 num_elements = 4;
 }
@@ -228,7 +228,6 @@ message FilesSinkStreamArgs {
 }
 
 message AudioSourceArgs {
-  double frame_size = 1; // unused parameter, enables default params on AudioEnumeratorArgs
 }
 
 message AudioEnumeratorArgs {
@@ -243,7 +242,6 @@ message AudioElementArgs {
 }
 
 message CaptionsSourceArgs {
-  double window_size = 1;
 }
 
 message CaptionsEnumeratorArgs {

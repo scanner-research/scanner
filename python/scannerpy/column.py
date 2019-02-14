@@ -14,9 +14,9 @@ from scannerpy.common import *
 from scannerpy.job import Job
 from scannerpy import types as scannertypes
 from scannerpy.protobufs import protobufs
+from scannerpy.storage import ScannerFrameStream, ScannerStream, NullElement
 
 LOAD_SPARSITY_THRESHOLD = 10
-
 
 class Column(object):
     """
@@ -104,7 +104,7 @@ class Column(object):
             data_file.seek(data_file.size() - buf_len)
             buf = data_file.read(buf_len)
             if len(buf) == 0:
-                yield None
+                yield NullElement()
             elif fn is not None:
                 yield fn(buf)
             else:
@@ -152,7 +152,7 @@ class Column(object):
 
                 # len(buf) == 0 when element is null
                 if len(buf) == 0:
-                    yield None
+                    yield NullElement()
                 elif fn is not None:
                     yield fn(buf)
                 else:
@@ -233,22 +233,16 @@ class Column(object):
                 protobufs.VideoDescriptor.H264):
             png_table_name = self._db._png_dump_prefix.format(
                 self._table.name(), self._name)
-            pair = [(self._table.name(), png_table_name)]
-            op_args = {}
-            frame = self._db.sources.FrameColumn()
-            op_args[frame] = self
+            frame = self._db.io.Input([ScannerFrameStream(self._db, self._table.name())])
             enc_input = frame
             if rows is not None:
-                sampled_frame = self._db.streams.Gather(frame, rows=rows)
+                sampled_frame = self._db.streams.Gather(frame, indices=[rows])
                 enc_input = sampled_frame
             img = self._db.ops.ImageEncoder(frame=enc_input)
-            output_op = self._db.sinks.Column(columns={'img': img})
-            op_args[output_op] = png_table_name
-            job = Job(op_args=op_args)
-            self._db.run(
-                output_op, [job], force=True, show_progress=False)
-            out_tbl = self._db.table(png_table_name)
-            return out_tbl.column('img').load(fn=readers.image)
+            output = [ScannerStream(self._db, png_table_name)]
+            output_op = self._db.io.Output(img, output)
+            self._db.run(output_op, force=True, show_progress=False)
+            return output[0].load(fn=readers.image)
         elif self._descriptor.type == protobufs.Video:
             frame_type = self._video_descriptor.frame_type
             if frame_type == protobufs.U8:

@@ -1,8 +1,11 @@
 import scannerpy
 from scannerpy import (Database, Config, DeviceType, FrameType, Job,
-                       ScannerException, Kernel, protobufs)
+                       ScannerException, Kernel, protobufs, NullElement)
+from scannerpy.storage import (
+    ScannerStream, ScannerFrameStream, FilesStream, PythonStream, SQLInputStream,
+    SQLOutputStream, SQLStorage, AudioStream, CaptionStream)
 from scannerpy.stdlib import readers
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, List, Sequence, Tuple, Any
 import tempfile
 import toml
 import pytest
@@ -148,30 +151,25 @@ def test_summarize(db):
 
 def test_load_video_column(db):
     for name in ['test1', 'test1_inplace']:
-        next(db.table(name).column('frame').load())
+        next(ScannerFrameStream(db, name).load())
 
 
 def test_gather_video_column(db):
     for name in ['test1', 'test1_inplace']:
         # Gather rows
         rows = [0, 10, 100, 200]
-        frames = [_ for _ in db.table(name).column('frame').load(rows=rows)]
+        frames = list(ScannerFrameStream(db, name).load(rows=rows))
         assert len(frames) == len(rows)
 
 
 def test_profiler(db):
-    frame = db.sources.FrameColumn()
+    frame = db.io.Input([ScannerFrameStream(db, 'test1')])
     hist = db.ops.Histogram(frame=frame)
     ghist = db.streams.Gather(hist, [0])
-    output_op = db.sinks.Column(columns={'hist': ghist})
-
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: '_ignore'
-    })
+    output_op = db.io.Output(ghist, [ScannerStream(db, '_ignore')])
 
     time_start = time.time()
-    db.run(output_op, [job], show_progress=False, force=True)
+    db.run(output_op, show_progress=False, force=True)
     output = [db.table('_ignore')]
     print('Time', time.time() - time_start)
     profiler = output[0].profiler()
@@ -196,22 +194,13 @@ def test_new_table(db):
 def test_multiple_outputs(db):
     sampler = db.streams.Range
     def run_job(args_1, args_2):
-        frame = db.sources.FrameColumn()
-        sample_frame_1 = db.streams.Range(input=frame)
-        sample_frame_2 = db.streams.Range(input=frame)
-        output_op_1 = db.sinks.Column(columns={'frame': sample_frame_1})
-        output_op_2 = db.sinks.Column(columns={'frame': sample_frame_2})
+        frame = db.io.Input([ScannerFrameStream(db, 'test1')])
+        sample_frame_1 = db.streams.Range(input=frame, ranges=args_1)
+        sample_frame_2 = db.streams.Range(input=frame, ranges=args_2)
+        output_op_1 = db.io.Output(sample_frame_1, [ScannerFrameStream(db, 'test_mp_1')])
+        output_op_2 = db.io.Output(sample_frame_2, [ScannerFrameStream(db, 'test_mp_2')])
 
-        job = Job(
-            op_args={
-                frame: db.table('test1').column('frame'),
-                sample_frame_1: sampler_args_1,
-                sample_frame_2: sampler_args_2,
-                output_op_1: 'test_mp_1',
-                output_op_2: 'test_mp_2',
-            })
-
-        db.run([output_op_1, output_op_2], [job], force=True, show_progress=False)
+        db.run([output_op_1, output_op_2], force=True, show_progress=False)
 
     # This should fail
     sampler_args_1 = {'start': 0, 'end': 30}
@@ -223,7 +212,7 @@ def test_multiple_outputs(db):
         exc = True
 
     assert exc
-        
+
     # This should succeed
     sampler_args_1 = {'start': 0, 'end': 30}
     expected_rows_1 = 30
@@ -243,20 +232,12 @@ def test_multiple_outputs(db):
     assert num_rows == expected_rows_2
 
     # This should succeed
-    frame = db.sources.FrameColumn()
-    sample_frame_1 = db.streams.Range(input=frame)
-    output_op_1 = db.sinks.Column(columns={'frame': sample_frame_1})
-    output_op_2 = db.sinks.Column(columns={'frame': sample_frame_1})
+    frame = db.io.Input([ScannerFrameStream(db, 'test1')])
+    sample_frame_1 = db.streams.Range(input=frame, ranges=sampler_args_1)
+    output_op_1 = db.io.Output(sample_frame_1, [ScannerFrameStream(db, 'test_mp_1')])
+    output_op_2 = db.io.Output(sample_frame_1, [ScannerFrameStream(db, 'test_mp_2')])
 
-    job = Job(
-        op_args={
-            frame: db.table('test1').column('frame'),
-            sample_frame_1: sampler_args_1,
-            output_op_1: 'test_mp_1',
-            output_op_2: 'test_mp_2',
-        })
-
-    db.run([output_op_1, output_op_2], [job], force=True, show_progress=False)
+    db.run([output_op_1, output_op_2], force=True, show_progress=False)
 
     num_rows = 0
     for _ in db.table('test_mp_1').column('frame').load():
@@ -266,63 +247,45 @@ def test_multiple_outputs(db):
 
 def test_sample(db):
     def run_sampler_job(sampler, sampler_args, expected_rows):
-        frame = db.sources.FrameColumn()
-        sample_frame = sampler(input=frame)
-        output_op = db.sinks.Column(columns={'frame': sample_frame})
+        frame = db.io.Input([ScannerFrameStream(db, 'test1')])
+        sample_frame = sampler(input=frame, **sampler_args)
+        output = ScannerFrameStream(db, 'test_sample')
+        output_op = db.io.Output(sample_frame, [output])
+        db.run(output_op, force=True, show_progress=False)
 
-        job = Job(
-            op_args={
-                frame: db.table('test1').column('frame'),
-                sample_frame: sampler_args,
-                output_op: 'test_sample',
-            })
-
-        db.run(output_op, [job], force=True, show_progress=False)
-        tables = [db.table('test_sample')]
-        num_rows = 0
-        for _ in tables[0].column('frame').load():
-            num_rows += 1
+        num_rows = len(list(output.load()))
         assert num_rows == expected_rows
 
     # Stride
     expected = int((db.table('test1').num_rows() + 8 - 1) / 8)
-    run_sampler_job(db.streams.Stride, {'stride': 8}, expected)
+    run_sampler_job(db.streams.Stride, {'strides': [{'stride': 8}]}, expected)
     # Range
-    run_sampler_job(db.streams.Range, {'start': 0, 'end': 30}, 30)
+    run_sampler_job(db.streams.Range, {'ranges': [{'start': 0, 'end': 30}]}, 30)
     # Strided Range
-    run_sampler_job(db.streams.StridedRange, {
+    run_sampler_job(db.streams.StridedRange, {'ranges': [{
         'start': 0,
         'end': 300,
         'stride': 10
-    }, 30)
+    }]}, 30)
     # Gather
-    run_sampler_job(db.streams.Gather, {'rows': [0, 150, 377, 500]}, 4)
+    run_sampler_job(db.streams.Gather, {'indices': [[0, 150, 377, 500]]}, 4)
 
 
 def test_space(db):
     def run_spacer_job(spacer, spacing):
-        frame = db.sources.FrameColumn()
+        frame = db.io.Input([ScannerFrameStream(db, 'test1')])
         hist = db.ops.Histogram(frame=frame)
-        space_hist = spacer(input=hist)
-        output_op = db.sinks.Column(columns={'histogram': space_hist})
+        space_hist = spacer(input=hist, spacings=[spacing])
+        output = ScannerStream(db, 'test_space')
+        output_op = db.io.Output(space_hist, [output])
+        db.run(output_op, force=True, show_progress=False)
+        return output
 
-        job = Job(
-            op_args={
-                frame: db.table('test1').column('frame'),
-                space_hist: {
-                    'spacing': spacing
-                },
-                output_op: 'test_space',
-            })
-
-        db.run(output_op, [job], force=True, show_progress=False)
-        return db.table('test_space')
-
-    # Repeat
+    # # Repeat
     spacing_distance = 8
     table = run_spacer_job(db.streams.Repeat, spacing_distance)
     num_rows = 0
-    for hist in table.column('histogram').load():
+    for hist in table.load():
         # Verify outputs are repeated correctly
         if num_rows % spacing_distance == 0:
             ref_hist = hist
@@ -330,231 +293,164 @@ def test_space(db):
         for c in range(len(hist)):
             assert (ref_hist[c] == hist[c]).all()
         num_rows += 1
-    assert num_rows == db.table('test1').num_rows() * spacing_distance
+    assert num_rows == ScannerFrameStream(db, 'test1').len() * spacing_distance
 
     # Null
     table = run_spacer_job(db.streams.RepeatNull, spacing_distance)
     num_rows = 0
-    for hist in table.column('histogram').load():
+    for hist in table.load():
         # Verify outputs are None for null rows
         if num_rows % spacing_distance == 0:
-            assert hist is not None
+            assert not isinstance(hist, NullElement)
             assert len(hist) == 3
             assert hist[0].shape[0] == 16
         else:
-            assert hist is None
+            assert isinstance(hist, NullElement)
         num_rows += 1
-    assert num_rows == db.table('test1').num_rows() * spacing_distance
+    assert num_rows == ScannerFrameStream(db, 'test1').len() * spacing_distance
 
 
 def test_slice(db):
-    frame = db.sources.FrameColumn()
-    slice_frame = db.streams.Slice(frame, db.partitioner.all(50))
+    input = ScannerFrameStream(db, 'test1')
+    frame = db.io.Input([input])
+    slice_frame = db.streams.Slice(frame, partitions=[db.partitioner.all(50)])
     unsliced_frame = db.streams.Unslice(slice_frame)
-    output_op = db.sinks.Column(columns={'frame': unsliced_frame})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_slicing',
-    })
-
-    db.run(output_op, [job], force=True, show_progress=False)
-    tables = [db.table('test_slicing')]
-
-    num_rows = 0
-    for _ in tables[0].column('frame').load():
-        num_rows += 1
-    assert num_rows == db.table('test1').num_rows()
+    output = ScannerStream(db, 'test_slicing')
+    output_op = db.io.Output(unsliced_frame, [output])
+    db.run(output_op, force=True, show_progress=False)
+    assert input.len() == output.len()
 
 
-def test_overlapping_slice(db):
-    frame = db.sources.FrameColumn()
-    slice_frame = db.streams.Slice(frame)
-    sample_frame = db.streams.Range(slice_frame)
-    unsliced_frame = db.streams.Unslice(sample_frame)
-    output_op = db.sinks.Column(columns={'frame': unsliced_frame})
-    job = Job(
-        op_args={
-            frame:
-            db.table('test1').column('frame'),
-            slice_frame:
-            db.partitioner.strided_ranges([(0, 15), (5, 25), (15, 35)], 1),
-            sample_frame: [
-                (0, 10),
-                (5, 15),
-                (5, 15),
-            ],
-            output_op:
-            'test_slicing',
-        })
-
-    db.run(output_op, [job], force=True, show_progress=False)
-    tables = [db.table('test_slicing')]
-
-    num_rows = 0
-    for _ in tables[0].column('frame').load():
-        num_rows += 1
-    assert num_rows == 30
+# TODO
+# def test_overlapping_slice(db):
+#     input = ScannerFrameStream(db, 'test1')
+#     frame = db.io.Input([input])
+#     slice_frame = db.streams.Slice(frame, partitions=[
+#         db.partitioner.strided_ranges([(0, 15), (5, 25), (15, 35)], 1)])
+#     sample_frame = db.streams.Ranges(slice_frame, intervals=[[
+#         (0, 10),
+#         (5, 15),
+#         (5, 15),
+#     ]])
+#     unsliced_frame = db.streams.Unslice(sample_frame)
+#     output = ScannerStream(db, 'test_slicing')
+#     output_op = db.io.Output(unsliced_frame, [output])
+#     db.run(output_op, force=True, show_progress=False)
+#     assert output.len() == 30
 
 
-@scannerpy.register_python_op()
-class TestSliceArgs(Kernel):
-    def __init__(self, config):
-        pass
+# @scannerpy.register_python_op()
+# class TestSliceArgs(Kernel):
+#     def __init__(self, config):
+#         pass
 
-    def close(self):
-        pass
+#     def close(self):
+#         pass
 
-    def new_stream(self, args):
-        self.arg = args['arg']
+#     def new_stream(self, args):
+#         self.arg = args['arg']
 
-    def execute(self, frame: FrameType) -> bytes:
-        return pickle.dumps(self.arg)
+#     def execute(self, frame: FrameType) -> bytes:
+#         return pickle.dumps(self.arg)
 
 
-def test_slice_args(db):
-    frame = db.sources.FrameColumn()
-    slice_frame = db.streams.Slice(frame, db.partitioner.ranges(
-        [[0, 1], [1, 2], [2, 3]]))
-    test = db.ops.TestSliceArgs(frame=slice_frame)
-    unsliced_frame = db.streams.Unslice(test)
-    output_op = db.sinks.Column(columns={'frame': unsliced_frame})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        test: [{'arg': i} for i in range(3)],
-        output_op: 'test_slicing',
-    })
+# def test_slice_args(db):
+#     frame = db.sources.FrameColumn()
+#     slice_frame = db.streams.Slice(frame, db.partitioner.ranges(
+#         [[0, 1], [1, 2], [2, 3]]))
+#     test = db.ops.TestSliceArgs(frame=slice_frame)
+#     unsliced_frame = db.streams.Unslice(test)
+#     output_op = db.sinks.Column(columns={'frame': unsliced_frame})
+#     job = Job(op_args={
+#         frame: db.table('test1').column('frame'),
+#         test: [{'arg': i} for i in range(3)],
+#         output_op: 'test_slicing',
+#     })
 
-    db.run(output_op, [job], force=True, show_progress=False)
-    tables = [db.table('test_slicing')]
+#     db.run(output_op, [job], force=True, show_progress=False)
+#     tables = [db.table('test_slicing')]
 
-    num_rows = 0
-    for x in tables[0].column('frame').load():
-        arg = pickle.loads(x)
+#     num_rows = 0
+#     for x in tables[0].column('frame').load():
+#         arg = pickle.loads(x)
 
 
 def test_bounded_state(db):
     warmup = 3
 
-    frame = db.sources.FrameColumn()
+    frame = db.io.Input([ScannerFrameStream(db, 'test1')])
     increment = db.ops.TestIncrementBounded(ignore=frame, bounded_state=warmup)
-    sampled_increment = db.streams.Gather(increment, [0, 10, 25, 26, 27])
-    output_op = db.sinks.Column(columns={'integer': sampled_increment})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_bounded_state',
-    })
-
-    db.run(output_op, [job], force=True, show_progress=False)
-    tables = [db.table('test_bounded_state')]
+    sampled_increment = db.streams.Gather(increment, indices=[[0, 10, 25, 26, 27]])
+    output = ScannerStream(db, 'test_bounded_state')
+    output_op = db.io.Output(sampled_increment, [output])
+    db.run(output_op, force=True, show_progress=False)
 
     num_rows = 0
     expected_output = [0, warmup, warmup, warmup + 1, warmup + 2]
-    for buf in tables[0].column('integer').load():
+    for buf in output.load():
         (val, ) = struct.unpack('=q', buf)
         assert val == expected_output[num_rows]
-        print(num_rows)
         num_rows += 1
     assert num_rows == 5
 
 
 def test_unbounded_state(db):
-    frame = db.sources.FrameColumn()
-    slice_frame = db.streams.Slice(frame, db.partitioner.all(50))
+    input = ScannerFrameStream(db, 'test1')
+    frame = db.io.Input([input])
+    slice_frame = db.streams.Slice(frame, partitions=[db.partitioner.all(50)])
     increment = db.ops.TestIncrementUnbounded(ignore=slice_frame)
     unsliced_increment = db.streams.Unslice(increment)
-    output_op = db.sinks.Column(columns={'integer': unsliced_increment})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_unbounded_state',
-    })
-
-    db.run(output_op, [job], force=True, show_progress=False)
-    tables = [db.table('test_unbounded_state')]
-
-    num_rows = 0
-    for _ in tables[0].column('integer').load():
-        num_rows += 1
-    assert num_rows == db.table('test1').num_rows()
+    output = ScannerStream(db, 'test_unbounded_state')
+    output_op = db.io.Output(unsliced_increment, [output])
+    db.run(output_op, force=True, show_progress=False)
+    assert output.len() == input.len()
 
 
-def builder(cls):
-    inst = cls()
+class DeviceTestBench:
+    def test_cpu(self, db):
+        self.run(db, DeviceType.CPU)
 
-    class Generated:
-        def test_cpu(self, db):
-            inst.run(db, inst.job(db, DeviceType.CPU))
-
-        @gpu
-        def test_gpu(self, db):
-            inst.run(db, inst.job(db, DeviceType.GPU))
-
-    return Generated
+    @gpu
+    def test_gpu(self, db):
+        self.run(db, DeviceType.GPU)
 
 
-@builder
-class TestHistogram:
-    def job(self, db, ty):
-        frame = db.sources.FrameColumn()
-        hist = db.ops.Histogram(frame=frame, device=ty)
-        output_op = db.sinks.Column(columns={'histogram': hist})
+class TestHistogram(DeviceTestBench):
+    def run(self, db, device):
+        input = ScannerFrameStream(db, 'test1')
+        frame = db.io.Input([input])
+        hist = db.ops.Histogram(frame=frame, device=device)
+        output = ScannerStream(db, 'test_hist')
+        output_op = db.io.Output(hist, [output])
 
-        job = Job(op_args={
-            frame: db.table('test1').column('frame'),
-            output_op: 'test_hist'
-        })
-
-        return output_op, [job]
-
-    def run(self, db, job):
-        tables = db.run(job[0], job[1], force=True, show_progress=False)
-        next(tables[0].column('histogram').load())
-        db.run(job[0], job[1], force=True, show_progress=False)
-        tables = [db.table('test_hist')]
-        next(tables[0].column('histogram').load())
-
-@builder
-class TestInplace:
-    def job(self, db, ty):
-        frame = db.sources.FrameColumn()
-        hist = db.ops.Histogram(frame=frame, device=ty)
-        output_op = db.sinks.Column(columns={'histogram': hist})
-
-        job_inplace = Job(op_args={
-            frame: db.table('test1_inplace').column('frame'),
-            output_op: 'test_inplace_hist'
-        })
-
-        return output_op, [job_inplace]
-
-    def run(self, db, job):
-        db.run(job[0], job[1], force=True, show_progress=False)
-        tables = [db.table('test_inplace_hist')]
-        next(tables[0].column('histogram').load())
+        db.run(output_op, force=True, show_progress=False)
+        next(output.load())
 
 
-@builder
-class TestOpticalFlow:
-    def job(self, db, ty):
-        frame = db.sources.FrameColumn()
-        flow = db.ops.OpticalFlow(frame=frame, stencil=[-1, 0], device=ty)
-        flow_range = db.streams.Range(flow, 0, 50)
+class TestInplace(DeviceTestBench):
+    def run(self, db, device):
+        input = ScannerFrameStream(db, 'test1_inplace')
+        frame = db.io.Input([input])
+        hist = db.ops.Histogram(frame=frame, device=device)
+        output = ScannerStream(db, 'test_hist')
+        output_op = db.io.Output(hist, [output])
 
-        out = db.sinks.Column(columns={'flow': flow_range})
-        job = Job(op_args={
-            frame: db.table('test1').column('frame'),
-            out: 'test_flow',
-        })
-        return out, [job]
+        db.run(output_op, force=True, show_progress=False)
+        next(output.load())
 
-    def run(self, db, job):
-        db.run(job[0], job[1], force=True, show_progress=False)
-        table = db.table('test_flow')
-        num_rows = 0
-        for _ in table.column('flow').load():
-            num_rows += 1
-        assert num_rows == 50
 
-        flow_array = next(table.column('flow').load())
+class TestOpticalFlow(DeviceTestBench):
+    def run(self, db, device):
+        input = ScannerFrameStream(db, 'test1')
+        frame = db.io.Input([input])
+        flow = db.ops.OpticalFlow(frame=frame, stencil=[-1, 0], device=device)
+        flow_range = db.streams.Range(flow, ranges=[{'start': 0, 'end': 50}])
+        output = ScannerStream(db, 'test_flow')
+        output_op = db.io.Output(flow_range, [output])
+        db.run(output_op, force=True, show_progress=False)
+        assert output.len() == 50
+
+        flow_array = next(output.load())
         assert flow_array.dtype == np.float32
         assert flow_array.shape[0] == 480
         assert flow_array.shape[1] == 640
@@ -562,139 +458,103 @@ class TestOpticalFlow:
 
 
 def test_stencil(db):
-    frame = db.sources.FrameColumn()
-    sample_frame = db.streams.Range(frame, 0, 1)
+    input = ScannerFrameStream(db, 'test1')
+
+    frame = db.io.Input([input])
+    sample_frame = db.streams.Range(frame, ranges=[{'start': 0, 'end': 1}])
     flow = db.ops.OpticalFlow(frame=sample_frame, stencil=[-1, 0])
-    output_op = db.sinks.Column(columns={'flow': flow})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_stencil',
-    })
-
-    db.run(output_op, [job],
+    output = ScannerStream(db, 'test_stencil')
+    output_op = db.io.Output(flow, [output])
+    db.run(output_op,
            force=True,
            show_progress=False,
            pipeline_instances_per_node=1)
-    tables = [db.table('test_stencil')]
+    assert output.len() == 1
 
-    num_rows = 0
-    for _ in tables[0].column('flow').load():
-        num_rows += 1
-    assert num_rows == 1
-
-    frame = db.sources.FrameColumn()
-    sample_frame = db.streams.Range(frame, 0, 1)
+    frame = db.io.Input([input])
+    sample_frame = db.streams.Range(frame, ranges=[{'start': 0, 'end': 1}])
     flow = db.ops.OpticalFlow(frame=sample_frame, stencil=[0, 1])
-    output_op = db.sinks.Column(columns={'flow': flow})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_stencil',
-    })
-
-    db.run(output_op, [job],
+    output = ScannerStream(db, 'test_stencil')
+    output_op = db.io.Output(flow, [output])
+    db.run(output_op,
            force=True,
            show_progress=False,
            pipeline_instances_per_node=1)
-    tables = [db.table('test_stencil')]
 
-    frame = db.sources.FrameColumn()
-    sample_frame = db.streams.Range(frame, 0, 2)
+    frame = db.io.Input([input])
+    sample_frame = db.streams.Range(frame, ranges=[{'start': 0, 'end': 2}])
     flow = db.ops.OpticalFlow(frame=sample_frame, stencil=[0, 1])
-    output_op = db.sinks.Column(columns={'flow': flow})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_stencil',
-    })
-
-    db.run(output_op, [job],
+    output = ScannerStream(db, 'test_stencil')
+    output_op = db.io.Output(flow, [output])
+    db.run(output_op,
            force=True,
            show_progress=False,
            pipeline_instances_per_node=1)
-    tables = [db.table('test_stencil')]
+    assert output.len() == 2
 
-    num_rows = 0
-    for _ in tables[0].column('flow').load():
-        num_rows += 1
-    assert num_rows == 2
-
-    frame = db.sources.FrameColumn()
+    frame = db.io.Input([input])
     flow = db.ops.OpticalFlow(frame=frame, stencil=[-1, 0])
-    sample_flow = db.streams.Range(flow, 0, 1)
-    output_op = db.sinks.Column(columns={'flow': sample_flow})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_stencil',
-    })
-
-    db.run(output_op, [job],
+    sample_flow = db.streams.Range(flow, ranges=[{'start': 0, 'end': 1}])
+    output = ScannerStream(db, 'test_stencil')
+    output_op = db.io.Output(sample_flow, [output])
+    db.run(output_op,
            force=True,
            show_progress=False,
            pipeline_instances_per_node=1)
-    tables = [db.table('test_stencil')]
-
-    num_rows = 0
-    for _ in tables[0].column('flow').load():
-        num_rows += 1
-    assert num_rows == 1
+    assert output.len() == 1
 
 
 def test_wider_than_packet_stencil(db):
-    frame = db.sources.FrameColumn()
-    sample_frame = db.streams.Range(frame, 0, 3)
+    input = ScannerFrameStream(db, 'test1')
+    frame = db.io.Input([input])
+    sample_frame = db.streams.Range(frame, ranges=[{'start': 0, 'end': 3}])
     flow = db.ops.OpticalFlow(frame=sample_frame, stencil=[0, 1])
-    output_op = db.sinks.Column(columns={'flow': flow})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_stencil',
-    })
+    output = ScannerStream(db, 'test_stencil')
+    output_op = db.io.Output(flow, [output])
 
     db.run(
-        output_op, [job],
+        output_op,
         force=True,
         show_progress=False,
         io_packet_size=1,
         work_packet_size=1,
         pipeline_instances_per_node=1)
-    tables = [db.table('test_stencil')]
 
-    num_rows = 0
-    for _ in tables[0].column('flow').load():
-        num_rows += 1
-    assert num_rows == 3
+    assert output.len() == 3
 
 
-def test_packed_file_source(db):
-    # Write test file
-    path = '/tmp/cpp_source_test'
-    with open(path, 'wb') as f:
-        num_elements = 4
-        f.write(struct.pack('=Q', num_elements))
-        # Write sizes
-        for i in range(num_elements):
-            f.write(struct.pack('=Q', 8))
-        # Write data
-        for i in range(num_elements):
-            f.write(struct.pack('=Q', i))
+# def test_packed_file_source(db):
+#     # Write test file
+#     path = '/tmp/cpp_source_test'
+#     with open(path, 'wb') as f:
+#         num_elements = 4
+#         f.write(struct.pack('=Q', num_elements))
+#         # Write sizes
+#         for i in range(num_elements):
+#             f.write(struct.pack('=Q', 8))
+#         # Write data
+#         for i in range(num_elements):
+#             f.write(struct.pack('=Q', i))
 
-    data = db.sources.PackedFile()
-    pass_data = db.ops.Pass(input=data)
-    output_op = db.sinks.Column(columns={'integer': pass_data})
-    job = Job(op_args={
-        data: {
-            'path': path
-        },
-        output_op: 'test_cpp_source',
-    })
+#     data = db.sources.PackedFile()
+#     pass_data = db.ops.Pass(input=data)
+#     output_op = db.sinks.Column(columns={'integer': pass_data})
+#     job = Job(op_args={
+#         data: {
+#             'path': path
+#         },
+#         output_op: 'test_cpp_source',
+#     })
 
-    db.run(output_op, [job], force=True, show_progress=False)
-    tables = [db.table('test_cpp_source')]
+#     db.run(output_op, [job], force=True, show_progress=False)
+#     tables = [db.table('test_cpp_source')]
 
-    num_rows = 0
-    for buf in tables[0].column('integer').load():
-        (val, ) = struct.unpack('=Q', buf)
-        assert val == num_rows
-        num_rows += 1
-    assert num_elements == tables[0].num_rows()
+#     num_rows = 0
+#     for buf in tables[0].column('integer').load():
+#         (val, ) = struct.unpack('=Q', buf)
+#         assert val == num_rows
+#         num_rows += 1
+#     assert num_elements == tables[0].num_rows()
 
 
 def test_files_source(db):
@@ -709,25 +569,18 @@ def test_files_source(db):
             f.write(struct.pack('=Q', i))
         paths.append(path)
 
-    data = db.sources.Files()
+    data = db.io.Input([FilesStream(paths=paths)])
     pass_data = db.ops.Pass(input=data)
-    output_op = db.sinks.Column(columns={'integer': pass_data})
-    job = Job(op_args={
-        data: {
-            'paths': paths
-        },
-        output_op: 'test_files_source',
-    })
-
-    db.run(output_op, [job], force=True, show_progress=False)
-    tables = [db.table('test_files_source')]
+    output = ScannerStream(db, 'test_files_source')
+    output_op = db.io.Output(pass_data, [output])
+    db.run(output_op, force=True, show_progress=False)
 
     num_rows = 0
-    for buf in tables[0].column('integer').load():
+    for buf in output.load():
         (val, ) = struct.unpack('=Q', buf)
         assert val == num_rows
         num_rows += 1
-    assert num_elements == tables[0].num_rows()
+    assert num_elements == num_rows
 
 
 def test_files_sink(db):
@@ -750,48 +603,30 @@ def test_files_sink(db):
         path = path_template.format(i)
         output_paths.append(path)
 
-    data = db.sources.Files()
+    data = db.io.Input([FilesStream(paths=input_paths)])
     pass_data = db.ops.Pass(input=data)
-    output_op = db.sinks.Files(input=pass_data)
-    job = Job(op_args={
-        data: {
-            'paths': input_paths
-        },
-        output_op: {
-            'paths': output_paths
-        }
-    })
-
-    db.run(output_op, [job], force=True, show_progress=False)
+    output = FilesStream(paths=output_paths)
+    output_op = db.io.Output(pass_data, [output])
+    db.run(output_op, force=True, show_progress=False)
 
     # Read output test files
-    for i in range(num_elements):
-        path = output_paths[i]
-        with open(path, 'rb') as f:
-            # Write data
-            d, = struct.unpack('=Q', f.read())
-            assert d == i
+    for i, s in enumerate(output.load()):
+        d, = struct.unpack('=Q', s)
+        assert d == i
 
 
 def test_python_source(db):
     # Write test files
     py_data = [{'{:d}'.format(i): i} for i in range(4)]
 
-    data = db.sources.Python()
+    data = db.io.Input([PythonStream(py_data)])
     pass_data = db.ops.Pass(input=data)
-    output_op = db.sinks.Column(columns={'dict': pass_data})
-    job = Job(op_args={
-        data: {
-            'data': pickle.dumps(py_data)
-        },
-        output_op: 'test_python_source',
-    })
-
-    db.run(output_op, [job], force=True, show_progress=False)
-    tables = [db.table('test_python_source')]
+    output = ScannerStream(db, 'test_python_source')
+    output_op = db.io.Output(pass_data, [output])
+    db.run(output_op, force=True, show_progress=False)
 
     num_rows = 0
-    for i, buf in enumerate(tables[0].column('dict').load()):
+    for i, buf in enumerate(output.load()):
         d = pickle.loads(buf)
         assert d['{:d}'.format(i)] == i
         num_rows += 1
@@ -800,54 +635,36 @@ def test_python_source(db):
 
 @scannerpy.register_python_op()
 class TestPy(Kernel):
-    def __init__(self, config):
-        assert (config.args['kernel_arg'] == 1)
+    def __init__(self, config, kernel_arg):
+        assert (kernel_arg == 1)
         self.x = 20
         self.y = 20
 
-    def close(self):
-        pass
+    def new_stream(self, x, y):
+        self.x = x
+        self.y = y
 
-    def new_stream(self, args):
-        if args is None:
-            return
-        if 'x' in args:
-            self.x = args['x']
-        if 'y' in args:
-            self.y = args['y']
-
-    def execute(self, frame: FrameType) -> bytes:
+    def execute(self, frame: FrameType) -> Any:
         point = {}
         point['x'] = self.x
         point['y'] = self.y
-        return pickle.dumps(point)
+        return point
 
 
 def test_python_kernel(db):
-    frame = db.sources.FrameColumn()
-    range_frame = db.streams.Range(frame, 0, 3)
-    test_out = db.ops.TestPy(frame=range_frame, kernel_arg=1)
-    output_op = db.sinks.Column(columns={'dummy': test_out})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_hist'
-    })
-
-    db.run(output_op, [job], force=True, show_progress=False)
-    tables = [db.table('test_hist')]
-    next(tables[0].column('dummy').load())
+    input = ScannerFrameStream(db, 'test1')
+    frame = db.io.Input([input])
+    range_frame = db.streams.Range(frame, ranges=[{'start': 0, 'end': 3}])
+    test_out = db.ops.TestPy(frame=range_frame, kernel_arg=1, x=[0], y=[0])
+    output = ScannerStream(db, 'test_hist')
+    output_op = db.io.Output(test_out, [output])
+    db.run(output_op, force=True, show_progress=False)
+    next(output.load())
 
 
 @scannerpy.register_python_op(batch=50)
 class TestPyBatch(Kernel):
-    def __init__(self, config):
-        pass
-
-    def close(self):
-        pass
-
     def execute(self, frame: Sequence[FrameType]) -> Sequence[bytes]:
-
         point = protobufs.Point()
         point.x = 10
         point.y = 5
@@ -857,30 +674,19 @@ class TestPyBatch(Kernel):
 
 
 def test_python_batch_kernel(db):
-    frame = db.sources.FrameColumn()
-    range_frame = db.streams.Range(frame, 0, 30)
+    input = ScannerFrameStream(db, 'test1')
+    frame = db.io.Input([input])
+    range_frame = db.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
     test_out = db.ops.TestPyBatch(frame=range_frame, batch=50)
-    output_op = db.sinks.Column(columns={'dummy': test_out})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_hist'
-    })
-
-    db.run(output_op, [job], force=True, show_progress=False)
-    tables = [db.table('test_hist')]
-    next(tables[0].column('dummy').load())
+    output = ScannerStream(db, 'test_hist')
+    output_op = db.io.Output(test_out, [output])
+    db.run(output_op, force=True, show_progress=False)
+    next(output.load())
 
 
 @scannerpy.register_python_op(stencil=[0, 1])
 class TestPyStencil(Kernel):
-    def __init__(self, config):
-        pass
-
-    def close(self):
-        pass
-
     def execute(self, frame: Sequence[FrameType]) -> bytes:
-
         assert len(frame) == 2
         point = protobufs.Point()
         point.x = 10
@@ -889,17 +695,14 @@ class TestPyStencil(Kernel):
 
 
 def test_python_stencil_kernel(db):
-    frame = db.sources.FrameColumn()
-    range_frame = db.streams.Range(frame, 0, 30)
+    input = ScannerFrameStream(db, 'test1')
+    frame = db.io.Input([input])
+    range_frame = db.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
     test_out = db.ops.TestPyStencil(frame=range_frame)
-    output_op = db.sinks.Column(columns={'dummy': test_out})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_hist'
-    })
-    db.run(output_op, [job], force=True, show_progress=False)
-    tables = [db.table('test_hist')]
-    next(tables[0].column('dummy').load())
+    output = ScannerStream(db, 'test_hist')
+    output_op = db.io.Output(test_out, [output])
+    db.run(output_op, force=True, show_progress=False)
+    next(output.load())
 
 
 @scannerpy.register_python_op(stencil=[0, 1], batch=50)
@@ -922,62 +725,43 @@ class TestPyStencilBatch(Kernel):
 
 
 def test_python_stencil_batch_kernel(db):
-    frame = db.sources.FrameColumn()
-    range_frame = db.streams.Range(frame, 0, 30)
+    input = ScannerFrameStream(db, 'test1')
+    frame = db.io.Input([input])
+    range_frame = db.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
     test_out = db.ops.TestPyStencilBatch(frame=range_frame, batch=50)
-    output_op = db.sinks.Column(columns={'dummy': test_out})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_hist'
-    })
-
-    db.run(output_op, [job], force=True, show_progress=False)
-    tables = [db.table('test_hist')]
-    next(tables[0].column('dummy').load())
+    output = ScannerStream(db, 'test_hist')
+    output_op = db.io.Output(test_out, [output])
+    db.run(output_op, force=True, show_progress=False)
+    next(output.load())
 
 
 def test_bind_op_args(db):
-    frame = db.sources.FrameColumn()
-    range_frame = db.streams.Range(frame, 0, 1)
-    test_out = db.ops.TestPy(frame=range_frame, kernel_arg=1)
-    output_op = db.sinks.Column(columns={'dummy': test_out})
-
+    input = ScannerFrameStream(db, 'test1')
+    frame = db.io.Input([input, input])
+    range_frame = db.streams.Range(frame, ranges=[{'start': 0, 'end': 1}])
+    test_out = db.ops.TestPy(frame=range_frame, kernel_arg=1, x=[1, 10], y=[5, 50])
+    outputs = [ScannerStream(db, 'test_hist_0'), ScannerStream(db, 'test_hist_1')]
+    output_op = db.io.Output(test_out, outputs)
     pairs = [(1, 5), (10, 50)]
-    jobs = []
-    for x, y in pairs:
-        job = Job(
-            op_args={
-                frame: db.table('test1').column('frame'),
-                test_out: {
-                    'x': x,
-                    'y': y
-                },
-                output_op: 'test_hist_{:d}'.format(x)
-            })
-        jobs.append(job)
+    db.run(output_op, force=True, show_progress=False)
 
-    db.run(output_op, jobs, force=True, show_progress=False)
     for i, (x, y) in enumerate(pairs):
-        values = [v for v in db.table('test_hist_{:d}'.format(x)).column('dummy').load()]
-        p = pickle.loads(values[0])
+        values = list(outputs[i].load())
+        p = values[0]
         assert p['x'] == x
         assert p['y'] == y
 
 
 def test_blur(db):
-    frame = db.sources.FrameColumn()
-    range_frame = db.streams.Range(frame, 0, 30)
+    input = ScannerFrameStream(db, 'test1')
+    frame = db.io.Input([input])
+    range_frame = db.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
     blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
-    output_op = db.sinks.Column(columns={'frame': blurred_frame})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_blur',
-    })
+    output = ScannerFrameStream(db, 'test_blur')
+    output_op = db.io.Output(blurred_frame, [output])
+    db.run(output_op, force=True, show_progress=False)
 
-    db.run(output_op, [job], force=True, show_progress=False)
-    table = db.table('test_blur')
-
-    frame_array = next(table.column('frame').load())
+    frame_array = next(output.load())
     assert frame_array.dtype == np.uint8
     assert frame_array.shape[0] == 480
     assert frame_array.shape[1] == 640
@@ -985,54 +769,39 @@ def test_blur(db):
 
 
 def test_lossless(db):
-    frame = db.sources.FrameColumn()
-    range_frame = db.streams.Range(frame, 0, 30)
+    input = ScannerFrameStream(db, 'test1')
+    frame = db.io.Input([input])
+    range_frame = db.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
     blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
-    output_op = db.sinks.Column(columns={'frame': blurred_frame.lossless()})
-
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_blur_lossless'
-    })
-
-    db.run(output_op, [job], force=True, show_progress=False)
-    table = db.table('test_blur_lossless')
-    next(table.column('frame').load())
+    output = ScannerFrameStream(db, 'test_blur')
+    output_op = db.io.Output(blurred_frame.lossless(), [output])
+    db.run(output_op, force=True, show_progress=False)
+    next(output.load())
 
 
 def test_compress(db):
-    frame = db.sources.FrameColumn()
-    range_frame = db.streams.Range(frame, 0, 30)
+    input = ScannerFrameStream(db, 'test1')
+    frame = db.io.Input([input])
+    range_frame = db.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
     blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
-    compressed_frame = blurred_frame.compress('video', bitrate=1 * 1024 * 1024)
-    output_op = db.sinks.Column(columns={'frame': compressed_frame})
-
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_blur_compressed'
-    })
-
-    db.run(output_op, [job], force=True, show_progress=False)
-    table = db.table('test_blur_compressed')
-    next(table.column('frame').load())
+    output = ScannerFrameStream(db, 'test_blur')
+    output_op = db.io.Output(blurred_frame.compress('video', bitrate=1 * 1024 * 1024), [output])
+    db.run(output_op, force=True, show_progress=False)
+    next(output.load())
 
 
 def test_save_mp4(db):
-    frame = db.sources.FrameColumn()
-    range_frame = db.streams.Range(frame, 0, 30)
+    input = ScannerFrameStream(db, 'test1')
+    frame = db.io.Input([input])
+    range_frame = db.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
     blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
-    output_op = db.sinks.Column(columns={'frame': blurred_frame})
+    output = ScannerFrameStream(db, 'test_save_mp4')
+    output_op = db.io.Output(blurred_frame, [output])
+    db.run(output_op, force=True, show_progress=False)
 
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_save_mp4'
-    })
-
-    db.run(output_op, [job], force=True, show_progress=False)
-    table = db.table('test_save_mp4')
     f = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
     f.close()
-    table.column('frame').save_mp4(f.name)
+    output.save_mp4(f.name)
     run(['rm', '-rf', f.name])
 
 
@@ -1060,18 +829,14 @@ def no_workers_db():
 def test_no_workers(no_workers_db):
     db = no_workers_db
 
-    frame = db.sources.FrameColumn()
+    input = ScannerFrameStream(db, 'test1')
+    frame = db.io.Input([input])
     hist = db.ops.Histogram(frame=frame)
-    output_op = db.sinks.Column(columns={'dummy': hist})
-
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: '_ignore'
-    })
+    output_op = db.io.Output(hist, [ScannerStream(db, '_ignore')])
 
     exc = False
     try:
-        db.run(output_op, [job], show_progress=False, force=True)
+        db.run(output_op, show_progress=False, force=True)
     except ScannerException:
         exc = True
 
@@ -1246,24 +1011,20 @@ def test_fault_tolerance(fault_db):
     killer_process.daemon = True
     killer_process.start()
 
-    frame = fault_db.sources.FrameColumn()
-    range_frame = fault_db.streams.Range(frame, 0, 20)
+    input = ScannerFrameStream(db, 'test1')
+    frame = fault_db.io.Input([input])
+    range_frame = fault_db.streams.Range(frame, ranges=[{'start': 0, 'end': 20}])
     sleep_frame = fault_db.ops.SleepFrame(ignore=range_frame)
-    output_op = fault_db.sinks.Column(columns={'dummy': sleep_frame})
-
-    job = Job(op_args={
-        frame: fault_db.table('test1').column('frame'),
-        output_op: 'test_fault',
-    })
+    output = ScannerStream(fault_db, 'test_fault')
+    output_op = fault_db.io.Output(sleep_frame, [output])
 
     fault_db.run(
-        output_op, [job],
+        output_op,
         pipeline_instances_per_node=1,
         force=True,
         show_progress=False)
-    table = fault_db.table('test_fault')
 
-    assert len([_ for _ in table.column('dummy').load()]) == 20
+    assert output.len() == 20
 
     # Shutdown the spawned worker
     channel = grpc.insecure_channel(
@@ -1317,34 +1078,23 @@ def test_job_blacklist(blacklist_db):
     # with a missing "py_test" import..
     @scannerpy.register_python_op()
     class TestPyFail(Kernel):
-        def __init__(self, config):
-            pass
-
-        def close(self):
-            pass
-
         def execute(self, frame: FrameType) -> bytes:
             raise ScannerException('Test')
 
     db = blacklist_db
 
-    frame = db.sources.FrameColumn()
-    range_frame = db.streams.Range(frame, 0, 1)
+    input = ScannerFrameStream(db, 'test1')
+    frame = db.io.Input([input])
+    range_frame = db.streams.Range(frame, ranges=[{'start': 0, 'end': 1}])
     failed_output = db.ops.TestPyFail(frame=range_frame)
-    output_op = db.sinks.Column(columns={'dummy': failed_output})
-
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_py_fail'
-    })
-
+    output = ScannerFrameStream(db, 'test_py_fail')
+    output_op = db.io.Output(failed_output, [output])
     db.run(
-        output_op, [job],
+        output_op,
         force=True,
         show_progress=False,
         pipeline_instances_per_node=1)
-    table = db.table('test_py_fail')
-    assert table.committed() == False
+    assert not output.committed()
 
 
 @pytest.fixture()
@@ -1391,25 +1141,21 @@ def test_job_timeout(timeout_db):
 
     db = timeout_db
 
-    frame = db.sources.FrameColumn()
-    range_frame = db.streams.Range(frame, 0, 1)
+    input = ScannerFrameStream(db, 'test1')
+    frame = db.io.Input([input])
+    range_frame = db.streams.Range(frame, ranges=[{'start': 0, 'end': 1}])
     sleep_frame = db.ops.timeout_fn(frame=range_frame)
-    output_op = db.sinks.Column(columns={'dummy': sleep_frame})
-
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_timeout',
-    })
+    output = ScannerFrameStream(db, 'test_timeout')
+    output_op = db.io.Output(sleep_frame, [output])
 
     db.run(
-        output_op, [job],
+        output_op,
         pipeline_instances_per_node=1,
         task_timeout=0.1,
         force=True,
         show_progress=False)
-    table = db.table('test_timeout')
 
-    assert table.committed() == False
+    assert not output.committed()
 
 
 @pytest.fixture(scope='module')
@@ -1443,7 +1189,7 @@ def sql_db(db):
             user=sql_params['user'],
             adapter='postgres')
 
-        yield db, sql_config, cur
+        yield db, SQLStorage(config=sql_config, job_table='jobs'), cur
 
         cur.close()
         conn.close()
@@ -1456,35 +1202,27 @@ def add_one(config, row: bytes) -> bytes:
 
 
 def test_sql(sql_db):
-    (db, sql_config, cur) = sql_db
+    (db, storage, cur) = sql_db
 
-    row = db.sources.SQL(
-        config=sql_config,
+    cur.execute('SELECT COUNT(*) FROM test');
+    n, = cur.fetchone()
+
+    row = db.io.Input([SQLInputStream(
         query=protobufs.SQLQuery(
             fields='test.id as id, test.a, test.c, test.d, test.e, test.f',
             table='test',
             id='test.id',
-            group='test.id'))
+            group='test.id'),
+        filter='true',
+        storage=storage,
+        num_elements=n)])
     row2 = db.ops.AddOne(row=row)
-    output_op = db.sinks.SQL(
-        input=row2,
-        config=sql_config,
+    output_op = db.io.Output(row2, [SQLOutputStream(
         table='test',
-        job_table='jobs',
-        insert=False)
-
-    cur.execute('SELECT COUNT(*) FROM test');
-    n, = cur.fetchone()
-    job = Job(op_args={
-        row: {
-            'filter': 'true',
-            'num_elements': n
-        },
-        output_op: {
-            'job_name': 'foobar'
-        }
-    })
-    db.run(output_op, [job])
+        storage=storage,
+        job_name='foobar',
+        insert=False)])
+    db.run(output_op)
 
     cur.execute('SELECT b FROM test')
     assert cur.fetchone()[0] == 11
@@ -1500,21 +1238,20 @@ def add_all(config, row: bytes) -> bytes:
 
 
 def test_sql_grouped(sql_db):
-    (db, sql_config, cur) = sql_db
+    (db, storage, cur) = sql_db
 
-    row = db.sources.SQL(
-        config=sql_config,
+    row = db.io.Input([SQLInputStream(
+        storage=storage,
         query=protobufs.SQLQuery(
             fields='test.id as id, test.a',
             table='test',
             id='test.id',
-            group='test.grp'))
+            group='test.grp'),
+        filter='true')])
     row2 = db.ops.AddAll(row=row)
-    output_op = db.sinks.SQL(
-        input=row2, config=sql_config, table='test', insert=False)
-
-    job = Job(op_args={row: {'filter': 'true'}, output_op: {}})
-    db.run(output_op, [job])
+    output_op = db.io.Output(
+        row2, [SQLOutputStream(storage=storage, table='test', job_name='test', insert=False)])
+    db.run(output_op)
 
     cur.execute('SELECT b FROM test')
     assert cur.fetchone()[0] == 30
@@ -1527,33 +1264,31 @@ def sql_insert_test(config, row: bytes) -> bytes:
 
 
 def test_sql_insert(sql_db):
-    (db, sql_config, cur) = sql_db
+    (db, storage, cur) = sql_db
 
-    row = db.sources.SQL(
-        config=sql_config,
+    row = db.io.Input([SQLInputStream(
+        storage=storage,
         query=protobufs.SQLQuery(
             fields='test.id as id, test.a',
             table='test',
             id='test.id',
-            group='test.grp'))
+            group='test.grp'),
+        filter='true')])
     row2 = db.ops.SQLInsertTest(row=row)
-    output_op = db.sinks.SQL(
-        input=row2, config=sql_config, table='test2', insert=True)
-
-    job = Job(op_args={row: {'filter': 'true'}, output_op: {}})
-    db.run(output_op, [job], show_progress=False)
+    output_op = db.io.Output(
+        row2, [SQLOutputStream(
+            storage=storage, table='test2', job_name='test', insert=True)])
+    db.run(output_op, show_progress=False)
 
     cur.execute('SELECT s FROM test2')
     assert cur.fetchone()[0] == "hello world"
 
 def test_audio(db):
-    audio = db.sources.Audio(frame_size=1.0)
-    ignored = db.ops.DiscardFrame(ignore=audio)
-    output = db.sinks.Column(columns={'ignored': ignored})
-
     (vid_path, _) = download_videos()
-    job = Job(op_args={audio: {'path': vid_path}, output: 'audio_test'})
-    db.run(output, [job], force=True)
+    audio = db.io.Input([AudioStream(vid_path, 1.0)])
+    ignored = db.ops.DiscardFrame(ignore=audio)
+    output = db.io.Output(ignored, [ScannerStream(db, 'audio_test')])
+    db.run(output, force=True)
 
 
 def download_transcript():
@@ -1572,13 +1307,12 @@ def decode_cap(config, cap: bytes) -> bytes:
 
 
 def test_captions(db):
-    captions = db.sources.Captions(window_size=10)
-    ignored = db.ops.DecodeCap(cap=captions)
-    output = db.sinks.Column(columns={'ignored': ignored})
-
     caption_path = download_transcript()
-    job = Job(op_args={captions: {'path': caption_path, 'max_time': 3600}, output: 'caption_test'})
-    db.run(output, [job], force=True, pipeline_instances_per_node=1)
+    captions = db.io.Input([CaptionStream(caption_path, window_size=10.0, max_time=3600)])
+    ignored = db.ops.DecodeCap(cap=captions)
+    output = db.io.Output(ignored, [ScannerStream(db, 'caption_test')])
+    db.run(output, force=True, pipeline_instances_per_node=1)
+
 
 def test_tutorial():
     def run_py(path):

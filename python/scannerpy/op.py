@@ -24,17 +24,13 @@ def collect_per_stream_args(name, protobuf_name, kwargs):
             "Op `{}` received no per-stream arguments. Options: {}" \
             .format(name, ', '.join(stream_args)))
 
-    # if 'EnumeratorArgs' in protobuf_name:
-    #     return python_to_proto(protobuf_name, stream_args)
-
-    # else:
-
-    N = len(next(iter(stream_args.values())))
+    N = [len(v) for v in stream_args.values() if isinstance(v, list)][0]
 
     job_args = [
         python_to_proto(protobuf_name, {
             k: v[i] if isinstance(v, list) else v
             for k, v in stream_args.items()
+            if v is not None
         })
         for i in range(N)
     ]
@@ -116,9 +112,14 @@ class OpGenerator:
         self._db = db
 
     def __getattr__(self, name):
+        stream_params = []
+
+        orig_name = name
+
         # Check python registry for Op
         if name in PYTHON_OP_REGISTRY:
             py_op_info = PYTHON_OP_REGISTRY[name]
+            stream_params = py_op_info['stream_params']
             # If Op has not been registered yet, register it
             pseudo_name = name + ':' + py_op_info['registration_id']
             name = pseudo_name
@@ -162,8 +163,21 @@ class OpGenerator:
             stencil = kwargs.pop('stencil', [])
             extra = kwargs.pop('extra', None)
             args = kwargs.pop('args', None)
+
+            if orig_name in PYTHON_OP_REGISTRY:
+                if len(stream_params) > 0:
+                    stream_args = [(k, kwargs.pop(k, None)) for k in stream_params]
+                    N = len(stream_args[0][1])
+                    stream_args = [{k: v[i] for k, v in stream_args} for i in range(N)]
+                    stream_args = [pickle.dumps(d) for d in stream_args]
+                else:
+                    stream_args = None
+            else:
+                # TODO: protobuf op stream args
+                stream_args = None
+
             op = Op(self._db, name, inputs, device, batch, bounded_state,
-                    stencil, kwargs if args is None else args, extra)
+                    stencil, kwargs if args is None else args, extra, stream_args)
             return op.outputs()
 
         return make_op
@@ -179,7 +193,8 @@ class Op:
                  warmup=-1,
                  stencil=[0],
                  args={},
-                 extra=None):
+                 extra=None,
+                 stream_args=None):
         self._db = db
         self._name = name
         self._inputs = inputs
@@ -189,7 +204,7 @@ class Op:
         self._stencil = stencil
         self._args = args
         self._extra = extra
-        self._job_args = None
+        self._job_args = stream_args
 
         if (name == 'Space' or name == 'Sample' or name == 'Slice'
                 or name == 'Unslice'):
@@ -490,6 +505,17 @@ def register_python_op(name: str = None,
             raise ScannerException(
                 'Must only specify one of "device_type" or "device_sets" for python Op.')
 
+        if not is_fn:
+            init_params = list(signature(getattr(fn_or_class, "__init__")).parameters.keys())[1:]
+            if init_params[0] != 'config':
+                raise ScannerException("__init__ first argument (after self) must be `config`")
+            kernel_params = init_params[1:]
+
+            stream_params = list(signature(getattr(fn_or_class, "new_stream")).parameters.keys())[1:]
+        else:
+            kernel_params = []
+            stream_params = []
+
         PYTHON_OP_REGISTRY[kname] = {
             'input_columns': input_columns,
             'output_columns': output_columns,
@@ -502,7 +528,9 @@ def register_python_op(name: str = None,
             'device_sets': device_sets,
             'batch': batch,
             'proto_path': proto_path,
-            'registration_id': uuid.uuid4().hex
+            'registration_id': uuid.uuid4().hex,
+            'kernel_params': kernel_params,
+            'stream_params': stream_params
         }
         return fn_or_class
 
