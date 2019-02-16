@@ -729,7 +729,7 @@ def test_python_stencil_batch_kernel(db):
 def test_bind_op_args(db):
     input = ScannerFrameStream(db, 'test1')
     frame = db.io.Input([input, input])
-    range_frame = db.streams.Range(frame, ranges=[{'start': 0, 'end': 1}])
+    range_frame = db.streams.Range(frame, ranges=[{'start': 0, 'end': 1} for _ in range(2)])
     test_out = db.ops.TestPy(frame=range_frame, kernel_arg=1, x=[1, 10], y=[5, 50])
     outputs = [ScannerStream(db, 'test_hist_0'), ScannerStream(db, 'test_hist_1')]
     output_op = db.io.Output(test_out, outputs)

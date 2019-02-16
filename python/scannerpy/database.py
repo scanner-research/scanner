@@ -1387,8 +1387,22 @@ class Database(object):
 
         N = None
         for op in sorted_ops:
+            n = None
             if op._job_args is not None:
-                N = len(op._job_args)
+                n = len(op._job_args)
+            elif op._extra is not None and 'job_args' in op._extra:
+                if not isinstance(op._extra['job_args'], list):
+                    raise ScannerException("Per-stream arguments to op `{}` must be a list." \
+                                           .format(op._name))
+                n = len(op._extra['job_args'])
+            else:
+                continue
+
+            if N is None:
+                N = n
+            elif n != N:
+                raise ScannerException("Op `{}` had {} per-stream arguments, but expected {}" \
+                                       .format(op._name, n, N))
         assert N is not None
 
         # Collect set of existing stored streams for each output
@@ -1439,9 +1453,6 @@ class Database(object):
                 if op._job_args is not None:
                     op_args[op] = op._job_args[i]
                 elif op._extra is not None and 'job_args' in op._extra:
-                    if not isinstance(op._extra['job_args'], list):
-                        raise ScannerException("Per-stream arguments to op `{}` must be a list." \
-                                               .format(op._name))
                     op_args[op] = op._extra['job_args'][i]
             jobs.append(Job(op_args=op_args))
 
@@ -1521,8 +1532,6 @@ class Database(object):
 
                     if not isinstance(args, SliceList):
                         args = SliceList([args])
-
-                    print(op, op._name, args)
 
                     for arg in args:
                         oargs.op_args.append(arg)
