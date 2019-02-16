@@ -14,6 +14,9 @@ from collections import OrderedDict
 from functools import wraps
 
 
+class SliceList(list):
+    pass
+
 
 def collect_per_stream_args(name, protobuf_name, kwargs):
     stream_arg_names = list(analyze_proto(getattr(protobufs, protobuf_name)).keys())
@@ -167,9 +170,19 @@ class OpGenerator:
             if orig_name in PYTHON_OP_REGISTRY:
                 if len(stream_params) > 0:
                     stream_args = [(k, kwargs.pop(k, None)) for k in stream_params]
-                    N = len(stream_args[0][1])
-                    stream_args = [{k: v[i] for k, v in stream_args} for i in range(N)]
-                    stream_args = [pickle.dumps(d) for d in stream_args]
+                    example_list = stream_args[0][1]
+                    N = len(example_list)
+                    if not isinstance(example_list[0], SliceList):
+                        stream_args = [
+                            (k, [SliceList([x]) for x in arg]) for (k, arg) in stream_args]
+                    M = len(stream_args[0][1][0])
+
+                    stream_args = [
+                        SliceList([pickle.dumps({k: v[i][j] for k, v in stream_args})
+                                   for j in range(M)])
+                        for i in range(N)
+                    ]
+                    print(stream_args)
                 else:
                     stream_args = None
             else:

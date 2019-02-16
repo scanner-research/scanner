@@ -1,6 +1,6 @@
 import scannerpy
 from scannerpy import (Database, Config, DeviceType, FrameType, Job,
-                       ScannerException, Kernel, protobufs, NullElement)
+                       ScannerException, Kernel, protobufs, NullElement, SliceList, CacheMode)
 from scannerpy.storage import (
     ScannerStream, ScannerFrameStream, FilesStream, PythonStream, SQLInputStream,
     SQLOutputStream, SQLStorage, AudioStream, CaptionStream)
@@ -165,11 +165,11 @@ def test_gather_video_column(db):
 def test_profiler(db):
     frame = db.io.Input([ScannerFrameStream(db, 'test1')])
     hist = db.ops.Histogram(frame=frame)
-    ghist = db.streams.Gather(hist, [0])
+    ghist = db.streams.Gather(hist, [[0]])
     output_op = db.io.Output(ghist, [ScannerStream(db, '_ignore')])
 
     time_start = time.time()
-    db.run(output_op, show_progress=False, force=True)
+    db.run(output_op, show_progress=False, cache_mode=CacheMode.Overwrite)
     output = [db.table('_ignore')]
     print('Time', time.time() - time_start)
     profiler = output[0].profiler()
@@ -200,7 +200,7 @@ def test_multiple_outputs(db):
         output_op_1 = db.io.Output(sample_frame_1, [ScannerFrameStream(db, 'test_mp_1')])
         output_op_2 = db.io.Output(sample_frame_2, [ScannerFrameStream(db, 'test_mp_2')])
 
-        db.run([output_op_1, output_op_2], force=True, show_progress=False)
+        db.run([output_op_1, output_op_2], cache_mode=CacheMode.Overwrite, show_progress=False)
 
     # This should fail
     sampler_args_1 = {'start': 0, 'end': 30}
@@ -237,7 +237,7 @@ def test_multiple_outputs(db):
     output_op_1 = db.io.Output(sample_frame_1, [ScannerFrameStream(db, 'test_mp_1')])
     output_op_2 = db.io.Output(sample_frame_1, [ScannerFrameStream(db, 'test_mp_2')])
 
-    db.run([output_op_1, output_op_2], force=True, show_progress=False)
+    db.run([output_op_1, output_op_2], cache_mode=CacheMode.Overwrite, show_progress=False)
 
     num_rows = 0
     for _ in db.table('test_mp_1').column('frame').load():
@@ -251,7 +251,7 @@ def test_sample(db):
         sample_frame = sampler(input=frame, **sampler_args)
         output = ScannerFrameStream(db, 'test_sample')
         output_op = db.io.Output(sample_frame, [output])
-        db.run(output_op, force=True, show_progress=False)
+        db.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
 
         num_rows = len(list(output.load()))
         assert num_rows == expected_rows
@@ -278,7 +278,7 @@ def test_space(db):
         space_hist = spacer(input=hist, spacings=[spacing])
         output = ScannerStream(db, 'test_space')
         output_op = db.io.Output(space_hist, [output])
-        db.run(output_op, force=True, show_progress=False)
+        db.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
         return output
 
     # # Repeat
@@ -317,62 +317,54 @@ def test_slice(db):
     unsliced_frame = db.streams.Unslice(slice_frame)
     output = ScannerStream(db, 'test_slicing')
     output_op = db.io.Output(unsliced_frame, [output])
-    db.run(output_op, force=True, show_progress=False)
+    db.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
     assert input.len() == output.len()
 
 
-# TODO
-# def test_overlapping_slice(db):
-#     input = ScannerFrameStream(db, 'test1')
-#     frame = db.io.Input([input])
-#     slice_frame = db.streams.Slice(frame, partitions=[
-#         db.partitioner.strided_ranges([(0, 15), (5, 25), (15, 35)], 1)])
-#     sample_frame = db.streams.Ranges(slice_frame, intervals=[[
-#         (0, 10),
-#         (5, 15),
-#         (5, 15),
-#     ]])
-#     unsliced_frame = db.streams.Unslice(sample_frame)
-#     output = ScannerStream(db, 'test_slicing')
-#     output_op = db.io.Output(unsliced_frame, [output])
-#     db.run(output_op, force=True, show_progress=False)
-#     assert output.len() == 30
+def test_overlapping_slice(db):
+    input = ScannerFrameStream(db, 'test1')
+    frame = db.io.Input([input])
+    slice_frame = db.streams.Slice(frame, partitions=[
+        db.partitioner.strided_ranges([(0, 15), (5, 25), (15, 35)], 1)])
+    sample_frame = db.streams.Range(slice_frame, ranges=[SliceList([
+        {'start': 0, 'end': 10},
+        {'start': 5, 'end': 15},
+        {'start': 5, 'end': 15},
+    ])])
+    unsliced_frame = db.streams.Unslice(sample_frame)
+    output = ScannerStream(db, 'test_slicing')
+    output_op = db.io.Output(unsliced_frame, [output])
+    db.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+    assert output.len() == 30
 
 
-# @scannerpy.register_python_op()
-# class TestSliceArgs(Kernel):
-#     def __init__(self, config):
-#         pass
+@scannerpy.register_python_op()
+class TestSliceArgs(Kernel):
+    def __init__(self, config):
+        pass
 
-#     def close(self):
-#         pass
+    def close(self):
+        pass
 
-#     def new_stream(self, args):
-#         self.arg = args['arg']
+    def new_stream(self, arg):
+        self.arg = arg
 
-#     def execute(self, frame: FrameType) -> bytes:
-#         return pickle.dumps(self.arg)
+    def execute(self, frame: FrameType) -> Any:
+        return self.arg
 
 
-# def test_slice_args(db):
-#     frame = db.sources.FrameColumn()
-#     slice_frame = db.streams.Slice(frame, db.partitioner.ranges(
-#         [[0, 1], [1, 2], [2, 3]]))
-#     test = db.ops.TestSliceArgs(frame=slice_frame)
-#     unsliced_frame = db.streams.Unslice(test)
-#     output_op = db.sinks.Column(columns={'frame': unsliced_frame})
-#     job = Job(op_args={
-#         frame: db.table('test1').column('frame'),
-#         test: [{'arg': i} for i in range(3)],
-#         output_op: 'test_slicing',
-#     })
+def test_slice_args(db):
+    frame = db.io.Input([ScannerFrameStream(db, 'test1')])
+    slice_frame = db.streams.Slice(frame, [db.partitioner.ranges(
+        [[0, 1], [1, 2], [2, 3]])])
+    test = db.ops.TestSliceArgs(frame=slice_frame, arg=[SliceList([{'arg': i} for i in range(3)])])
+    unsliced_frame = db.streams.Unslice(test)
+    output = ScannerStream(db, 'test_slicing')
+    output_op = db.io.Output(unsliced_frame, [output])
+    db.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
 
-#     db.run(output_op, [job], force=True, show_progress=False)
-#     tables = [db.table('test_slicing')]
-
-#     num_rows = 0
-#     for x in tables[0].column('frame').load():
-#         arg = pickle.loads(x)
+    num_rows = 0
+    list(output.load())
 
 
 def test_bounded_state(db):
@@ -383,7 +375,7 @@ def test_bounded_state(db):
     sampled_increment = db.streams.Gather(increment, indices=[[0, 10, 25, 26, 27]])
     output = ScannerStream(db, 'test_bounded_state')
     output_op = db.io.Output(sampled_increment, [output])
-    db.run(output_op, force=True, show_progress=False)
+    db.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
 
     num_rows = 0
     expected_output = [0, warmup, warmup, warmup + 1, warmup + 2]
@@ -402,7 +394,7 @@ def test_unbounded_state(db):
     unsliced_increment = db.streams.Unslice(increment)
     output = ScannerStream(db, 'test_unbounded_state')
     output_op = db.io.Output(unsliced_increment, [output])
-    db.run(output_op, force=True, show_progress=False)
+    db.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
     assert output.len() == input.len()
 
 
@@ -423,7 +415,7 @@ class TestHistogram(DeviceTestBench):
         output = ScannerStream(db, 'test_hist')
         output_op = db.io.Output(hist, [output])
 
-        db.run(output_op, force=True, show_progress=False)
+        db.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
         next(output.load())
 
 
@@ -435,7 +427,7 @@ class TestInplace(DeviceTestBench):
         output = ScannerStream(db, 'test_hist')
         output_op = db.io.Output(hist, [output])
 
-        db.run(output_op, force=True, show_progress=False)
+        db.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
         next(output.load())
 
 
@@ -447,7 +439,7 @@ class TestOpticalFlow(DeviceTestBench):
         flow_range = db.streams.Range(flow, ranges=[{'start': 0, 'end': 50}])
         output = ScannerStream(db, 'test_flow')
         output_op = db.io.Output(flow_range, [output])
-        db.run(output_op, force=True, show_progress=False)
+        db.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
         assert output.len() == 50
 
         flow_array = next(output.load())
@@ -466,7 +458,7 @@ def test_stencil(db):
     output = ScannerStream(db, 'test_stencil')
     output_op = db.io.Output(flow, [output])
     db.run(output_op,
-           force=True,
+           cache_mode=CacheMode.Overwrite,
            show_progress=False,
            pipeline_instances_per_node=1)
     assert output.len() == 1
@@ -477,7 +469,7 @@ def test_stencil(db):
     output = ScannerStream(db, 'test_stencil')
     output_op = db.io.Output(flow, [output])
     db.run(output_op,
-           force=True,
+           cache_mode=CacheMode.Overwrite,
            show_progress=False,
            pipeline_instances_per_node=1)
 
@@ -487,7 +479,7 @@ def test_stencil(db):
     output = ScannerStream(db, 'test_stencil')
     output_op = db.io.Output(flow, [output])
     db.run(output_op,
-           force=True,
+           cache_mode=CacheMode.Overwrite,
            show_progress=False,
            pipeline_instances_per_node=1)
     assert output.len() == 2
@@ -498,7 +490,7 @@ def test_stencil(db):
     output = ScannerStream(db, 'test_stencil')
     output_op = db.io.Output(sample_flow, [output])
     db.run(output_op,
-           force=True,
+           cache_mode=CacheMode.Overwrite,
            show_progress=False,
            pipeline_instances_per_node=1)
     assert output.len() == 1
@@ -514,7 +506,7 @@ def test_wider_than_packet_stencil(db):
 
     db.run(
         output_op,
-        force=True,
+        cache_mode=CacheMode.Overwrite,
         show_progress=False,
         io_packet_size=1,
         work_packet_size=1,
@@ -546,7 +538,7 @@ def test_wider_than_packet_stencil(db):
 #         output_op: 'test_cpp_source',
 #     })
 
-#     db.run(output_op, [job], force=True, show_progress=False)
+#     db.run(output_op, [job], cache_mode=CacheMode.Overwrite, show_progress=False)
 #     tables = [db.table('test_cpp_source')]
 
 #     num_rows = 0
@@ -573,7 +565,7 @@ def test_files_source(db):
     pass_data = db.ops.Pass(input=data)
     output = ScannerStream(db, 'test_files_source')
     output_op = db.io.Output(pass_data, [output])
-    db.run(output_op, force=True, show_progress=False)
+    db.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
 
     num_rows = 0
     for buf in output.load():
@@ -607,7 +599,7 @@ def test_files_sink(db):
     pass_data = db.ops.Pass(input=data)
     output = FilesStream(paths=output_paths)
     output_op = db.io.Output(pass_data, [output])
-    db.run(output_op, force=True, show_progress=False)
+    db.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
 
     # Read output test files
     for i, s in enumerate(output.load()):
@@ -623,7 +615,7 @@ def test_python_source(db):
     pass_data = db.ops.Pass(input=data)
     output = ScannerStream(db, 'test_python_source')
     output_op = db.io.Output(pass_data, [output])
-    db.run(output_op, force=True, show_progress=False)
+    db.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
 
     num_rows = 0
     for i, buf in enumerate(output.load()):
@@ -658,7 +650,7 @@ def test_python_kernel(db):
     test_out = db.ops.TestPy(frame=range_frame, kernel_arg=1, x=[0], y=[0])
     output = ScannerStream(db, 'test_hist')
     output_op = db.io.Output(test_out, [output])
-    db.run(output_op, force=True, show_progress=False)
+    db.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
     next(output.load())
 
 
@@ -680,7 +672,7 @@ def test_python_batch_kernel(db):
     test_out = db.ops.TestPyBatch(frame=range_frame, batch=50)
     output = ScannerStream(db, 'test_hist')
     output_op = db.io.Output(test_out, [output])
-    db.run(output_op, force=True, show_progress=False)
+    db.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
     next(output.load())
 
 
@@ -701,7 +693,7 @@ def test_python_stencil_kernel(db):
     test_out = db.ops.TestPyStencil(frame=range_frame)
     output = ScannerStream(db, 'test_hist')
     output_op = db.io.Output(test_out, [output])
-    db.run(output_op, force=True, show_progress=False)
+    db.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
     next(output.load())
 
 
@@ -731,7 +723,7 @@ def test_python_stencil_batch_kernel(db):
     test_out = db.ops.TestPyStencilBatch(frame=range_frame, batch=50)
     output = ScannerStream(db, 'test_hist')
     output_op = db.io.Output(test_out, [output])
-    db.run(output_op, force=True, show_progress=False)
+    db.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
     next(output.load())
 
 
@@ -743,7 +735,7 @@ def test_bind_op_args(db):
     outputs = [ScannerStream(db, 'test_hist_0'), ScannerStream(db, 'test_hist_1')]
     output_op = db.io.Output(test_out, outputs)
     pairs = [(1, 5), (10, 50)]
-    db.run(output_op, force=True, show_progress=False)
+    db.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
 
     for i, (x, y) in enumerate(pairs):
         values = list(outputs[i].load())
@@ -759,7 +751,7 @@ def test_blur(db):
     blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
     output = ScannerFrameStream(db, 'test_blur')
     output_op = db.io.Output(blurred_frame, [output])
-    db.run(output_op, force=True, show_progress=False)
+    db.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
 
     frame_array = next(output.load())
     assert frame_array.dtype == np.uint8
@@ -775,7 +767,7 @@ def test_lossless(db):
     blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
     output = ScannerFrameStream(db, 'test_blur')
     output_op = db.io.Output(blurred_frame.lossless(), [output])
-    db.run(output_op, force=True, show_progress=False)
+    db.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
     next(output.load())
 
 
@@ -786,7 +778,7 @@ def test_compress(db):
     blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
     output = ScannerFrameStream(db, 'test_blur')
     output_op = db.io.Output(blurred_frame.compress('video', bitrate=1 * 1024 * 1024), [output])
-    db.run(output_op, force=True, show_progress=False)
+    db.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
     next(output.load())
 
 
@@ -797,7 +789,7 @@ def test_save_mp4(db):
     blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
     output = ScannerFrameStream(db, 'test_save_mp4')
     output_op = db.io.Output(blurred_frame, [output])
-    db.run(output_op, force=True, show_progress=False)
+    db.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
 
     f = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
     f.close()
@@ -836,7 +828,7 @@ def test_no_workers(no_workers_db):
 
     exc = False
     try:
-        db.run(output_op, show_progress=False, force=True)
+        db.run(output_op, show_progress=False, cache_mode=CacheMode.Overwrite)
     except ScannerException:
         exc = True
 
@@ -932,7 +924,7 @@ def fault_db():
 #         }
 #     )
 #
-#     table = fault_db.run(output_op, [job], pipeline_instances_per_node=1, force=True,
+#     table = fault_db.run(output_op, [job], pipeline_instances_per_node=1, cache_mode=CacheMode.Overwrite,
 #                          show_progress=False)
 #     table = table[0]
 #     assert len([_ for _, _ in table.column('dummy').load()]) == 15
@@ -1021,7 +1013,7 @@ def test_fault_tolerance(fault_db):
     fault_db.run(
         output_op,
         pipeline_instances_per_node=1,
-        force=True,
+        cache_mode=CacheMode.Overwrite,
         show_progress=False)
 
     assert output.len() == 20
@@ -1091,7 +1083,7 @@ def test_job_blacklist(blacklist_db):
     output_op = db.io.Output(failed_output, [output])
     db.run(
         output_op,
-        force=True,
+        cache_mode=CacheMode.Overwrite,
         show_progress=False,
         pipeline_instances_per_node=1)
     assert not output.committed()
@@ -1152,7 +1144,7 @@ def test_job_timeout(timeout_db):
         output_op,
         pipeline_instances_per_node=1,
         task_timeout=0.1,
-        force=True,
+        cache_mode=CacheMode.Overwrite,
         show_progress=False)
 
     assert not output.committed()
@@ -1283,12 +1275,13 @@ def test_sql_insert(sql_db):
     cur.execute('SELECT s FROM test2')
     assert cur.fetchone()[0] == "hello world"
 
+
 def test_audio(db):
     (vid_path, _) = download_videos()
     audio = db.io.Input([AudioStream(vid_path, 1.0)])
     ignored = db.ops.DiscardFrame(ignore=audio)
     output = db.io.Output(ignored, [ScannerStream(db, 'audio_test')])
-    db.run(output, force=True)
+    db.run(output, cache_mode=CacheMode.Overwrite)
 
 
 def download_transcript():
@@ -1311,7 +1304,39 @@ def test_captions(db):
     captions = db.io.Input([CaptionStream(caption_path, window_size=10.0, max_time=3600)])
     ignored = db.ops.DecodeCap(cap=captions)
     output = db.io.Output(ignored, [ScannerStream(db, 'caption_test')])
-    db.run(output, force=True, pipeline_instances_per_node=1)
+    db.run(output, cache_mode=CacheMode.Overwrite, pipeline_instances_per_node=1)
+
+
+@scannerpy.register_python_op(name='CacheTest')
+def cache_test(config, n: Any) -> Any:
+    return n + 1
+
+
+def test_cache_mode(db):
+    n = db.io.Input([PythonStream([0])])
+    out = db.ops.CacheTest(n=n)
+    output = ScannerStream(db, 'test_cache')
+    output_op = db.io.Output(out, [output])
+    db.run(output_op)
+
+    assert next(output.load()) == 1
+
+    exc = False
+    try:
+        db.run(output_op)
+    except ScannerException:
+        exc = True
+    assert exc
+
+    n = db.io.Input([PythonStream([1])])
+    out = db.ops.CacheTest(n=n)
+    output_op = db.io.Output(out, [output])
+
+    db.run(output_op, cache_mode=CacheMode.Ignore)
+    assert next(output.load()) == 1
+
+    db.run(output_op, cache_mode=CacheMode.Overwrite)
+    assert next(output.load()) == 2
 
 
 def test_tutorial():

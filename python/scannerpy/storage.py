@@ -4,23 +4,29 @@ from scannerpy.common import ScannerException
 import os
 import pickle
 
+
 class NullElement:
     pass
 
+
 class Storage:
     def source(self, db, streams):
-        raise NotImplementedError
+        raise ScannerException(
+            "Storage class `{}` cannot serve as a Scanner input.".format(type(self).__name__))
 
     def sink(self, db, op, streams):
-        raise NotImplementedError
+        raise ScannerException(
+            "Storage class `{}` cannot serve as a Scanner output.".format(type(self).__name__))
 
     def delete(self, db, streams):
-        raise NotImplementedError
+        raise ScannerException(
+            "Storage class `{}` cannot delete elements.".format(type(self).__name__))
 
 
 class StoredStream:
     def load_bytes(self, rows=None):
-        raise NotImplementedError
+        raise ScannerException(
+            "Stream `{}` cannot load elements into Python.".format(type(self).__name__))
 
     def committed(self) -> bool:
         raise NotImplementedError
@@ -139,11 +145,28 @@ class ScannerFrameStream(ScannerStream):
 
 
 class FilesStorage(Storage):
+    def __init__(self, storage_type="posix", bucket=None, region=None, endpoint=None):
+        self._storage_type = storage_type
+        self._bucket = bucket
+        self._region = region
+        self._endpoint = endpoint
+
     def source(self, db, streams):
-        return db.sources.Files(paths=[s._paths for s in streams])
+        return db.sources.Files(
+            storage_type=self._storage_type,
+            bucket=self._bucket,
+            region=self._region,
+            endpoint=self._endpoint,
+            paths=[s._paths for s in streams])
 
     def sink(self, db, op, streams):
-        return db.sinks.Files(input=op, paths=[s._paths for s in streams])
+        return db.sinks.Files(
+            input=op,
+            storage_type=self._storage_type,
+            bucket=self._bucket,
+            region=self._region,
+            endpoint=self._endpoint,
+            paths=[s._paths for s in streams])
 
     def delete(self, db, streams):
         # TODO
@@ -179,7 +202,6 @@ class FilesStream(StoredStream):
         return any(os.path.isfile(p) for p in self._paths)
 
     def type(self):
-        # TODO:
         return None
 
 

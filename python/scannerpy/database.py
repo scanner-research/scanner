@@ -29,7 +29,7 @@ from string import ascii_uppercase
 from scannerpy.common import *
 from scannerpy.profiler import Profiler
 from scannerpy.config import Config
-from scannerpy.op import OpGenerator, Op, OpColumn
+from scannerpy.op import OpGenerator, Op, OpColumn, SliceList
 from scannerpy.source import SourceGenerator, Source
 from scannerpy.sink import SinkGenerator, Sink
 from scannerpy.streams import StreamsGenerator
@@ -1288,7 +1288,7 @@ class Database(object):
 
     def run(self,
             outputs: Union[Sink, List[Sink]],
-            force: bool = False,
+            cache_mode: CacheMode = CacheMode.Error,
             work_packet_size: int = 32,
             io_packet_size: int = 128,
             cpu_pool: str = None,
@@ -1313,8 +1313,9 @@ class Database(object):
           The set of jobs to process. All of these jobs should share the same
           graph of operations.
 
-        force
-          If the output tables already exist, overwrite them.
+        cache_mode
+          Determines whether to overwrite, ignore, or raise an error when running a job on
+          existing outputs.
 
         work_packet_size
           The size of the packets of intermediate elements to pass between
@@ -1394,14 +1395,59 @@ class Database(object):
                 N = len(op._job_args)
         assert N is not None
 
+        # Collect set of existing stored streams for each output
+        output_ops_list = list(output_ops.keys())
+        to_delete = []
+        for op in output_ops_list:
+            streams = op._streams
+            storage = streams[0].storage()
+            to_delete.append(set([i for i, s in enumerate(streams) if s.exists()]))
+
+        # Check that all outputs have matching existing stored streams
+        for i, s in enumerate(to_delete):
+            for j, t in enumerate(to_delete):
+                if i == j: continue
+                diff = s - t
+                if len(diff) > 0 :
+                    raise Exception(
+                        "Output for stream {} exists in {} but does not exist in {}. Either both or \
+                        neither should exist.".format(
+                            next(iter(diff)), output_ops_list[i]._name, output_ops_list[j]._name))
+
+        to_cache = []
+        if len(to_delete[0]) > 0:
+            if cache_mode == CacheMode.Error:
+                raise ScannerException(
+                    "Running this job would overwrite output `{}` of op `{}`. You can \
+                    change this behavior using db.run(cache_mode=CacheMode.Ignore) to \
+                    ignore outputs that already exist, or CacheMode.Overwrite to \
+                    overwrite them.".format(next(iter(to_delete[0])), output_ops_list[0]._name))
+
+            elif cache_mode == CacheMode.Overwrite:
+                for op, td in zip(output_ops_list, to_delete):
+                    streams = op._streams
+                    storage = streams[0].storage()
+                    storage.delete(self, [streams[i] for i in td])
+
+            elif cache_mode == CacheMode.Ignore:
+                to_cache = to_delete[0]
+
         # Struct of arrays to array of structs conversion
         jobs = []
         for i in range(N):
+            if i in to_cache:
+                continue
+
             op_args = {}
             for op in sorted_ops:
                 if op._job_args is not None:
                     op_args[op] = op._job_args[i]
+                elif op._extra is not None and 'job_args' in op._extra:
+                    op_args[op] = op._extra['job_args'][i]
             jobs.append(Job(op_args=op_args))
+
+        if len(jobs) == 0:
+            return
 
         for job in jobs:
             j = job_params.jobs.add()
@@ -1428,15 +1474,13 @@ class Database(object):
                     # If this is an Unslice Op, ignore it since it has no args
                     if op._name == 'Unslice':
                         continue
-                    args = op._extra['job_args']
+                    args = op_to_op_args[op]
 
                     saa = j.sampling_args_assignment.add()
                     saa.op_index = op_idx
-                    if ((op._extra['type'] == 'Gather' and
-                         isinstance(args, list) and
-                         not isinstance(args[0], list)) or
-                        not isinstance(args, list)):
-                        args = [args]
+
+                    if not isinstance(args, SliceList):
+                        args = SliceList([args])
 
                     arg_builder = op._extra['arg_builder']
                     for arg in args:
@@ -1463,10 +1507,6 @@ class Database(object):
 
                     sink_args.args = args
 
-                    streams = op._streams
-                    storage = streams[0].storage()
-                    storage.delete(self, [s for s in streams if s.exists()])
-
                 else:
                     # Regular old Op
                     op_idx = op_index[op]
@@ -1478,8 +1518,11 @@ class Database(object):
                     else:
                         args = op_to_op_args[op]
 
-                    if not isinstance(args, list):
-                        args = [args]
+                    if not isinstance(args, SliceList):
+                        args = SliceList([args])
+
+                    print(op, op._name, args)
+
                     for arg in args:
                         oargs.op_args.append(arg)
                         #oargs.op_args.append(serialize_args(arg))
