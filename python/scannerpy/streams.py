@@ -2,6 +2,7 @@ import scannerpy.op
 
 from scannerpy.common import *
 from scannerpy.protobufs import protobufs
+from scannerpy.op import SliceList
 from typing import Sequence, Union, Tuple, Optional, List
 
 class StreamsGenerator:
@@ -154,8 +155,6 @@ class StreamsGenerator:
             extra={'type': 'Range',
                    'arg_builder': arg_builder,
                    'job_args': ranges})
-
-
 
     def Ranges(self,
                input: scannerpy.op.OpColumn,

@@ -241,7 +241,7 @@ class Column(object):
             img = self._db.ops.ImageEncoder(frame=enc_input)
             output = [ScannerStream(self._db, png_table_name)]
             output_op = self._db.io.Output(img, output)
-            self._db.run(output_op, force=True, show_progress=False)
+            self._db.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
             return output[0].load(fn=readers.image)
         elif self._descriptor.type == protobufs.Video:
             frame_type = self._video_descriptor.frame_type
