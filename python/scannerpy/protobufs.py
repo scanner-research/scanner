@@ -130,7 +130,7 @@ def python_to_proto(proto_name, obj):
             elif p[k]['message'] is not None:
                 # If a message field, have to CopyFrom, can't use direct assignment
                 getattr(proto_obj, k).CopyFrom(make_field(v))
-            else:
+            elif make_field(v) is not None:
                 # Just set the regular field
                 setattr(proto_obj, k, make_field(v))
 
