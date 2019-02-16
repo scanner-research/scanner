@@ -195,8 +195,8 @@ def test_multiple_outputs(db):
     sampler = db.streams.Range
     def run_job(args_1, args_2):
         frame = db.io.Input([ScannerFrameStream(db, 'test1')])
-        sample_frame_1 = db.streams.Range(input=frame, ranges=args_1)
-        sample_frame_2 = db.streams.Range(input=frame, ranges=args_2)
+        sample_frame_1 = db.streams.Range(input=frame, ranges=[args_1])
+        sample_frame_2 = db.streams.Range(input=frame, ranges=[args_2])
         output_op_1 = db.io.Output(sample_frame_1, [ScannerFrameStream(db, 'test_mp_1')])
         output_op_2 = db.io.Output(sample_frame_2, [ScannerFrameStream(db, 'test_mp_2')])
 
@@ -233,7 +233,7 @@ def test_multiple_outputs(db):
 
     # This should succeed
     frame = db.io.Input([ScannerFrameStream(db, 'test1')])
-    sample_frame_1 = db.streams.Range(input=frame, ranges=sampler_args_1)
+    sample_frame_1 = db.streams.Range(input=frame, ranges=[sampler_args_1])
     output_op_1 = db.io.Output(sample_frame_1, [ScannerFrameStream(db, 'test_mp_1')])
     output_op_2 = db.io.Output(sample_frame_1, [ScannerFrameStream(db, 'test_mp_2')])
 
@@ -594,7 +594,6 @@ def test_files_sink(db):
     for i in range(num_elements):
         path = path_template.format(i)
         output_paths.append(path)
-
     data = db.io.Input([FilesStream(paths=input_paths)])
     pass_data = db.ops.Pass(input=data)
     output = FilesStream(paths=output_paths)

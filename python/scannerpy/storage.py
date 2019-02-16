@@ -10,6 +10,8 @@ class NullElement:
 
 
 class Storage:
+    r"""I/O backend for streams fed in/out of Scanner."""
+
     def source(self, db, streams):
         raise ScannerException(
             "Storage class `{}` cannot serve as a Scanner input.".format(type(self).__name__))

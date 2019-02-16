@@ -1309,10 +1309,6 @@ class Database(object):
         outputs
           The Sink or Sinks that should be processed.
 
-        jobs
-          The set of jobs to process. All of these jobs should share the same
-          graph of operations.
-
         cache_mode
           Determines whether to overwrite, ignore, or raise an error when running a job on
           existing outputs.
@@ -1443,8 +1439,13 @@ class Database(object):
                 if op._job_args is not None:
                     op_args[op] = op._job_args[i]
                 elif op._extra is not None and 'job_args' in op._extra:
+                    if not isinstance(op._extra['job_args'], list):
+                        raise ScannerException("Per-stream arguments to op `{}` must be a list." \
+                                               .format(op._name))
                     op_args[op] = op._extra['job_args'][i]
             jobs.append(Job(op_args=op_args))
+
+        N -= len(to_cache)
 
         if len(jobs) == 0:
             return
