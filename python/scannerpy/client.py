@@ -56,14 +56,14 @@ import scanner.types_pb2 as misc_types
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
 
-class Database(object):
+class Client(object):
     r"""Entrypoint for all Scanner operations.
 
     Parameters
     ----------
     master
       The address of the master process. The addresses should be formatted
-      as 'ip:port'. If the `start_cluster` flag is specified, the Database
+      as 'ip:port'. If the `start_cluster` flag is specified, the Client
       object will ssh into the provided address and start a master process.
       You should have ssh access to the target machine and scannerpy should
       be installed.
@@ -102,7 +102,7 @@ class Database(object):
     Attributes
     ----------
     config : Config
-      The Config object used to initialize this Database.
+      The Config object used to initialize this Client.
 
     ops : OpGenerator
       Represents the set of available Ops. Ops can be created like so:
@@ -169,7 +169,7 @@ class Database(object):
 
         self._bindings = bindings
 
-        # Setup database metadata
+        # Setup Client metadata
         self._db_path = self.config.db_path
         self._storage = self.config.storage
         self._cached_db_metadata = None
@@ -193,7 +193,7 @@ class Database(object):
         self.start_master(master)
 
     def __del__(self):
-        # Database crashed during config creation if this attr is missing
+        # Client crashed during config creation if this attr is missing
         if hasattr(self, '_start_cluster') and self._start_cluster:
             self._stop_heartbeat()
             self.stop_cluster()
@@ -256,7 +256,7 @@ class Database(object):
 
             if self._prefetch_table_metadata:
                 self._table_descriptor = {}
-                # Read all table descriptors from database
+                # Read all table descriptors from client
                 table_names = list(self._table_name.keys())
                 tables = self._load_table_metadata(table_names)
                 for table in tables:
@@ -545,12 +545,12 @@ class Database(object):
         return False
 
     def summarize(self) -> str:
-        r"""Returns a human-readable summarization of the database state.
+        r"""Returns a human-readable summarization of the client state.
         """
         summary = ''
         db_meta = self._load_db_metadata()
         if len(db_meta.tables) == 0:
-            return 'Your database is empty!'
+            return 'Your client is empty!'
 
         tables = [
             ('TABLES', [
@@ -979,11 +979,11 @@ class Database(object):
         Parameters
         ----------
         videos
-          The list of videos to ingest into the database. Each element in the
+          The list of videos to ingest into the client. Each element in the
           list should be ('table_name', 'path/to/video').
 
         inplace
-          If true, ingests the videos without copying them into the database.
+          If true, ingests the videos without copying them into the client.
           Currently only supported for mp4 containers.
 
         force
@@ -1664,7 +1664,7 @@ def start_worker(master_address: str,
                  config_path: str = None,
                  block: bool = False,
                  watchdog: bool = True,
-                 db: Database = None):
+                 db: Client = None):
     r"""Starts a worker instance on this node.
 
     Parameters
@@ -1736,6 +1736,6 @@ def start_worker(master_address: str,
 
 def _batch_load_column(arg):
     (tables, column, callback) = arg
-    db = Database(start_cluster=False, enable_watchdog=False)
+    db = Client(start_cluster=False, enable_watchdog=False)
     for t in tables:
         callback(t, list(db.table(t).column(column).load(workers=1)))

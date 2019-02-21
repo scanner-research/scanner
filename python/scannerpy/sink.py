@@ -8,13 +8,13 @@ from scannerpy.protobufs import python_to_proto, protobufs, analyze_proto
 
 
 class Sink:
-    def __init__(self, db, name, inputs, job_args, sink_args={}):
-        self._db = db
+    def __init__(self, sc, name, inputs, job_args, sink_args={}):
+        self._sc = sc
         self._name = name
         self._args = sink_args
         self._job_args = job_args
 
-        sink_info = self._db._get_sink_info(self._name)
+        sink_info = self._sc._get_sink_info(self._name)
         cols = sink_info.input_columns
         variadic_inputs = sink_info.variadic_inputs
 
@@ -23,7 +23,7 @@ class Sink:
             if 'columns' not in sink_args:
                 raise ScannerException(
                     'Columns must be specified for Column Sink. For example, '
-                    'db.sinks.Column(columns={\'column_name\': col}).')
+                    'sc.sinks.Column(columns={\'column_name\': col}).')
 
             columns = sink_args['columns']
             self._output_names = [n for n, _ in columns.items()]
@@ -37,7 +37,7 @@ class Sink:
         if name == 'FrameColumn' or name == 'Column':
             # We insert the storage config to allow the ColumSink
             # to read from the database
-            sc = self._db.config.config['storage']
+            sc = self._sc.config.config['storage']
             def check_and_add(key):
                 if key in sc:
                     self._args[key] = sc[key]
@@ -67,7 +67,7 @@ class Sink:
             # {Name}EnumeratorArgs (e.g. ColumnEnumeratorArgs) in the
             # args.proto module, and fill that in with keys from the args dict.
             if len(self._args) > 0:
-                sink_info = self._db._get_sink_info(self._name)
+                sink_info = self._sc._get_sink_info(self._name)
                 if len(sink_info.protobuf_name) > 0:
                     proto_name = sink_info.protobuf_name
                     e.kernel_args = python_to_proto(proto_name, self._args)
@@ -85,12 +85,12 @@ class SinkGenerator:
     Creates Sink instances to define a computation.
 
     When a particular Sink is requested from the generator, e.g.
-    `db.sink.Column`, the generator does a dynamic lookup for the
+    `sc.sink.Column`, the generator does a dynamic lookup for the
     Sink in the servers registry.
     """
 
-    def __init__(self, db):
-        self._db = db
+    def __init__(self, sc):
+        self._sc = sc
 
     def __getattr__(self, name):
         # Use Sequence as alias of Column
@@ -98,11 +98,11 @@ class SinkGenerator:
             name = name.replace('Sequence', 'Column')
             def make_sink(*args, **kwargs):
                 column_name = 'frame' if 'Frame' in name else 'column'
-                return Sink(self._db, name, [], dict(columns={column_name: args[0]}))
+                return Sink(self._sc, name, [], dict(columns={column_name: args[0]}))
             return make_sink
         else:
             # This will raise an exception if the source does not exist.
-            sink_info = self._db._get_sink_info(name)
+            sink_info = self._sc._get_sink_info(name)
 
             def make_sink(*args, **kwargs):
                 inputs = []
@@ -125,7 +125,7 @@ class SinkGenerator:
                     job_args = collect_per_stream_args(name, sink_info.stream_protobuf_name, kwargs)
 
                 sink_args = kwargs.pop('args', kwargs)
-                sink = Sink(self._db, name,
+                sink = Sink(self._sc, name,
                             inputs,
                             job_args,
                             kwargs if args is None else sink_args)

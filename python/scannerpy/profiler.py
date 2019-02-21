@@ -29,9 +29,9 @@ class Profiler:
     Contains profiling information about Scanner jobs.
     """
 
-    def __init__(self, db, job_id, load_threads=8, subsample=None):
-        self._storage = db._storage
-        job = db._load_descriptor(protobufs.BulkJobDescriptor,
+    def __init__(self, sc, job_id, load_threads=8, subsample=None):
+        self._storage = sc._storage
+        job = sc._load_descriptor(protobufs.BulkJobDescriptor,
                                   'jobs/{}/descriptor.bin'.format(job_id))
 
         def get_prof(path, worker=True):
@@ -48,10 +48,10 @@ class Profiler:
 
         with ThreadPoolExecutor(max_workers=load_threads) as executor:
             profilers = executor.map(
-                get_prof, ['{}/jobs/{}/profile_{}.bin'.format(db._db_path, job_id, n) for n in nodes])
+                get_prof, ['{}/jobs/{}/profile_{}.bin'.format(sc._db_path, job_id, n) for n in nodes])
         self._worker_profilers = {n: prof for n, prof in enumerate(profilers) if prof is not None}
 
-        path = '{}/jobs/{}/profile_master.bin'.format(db._db_path, job_id)
+        path = '{}/jobs/{}/profile_master.bin'.format(sc._db_path, job_id)
         self._master_profiler = get_prof(path, worker=False)
 
     def write_trace(self, path: str):
