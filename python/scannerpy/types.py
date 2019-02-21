@@ -1,11 +1,9 @@
-from typing import Any
 from attr import attrs, attrib
 from scannerpy.common import FrameType, ScannerException
 from scannerpy.protobufs import protobufs
 import pickle
-from typing import NewType
+from typing import NewType, Generic, TypeVar, Any
 import numpy as np
-from typing import Generic, TypeVar
 import struct
 
 PYTHON_TYPE_REGISTRY = {}
@@ -28,7 +26,7 @@ def _register_type(ty, cpp_name, serializer, deserializer):
 def get_type_info(ty):
     global PYTHON_TYPE_REGISTRY
     if not ty in PYTHON_TYPE_REGISTRY:
-        raise ScannerException("Type `{}` has not been registered with Scanner".format(ty))
+        raise ScannerException("Type `{}` has not been registered with Scanner".format(ty.__name__))
     return PYTHON_TYPE_REGISTRY[ty]
 
 def get_type_info_cpp(cpp_name):
@@ -50,32 +48,30 @@ def register_type(cls):
 
 
 def ProtoList(name, proto):
-    class ProtoList:
-        def serializer(proto_list):
-            s = struct.pack('=Q', len(proto_list))
-            for element in proto_list:
-                serialized = element.SerializeToString()
-                s += struct.pack('=Q', len(serialized))
-                s += serialized
-            return s
+    def serializer(proto_list):
+        s = struct.pack('=Q', len(proto_list))
+        for element in proto_list:
+            serialized = element.SerializeToString()
+            s += struct.pack('=Q', len(serialized))
+            s += serialized
+        return s
 
-        def deserializer(buf):
-            (N, ) = struct.unpack("=Q", buf[:8])
+    def deserializer(buf):
+        (N, ) = struct.unpack("=Q", buf[:8])
+        buf = buf[8:]
+        elements = []
+        for i in range(N):
+            (serialized_size, ) = struct.unpack("=Q", buf[:8])
             buf = buf[8:]
-            elements = []
-            for i in range(N):
-                (serialized_size, ) = struct.unpack("=Q", buf[:8])
-                buf = buf[8:]
-                element = proto()
-                element.ParseFromString(buf[:serialized_size])
-                buf = buf[serialized_size:]
-                elements.append(element)
-            return element
+            element = proto()
+            element.ParseFromString(buf[:serialized_size])
+            buf = buf[serialized_size:]
+            elements.append(element)
+        return element
 
-    ProtoList.__name__ = name
-    return ProtoList
+    return register_type(type(name, (), dict(serializer=serializer, deserializer=deserializer)))
 
-BboxList = register_type(ProtoList('BboxList', protobufs.BoundingBox))
+BboxList = ProtoList('BboxList', protobufs.BoundingBox)
 
 @register_type
 class Histogram:

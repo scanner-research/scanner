@@ -9,8 +9,8 @@ class TaskPartitioner:
     tasks.
     """
 
-    def __init__(self, db):
-        self._db = db
+    def __init__(self, sc):
+        self._sc = sc
 
     def all(self, group_size=DEFAULT_GROUP_SIZE):
         return self.strided(1, group_size=group_size)

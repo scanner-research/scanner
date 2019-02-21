@@ -1,12 +1,13 @@
 import numpy as np
-import enum
 from collections import defaultdict
+from enum import Enum
+
 
 class ScannerException(Exception):
     pass
 
 
-class DeviceType(enum.Enum):
+class DeviceType(Enum):
     """ Enum for specifying where an Op should run. """
     CPU = 0
     GPU = 1
@@ -31,9 +32,11 @@ class DeviceHandle(object):
 class FrameType(object):
     pass
 
+
 BlobType = bytes
 
-class ColumnType(enum.Enum):
+
+class ColumnType(Enum):
     """ Enum for specifying what the type of a column is. """
     Blob = 0
     Video = 1
@@ -46,3 +49,9 @@ class ColumnType(enum.Enum):
             return protobufs.Video
         else:
             raise ScannerException('Invalid column type')
+
+
+class CacheMode(Enum):
+    Error = 1
+    Ignore = 2
+    Overwrite = 3

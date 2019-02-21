@@ -5,8 +5,8 @@ import types as pytypes
 import uuid
 
 from scannerpy.common import *
-from scannerpy.protobufs import python_to_proto, protobufs
-from scannerpy import types as scannertypes
+from scannerpy.protobufs import python_to_proto, protobufs, analyze_proto
+from scannerpy import scannertypes
 from typing import Dict, List, Union, Tuple, Optional, Sequence
 from inspect import signature
 from itertools import islice
@@ -14,9 +14,38 @@ from collections import OrderedDict
 from functools import wraps
 
 
+class SliceList(list):
+    """List of per-stream arguments to each slice of an op."""
+
+    pass
+
+
+def collect_per_stream_args(name, protobuf_name, kwargs):
+    stream_arg_names = list(analyze_proto(getattr(protobufs, protobuf_name)).keys())
+    stream_args = {k: kwargs.pop(k) for k in stream_arg_names if k in kwargs}
+
+    if len(stream_args) == 0:
+        raise ScannerException(
+            "Op `{}` received no per-stream arguments. Options: {}" \
+            .format(name, ', '.join(stream_args)))
+
+    N = [len(v) for v in stream_args.values() if isinstance(v, list)][0]
+
+    job_args = [
+        python_to_proto(protobuf_name, {
+            k: v[i] if isinstance(v, list) else v
+            for k, v in stream_args.items()
+            if v is not None
+        })
+        for i in range(N)
+    ]
+
+    return job_args
+
+
 class OpColumn:
-    def __init__(self, db, op, col, typ):
-        self._db = db
+    def __init__(self, sc, op, col, typ):
+        self._sc = sc
         self._op = op
         self._col = col
         self._type = typ
@@ -60,14 +89,14 @@ class OpColumn:
 
     def _assert_is_video(self):
         if self._type != protobufs.Video:
-            raise ScannerException('Compression only supported for columns of'
-                                   'type "video". Column {} type is {}.'.format(
+            raise ScannerException('Compression only supported for sequences of'
+                                   'type "video". Sequence {} type is {}.'.format(
                                        self._col,
                                        protobufs.ColumnType.Name(
                                            self._type)))
 
     def _new_compressed_column(self, encode_options):
-        new_col = OpColumn(self._db, self._op, self._col, self._type)
+        new_col = OpColumn(self._sc, self._op, self._col, self._type)
         new_col._encode_options = encode_options
         return new_col
 
@@ -80,21 +109,26 @@ class OpGenerator:
     Creates Op instances to define a computation.
 
     When a particular op is requested from the generator, e.g.
-    `db.ops.Histogram`, the generator does a dynamic lookup for the
+    `sc.ops.Histogram`, the generator does a dynamic lookup for the
     op in a C++ registry.
     """
 
-    def __init__(self, db):
-        self._db = db
+    def __init__(self, sc):
+        self._sc = sc
 
     def __getattr__(self, name):
+        stream_params = []
+
+        orig_name = name
+
         # Check python registry for Op
         if name in PYTHON_OP_REGISTRY:
             py_op_info = PYTHON_OP_REGISTRY[name]
+            stream_params = py_op_info['stream_params']
             # If Op has not been registered yet, register it
             pseudo_name = name + ':' + py_op_info['registration_id']
             name = pseudo_name
-            if not name in self._db._python_ops:
+            if not name in self._sc._python_ops:
                 devices = []
                 if py_op_info['device_type']:
                     devices.append(py_op_info['device_type'])
@@ -102,18 +136,18 @@ class OpGenerator:
                     for d in py_op_info['device_sets']:
                         devices.append(d[0])
 
-                self._db.register_op(
+                self._sc.register_op(
                     pseudo_name, py_op_info['input_columns'],
                     py_op_info['output_columns'], py_op_info['variadic_inputs'],
                     py_op_info['stencil'], py_op_info['unbounded_state'],
                     py_op_info['bounded_state'], py_op_info['proto_path'])
                 for device in devices:
-                    self._db.register_python_kernel(pseudo_name, device,
+                    self._sc.register_python_kernel(pseudo_name, device,
                                                     py_op_info['kernel'],
                                                     py_op_info['batch'])
 
         # This will raise an exception if the op does not exist.
-        op_info = self._db._get_op_info(name)
+        op_info = self._sc._get_op_info(name)
 
         def make_op(*args, **kwargs):
             inputs = []
@@ -124,17 +158,41 @@ class OpGenerator:
                     val = kwargs.pop(c.name, None)
                     if val is None:
                         raise ScannerException(
-                            'Op {} required column {} as input'.format(
+                            'Op {} required sequence {} as input'.format(
                                 name, c.name))
                     inputs.append(val)
+
             device = kwargs.pop('device', DeviceType.CPU)
             batch = kwargs.pop('batch', -1)
             bounded_state = kwargs.pop('bounded_state', -1)
             stencil = kwargs.pop('stencil', [])
             extra = kwargs.pop('extra', None)
             args = kwargs.pop('args', None)
-            op = Op(self._db, name, inputs, device, batch, bounded_state,
-                    stencil, kwargs if args is None else args, extra)
+
+            if orig_name in PYTHON_OP_REGISTRY:
+                if len(stream_params) > 0:
+                    stream_args = [(k, kwargs.pop(k, None)) for k in stream_params]
+                    example_list = stream_args[0][1]
+                    N = len(example_list)
+                    if not isinstance(example_list[0], SliceList):
+                        stream_args = [
+                            (k, [SliceList([x]) for x in arg]) for (k, arg) in stream_args]
+                    M = len(stream_args[0][1][0])
+
+                    stream_args = [
+                        SliceList([pickle.dumps({k: v[i][j] for k, v in stream_args})
+                                   for j in range(M)])
+                        for i in range(N)
+                    ]
+                    print(stream_args)
+                else:
+                    stream_args = None
+            else:
+                # TODO: protobuf op stream args
+                stream_args = None
+
+            op = Op(self._sc, name, inputs, device, batch, bounded_state,
+                    stencil, kwargs if args is None else args, extra, stream_args)
             return op.outputs()
 
         return make_op
@@ -142,7 +200,7 @@ class OpGenerator:
 
 class Op:
     def __init__(self,
-                 db,
+                 sc,
                  name,
                  inputs,
                  device,
@@ -150,8 +208,9 @@ class Op:
                  warmup=-1,
                  stencil=[0],
                  args={},
-                 extra=None):
-        self._db = db
+                 extra=None,
+                 stream_args=None):
+        self._sc = sc
         self._name = name
         self._inputs = inputs
         self._device = device
@@ -160,15 +219,16 @@ class Op:
         self._stencil = stencil
         self._args = args
         self._extra = extra
+        self._job_args = stream_args
 
         if (name == 'Space' or name == 'Sample' or name == 'Slice'
                 or name == 'Unslice'):
             outputs = []
             for c in inputs:
-                outputs.append(OpColumn(db, self, c._col, c._type))
+                outputs.append(OpColumn(sc, self, c._col, c._type))
         else:
-            cols = self._db._get_output_columns(self._name)
-            outputs = [OpColumn(self._db, self, c.name, c.type) for c in cols]
+            cols = self._sc._get_output_columns(self._name)
+            outputs = [OpColumn(self._sc, self, c.name, c.type) for c in cols]
         self._outputs = outputs
 
     def inputs(self):
@@ -200,17 +260,16 @@ class Op:
                 inp.column = i._col
 
         if isinstance(self._args, dict):
-            if self._name in self._db._python_ops:
+            if self._name in self._sc._python_ops:
                 e.kernel_args = pickle.dumps(self._args)
             elif len(self._args) > 0:
                 # To convert an arguments dict, we search for a protobuf with the
                 # name {Op}Args (e.g. BlurArgs, HistogramArgs) in the
                 # args.proto module, and fill that in with keys from the args dict.
-                op_info = self._db._get_op_info(self._name)
+                op_info = self._sc._get_op_info(self._name)
                 if len(op_info.protobuf_name) > 0:
                     proto_name = op_info.protobuf_name
-                    e.kernel_args = python_to_proto(protobufs,
-                                                    proto_name, self._args)
+                    e.kernel_args = python_to_proto(proto_name, self._args)
                 else:
                     e.kernel_args = self._args
         else:
@@ -461,6 +520,17 @@ def register_python_op(name: str = None,
             raise ScannerException(
                 'Must only specify one of "device_type" or "device_sets" for python Op.')
 
+        if not is_fn:
+            init_params = list(signature(getattr(fn_or_class, "__init__")).parameters.keys())[1:]
+            if init_params[0] != 'config':
+                raise ScannerException("__init__ first argument (after self) must be `config`")
+            kernel_params = init_params[1:]
+
+            stream_params = list(signature(getattr(fn_or_class, "new_stream")).parameters.keys())[1:]
+        else:
+            kernel_params = []
+            stream_params = []
+
         PYTHON_OP_REGISTRY[kname] = {
             'input_columns': input_columns,
             'output_columns': output_columns,
@@ -473,7 +543,9 @@ def register_python_op(name: str = None,
             'device_sets': device_sets,
             'batch': batch,
             'proto_path': proto_path,
-            'registration_id': uuid.uuid4().hex
+            'registration_id': uuid.uuid4().hex,
+            'kernel_params': kernel_params,
+            'stream_params': stream_params
         }
         return fn_or_class
 

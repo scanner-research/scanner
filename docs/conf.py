@@ -197,5 +197,11 @@ texinfo_documents = [
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {'https://docs.python.org/': None}
 
+
+# Ensure __init__ is included in documentation
+# https://stackoverflow.com/questions/5599254/how-to-use-sphinxs-autodoc-to-document-a-classs-init-self-method
+autoclass_content = 'both'
+
+
 def setup(app):
     app.add_stylesheet('custom.css')

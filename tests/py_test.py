@@ -1,8 +1,11 @@
 import scannerpy
-from scannerpy import (Database, Config, DeviceType, FrameType, Job,
-                       ScannerException, Kernel, protobufs)
+from scannerpy import (Client, Config, DeviceType, FrameType, Job,
+                       ScannerException, Kernel, protobufs, NullElement, SliceList, CacheMode)
+from scannerpy.storage import (
+    ScannerStream, ScannerFrameStream, FilesStream, PythonStream, SQLInputStream,
+    SQLOutputStream, SQLStorage, AudioStream, CaptionStream)
 from scannerpy.stdlib import readers
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, List, Sequence, Tuple, Any
 import tempfile
 import toml
 import pytest
@@ -106,21 +109,21 @@ def download_videos():
     return (vid1_path, vid2_path)
 
 @pytest.fixture(scope="module")
-def db():
+def sc():
     # Create new config
     (cfg_path, cfg) = make_config()
 
     # Setup and ingest video
-    with Database(config_path=cfg_path, debug=True) as db:
+    with Client(config_path=cfg_path, debug=True) as sc:
         (vid1_path, vid2_path) = download_videos()
 
-        db.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
+        sc.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
 
-        db.ingest_videos(
+        sc.ingest_videos(
             [('test1_inplace', vid1_path), ('test2_inplace', vid2_path)],
             inplace=True)
 
-        yield db
+        yield sc
 
         # Tear down
         run([
@@ -129,50 +132,45 @@ def db():
         ])
 
 
-def test_new_database(db):
+def test_new_client(sc):
     pass
 
 
-def test_table_properties(db):
+def test_table_properties(sc):
     for name, i in [('test1', 0), ('test1_inplace', 2)]:
-        table = db.table(name)
+        table = sc.table(name)
         assert table.id() == i
         assert table.name() == name
         assert table.num_rows() == 720
         assert [c for c in table.column_names()] == ['index', 'frame']
 
 
-def test_summarize(db):
-    db.summarize()
+def test_summarize(sc):
+    sc.summarize()
 
 
-def test_load_video_column(db):
+def test_load_video_column(sc):
     for name in ['test1', 'test1_inplace']:
-        next(db.table(name).column('frame').load())
+        next(ScannerFrameStream(sc, name).load())
 
 
-def test_gather_video_column(db):
+def test_gather_video_column(sc):
     for name in ['test1', 'test1_inplace']:
         # Gather rows
         rows = [0, 10, 100, 200]
-        frames = [_ for _ in db.table(name).column('frame').load(rows=rows)]
+        frames = list(ScannerFrameStream(sc, name).load(rows=rows))
         assert len(frames) == len(rows)
 
 
-def test_profiler(db):
-    frame = db.sources.FrameColumn()
-    hist = db.ops.Histogram(frame=frame)
-    ghist = db.streams.Gather(hist, [0])
-    output_op = db.sinks.Column(columns={'hist': ghist})
-
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: '_ignore'
-    })
+def test_profiler(sc):
+    frame = sc.io.Input([ScannerFrameStream(sc, 'test1')])
+    hist = sc.ops.Histogram(frame=frame)
+    ghist = sc.streams.Gather(hist, [[0]])
+    output_op = sc.io.Output(ghist, [ScannerStream(sc, '_ignore')])
 
     time_start = time.time()
-    db.run(output_op, [job], show_progress=False, force=True)
-    output = [db.table('_ignore')]
+    sc.run(output_op, show_progress=False, cache_mode=CacheMode.Overwrite)
+    output = [sc.table('_ignore')]
     print('Time', time.time() - time_start)
     profiler = output[0].profiler()
     f = tempfile.NamedTemporaryFile(delete=False, suffix='.trace')
@@ -182,36 +180,27 @@ def test_profiler(db):
     run(['rm', '-f', f.name])
 
 
-def test_new_table(db):
+def test_new_table(sc):
     def b(s):
         return bytes(s, 'utf-8')
 
-    db.new_table('test', ['col1', 'col2'],
+    sc.new_table('test', ['col1', 'col2'],
                  [[b('r00'), b('r01')], [b('r10'), b('r11')]])
-    t = db.table('test')
+    t = sc.table('test')
     assert (t.num_rows() == 2)
     assert (next(t.column('col2').load()) == b('r01'))
 
 
-def test_multiple_outputs(db):
-    sampler = db.streams.Range
+def test_multiple_outputs(sc):
+    sampler = sc.streams.Range
     def run_job(args_1, args_2):
-        frame = db.sources.FrameColumn()
-        sample_frame_1 = db.streams.Range(input=frame)
-        sample_frame_2 = db.streams.Range(input=frame)
-        output_op_1 = db.sinks.Column(columns={'frame': sample_frame_1})
-        output_op_2 = db.sinks.Column(columns={'frame': sample_frame_2})
+        frame = sc.io.Input([ScannerFrameStream(sc, 'test1')])
+        sample_frame_1 = sc.streams.Range(input=frame, ranges=[args_1])
+        sample_frame_2 = sc.streams.Range(input=frame, ranges=[args_2])
+        output_op_1 = sc.io.Output(sample_frame_1, [ScannerFrameStream(sc, 'test_mp_1')])
+        output_op_2 = sc.io.Output(sample_frame_2, [ScannerFrameStream(sc, 'test_mp_2')])
 
-        job = Job(
-            op_args={
-                frame: db.table('test1').column('frame'),
-                sample_frame_1: sampler_args_1,
-                sample_frame_2: sampler_args_2,
-                output_op_1: 'test_mp_1',
-                output_op_2: 'test_mp_2',
-            })
-
-        db.run([output_op_1, output_op_2], [job], force=True, show_progress=False)
+        sc.run([output_op_1, output_op_2], cache_mode=CacheMode.Overwrite, show_progress=False)
 
     # This should fail
     sampler_args_1 = {'start': 0, 'end': 30}
@@ -223,7 +212,7 @@ def test_multiple_outputs(db):
         exc = True
 
     assert exc
-        
+
     # This should succeed
     sampler_args_1 = {'start': 0, 'end': 30}
     expected_rows_1 = 30
@@ -233,96 +222,70 @@ def test_multiple_outputs(db):
     run_job(sampler_args_1, sampler_args_2)
 
     num_rows = 0
-    for _ in db.table('test_mp_1').column('frame').load():
+    for _ in sc.table('test_mp_1').column('frame').load():
         num_rows += 1
     assert num_rows == expected_rows_1
 
     num_rows = 0
-    for _ in db.table('test_mp_2').column('frame').load():
+    for _ in sc.table('test_mp_2').column('frame').load():
         num_rows += 1
     assert num_rows == expected_rows_2
 
     # This should succeed
-    frame = db.sources.FrameColumn()
-    sample_frame_1 = db.streams.Range(input=frame)
-    output_op_1 = db.sinks.Column(columns={'frame': sample_frame_1})
-    output_op_2 = db.sinks.Column(columns={'frame': sample_frame_1})
+    frame = sc.io.Input([ScannerFrameStream(sc, 'test1')])
+    sample_frame_1 = sc.streams.Range(input=frame, ranges=[sampler_args_1])
+    output_op_1 = sc.io.Output(sample_frame_1, [ScannerFrameStream(sc, 'test_mp_1')])
+    output_op_2 = sc.io.Output(sample_frame_1, [ScannerFrameStream(sc, 'test_mp_2')])
 
-    job = Job(
-        op_args={
-            frame: db.table('test1').column('frame'),
-            sample_frame_1: sampler_args_1,
-            output_op_1: 'test_mp_1',
-            output_op_2: 'test_mp_2',
-        })
-
-    db.run([output_op_1, output_op_2], [job], force=True, show_progress=False)
+    sc.run([output_op_1, output_op_2], cache_mode=CacheMode.Overwrite, show_progress=False)
 
     num_rows = 0
-    for _ in db.table('test_mp_1').column('frame').load():
+    for _ in sc.table('test_mp_1').column('frame').load():
         num_rows += 1
     assert num_rows == expected_rows_1
 
 
-def test_sample(db):
+def test_sample(sc):
     def run_sampler_job(sampler, sampler_args, expected_rows):
-        frame = db.sources.FrameColumn()
-        sample_frame = sampler(input=frame)
-        output_op = db.sinks.Column(columns={'frame': sample_frame})
+        frame = sc.io.Input([ScannerFrameStream(sc, 'test1')])
+        sample_frame = sampler(input=frame, **sampler_args)
+        output = ScannerFrameStream(sc, 'test_sample')
+        output_op = sc.io.Output(sample_frame, [output])
+        sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
 
-        job = Job(
-            op_args={
-                frame: db.table('test1').column('frame'),
-                sample_frame: sampler_args,
-                output_op: 'test_sample',
-            })
-
-        db.run(output_op, [job], force=True, show_progress=False)
-        tables = [db.table('test_sample')]
-        num_rows = 0
-        for _ in tables[0].column('frame').load():
-            num_rows += 1
+        num_rows = len(list(output.load()))
         assert num_rows == expected_rows
 
     # Stride
-    expected = int((db.table('test1').num_rows() + 8 - 1) / 8)
-    run_sampler_job(db.streams.Stride, {'stride': 8}, expected)
+    expected = int((sc.table('test1').num_rows() + 8 - 1) / 8)
+    run_sampler_job(sc.streams.Stride, {'strides': [{'stride': 8}]}, expected)
     # Range
-    run_sampler_job(db.streams.Range, {'start': 0, 'end': 30}, 30)
+    run_sampler_job(sc.streams.Range, {'ranges': [{'start': 0, 'end': 30}]}, 30)
     # Strided Range
-    run_sampler_job(db.streams.StridedRange, {
+    run_sampler_job(sc.streams.StridedRange, {'ranges': [{
         'start': 0,
         'end': 300,
         'stride': 10
-    }, 30)
+    }]}, 30)
     # Gather
-    run_sampler_job(db.streams.Gather, {'rows': [0, 150, 377, 500]}, 4)
+    run_sampler_job(sc.streams.Gather, {'indices': [[0, 150, 377, 500]]}, 4)
 
 
-def test_space(db):
+def test_space(sc):
     def run_spacer_job(spacer, spacing):
-        frame = db.sources.FrameColumn()
-        hist = db.ops.Histogram(frame=frame)
-        space_hist = spacer(input=hist)
-        output_op = db.sinks.Column(columns={'histogram': space_hist})
+        frame = sc.io.Input([ScannerFrameStream(sc, 'test1')])
+        hist = sc.ops.Histogram(frame=frame)
+        space_hist = spacer(input=hist, spacings=[spacing])
+        output = ScannerStream(sc, 'test_space')
+        output_op = sc.io.Output(space_hist, [output])
+        sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+        return output
 
-        job = Job(
-            op_args={
-                frame: db.table('test1').column('frame'),
-                space_hist: {
-                    'spacing': spacing
-                },
-                output_op: 'test_space',
-            })
-
-        db.run(output_op, [job], force=True, show_progress=False)
-        return db.table('test_space')
-
-    # Repeat
+    # # Repeat
     spacing_distance = 8
-    table = run_spacer_job(db.streams.Repeat, spacing_distance)
+    table = run_spacer_job(sc.streams.Repeat, spacing_distance)
     num_rows = 0
-    for hist in table.column('histogram').load():
+    for hist in table.load():
         # Verify outputs are repeated correctly
         if num_rows % spacing_distance == 0:
             ref_hist = hist
@@ -330,70 +293,49 @@ def test_space(db):
         for c in range(len(hist)):
             assert (ref_hist[c] == hist[c]).all()
         num_rows += 1
-    assert num_rows == db.table('test1').num_rows() * spacing_distance
+    assert num_rows == ScannerFrameStream(sc, 'test1').len() * spacing_distance
 
     # Null
-    table = run_spacer_job(db.streams.RepeatNull, spacing_distance)
+    table = run_spacer_job(sc.streams.RepeatNull, spacing_distance)
     num_rows = 0
-    for hist in table.column('histogram').load():
+    for hist in table.load():
         # Verify outputs are None for null rows
         if num_rows % spacing_distance == 0:
-            assert hist is not None
+            assert not isinstance(hist, NullElement)
             assert len(hist) == 3
             assert hist[0].shape[0] == 16
         else:
-            assert hist is None
+            assert isinstance(hist, NullElement)
         num_rows += 1
-    assert num_rows == db.table('test1').num_rows() * spacing_distance
+    assert num_rows == ScannerFrameStream(sc, 'test1').len() * spacing_distance
 
 
-def test_slice(db):
-    frame = db.sources.FrameColumn()
-    slice_frame = db.streams.Slice(frame, db.partitioner.all(50))
-    unsliced_frame = db.streams.Unslice(slice_frame)
-    output_op = db.sinks.Column(columns={'frame': unsliced_frame})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_slicing',
-    })
-
-    db.run(output_op, [job], force=True, show_progress=False)
-    tables = [db.table('test_slicing')]
-
-    num_rows = 0
-    for _ in tables[0].column('frame').load():
-        num_rows += 1
-    assert num_rows == db.table('test1').num_rows()
+def test_slice(sc):
+    input = ScannerFrameStream(sc, 'test1')
+    frame = sc.io.Input([input])
+    slice_frame = sc.streams.Slice(frame, partitions=[sc.partitioner.all(50)])
+    unsliced_frame = sc.streams.Unslice(slice_frame)
+    output = ScannerStream(sc, 'test_slicing')
+    output_op = sc.io.Output(unsliced_frame, [output])
+    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+    assert input.len() == output.len()
 
 
-def test_overlapping_slice(db):
-    frame = db.sources.FrameColumn()
-    slice_frame = db.streams.Slice(frame)
-    sample_frame = db.streams.Range(slice_frame)
-    unsliced_frame = db.streams.Unslice(sample_frame)
-    output_op = db.sinks.Column(columns={'frame': unsliced_frame})
-    job = Job(
-        op_args={
-            frame:
-            db.table('test1').column('frame'),
-            slice_frame:
-            db.partitioner.strided_ranges([(0, 15), (5, 25), (15, 35)], 1),
-            sample_frame: [
-                (0, 10),
-                (5, 15),
-                (5, 15),
-            ],
-            output_op:
-            'test_slicing',
-        })
-
-    db.run(output_op, [job], force=True, show_progress=False)
-    tables = [db.table('test_slicing')]
-
-    num_rows = 0
-    for _ in tables[0].column('frame').load():
-        num_rows += 1
-    assert num_rows == 30
+def test_overlapping_slice(sc):
+    input = ScannerFrameStream(sc, 'test1')
+    frame = sc.io.Input([input])
+    slice_frame = sc.streams.Slice(frame, partitions=[
+        sc.partitioner.strided_ranges([(0, 15), (5, 25), (15, 35)], 1)])
+    sample_frame = sc.streams.Range(slice_frame, ranges=[SliceList([
+        {'start': 0, 'end': 10},
+        {'start': 5, 'end': 15},
+        {'start': 5, 'end': 15},
+    ])])
+    unsliced_frame = sc.streams.Unslice(sample_frame)
+    output = ScannerStream(sc, 'test_slicing')
+    output_op = sc.io.Output(unsliced_frame, [output])
+    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+    assert output.len() == 30
 
 
 @scannerpy.register_python_op()
@@ -404,300 +346,210 @@ class TestSliceArgs(Kernel):
     def close(self):
         pass
 
-    def new_stream(self, args):
-        self.arg = args['arg']
+    def new_stream(self, arg):
+        self.arg = arg
 
-    def execute(self, frame: FrameType) -> bytes:
-        return pickle.dumps(self.arg)
+    def execute(self, frame: FrameType) -> Any:
+        return self.arg
 
 
-def test_slice_args(db):
-    frame = db.sources.FrameColumn()
-    slice_frame = db.streams.Slice(frame, db.partitioner.ranges(
-        [[0, 1], [1, 2], [2, 3]]))
-    test = db.ops.TestSliceArgs(frame=slice_frame)
-    unsliced_frame = db.streams.Unslice(test)
-    output_op = db.sinks.Column(columns={'frame': unsliced_frame})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        test: [{'arg': i} for i in range(3)],
-        output_op: 'test_slicing',
-    })
-
-    db.run(output_op, [job], force=True, show_progress=False)
-    tables = [db.table('test_slicing')]
+def test_slice_args(sc):
+    frame = sc.io.Input([ScannerFrameStream(sc, 'test1')])
+    slice_frame = sc.streams.Slice(frame, [sc.partitioner.ranges(
+        [[0, 1], [1, 2], [2, 3]])])
+    test = sc.ops.TestSliceArgs(frame=slice_frame, arg=[SliceList([{'arg': i} for i in range(3)])])
+    unsliced_frame = sc.streams.Unslice(test)
+    output = ScannerStream(sc, 'test_slicing')
+    output_op = sc.io.Output(unsliced_frame, [output])
+    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
 
     num_rows = 0
-    for x in tables[0].column('frame').load():
-        arg = pickle.loads(x)
+    list(output.load())
 
 
-def test_bounded_state(db):
+def test_bounded_state(sc):
     warmup = 3
 
-    frame = db.sources.FrameColumn()
-    increment = db.ops.TestIncrementBounded(ignore=frame, bounded_state=warmup)
-    sampled_increment = db.streams.Gather(increment, [0, 10, 25, 26, 27])
-    output_op = db.sinks.Column(columns={'integer': sampled_increment})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_bounded_state',
-    })
-
-    db.run(output_op, [job], force=True, show_progress=False)
-    tables = [db.table('test_bounded_state')]
+    frame = sc.io.Input([ScannerFrameStream(sc, 'test1')])
+    increment = sc.ops.TestIncrementBounded(ignore=frame, bounded_state=warmup)
+    sampled_increment = sc.streams.Gather(increment, indices=[[0, 10, 25, 26, 27]])
+    output = ScannerStream(sc, 'test_bounded_state')
+    output_op = sc.io.Output(sampled_increment, [output])
+    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
 
     num_rows = 0
     expected_output = [0, warmup, warmup, warmup + 1, warmup + 2]
-    for buf in tables[0].column('integer').load():
+    for buf in output.load():
         (val, ) = struct.unpack('=q', buf)
         assert val == expected_output[num_rows]
-        print(num_rows)
         num_rows += 1
     assert num_rows == 5
 
 
-def test_unbounded_state(db):
-    frame = db.sources.FrameColumn()
-    slice_frame = db.streams.Slice(frame, db.partitioner.all(50))
-    increment = db.ops.TestIncrementUnbounded(ignore=slice_frame)
-    unsliced_increment = db.streams.Unslice(increment)
-    output_op = db.sinks.Column(columns={'integer': unsliced_increment})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_unbounded_state',
-    })
-
-    db.run(output_op, [job], force=True, show_progress=False)
-    tables = [db.table('test_unbounded_state')]
-
-    num_rows = 0
-    for _ in tables[0].column('integer').load():
-        num_rows += 1
-    assert num_rows == db.table('test1').num_rows()
+def test_unbounded_state(sc):
+    input = ScannerFrameStream(sc, 'test1')
+    frame = sc.io.Input([input])
+    slice_frame = sc.streams.Slice(frame, partitions=[sc.partitioner.all(50)])
+    increment = sc.ops.TestIncrementUnbounded(ignore=slice_frame)
+    unsliced_increment = sc.streams.Unslice(increment)
+    output = ScannerStream(sc, 'test_unbounded_state')
+    output_op = sc.io.Output(unsliced_increment, [output])
+    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+    assert output.len() == input.len()
 
 
-def builder(cls):
-    inst = cls()
+class DeviceTestBench:
+    def test_cpu(self, sc):
+        self.run(sc, DeviceType.CPU)
 
-    class Generated:
-        def test_cpu(self, db):
-            inst.run(db, inst.job(db, DeviceType.CPU))
-
-        @gpu
-        def test_gpu(self, db):
-            inst.run(db, inst.job(db, DeviceType.GPU))
-
-    return Generated
+    @gpu
+    def test_gpu(self, sc):
+        self.run(sc, DeviceType.GPU)
 
 
-@builder
-class TestHistogram:
-    def job(self, db, ty):
-        frame = db.sources.FrameColumn()
-        hist = db.ops.Histogram(frame=frame, device=ty)
-        output_op = db.sinks.Column(columns={'histogram': hist})
+class TestHistogram(DeviceTestBench):
+    def run(self, sc, device):
+        input = ScannerFrameStream(sc, 'test1')
+        frame = sc.io.Input([input])
+        hist = sc.ops.Histogram(frame=frame, device=device)
+        output = ScannerStream(sc, 'test_hist')
+        output_op = sc.io.Output(hist, [output])
 
-        job = Job(op_args={
-            frame: db.table('test1').column('frame'),
-            output_op: 'test_hist'
-        })
-
-        return output_op, [job]
-
-    def run(self, db, job):
-        tables = db.run(job[0], job[1], force=True, show_progress=False)
-        next(tables[0].column('histogram').load())
-        db.run(job[0], job[1], force=True, show_progress=False)
-        tables = [db.table('test_hist')]
-        next(tables[0].column('histogram').load())
-
-@builder
-class TestInplace:
-    def job(self, db, ty):
-        frame = db.sources.FrameColumn()
-        hist = db.ops.Histogram(frame=frame, device=ty)
-        output_op = db.sinks.Column(columns={'histogram': hist})
-
-        job_inplace = Job(op_args={
-            frame: db.table('test1_inplace').column('frame'),
-            output_op: 'test_inplace_hist'
-        })
-
-        return output_op, [job_inplace]
-
-    def run(self, db, job):
-        db.run(job[0], job[1], force=True, show_progress=False)
-        tables = [db.table('test_inplace_hist')]
-        next(tables[0].column('histogram').load())
+        sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+        next(output.load())
 
 
-@builder
-class TestOpticalFlow:
-    def job(self, db, ty):
-        frame = db.sources.FrameColumn()
-        flow = db.ops.OpticalFlow(frame=frame, stencil=[-1, 0], device=ty)
-        flow_range = db.streams.Range(flow, 0, 50)
+class TestInplace(DeviceTestBench):
+    def run(self, sc, device):
+        input = ScannerFrameStream(sc, 'test1_inplace')
+        frame = sc.io.Input([input])
+        hist = sc.ops.Histogram(frame=frame, device=device)
+        output = ScannerStream(sc, 'test_hist')
+        output_op = sc.io.Output(hist, [output])
 
-        out = db.sinks.Column(columns={'flow': flow_range})
-        job = Job(op_args={
-            frame: db.table('test1').column('frame'),
-            out: 'test_flow',
-        })
-        return out, [job]
+        sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+        next(output.load())
 
-    def run(self, db, job):
-        db.run(job[0], job[1], force=True, show_progress=False)
-        table = db.table('test_flow')
-        num_rows = 0
-        for _ in table.column('flow').load():
-            num_rows += 1
-        assert num_rows == 50
 
-        flow_array = next(table.column('flow').load())
+class TestOpticalFlow(DeviceTestBench):
+    def run(self, sc, device):
+        input = ScannerFrameStream(sc, 'test1')
+        frame = sc.io.Input([input])
+        flow = sc.ops.OpticalFlow(frame=frame, stencil=[-1, 0], device=device)
+        flow_range = sc.streams.Range(flow, ranges=[{'start': 0, 'end': 50}])
+        output = ScannerStream(sc, 'test_flow')
+        output_op = sc.io.Output(flow_range, [output])
+        sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+        assert output.len() == 50
+
+        flow_array = next(output.load())
         assert flow_array.dtype == np.float32
         assert flow_array.shape[0] == 480
         assert flow_array.shape[1] == 640
         assert flow_array.shape[2] == 2
 
 
-def test_stencil(db):
-    frame = db.sources.FrameColumn()
-    sample_frame = db.streams.Range(frame, 0, 1)
-    flow = db.ops.OpticalFlow(frame=sample_frame, stencil=[-1, 0])
-    output_op = db.sinks.Column(columns={'flow': flow})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_stencil',
-    })
+def test_stencil(sc):
+    input = ScannerFrameStream(sc, 'test1')
 
-    db.run(output_op, [job],
-           force=True,
+    frame = sc.io.Input([input])
+    sample_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 1}])
+    flow = sc.ops.OpticalFlow(frame=sample_frame, stencil=[-1, 0])
+    output = ScannerStream(sc, 'test_stencil')
+    output_op = sc.io.Output(flow, [output])
+    sc.run(output_op,
+           cache_mode=CacheMode.Overwrite,
            show_progress=False,
            pipeline_instances_per_node=1)
-    tables = [db.table('test_stencil')]
+    assert output.len() == 1
 
-    num_rows = 0
-    for _ in tables[0].column('flow').load():
-        num_rows += 1
-    assert num_rows == 1
-
-    frame = db.sources.FrameColumn()
-    sample_frame = db.streams.Range(frame, 0, 1)
-    flow = db.ops.OpticalFlow(frame=sample_frame, stencil=[0, 1])
-    output_op = db.sinks.Column(columns={'flow': flow})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_stencil',
-    })
-
-    db.run(output_op, [job],
-           force=True,
+    frame = sc.io.Input([input])
+    sample_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 1}])
+    flow = sc.ops.OpticalFlow(frame=sample_frame, stencil=[0, 1])
+    output = ScannerStream(sc, 'test_stencil')
+    output_op = sc.io.Output(flow, [output])
+    sc.run(output_op,
+           cache_mode=CacheMode.Overwrite,
            show_progress=False,
            pipeline_instances_per_node=1)
-    tables = [db.table('test_stencil')]
 
-    frame = db.sources.FrameColumn()
-    sample_frame = db.streams.Range(frame, 0, 2)
-    flow = db.ops.OpticalFlow(frame=sample_frame, stencil=[0, 1])
-    output_op = db.sinks.Column(columns={'flow': flow})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_stencil',
-    })
-
-    db.run(output_op, [job],
-           force=True,
+    frame = sc.io.Input([input])
+    sample_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 2}])
+    flow = sc.ops.OpticalFlow(frame=sample_frame, stencil=[0, 1])
+    output = ScannerStream(sc, 'test_stencil')
+    output_op = sc.io.Output(flow, [output])
+    sc.run(output_op,
+           cache_mode=CacheMode.Overwrite,
            show_progress=False,
            pipeline_instances_per_node=1)
-    tables = [db.table('test_stencil')]
+    assert output.len() == 2
 
-    num_rows = 0
-    for _ in tables[0].column('flow').load():
-        num_rows += 1
-    assert num_rows == 2
-
-    frame = db.sources.FrameColumn()
-    flow = db.ops.OpticalFlow(frame=frame, stencil=[-1, 0])
-    sample_flow = db.streams.Range(flow, 0, 1)
-    output_op = db.sinks.Column(columns={'flow': sample_flow})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_stencil',
-    })
-
-    db.run(output_op, [job],
-           force=True,
+    frame = sc.io.Input([input])
+    flow = sc.ops.OpticalFlow(frame=frame, stencil=[-1, 0])
+    sample_flow = sc.streams.Range(flow, ranges=[{'start': 0, 'end': 1}])
+    output = ScannerStream(sc, 'test_stencil')
+    output_op = sc.io.Output(sample_flow, [output])
+    sc.run(output_op,
+           cache_mode=CacheMode.Overwrite,
            show_progress=False,
            pipeline_instances_per_node=1)
-    tables = [db.table('test_stencil')]
-
-    num_rows = 0
-    for _ in tables[0].column('flow').load():
-        num_rows += 1
-    assert num_rows == 1
+    assert output.len() == 1
 
 
-def test_wider_than_packet_stencil(db):
-    frame = db.sources.FrameColumn()
-    sample_frame = db.streams.Range(frame, 0, 3)
-    flow = db.ops.OpticalFlow(frame=sample_frame, stencil=[0, 1])
-    output_op = db.sinks.Column(columns={'flow': flow})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_stencil',
-    })
+def test_wider_than_packet_stencil(sc):
+    input = ScannerFrameStream(sc, 'test1')
+    frame = sc.io.Input([input])
+    sample_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 3}])
+    flow = sc.ops.OpticalFlow(frame=sample_frame, stencil=[0, 1])
+    output = ScannerStream(sc, 'test_stencil')
+    output_op = sc.io.Output(flow, [output])
 
-    db.run(
-        output_op, [job],
-        force=True,
+    sc.run(
+        output_op,
+        cache_mode=CacheMode.Overwrite,
         show_progress=False,
         io_packet_size=1,
         work_packet_size=1,
         pipeline_instances_per_node=1)
-    tables = [db.table('test_stencil')]
 
-    num_rows = 0
-    for _ in tables[0].column('flow').load():
-        num_rows += 1
-    assert num_rows == 3
+    assert output.len() == 3
 
 
-def test_packed_file_source(db):
-    # Write test file
-    path = '/tmp/cpp_source_test'
-    with open(path, 'wb') as f:
-        num_elements = 4
-        f.write(struct.pack('=Q', num_elements))
-        # Write sizes
-        for i in range(num_elements):
-            f.write(struct.pack('=Q', 8))
-        # Write data
-        for i in range(num_elements):
-            f.write(struct.pack('=Q', i))
+# def test_packed_file_source(sc):
+#     # Write test file
+#     path = '/tmp/cpp_source_test'
+#     with open(path, 'wb') as f:
+#         num_elements = 4
+#         f.write(struct.pack('=Q', num_elements))
+#         # Write sizes
+#         for i in range(num_elements):
+#             f.write(struct.pack('=Q', 8))
+#         # Write data
+#         for i in range(num_elements):
+#             f.write(struct.pack('=Q', i))
 
-    data = db.sources.PackedFile()
-    pass_data = db.ops.Pass(input=data)
-    output_op = db.sinks.Column(columns={'integer': pass_data})
-    job = Job(op_args={
-        data: {
-            'path': path
-        },
-        output_op: 'test_cpp_source',
-    })
+#     data = sc.sources.PackedFile()
+#     pass_data = sc.ops.Pass(input=data)
+#     output_op = sc.sinks.Column(columns={'integer': pass_data})
+#     job = Job(op_args={
+#         data: {
+#             'path': path
+#         },
+#         output_op: 'test_cpp_source',
+#     })
 
-    db.run(output_op, [job], force=True, show_progress=False)
-    tables = [db.table('test_cpp_source')]
+#     sc.run(output_op, [job], cache_mode=CacheMode.Overwrite, show_progress=False)
+#     tables = [sc.table('test_cpp_source')]
 
-    num_rows = 0
-    for buf in tables[0].column('integer').load():
-        (val, ) = struct.unpack('=Q', buf)
-        assert val == num_rows
-        num_rows += 1
-    assert num_elements == tables[0].num_rows()
+#     num_rows = 0
+#     for buf in tables[0].column('integer').load():
+#         (val, ) = struct.unpack('=Q', buf)
+#         assert val == num_rows
+#         num_rows += 1
+#     assert num_elements == tables[0].num_rows()
 
 
-def test_files_source(db):
+def test_files_source(sc):
     # Write test files
     path_template = '/tmp/files_source_test_{:d}'
     num_elements = 4
@@ -709,28 +561,21 @@ def test_files_source(db):
             f.write(struct.pack('=Q', i))
         paths.append(path)
 
-    data = db.sources.Files()
-    pass_data = db.ops.Pass(input=data)
-    output_op = db.sinks.Column(columns={'integer': pass_data})
-    job = Job(op_args={
-        data: {
-            'paths': paths
-        },
-        output_op: 'test_files_source',
-    })
-
-    db.run(output_op, [job], force=True, show_progress=False)
-    tables = [db.table('test_files_source')]
+    data = sc.io.Input([FilesStream(paths=paths)])
+    pass_data = sc.ops.Pass(input=data)
+    output = ScannerStream(sc, 'test_files_source')
+    output_op = sc.io.Output(pass_data, [output])
+    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
 
     num_rows = 0
-    for buf in tables[0].column('integer').load():
+    for buf in output.load():
         (val, ) = struct.unpack('=Q', buf)
         assert val == num_rows
         num_rows += 1
-    assert num_elements == tables[0].num_rows()
+    assert num_elements == num_rows
 
 
-def test_files_sink(db):
+def test_files_sink(sc):
     # Write initial test files
     path_template = '/tmp/files_source_test_{:d}'
     num_elements = 4
@@ -749,49 +594,30 @@ def test_files_sink(db):
     for i in range(num_elements):
         path = path_template.format(i)
         output_paths.append(path)
-
-    data = db.sources.Files()
-    pass_data = db.ops.Pass(input=data)
-    output_op = db.sinks.Files(input=pass_data)
-    job = Job(op_args={
-        data: {
-            'paths': input_paths
-        },
-        output_op: {
-            'paths': output_paths
-        }
-    })
-
-    db.run(output_op, [job], force=True, show_progress=False)
+    data = sc.io.Input([FilesStream(paths=input_paths)])
+    pass_data = sc.ops.Pass(input=data)
+    output = FilesStream(paths=output_paths)
+    output_op = sc.io.Output(pass_data, [output])
+    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
 
     # Read output test files
-    for i in range(num_elements):
-        path = output_paths[i]
-        with open(path, 'rb') as f:
-            # Write data
-            d, = struct.unpack('=Q', f.read())
-            assert d == i
+    for i, s in enumerate(output.load()):
+        d, = struct.unpack('=Q', s)
+        assert d == i
 
 
-def test_python_source(db):
+def test_python_source(sc):
     # Write test files
     py_data = [{'{:d}'.format(i): i} for i in range(4)]
 
-    data = db.sources.Python()
-    pass_data = db.ops.Pass(input=data)
-    output_op = db.sinks.Column(columns={'dict': pass_data})
-    job = Job(op_args={
-        data: {
-            'data': pickle.dumps(py_data)
-        },
-        output_op: 'test_python_source',
-    })
-
-    db.run(output_op, [job], force=True, show_progress=False)
-    tables = [db.table('test_python_source')]
+    data = sc.io.Input([PythonStream(py_data)])
+    pass_data = sc.ops.Pass(input=data)
+    output = ScannerStream(sc, 'test_python_source')
+    output_op = sc.io.Output(pass_data, [output])
+    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
 
     num_rows = 0
-    for i, buf in enumerate(tables[0].column('dict').load()):
+    for i, buf in enumerate(output.load()):
         d = pickle.loads(buf)
         assert d['{:d}'.format(i)] == i
         num_rows += 1
@@ -800,54 +626,36 @@ def test_python_source(db):
 
 @scannerpy.register_python_op()
 class TestPy(Kernel):
-    def __init__(self, config):
-        assert (config.args['kernel_arg'] == 1)
+    def __init__(self, config, kernel_arg):
+        assert (kernel_arg == 1)
         self.x = 20
         self.y = 20
 
-    def close(self):
-        pass
+    def new_stream(self, x, y):
+        self.x = x
+        self.y = y
 
-    def new_stream(self, args):
-        if args is None:
-            return
-        if 'x' in args:
-            self.x = args['x']
-        if 'y' in args:
-            self.y = args['y']
-
-    def execute(self, frame: FrameType) -> bytes:
+    def execute(self, frame: FrameType) -> Any:
         point = {}
         point['x'] = self.x
         point['y'] = self.y
-        return pickle.dumps(point)
+        return point
 
 
-def test_python_kernel(db):
-    frame = db.sources.FrameColumn()
-    range_frame = db.streams.Range(frame, 0, 3)
-    test_out = db.ops.TestPy(frame=range_frame, kernel_arg=1)
-    output_op = db.sinks.Column(columns={'dummy': test_out})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_hist'
-    })
-
-    db.run(output_op, [job], force=True, show_progress=False)
-    tables = [db.table('test_hist')]
-    next(tables[0].column('dummy').load())
+def test_python_kernel(sc):
+    input = ScannerFrameStream(sc, 'test1')
+    frame = sc.io.Input([input])
+    range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 3}])
+    test_out = sc.ops.TestPy(frame=range_frame, kernel_arg=1, x=[0], y=[0])
+    output = ScannerStream(sc, 'test_hist')
+    output_op = sc.io.Output(test_out, [output])
+    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+    next(output.load())
 
 
 @scannerpy.register_python_op(batch=50)
 class TestPyBatch(Kernel):
-    def __init__(self, config):
-        pass
-
-    def close(self):
-        pass
-
     def execute(self, frame: Sequence[FrameType]) -> Sequence[bytes]:
-
         point = protobufs.Point()
         point.x = 10
         point.y = 5
@@ -856,31 +664,20 @@ class TestPyBatch(Kernel):
         return [point.SerializeToString() for _ in range(input_count)]
 
 
-def test_python_batch_kernel(db):
-    frame = db.sources.FrameColumn()
-    range_frame = db.streams.Range(frame, 0, 30)
-    test_out = db.ops.TestPyBatch(frame=range_frame, batch=50)
-    output_op = db.sinks.Column(columns={'dummy': test_out})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_hist'
-    })
-
-    db.run(output_op, [job], force=True, show_progress=False)
-    tables = [db.table('test_hist')]
-    next(tables[0].column('dummy').load())
+def test_python_batch_kernel(sc):
+    input = ScannerFrameStream(sc, 'test1')
+    frame = sc.io.Input([input])
+    range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
+    test_out = sc.ops.TestPyBatch(frame=range_frame, batch=50)
+    output = ScannerStream(sc, 'test_hist')
+    output_op = sc.io.Output(test_out, [output])
+    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+    next(output.load())
 
 
 @scannerpy.register_python_op(stencil=[0, 1])
 class TestPyStencil(Kernel):
-    def __init__(self, config):
-        pass
-
-    def close(self):
-        pass
-
     def execute(self, frame: Sequence[FrameType]) -> bytes:
-
         assert len(frame) == 2
         point = protobufs.Point()
         point.x = 10
@@ -888,18 +685,15 @@ class TestPyStencil(Kernel):
         return point.SerializeToString()
 
 
-def test_python_stencil_kernel(db):
-    frame = db.sources.FrameColumn()
-    range_frame = db.streams.Range(frame, 0, 30)
-    test_out = db.ops.TestPyStencil(frame=range_frame)
-    output_op = db.sinks.Column(columns={'dummy': test_out})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_hist'
-    })
-    db.run(output_op, [job], force=True, show_progress=False)
-    tables = [db.table('test_hist')]
-    next(tables[0].column('dummy').load())
+def test_python_stencil_kernel(sc):
+    input = ScannerFrameStream(sc, 'test1')
+    frame = sc.io.Input([input])
+    range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
+    test_out = sc.ops.TestPyStencil(frame=range_frame)
+    output = ScannerStream(sc, 'test_hist')
+    output_op = sc.io.Output(test_out, [output])
+    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+    next(output.load())
 
 
 @scannerpy.register_python_op(stencil=[0, 1], batch=50)
@@ -921,134 +715,100 @@ class TestPyStencilBatch(Kernel):
         return [point.SerializeToString() for _ in range(input_count)]
 
 
-def test_python_stencil_batch_kernel(db):
-    frame = db.sources.FrameColumn()
-    range_frame = db.streams.Range(frame, 0, 30)
-    test_out = db.ops.TestPyStencilBatch(frame=range_frame, batch=50)
-    output_op = db.sinks.Column(columns={'dummy': test_out})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_hist'
-    })
-
-    db.run(output_op, [job], force=True, show_progress=False)
-    tables = [db.table('test_hist')]
-    next(tables[0].column('dummy').load())
+def test_python_stencil_batch_kernel(sc):
+    input = ScannerFrameStream(sc, 'test1')
+    frame = sc.io.Input([input])
+    range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
+    test_out = sc.ops.TestPyStencilBatch(frame=range_frame, batch=50)
+    output = ScannerStream(sc, 'test_hist')
+    output_op = sc.io.Output(test_out, [output])
+    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+    next(output.load())
 
 
-def test_bind_op_args(db):
-    frame = db.sources.FrameColumn()
-    range_frame = db.streams.Range(frame, 0, 1)
-    test_out = db.ops.TestPy(frame=range_frame, kernel_arg=1)
-    output_op = db.sinks.Column(columns={'dummy': test_out})
-
+def test_bind_op_args(sc):
+    input = ScannerFrameStream(sc, 'test1')
+    frame = sc.io.Input([input, input])
+    range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 1} for _ in range(2)])
+    test_out = sc.ops.TestPy(frame=range_frame, kernel_arg=1, x=[1, 10], y=[5, 50])
+    outputs = [ScannerStream(sc, 'test_hist_0'), ScannerStream(sc, 'test_hist_1')]
+    output_op = sc.io.Output(test_out, outputs)
     pairs = [(1, 5), (10, 50)]
-    jobs = []
-    for x, y in pairs:
-        job = Job(
-            op_args={
-                frame: db.table('test1').column('frame'),
-                test_out: {
-                    'x': x,
-                    'y': y
-                },
-                output_op: 'test_hist_{:d}'.format(x)
-            })
-        jobs.append(job)
+    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
 
-    db.run(output_op, jobs, force=True, show_progress=False)
     for i, (x, y) in enumerate(pairs):
-        values = [v for v in db.table('test_hist_{:d}'.format(x)).column('dummy').load()]
-        p = pickle.loads(values[0])
+        values = list(outputs[i].load())
+        p = values[0]
         assert p['x'] == x
         assert p['y'] == y
 
 
-def test_blur(db):
-    frame = db.sources.FrameColumn()
-    range_frame = db.streams.Range(frame, 0, 30)
-    blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
-    output_op = db.sinks.Column(columns={'frame': blurred_frame})
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_blur',
-    })
+def test_blur(sc):
+    input = ScannerFrameStream(sc, 'test1')
+    frame = sc.io.Input([input])
+    range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
+    blurred_frame = sc.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
+    output = ScannerFrameStream(sc, 'test_blur')
+    output_op = sc.io.Output(blurred_frame, [output])
+    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
 
-    db.run(output_op, [job], force=True, show_progress=False)
-    table = db.table('test_blur')
-
-    frame_array = next(table.column('frame').load())
+    frame_array = next(output.load())
     assert frame_array.dtype == np.uint8
     assert frame_array.shape[0] == 480
     assert frame_array.shape[1] == 640
     assert frame_array.shape[2] == 3
 
 
-def test_lossless(db):
-    frame = db.sources.FrameColumn()
-    range_frame = db.streams.Range(frame, 0, 30)
-    blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
-    output_op = db.sinks.Column(columns={'frame': blurred_frame.lossless()})
-
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_blur_lossless'
-    })
-
-    db.run(output_op, [job], force=True, show_progress=False)
-    table = db.table('test_blur_lossless')
-    next(table.column('frame').load())
+def test_lossless(sc):
+    input = ScannerFrameStream(sc, 'test1')
+    frame = sc.io.Input([input])
+    range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
+    blurred_frame = sc.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
+    output = ScannerFrameStream(sc, 'test_blur')
+    output_op = sc.io.Output(blurred_frame.lossless(), [output])
+    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+    next(output.load())
 
 
-def test_compress(db):
-    frame = db.sources.FrameColumn()
-    range_frame = db.streams.Range(frame, 0, 30)
-    blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
-    compressed_frame = blurred_frame.compress('video', bitrate=1 * 1024 * 1024)
-    output_op = db.sinks.Column(columns={'frame': compressed_frame})
-
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_blur_compressed'
-    })
-
-    db.run(output_op, [job], force=True, show_progress=False)
-    table = db.table('test_blur_compressed')
-    next(table.column('frame').load())
+def test_compress(sc):
+    input = ScannerFrameStream(sc, 'test1')
+    frame = sc.io.Input([input])
+    range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
+    blurred_frame = sc.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
+    output = ScannerFrameStream(sc, 'test_blur')
+    output_op = sc.io.Output(blurred_frame.compress('video', bitrate=1 * 1024 * 1024), [output])
+    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+    next(output.load())
 
 
-def test_save_mp4(db):
-    frame = db.sources.FrameColumn()
-    range_frame = db.streams.Range(frame, 0, 30)
-    blurred_frame = db.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
-    output_op = db.sinks.Column(columns={'frame': blurred_frame})
+def test_save_mp4(sc):
+    input = ScannerFrameStream(sc, 'test1')
+    frame = sc.io.Input([input])
+    range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
+    blurred_frame = sc.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
+    output = ScannerFrameStream(sc, 'test_save_mp4')
+    output_op = sc.io.Output(blurred_frame, [output])
+    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
 
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_save_mp4'
-    })
-
-    db.run(output_op, [job], force=True, show_progress=False)
-    table = db.table('test_save_mp4')
     f = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
     f.close()
-    table.column('frame').save_mp4(f.name)
+    output.save_mp4(f.name)
     run(['rm', '-rf', f.name])
 
 
 @pytest.fixture()
-def no_workers_db():
+def no_workers_sc():
     # Create new config
     (cfg_path, cfg) = make_config(master_port='5020', worker_port='5021')
 
     # Setup and ingest video
-    with Database(workers=[], config_path=cfg_path, enable_watchdog=False,
-                  debug=True) as db:
+    with Client(workers=[], config_path=cfg_path, enable_watchdog=False,
+                  debug=True) as sc:
         (vid1_path, vid2_path) = download_videos()
 
-        db.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
+        sc.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
 
-        yield db
+        yield sc
 
         # Tear down
         run([
@@ -1057,21 +817,17 @@ def no_workers_db():
         ])
 
 
-def test_no_workers(no_workers_db):
-    db = no_workers_db
+def test_no_workers(no_workers_sc):
+    sc = no_workers_sc
 
-    frame = db.sources.FrameColumn()
-    hist = db.ops.Histogram(frame=frame)
-    output_op = db.sinks.Column(columns={'dummy': hist})
-
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: '_ignore'
-    })
+    input = ScannerFrameStream(sc, 'test1')
+    frame = sc.io.Input([input])
+    hist = sc.ops.Histogram(frame=frame)
+    output_op = sc.io.Output(hist, [ScannerStream(sc, '_ignore')])
 
     exc = False
     try:
-        db.run(output_op, [job], show_progress=False, force=True)
+        sc.run(output_op, show_progress=False, cache_mode=CacheMode.Overwrite)
     except ScannerException:
         exc = True
 
@@ -1079,24 +835,24 @@ def test_no_workers(no_workers_db):
 
 
 @pytest.fixture()
-def fault_db():
+def fault_sc():
     # Create new config
     (cfg_path, cfg) = make_config(
         master_port='5010', worker_port='5011', path='/tmp/config_test')
 
     # Setup and ingest video
-    with Database(
+    with Client(
             master='localhost:5010',
             workers=[],
             config_path=cfg_path,
             no_workers_timeout=120,
             enable_watchdog=False,
-            debug=True) as db:
+            debug=True) as sc:
         (vid1_path, vid2_path) = download_videos()
 
-        db.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
+        sc.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
 
-        yield db
+        yield sc
 
         # Tear down
         run([
@@ -1105,7 +861,7 @@ def fault_db():
         ])
 
 
-# def test_clean_worker_shutdown(fault_db):
+# def test_clean_worker_shutdown(fault_sc):
 #     spawn_port = 5010
 #     def worker_shutdown_task(config, master_address, worker_address):
 #         from scannerpy import ProtobufGenerator, Config, start_worker
@@ -1147,27 +903,27 @@ def fault_db():
 #         subprocess.call(['python ' +  script_dir + '/spawn_worker.py'],
 #                         shell=True)
 
-#     master_addr = fault_db._master_address
-#     worker_addr = fault_db._worker_addresses[0]
+#     master_addr = fault_sc._master_address
+#     worker_addr = fault_sc._worker_addresses[0]
 #     shutdown_process = Process(target=worker_shutdown_task,
-#                              args=(fault_db.config, master_addr, worker_addr))
+#                              args=(fault_sc.config, master_addr, worker_addr))
 #     shutdown_process.daemon = True
 #     shutdown_process.start()
 
-#     frame = fault_db.sources.FrameColumn()
+#     frame = fault_sc.sources.FrameColumn()
 #     range_frame = frame.sample()
-#     sleep_frame = fault_db.ops.SleepFrame(ignore = range_frame)
-#     output_op = fault_db.sinks.Column(columns=[sleep_frame])
+#     sleep_frame = fault_sc.ops.SleepFrame(ignore = range_frame)
+#     output_op = fault_sc.sinks.Column(columns=[sleep_frame])
 
 #     job = Job(
 #         op_args={
-#             frame: fault_db.table('test1').column('frame'),
-#             range_frame: fault_db.sampler.range(0, 15),
+#             frame: fault_sc.table('test1').column('frame'),
+#             range_frame: fault_sc.sampler.range(0, 15),
 #             output_op: 'test_shutdown',
 #         }
 #     )
 #
-#     table = fault_db.run(output_op, [job], pipeline_instances_per_node=1, force=True,
+#     table = fault_sc.run(output_op, [job], pipeline_instances_per_node=1, cache_mode=CacheMode.Overwrite,
 #                          show_progress=False)
 #     table = table[0]
 #     assert len([_ for _, _ in table.column('dummy').load()]) == 15
@@ -1176,10 +932,10 @@ def fault_db():
 #     channel = grpc.insecure_channel(
 #         'localhost:' + str(spawn_port),
 #         options=[('grpc.max_message_length', 24499183 * 2)])
-#     worker = fault_db.protobufs.WorkerStub(channel)
+#     worker = fault_sc.protobufs.WorkerStub(channel)
 
 #     try:
-#         worker.Shutdown(fault_db.protobufs.Empty())
+#         worker.Shutdown(fault_sc.protobufs.Empty())
 #     except grpc.RpcError as e:
 #         status = e.code()
 #         if status == grpc.StatusCode.UNAVAILABLE:
@@ -1191,7 +947,7 @@ def fault_db():
 #     shutdown_process.join()
 
 
-def test_fault_tolerance(fault_db):
+def test_fault_tolerance(fault_sc):
     force_kill_spawn_port = 5012
     normal_spawn_port = 5013
 
@@ -1240,30 +996,26 @@ def test_fault_tolerance(fault_db):
                 ],
                 shell=True)
 
-    master_addr = fault_db._master_address
+    master_addr = fault_sc._master_address
     killer_process = Process(
-        target=worker_killer_task, args=(fault_db.config, master_addr))
+        target=worker_killer_task, args=(fault_sc.config, master_addr))
     killer_process.daemon = True
     killer_process.start()
 
-    frame = fault_db.sources.FrameColumn()
-    range_frame = fault_db.streams.Range(frame, 0, 20)
-    sleep_frame = fault_db.ops.SleepFrame(ignore=range_frame)
-    output_op = fault_db.sinks.Column(columns={'dummy': sleep_frame})
+    input = ScannerFrameStream(sc, 'test1')
+    frame = fault_sc.io.Input([input])
+    range_frame = fault_sc.streams.Range(frame, ranges=[{'start': 0, 'end': 20}])
+    sleep_frame = fault_sc.ops.SleepFrame(ignore=range_frame)
+    output = ScannerStream(fault_sc, 'test_fault')
+    output_op = fault_sc.io.Output(sleep_frame, [output])
 
-    job = Job(op_args={
-        frame: fault_db.table('test1').column('frame'),
-        output_op: 'test_fault',
-    })
-
-    fault_db.run(
-        output_op, [job],
+    fault_sc.run(
+        output_op,
         pipeline_instances_per_node=1,
-        force=True,
+        cache_mode=CacheMode.Overwrite,
         show_progress=False)
-    table = fault_db.table('test_fault')
 
-    assert len([_ for _ in table.column('dummy').load()]) == 20
+    assert output.len() == 20
 
     # Shutdown the spawned worker
     channel = grpc.insecure_channel(
@@ -1285,24 +1037,24 @@ def test_fault_tolerance(fault_db):
 
 
 @pytest.fixture()
-def blacklist_db():
+def blacklist_sc():
     # Create new config
     (cfg_path, cfg) = make_config(master_port='5055', worker_port='5060')
 
     # Setup and ingest video
     master = 'localhost:5055'
     workers = ['localhost:{:04d}'.format(5060 + d) for d in range(4)]
-    with Database(
+    with Client(
             config_path=cfg_path,
             no_workers_timeout=120,
             master=master,
             workers=workers,
-            enable_watchdog=False) as db:
+            enable_watchdog=False) as sc:
         (vid1_path, vid2_path) = download_videos()
 
-        db.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
+        sc.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
 
-        yield db
+        yield sc
 
         # Tear down
         run([
@@ -1311,68 +1063,57 @@ def blacklist_db():
         ])
 
 
-def test_job_blacklist(blacklist_db):
+def test_job_blacklist(blacklist_sc):
     # NOTE(wcrichto): this class must NOT be at the top level. If it is, then pytest injects
     # some of its dependencies, and sending this class to an external Scanner process will fail
     # with a missing "py_test" import..
     @scannerpy.register_python_op()
     class TestPyFail(Kernel):
-        def __init__(self, config):
-            pass
-
-        def close(self):
-            pass
-
         def execute(self, frame: FrameType) -> bytes:
             raise ScannerException('Test')
 
-    db = blacklist_db
+    sc = blacklist_sc
 
-    frame = db.sources.FrameColumn()
-    range_frame = db.streams.Range(frame, 0, 1)
-    failed_output = db.ops.TestPyFail(frame=range_frame)
-    output_op = db.sinks.Column(columns={'dummy': failed_output})
-
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_py_fail'
-    })
-
-    db.run(
-        output_op, [job],
-        force=True,
+    input = ScannerFrameStream(sc, 'test1')
+    frame = sc.io.Input([input])
+    range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 1}])
+    failed_output = sc.ops.TestPyFail(frame=range_frame)
+    output = ScannerFrameStream(sc, 'test_py_fail')
+    output_op = sc.io.Output(failed_output, [output])
+    sc.run(
+        output_op,
+        cache_mode=CacheMode.Overwrite,
         show_progress=False,
         pipeline_instances_per_node=1)
-    table = db.table('test_py_fail')
-    assert table.committed() == False
+    assert not output.committed()
 
 
 @pytest.fixture()
-def timeout_db():
+def timeout_sc():
     # Create new config
     (cfg_path, cfg) = make_config(master_port='5155', worker_port='5160')
 
     # Setup and ingest video
     master = 'localhost:5155'
     workers = ['localhost:{:04d}'.format(5160 + d) for d in range(4)]
-    with Database(
+    with Client(
             config_path=cfg_path,
             no_workers_timeout=120,
             master=master,
             workers=workers,
-            enable_watchdog=False) as db:
+            enable_watchdog=False) as sc:
         (vid1_path, vid2_path) = download_videos()
 
-        db.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
+        sc.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
 
-        yield db
+        yield sc
 
         for worker in workers:
             channel = grpc.insecure_channel(worker)
             worker_stub = protobufs.WorkerStub(channel)
             try:
                 worker_stub.Shutdown(
-                    protobufs.Empty(), timeout=db._grpc_timeout)
+                    protobufs.Empty(), timeout=sc._grpc_timeout)
             except grpc.RpcError as e:
                 pass
 
@@ -1383,37 +1124,33 @@ def timeout_db():
         ])
 
 
-def test_job_timeout(timeout_db):
+def test_job_timeout(timeout_sc):
     @scannerpy.register_python_op()
     def timeout_fn(self, frame: FrameType) -> bytes:
         time.sleep(5)
         return bytes('what', 'utf-8')
 
-    db = timeout_db
+    sc = timeout_sc
 
-    frame = db.sources.FrameColumn()
-    range_frame = db.streams.Range(frame, 0, 1)
-    sleep_frame = db.ops.timeout_fn(frame=range_frame)
-    output_op = db.sinks.Column(columns={'dummy': sleep_frame})
+    input = ScannerFrameStream(sc, 'test1')
+    frame = sc.io.Input([input])
+    range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 1}])
+    sleep_frame = sc.ops.timeout_fn(frame=range_frame)
+    output = ScannerFrameStream(sc, 'test_timeout')
+    output_op = sc.io.Output(sleep_frame, [output])
 
-    job = Job(op_args={
-        frame: db.table('test1').column('frame'),
-        output_op: 'test_timeout',
-    })
-
-    db.run(
-        output_op, [job],
+    sc.run(
+        output_op,
         pipeline_instances_per_node=1,
         task_timeout=0.1,
-        force=True,
+        cache_mode=CacheMode.Overwrite,
         show_progress=False)
-    table = db.table('test_timeout')
 
-    assert table.committed() == False
+    assert not output.committed()
 
 
 @pytest.fixture(scope='module')
-def sql_db(db):
+def sql_sc(sc):
     with Postgresql() as postgresql:
         conn = psycopg2.connect(**postgresql.dsn())
         cur = conn.cursor()
@@ -1443,7 +1180,7 @@ def sql_db(db):
             user=sql_params['user'],
             adapter='postgres')
 
-        yield db, sql_config, cur
+        yield sc, SQLStorage(config=sql_config, job_table='jobs'), cur
 
         cur.close()
         conn.close()
@@ -1455,36 +1192,28 @@ def add_one(config, row: bytes) -> bytes:
     return json.dumps([{'id': r['id'], 'b': r['a'] + 1} for r in row])
 
 
-def test_sql(sql_db):
-    (db, sql_config, cur) = sql_db
+def test_sql(sql_sc):
+    (sc, storage, cur) = sql_sc
 
-    row = db.sources.SQL(
-        config=sql_config,
+    cur.execute('SELECT COUNT(*) FROM test');
+    n, = cur.fetchone()
+
+    row = sc.io.Input([SQLInputStream(
         query=protobufs.SQLQuery(
             fields='test.id as id, test.a, test.c, test.d, test.e, test.f',
             table='test',
             id='test.id',
-            group='test.id'))
-    row2 = db.ops.AddOne(row=row)
-    output_op = db.sinks.SQL(
-        input=row2,
-        config=sql_config,
+            group='test.id'),
+        filter='true',
+        storage=storage,
+        num_elements=n)])
+    row2 = sc.ops.AddOne(row=row)
+    output_op = sc.io.Output(row2, [SQLOutputStream(
         table='test',
-        job_table='jobs',
-        insert=False)
-
-    cur.execute('SELECT COUNT(*) FROM test');
-    n, = cur.fetchone()
-    job = Job(op_args={
-        row: {
-            'filter': 'true',
-            'num_elements': n
-        },
-        output_op: {
-            'job_name': 'foobar'
-        }
-    })
-    db.run(output_op, [job])
+        storage=storage,
+        job_name='foobar',
+        insert=False)])
+    sc.run(output_op)
 
     cur.execute('SELECT b FROM test')
     assert cur.fetchone()[0] == 11
@@ -1499,22 +1228,21 @@ def add_all(config, row: bytes) -> bytes:
     return json.dumps([{'id': r['id'], 'b': total} for r in row])
 
 
-def test_sql_grouped(sql_db):
-    (db, sql_config, cur) = sql_db
+def test_sql_grouped(sql_sc):
+    (sc, storage, cur) = sql_sc
 
-    row = db.sources.SQL(
-        config=sql_config,
+    row = sc.io.Input([SQLInputStream(
+        storage=storage,
         query=protobufs.SQLQuery(
             fields='test.id as id, test.a',
             table='test',
             id='test.id',
-            group='test.grp'))
-    row2 = db.ops.AddAll(row=row)
-    output_op = db.sinks.SQL(
-        input=row2, config=sql_config, table='test', insert=False)
-
-    job = Job(op_args={row: {'filter': 'true'}, output_op: {}})
-    db.run(output_op, [job])
+            group='test.grp'),
+        filter='true')])
+    row2 = sc.ops.AddAll(row=row)
+    output_op = sc.io.Output(
+        row2, [SQLOutputStream(storage=storage, table='test', job_name='test', insert=False)])
+    sc.run(output_op)
 
     cur.execute('SELECT b FROM test')
     assert cur.fetchone()[0] == 30
@@ -1526,34 +1254,33 @@ def sql_insert_test(config, row: bytes) -> bytes:
     return json.dumps([{'s': 'hello world', 'b': r['a'] + 1} for r in row])
 
 
-def test_sql_insert(sql_db):
-    (db, sql_config, cur) = sql_db
+def test_sql_insert(sql_sc):
+    (sc, storage, cur) = sql_sc
 
-    row = db.sources.SQL(
-        config=sql_config,
+    row = sc.io.Input([SQLInputStream(
+        storage=storage,
         query=protobufs.SQLQuery(
             fields='test.id as id, test.a',
             table='test',
             id='test.id',
-            group='test.grp'))
-    row2 = db.ops.SQLInsertTest(row=row)
-    output_op = db.sinks.SQL(
-        input=row2, config=sql_config, table='test2', insert=True)
-
-    job = Job(op_args={row: {'filter': 'true'}, output_op: {}})
-    db.run(output_op, [job], show_progress=False)
+            group='test.grp'),
+        filter='true')])
+    row2 = sc.ops.SQLInsertTest(row=row)
+    output_op = sc.io.Output(
+        row2, [SQLOutputStream(
+            storage=storage, table='test2', job_name='test', insert=True)])
+    sc.run(output_op, show_progress=False)
 
     cur.execute('SELECT s FROM test2')
     assert cur.fetchone()[0] == "hello world"
 
-def test_audio(db):
-    audio = db.sources.Audio(frame_size=1.0)
-    ignored = db.ops.DiscardFrame(ignore=audio)
-    output = db.sinks.Column(columns={'ignored': ignored})
 
+def test_audio(sc):
     (vid_path, _) = download_videos()
-    job = Job(op_args={audio: {'path': vid_path}, output: 'audio_test'})
-    db.run(output, [job], force=True)
+    audio = sc.io.Input([AudioStream(vid_path, 1.0)])
+    ignored = sc.ops.DiscardFrame(ignore=audio)
+    output = sc.io.Output(ignored, [ScannerStream(sc, 'audio_test')])
+    sc.run(output, cache_mode=CacheMode.Overwrite)
 
 
 def download_transcript():
@@ -1571,14 +1298,45 @@ def decode_cap(config, cap: bytes) -> bytes:
     return b' '
 
 
-def test_captions(db):
-    captions = db.sources.Captions(window_size=10)
-    ignored = db.ops.DecodeCap(cap=captions)
-    output = db.sinks.Column(columns={'ignored': ignored})
-
+def test_captions(sc):
     caption_path = download_transcript()
-    job = Job(op_args={captions: {'path': caption_path, 'max_time': 3600}, output: 'caption_test'})
-    db.run(output, [job], force=True, pipeline_instances_per_node=1)
+    captions = sc.io.Input([CaptionStream(caption_path, window_size=10.0, max_time=3600)])
+    ignored = sc.ops.DecodeCap(cap=captions)
+    output = sc.io.Output(ignored, [ScannerStream(sc, 'caption_test')])
+    sc.run(output, cache_mode=CacheMode.Overwrite, pipeline_instances_per_node=1)
+
+
+@scannerpy.register_python_op(name='CacheTest')
+def cache_test(config, n: Any) -> Any:
+    return n + 1
+
+
+def test_cache_mode(sc):
+    n = sc.io.Input([PythonStream([0])])
+    out = sc.ops.CacheTest(n=n)
+    output = ScannerStream(sc, 'test_cache')
+    output_op = sc.io.Output(out, [output])
+    sc.run(output_op)
+
+    assert next(output.load()) == 1
+
+    exc = False
+    try:
+        sc.run(output_op)
+    except ScannerException:
+        exc = True
+    assert exc
+
+    n = sc.io.Input([PythonStream([1])])
+    out = sc.ops.CacheTest(n=n)
+    output_op = sc.io.Output(out, [output])
+
+    sc.run(output_op, cache_mode=CacheMode.Ignore)
+    assert next(output.load()) == 1
+
+    sc.run(output_op, cache_mode=CacheMode.Overwrite)
+    assert next(output.load()) == 2
+
 
 def test_tutorial():
     def run_py(path):

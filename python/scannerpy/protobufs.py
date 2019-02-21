@@ -66,21 +66,21 @@ class ProtobufGenerator:
         raise AttributeError('No protobuf with name {}'.format(name))
 
 
-def python_to_proto(protos, proto_name, obj):
-    args_proto = getattr(protos, proto_name)
+protobufs = ProtobufGenerator()
 
-    def analyze_proto(p):
+def analyze_proto(proto):
+    def analyze(p):
         fields = {}
         for f in p.fields:
             child_fields = None
             if f.type == FieldDescriptor.TYPE_MESSAGE:
-                child_fields = analyze_proto(f.message_type)
+                child_fields = analyze(f.message_type)
 
             fields[f.name] = {
                 'type':
                 f.type,
                 'message':
-                getattr(protos, f.message_type.name)
+                getattr(protobufs, f.message_type.name)
                 if f.message_type is not None else None,
                 'repeated':
                 f.label == FieldDescriptor.LABEL_REPEATED,
@@ -89,7 +89,12 @@ def python_to_proto(protos, proto_name, obj):
             }
         return fields
 
-    p = analyze_proto(args_proto.DESCRIPTOR)
+    return analyze(proto.DESCRIPTOR)
+
+def python_to_proto(proto_name, obj):
+    args_proto = getattr(protobufs, proto_name)
+
+    p = analyze_proto(args_proto)
 
     def create_obj(proto, p, obj):
         if isinstance(obj, proto):
@@ -125,12 +130,10 @@ def python_to_proto(protos, proto_name, obj):
             elif p[k]['message'] is not None:
                 # If a message field, have to CopyFrom, can't use direct assignment
                 getattr(proto_obj, k).CopyFrom(make_field(v))
-            else:
+            elif make_field(v) is not None:
                 # Just set the regular field
                 setattr(proto_obj, k, make_field(v))
 
         return proto_obj
 
     return create_obj(args_proto, p, obj).SerializeToString()
-
-protobufs = ProtobufGenerator()
