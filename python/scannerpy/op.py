@@ -15,6 +15,8 @@ from functools import wraps
 
 
 class SliceList(list):
+    """List of per-stream arguments to each slice of an op."""
+
     pass
 
 

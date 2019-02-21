@@ -1,11 +1,9 @@
-from typing import Any
 from attr import attrs, attrib
 from scannerpy.common import FrameType, ScannerException
 from scannerpy.protobufs import protobufs
 import pickle
-from typing import NewType
+from typing import NewType, Generic, TypeVar, Any
 import numpy as np
-from typing import Generic, TypeVar
 import struct
 
 PYTHON_TYPE_REGISTRY = {}
