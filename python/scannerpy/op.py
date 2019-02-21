@@ -42,8 +42,8 @@ def collect_per_stream_args(name, protobuf_name, kwargs):
 
 
 class OpColumn:
-    def __init__(self, db, op, col, typ):
-        self._db = db
+    def __init__(self, sc, op, col, typ):
+        self._sc = sc
         self._op = op
         self._col = col
         self._type = typ
@@ -94,7 +94,7 @@ class OpColumn:
                                            self._type)))
 
     def _new_compressed_column(self, encode_options):
-        new_col = OpColumn(self._db, self._op, self._col, self._type)
+        new_col = OpColumn(self._sc, self._op, self._col, self._type)
         new_col._encode_options = encode_options
         return new_col
 
@@ -107,12 +107,12 @@ class OpGenerator:
     Creates Op instances to define a computation.
 
     When a particular op is requested from the generator, e.g.
-    `db.ops.Histogram`, the generator does a dynamic lookup for the
+    `sc.ops.Histogram`, the generator does a dynamic lookup for the
     op in a C++ registry.
     """
 
-    def __init__(self, db):
-        self._db = db
+    def __init__(self, sc):
+        self._sc = sc
 
     def __getattr__(self, name):
         stream_params = []
@@ -126,7 +126,7 @@ class OpGenerator:
             # If Op has not been registered yet, register it
             pseudo_name = name + ':' + py_op_info['registration_id']
             name = pseudo_name
-            if not name in self._db._python_ops:
+            if not name in self._sc._python_ops:
                 devices = []
                 if py_op_info['device_type']:
                     devices.append(py_op_info['device_type'])
@@ -134,18 +134,18 @@ class OpGenerator:
                     for d in py_op_info['device_sets']:
                         devices.append(d[0])
 
-                self._db.register_op(
+                self._sc.register_op(
                     pseudo_name, py_op_info['input_columns'],
                     py_op_info['output_columns'], py_op_info['variadic_inputs'],
                     py_op_info['stencil'], py_op_info['unbounded_state'],
                     py_op_info['bounded_state'], py_op_info['proto_path'])
                 for device in devices:
-                    self._db.register_python_kernel(pseudo_name, device,
+                    self._sc.register_python_kernel(pseudo_name, device,
                                                     py_op_info['kernel'],
                                                     py_op_info['batch'])
 
         # This will raise an exception if the op does not exist.
-        op_info = self._db._get_op_info(name)
+        op_info = self._sc._get_op_info(name)
 
         def make_op(*args, **kwargs):
             inputs = []
@@ -189,7 +189,7 @@ class OpGenerator:
                 # TODO: protobuf op stream args
                 stream_args = None
 
-            op = Op(self._db, name, inputs, device, batch, bounded_state,
+            op = Op(self._sc, name, inputs, device, batch, bounded_state,
                     stencil, kwargs if args is None else args, extra, stream_args)
             return op.outputs()
 
@@ -198,7 +198,7 @@ class OpGenerator:
 
 class Op:
     def __init__(self,
-                 db,
+                 sc,
                  name,
                  inputs,
                  device,
@@ -208,7 +208,7 @@ class Op:
                  args={},
                  extra=None,
                  stream_args=None):
-        self._db = db
+        self._sc = sc
         self._name = name
         self._inputs = inputs
         self._device = device
@@ -223,10 +223,10 @@ class Op:
                 or name == 'Unslice'):
             outputs = []
             for c in inputs:
-                outputs.append(OpColumn(db, self, c._col, c._type))
+                outputs.append(OpColumn(sc, self, c._col, c._type))
         else:
-            cols = self._db._get_output_columns(self._name)
-            outputs = [OpColumn(self._db, self, c.name, c.type) for c in cols]
+            cols = self._sc._get_output_columns(self._name)
+            outputs = [OpColumn(self._sc, self, c.name, c.type) for c in cols]
         self._outputs = outputs
 
     def inputs(self):
@@ -258,13 +258,13 @@ class Op:
                 inp.column = i._col
 
         if isinstance(self._args, dict):
-            if self._name in self._db._python_ops:
+            if self._name in self._sc._python_ops:
                 e.kernel_args = pickle.dumps(self._args)
             elif len(self._args) > 0:
                 # To convert an arguments dict, we search for a protobuf with the
                 # name {Op}Args (e.g. BlurArgs, HistogramArgs) in the
                 # args.proto module, and fill that in with keys from the args dict.
-                op_info = self._db._get_op_info(self._name)
+                op_info = self._sc._get_op_info(self._name)
                 if len(op_info.protobuf_name) > 0:
                     proto_name = op_info.protobuf_name
                     e.kernel_args = python_to_proto(proto_name, self._args)

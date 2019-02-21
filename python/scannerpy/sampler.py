@@ -9,15 +9,15 @@ class Sampler:
     to run a computation over.
     """
 
-    def __init__(self, db):
-        self._db = db
+    def __init__(self, sc):
+        self._sc = sc
 
     def All(self, input):
         def arg_builder():
             sampling_args = protobufs.SamplingArgs()
             sampling_args.sampling_function = "All"
             return sampling_args
-        return self._db.ops.Sample(
+        return self._sc.ops.Sample(
             col=self,
             args={'arg_builder': arg_builder,
                   'default': arg_builder()})
@@ -31,7 +31,7 @@ class Sampler:
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
 
-        return self._db.ops.Sample(
+        return self._sc.ops.Sample(
             col=self,
             args={'arg_builder': arg_builder,
                   'default': arg_builder() if stride else None})
@@ -51,7 +51,7 @@ class Sampler:
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
 
-        return self._db.ops.Sample(
+        return self._sc.ops.Sample(
             col=self,
             args={'arg_builder': arg_builder,
                   'default': arg_builder() if rows else None})
@@ -72,7 +72,7 @@ class Sampler:
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
 
-        return self._db.ops.Sample(
+        return self._sc.ops.Sample(
             col=self,
             args={'arg_builder': arg_builder,
                   'default': arg_builder() if intervals and stride else None})
@@ -87,7 +87,7 @@ class Sampler:
             return sampling_args
 
         return sampling_args
-        return self._db.ops.Space(
+        return self._sc.ops.Space(
             col=self,
             args={'arg_builder': arg_builder,
                   'default': arg_builder() if spacing else None})
@@ -101,7 +101,7 @@ class Sampler:
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
 
-        return self._db.ops.Space(
+        return self._sc.ops.Space(
             col=self,
             args={'arg_builder': arg_builder,
                   'default': arg_builder() if spacing else None})

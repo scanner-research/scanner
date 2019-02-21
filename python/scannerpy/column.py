@@ -26,9 +26,9 @@ class Column(object):
     def __init__(self, table, name):
         self._table = table
         self._name = name
-        self._db = table._db
-        self._storage = table._db.config.storage
-        self._db_path = table._db.config.db_path
+        self._sc = table._sc
+        self._storage = table._sc.config.storage
+        self._db_path = table._sc.config.db_path
 
         self._loaded = False
         self._descriptor = None
@@ -231,17 +231,17 @@ class Column(object):
         if (self._descriptor.type == protobufs.Video
                 and self._video_descriptor.codec_type ==
                 protobufs.VideoDescriptor.H264):
-            png_table_name = self._db._png_dump_prefix.format(
+            png_table_name = self._sc._png_dump_prefix.format(
                 self._table.name(), self._name)
-            frame = self._db.io.Input([ScannerFrameStream(self._db, self._table.name())])
+            frame = self._sc.io.Input([ScannerFrameStream(self._sc, self._table.name())])
             enc_input = frame
             if rows is not None:
-                sampled_frame = self._db.streams.Gather(frame, indices=[rows])
+                sampled_frame = self._sc.streams.Gather(frame, indices=[rows])
                 enc_input = sampled_frame
-            img = self._db.ops.ImageEncoder(frame=enc_input)
-            output = [ScannerStream(self._db, png_table_name)]
-            output_op = self._db.io.Output(img, output)
-            self._db.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+            img = self._sc.ops.ImageEncoder(frame=enc_input)
+            output = [ScannerStream(self._sc, png_table_name)]
+            output_op = self._sc.io.Output(img, output)
+            self._sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
             return output[0].load(fn=readers.image)
         elif self._descriptor.type == protobufs.Video:
             frame_type = self._video_descriptor.frame_type
@@ -284,7 +284,7 @@ class Column(object):
         num_items = len(self._table._descriptor.end_rows)
 
         paths = [
-            '{}/tables/{:d}/{:d}_{:d}.bin'.format(self._db._db_path,
+            '{}/tables/{:d}/{:d}_{:d}.bin'.format(self._sc._db_path,
                                                   self._table._descriptor.id,
                                                   self._descriptor.id, item_id)
             for item_id in range(num_items)

@@ -14,11 +14,11 @@ class StreamsGenerator:
     This class should not be constructed directly, but accessed via a Database
     object like:
 
-      db.streams.Range(input)
+      sc.streams.Range(input)
     """
 
-    def __init__(self, db):
-        self._db = db
+    def __init__(self, sc):
+        self._sc = sc
 
     def Slice(self,
               input: scannerpy.op.OpColumn,
@@ -41,7 +41,7 @@ class StreamsGenerator:
         """
         def arg_builder(partitioner):
             return partitioner
-        return self._db.ops.Slice(
+        return self._sc.ops.Slice(
             col=input,
             extra={'type': 'Slice',
                    'arg_builder': arg_builder,
@@ -60,7 +60,7 @@ class StreamsGenerator:
         scannerpy.op.OpColumn
           A new stream which is the concatentation of the input substreams.
         """
-        return self._db.ops.Unslice(col=input)
+        return self._sc.ops.Unslice(col=input)
 
     def All(self, input: scannerpy.op.OpColumn) -> scannerpy.op.OpColumn:
         r"""Samples all elements from the stream.
@@ -81,7 +81,7 @@ class StreamsGenerator:
             sampling_args = protobufs.SamplingArgs()
             sampling_args.sampling_function = "All"
             return sampling_args
-        return self._db.ops.Sample(
+        return self._sc.ops.Sample(
             col=input,
             extra={'type': 'All',
                    'arg_builder': arg_builder,
@@ -113,7 +113,7 @@ class StreamsGenerator:
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
 
-        return self._db.ops.Sample(
+        return self._sc.ops.Sample(
             col=input,
             extra={'type': 'Stride',
                    'arg_builder': arg_builder,
@@ -150,7 +150,7 @@ class StreamsGenerator:
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
 
-        return self._db.ops.Sample(
+        return self._sc.ops.Sample(
             col=input,
             extra={'type': 'Range',
                    'arg_builder': arg_builder,
@@ -179,7 +179,7 @@ class StreamsGenerator:
         --------
         For example, to select frames 0-10 and 100-200, you would write:
 
-        db.streams.Ranges(input=input, intervals=[(0, 11), (100, 201)])
+        sc.streams.Ranges(input=input, intervals=[(0, 11), (100, 201)])
         """
         def arg_builder(intervals):
             args = protobufs.StridedRangeSamplerArgs()
@@ -192,7 +192,7 @@ class StreamsGenerator:
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
 
-        return self._db.ops.Sample(
+        return self._sc.ops.Sample(
             col=input,
             extra={'type': 'Ranges',
                    'arg_builder': arg_builder,
@@ -232,7 +232,7 @@ class StreamsGenerator:
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
 
-        return self._db.ops.Sample(
+        return self._sc.ops.Sample(
             col=input,
             extra={'type': 'StridedRange',
                    'arg_builder': arg_builder,
@@ -273,7 +273,7 @@ class StreamsGenerator:
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
 
-        return self._db.ops.Sample(
+        return self._sc.ops.Sample(
             col=input,
             extra={'type': 'StridedRanges',
                    'arg_builder': arg_builder,
@@ -306,7 +306,7 @@ class StreamsGenerator:
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
 
-        return self._db.ops.Sample(
+        return self._sc.ops.Sample(
             col=input,
             extra={'type': 'Gather',
                    'arg_builder': arg_builder,
@@ -338,7 +338,7 @@ class StreamsGenerator:
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
 
-        return self._db.ops.Space(
+        return self._sc.ops.Space(
             col=input,
             extra={'type': 'RepeatNull',
                    'arg_builder': arg_builder,
@@ -369,7 +369,7 @@ class StreamsGenerator:
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
 
-        return self._db.ops.Space(
+        return self._sc.ops.Space(
             col=input,
             extra={'type': 'Repeat',
                    'arg_builder': arg_builder,

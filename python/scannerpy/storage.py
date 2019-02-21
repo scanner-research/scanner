@@ -12,15 +12,15 @@ class NullElement:
 class Storage:
     r"""I/O backend for streams fed in/out of Scanner."""
 
-    def source(self, db, streams):
+    def source(self, sc, streams):
         raise ScannerException(
             "Storage class `{}` cannot serve as a Scanner input.".format(type(self).__name__))
 
-    def sink(self, db, op, streams):
+    def sink(self, sc, op, streams):
         raise ScannerException(
             "Storage class `{}` cannot serve as a Scanner output.".format(type(self).__name__))
 
-    def delete(self, db, streams):
+    def delete(self, sc, streams):
         raise ScannerException(
             "Storage class `{}` cannot delete elements.".format(type(self).__name__))
 
@@ -67,47 +67,47 @@ class StoredStream:
 
 
 class ScannerStorage(Storage):
-    def source(self, db, streams):
-        return db.sources.Column(
+    def source(self, sc, streams):
+        return sc.sources.Column(
             table_name=[s._name for s in streams],
             column_name=['column' for s in streams])
 
-    def sink(self, db, op, streams):
-        return db.sinks.Column(
+    def sink(self, sc, op, streams):
+        return sc.sinks.Column(
             columns={'column': op},
             table_name=[s._name for s in streams],
             column_name=['column' for s in streams])
 
-    def delete(self, db, streams):
+    def delete(self, sc, streams):
         if len(streams) > 0:
-            db.delete_tables([e._name for e in streams])
+            sc.delete_tables([e._name for e in streams])
 
 
 class ScannerFrameStorage(ScannerStorage):
-    def source(self, db, streams):
-        return db.sources.FrameColumn(
+    def source(self, sc, streams):
+        return sc.sources.FrameColumn(
             table_name=[s._name for s in streams],
             column_name=['frame' for s in streams])
 
-    def sink(self, db, op, streams):
-        return db.sinks.FrameColumn(
+    def sink(self, sc, op, streams):
+        return sc.sinks.FrameColumn(
             columns={'frame': op},
             table_name=[s._name for s in streams],
             column_name=['frame' for s in streams])
 
 
 class ScannerStream(StoredStream):
-    def __init__(self, db, name, storage=None):
+    def __init__(self, sc, name, storage=None):
         if storage is None:
             self._storage = ScannerStorage()
         else:
             self._storage = storage
 
-        self._db = db
+        self._sc = sc
         self._name = name
 
     def type(self):
-        seq = self._db.sequence(self._name)
+        seq = self._sc.sequence(self._name)
         seq._load_meta()
         type_name = seq._descriptor.type_name
         if type_name != "":
@@ -119,31 +119,31 @@ class ScannerStream(StoredStream):
         return self._storage
 
     def committed(self):
-        return self._db.sequence(self._name)._table.committed()
+        return self._sc.sequence(self._name)._table.committed()
 
     def exists(self):
-        return self._db.sequence(self._name)._table.exists()
+        return self._sc.sequence(self._name)._table.exists()
 
     def len(self):
-        return self._db.sequence(self._name)._table.num_rows()
+        return self._sc.sequence(self._name)._table.num_rows()
 
     def load_bytes(self, rows=None):
-        seq = self._db.sequence(self._name)
+        seq = self._sc.sequence(self._name)
         yield from seq.load(fn=lambda x: x, workers=16, rows=rows)
 
 
 class ScannerFrameStream(ScannerStream):
-    def __init__(self, db, name, storage=None):
+    def __init__(self, sc, name, storage=None):
         if storage is None:
             self._storage = ScannerFrameStorage()
         else:
             self._storage = storage
 
-        self._db = db
+        self._sc = sc
         self._name = name
 
     def save_mp4(self, *args, **kwargs):
-        return self._db.sequence(self._name).save_mp4(*args, **kwargs)
+        return self._sc.sequence(self._name).save_mp4(*args, **kwargs)
 
 
 class FilesStorage(Storage):
@@ -153,16 +153,16 @@ class FilesStorage(Storage):
         self._region = region
         self._endpoint = endpoint
 
-    def source(self, db, streams):
-        return db.sources.Files(
+    def source(self, sc, streams):
+        return sc.sources.Files(
             storage_type=self._storage_type,
             bucket=self._bucket,
             region=self._region,
             endpoint=self._endpoint,
             paths=[s._paths for s in streams])
 
-    def sink(self, db, op, streams):
-        return db.sinks.Files(
+    def sink(self, sc, op, streams):
+        return sc.sinks.Files(
             input=op,
             storage_type=self._storage_type,
             bucket=self._bucket,
@@ -170,7 +170,7 @@ class FilesStorage(Storage):
             endpoint=self._endpoint,
             paths=[s._paths for s in streams])
 
-    def delete(self, db, streams):
+    def delete(self, sc, streams):
         # TODO
         pass
 
@@ -208,8 +208,8 @@ class FilesStream(StoredStream):
 
 
 class PythonStorage(Storage):
-    def source(self, db, streams):
-        return db.sources.Python(data=[pickle.dumps(stream._data) for stream in streams])
+    def source(self, sc, streams):
+        return sc.sources.Python(data=[pickle.dumps(stream._data) for stream in streams])
 
 
 class PythonStream(StoredStream):
@@ -225,10 +225,10 @@ class SQLStorage(Storage):
         self._config = config
         self._job_table = job_table
 
-    def source(self, db, streams):
+    def source(self, sc, streams):
         num_elements = [s._num_elements for s in streams] \
                        if streams[0]._num_elements is not None else None
-        return db.sources.SQL(
+        return sc.sources.SQL(
             query=streams[0]._query,
             config=self._config,
             enum_config=[self._config for _ in streams],
@@ -236,8 +236,8 @@ class SQLStorage(Storage):
             filter=[s._filter for s in streams],
             num_elements=num_elements)
 
-    def sink(self, db, op, streams):
-        return db.sinks.SQL(
+    def sink(self, sc, op, streams):
+        return sc.sinks.SQL(
             input=op,
             config=self._config,
             table=streams[0]._table,
@@ -245,7 +245,7 @@ class SQLStorage(Storage):
             job_name=[s._job_name for s in streams],
             insert=streams[0]._insert)
 
-    def delete(self, db, streams):
+    def delete(self, sc, streams):
         # TODO
         pass
 
@@ -283,8 +283,8 @@ class SQLOutputStream(StoredStream):
 
 
 class AudioStorage(Storage):
-    def source(self, db, streams):
-        return db.sources.Audio(
+    def source(self, sc, streams):
+        return sc.sources.Audio(
             frame_size=[s._frame_size for s in streams],
             path=[s._path for s in streams])
 
@@ -304,8 +304,8 @@ class AudioStream(StoredStream):
 
 
 class CaptionStorage(Storage):
-    def source(self, db, streams):
-        return db.sources.Captions(
+    def source(self, sc, streams):
+        return sc.sources.Captions(
             window_size=[s._window_size for s in streams],
             path=[s._path for s in streams],
             max_time=[s._max_time for s in streams])
