@@ -5,7 +5,7 @@ import scannerpy.stdlib.bboxes
 import scannerpy.stdlib.readers
 import scannerpy.stdlib.writers
 
-from scannerpy import Database, Job, DeviceType, FrameType
+from scannerpy import Client, Job, DeviceType, FrameType
 from scannerpy.stdlib import pipelines
 from typing import Sequence
 

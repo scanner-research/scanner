@@ -3,10 +3,10 @@ Scanner Python API
 
 .. toctree::
 
-scannerpy\.database module
+scannerpy\.client module
 --------------------------
 
-.. automodule:: scannerpy.database
+.. automodule:: scannerpy.client
     :members:
     :undoc-members:
     :show-inheritance:
@@ -29,7 +29,7 @@ scannerpy\.op module
     :show-inheritance:
 
 scannerpy\.streams module
---------------------
+-------------------------
 
 .. automodule:: scannerpy.streams
     :members:
@@ -117,10 +117,10 @@ scannerpy\.sampler module
     :undoc-members:
     :show-inheritance:
 
-scannerpy\.table module
+scannerpy\.storage module
 -----------------------
 
-.. automodule:: scannerpy.table
+.. automodule:: scannerpy.storage
     :members:
     :undoc-members:
     :show-inheritance:

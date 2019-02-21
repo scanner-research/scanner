@@ -29,7 +29,7 @@ from string import ascii_uppercase
 from scannerpy.common import *
 from scannerpy.profiler import Profiler
 from scannerpy.config import Config
-from scannerpy.op import OpGenerator, Op, OpColumn
+from scannerpy.op import OpGenerator, Op, OpColumn, SliceList
 from scannerpy.source import SourceGenerator, Source
 from scannerpy.sink import SinkGenerator, Sink
 from scannerpy.streams import StreamsGenerator
@@ -40,6 +40,8 @@ from scannerpy.protobufs import protobufs, python_to_proto
 from scannerpy.job import Job
 from scannerpy.kernel import Kernel
 from scannerpy import types as scannertypes
+from scannerpy.storage import Storage, StoredStream
+from scannerpy.io import IOGenerator
 
 from storehouse import StorageConfig, StorageBackend
 
@@ -54,14 +56,14 @@ import scanner.types_pb2 as misc_types
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
 
-class Database(object):
+class Client(object):
     r"""Entrypoint for all Scanner operations.
 
     Parameters
     ----------
     master
       The address of the master process. The addresses should be formatted
-      as 'ip:port'. If the `start_cluster` flag is specified, the Database
+      as 'ip:port'. If the `start_cluster` flag is specified, the Client
       object will ssh into the provided address and start a master process.
       You should have ssh access to the target machine and scannerpy should
       be installed.
@@ -100,7 +102,7 @@ class Database(object):
     Attributes
     ----------
     config : Config
-      The Config object used to initialize this Database.
+      The Config object used to initialize this Client.
 
     ops : OpGenerator
       Represents the set of available Ops. Ops can be created like so:
@@ -167,7 +169,7 @@ class Database(object):
 
         self._bindings = bindings
 
-        # Setup database metadata
+        # Setup Client metadata
         self._db_path = self.config.db_path
         self._storage = self.config.storage
         self._cached_db_metadata = None
@@ -178,6 +180,7 @@ class Database(object):
         self.sinks = SinkGenerator(self)
         self.streams = StreamsGenerator(self)
         self.partitioner = TaskPartitioner(self)
+        self.io = IOGenerator(self)
         self._op_cache = {}
         self._python_ops = set()
         self._enumerator_info_cache = {}
@@ -190,7 +193,7 @@ class Database(object):
         self.start_master(master)
 
     def __del__(self):
-        # Database crashed during config creation if this attr is missing
+        # Client crashed during config creation if this attr is missing
         if hasattr(self, '_start_cluster') and self._start_cluster:
             self._stop_heartbeat()
             self.stop_cluster()
@@ -253,7 +256,7 @@ class Database(object):
 
             if self._prefetch_table_metadata:
                 self._table_descriptor = {}
-                # Read all table descriptors from database
+                # Read all table descriptors from client
                 table_names = list(self._table_name.keys())
                 tables = self._load_table_metadata(table_names)
                 for table in tables:
@@ -542,12 +545,12 @@ class Database(object):
         return False
 
     def summarize(self) -> str:
-        r"""Returns a human-readable summarization of the database state.
+        r"""Returns a human-readable summarization of the client state.
         """
         summary = ''
         db_meta = self._load_db_metadata()
         if len(db_meta.tables) == 0:
-            return 'Your database is empty!'
+            return 'Your client is empty!'
 
         tables = [
             ('TABLES', [
@@ -976,11 +979,11 @@ class Database(object):
         Parameters
         ----------
         videos
-          The list of videos to ingest into the database. Each element in the
+          The list of videos to ingest into the client. Each element in the
           list should be ('table_name', 'path/to/video').
 
         inplace
-          If true, ingests the videos without copying them into the database.
+          If true, ingests the videos without copying them into the client.
           Currently only supported for mp4 containers.
 
         force
@@ -1143,27 +1146,29 @@ class Database(object):
         table_name = None
         table_id = None
         if isinstance(name, str):
+            table_name = name
             if name in self._table_name:
-                table_name = name
                 table_id = db_meta.tables[self._table_name[name]].id
-            if table_id is None:
-                raise ScannerException(
-                    'Table with name {} not found'.format(name))
         elif isinstance(name, int):
+            table_id = name
             if name in self._table_id:
-                table_id = name
                 table_name = db_meta.tables[self._table_id[name]].name
-            if table_id is None:
-                raise ScannerException(
-                    'Table with id {} not found'.format(name))
         else:
             raise ScannerException('Invalid table identifier')
 
         table = Table(self, table_name, table_id)
-        if self._prefetch_table_metadata:
+        if self._prefetch_table_metadata and table_id in self._table_descriptor:
             table._descriptor = self._table_descriptor[table_id]
 
         return table
+
+    def sequence(self, name: str) -> Column:
+        t = self.table(name)
+        if t.committed():
+            column_names = t.column_names()
+            return t.column('frame' if 'frame' in column_names else 'column')
+        else:
+            return t.column('column')
 
     def profiler(self, job_name, **kwargs):
         db_meta = self._load_db_metadata()
@@ -1283,8 +1288,7 @@ class Database(object):
 
     def run(self,
             outputs: Union[Sink, List[Sink]],
-            jobs: Sequence[Job],
-            force: bool = False,
+            cache_mode: CacheMode = CacheMode.Error,
             work_packet_size: int = 32,
             io_packet_size: int = 128,
             cpu_pool: str = None,
@@ -1305,12 +1309,9 @@ class Database(object):
         outputs
           The Sink or Sinks that should be processed.
 
-        jobs
-          The set of jobs to process. All of these jobs should share the same
-          graph of operations.
-
-        force
-          If the output tables already exist, overwrite them.
+        cache_mode
+          Determines whether to overwrite, ignore, or raise an error when running a job on
+          existing outputs.
 
         work_packet_size
           The size of the packets of intermediate elements to pass between
@@ -1353,17 +1354,9 @@ class Database(object):
           The new table objects if `output` is a db.sinks.Column, otherwise an
           empty list.
         """
-        assert (isinstance(outputs, Sink) or
-                (isinstance(outputs, list) and
-                 len([0 for x in outputs if isinstance(x, Sink)]) == len(outputs)))
 
         if not isinstance(outputs, list):
             outputs = [outputs]
-
-        is_table_output = False
-        for output in outputs:
-            if (output._name == 'FrameColumn' or output._name == 'Column'):
-                is_table_output = True
 
         sorted_ops, op_index, source_ops, stream_ops, output_ops = (
             self._toposort(outputs))
@@ -1390,21 +1383,87 @@ class Database(object):
         job_name = ''.join(choice(ascii_uppercase) for _ in range(12))
         job_params.job_name = job_name
         job_params.ops.extend([e.to_proto(op_index) for e in sorted_ops])
-        job_output_table_names = []
-        job_params.output_column_names[:] = output_column_names
+        job_params.output_column_names.extend(output_column_names)
+
+        N = None
+        for op in sorted_ops:
+            n = None
+            if op._job_args is not None:
+                n = len(op._job_args)
+            elif op._extra is not None and 'job_args' in op._extra:
+                if not isinstance(op._extra['job_args'], list):
+                    raise ScannerException("Per-stream arguments to op `{}` must be a list." \
+                                           .format(op._name))
+                n = len(op._extra['job_args'])
+            else:
+                continue
+
+            if N is None:
+                N = n
+            elif n != N:
+                raise ScannerException("Op `{}` had {} per-stream arguments, but expected {}" \
+                                       .format(op._name, n, N))
+        assert N is not None
+
+        # Collect set of existing stored streams for each output
+        output_ops_list = list(output_ops.keys())
+        to_delete = []
+        for op in output_ops_list:
+            streams = op._streams
+            storage = streams[0].storage()
+            to_delete.append(set([i for i, s in enumerate(streams) if s.exists()]))
+
+        # Check that all outputs have matching existing stored streams
+        for i, s in enumerate(to_delete):
+            for j, t in enumerate(to_delete):
+                if i == j: continue
+                diff = s - t
+                if len(diff) > 0 :
+                    raise Exception(
+                        "Output for stream {} exists in {} but does not exist in {}. Either both or \
+                        neither should exist.".format(
+                            next(iter(diff)), output_ops_list[i]._name, output_ops_list[j]._name))
+
+        to_cache = []
+        if len(to_delete[0]) > 0:
+            if cache_mode == CacheMode.Error:
+                raise ScannerException(
+                    "Running this job would overwrite output `{}` of op `{}`. You can \
+                    change this behavior using db.run(cache_mode=CacheMode.Ignore) to \
+                    ignore outputs that already exist, or CacheMode.Overwrite to \
+                    overwrite them.".format(next(iter(to_delete[0])), output_ops_list[0]._name))
+
+            elif cache_mode == CacheMode.Overwrite:
+                for op, td in zip(output_ops_list, to_delete):
+                    streams = op._streams
+                    storage = streams[0].storage()
+                    storage.delete(self, [streams[i] for i in td])
+
+            elif cache_mode == CacheMode.Ignore:
+                to_cache = to_delete[0]
+
+        # Struct of arrays to array of structs conversion
+        jobs = []
+        for i in range(N):
+            if i in to_cache:
+                continue
+
+            op_args = {}
+            for op in sorted_ops:
+                if op._job_args is not None:
+                    op_args[op] = op._job_args[i]
+                elif op._extra is not None and 'job_args' in op._extra:
+                    op_args[op] = op._extra['job_args'][i]
+            jobs.append(Job(op_args=op_args))
+
+        N -= len(to_cache)
+
+        if len(jobs) == 0:
+            return
 
         for job in jobs:
             j = job_params.jobs.add()
-            output_table_name = None
-            # Build lookup from op to op_args
-            op_to_op_args = {}
-            for op_col, args in job.op_args().items():
-                if isinstance(op_col, Op) or isinstance(op_col, Sink):
-                    op = op_col
-                else:
-                    op = op_col._op
-
-                op_to_op_args[op] = args
+            op_to_op_args = job.op_args()
 
             for op in sorted_ops:
                 if op in source_ops:
@@ -1419,60 +1478,21 @@ class Database(object):
                     args = op_to_op_args[op]
                     source_input = j.inputs.add()
                     source_input.op_index = op_idx
-                    # We special case on Column to transform it into a
-                    # (table, col) pair that is then transformed into a
-                    # protobuf object
-                    if isinstance(args, Column):
-                        if not args._table.committed():
-                            raise ScannerException(
-                                'Attempted to bind table {name} to Input Op '
-                                'but table {name} is not committed.'.format(
-                                    name=args._table.name()))
-                        args = {
-                            'table_name': args._table.name(),
-                            'column_name': args.name()
-                        }
-                        full_args = args
-                    else:
-                        if not isinstance(args, dict):
-                            raise ScannerException('Op arguments must be a dictionary, recevied: {}'.format(args))
-                        full_args = {**op._args, **args}
 
-                    n = op._name
-                    enumerator_info = self._get_enumerator_info(n)
-                    if len(full_args) > 0:
-                        if len(enumerator_info.protobuf_name) > 0:
-                            enumerator_proto_name = enumerator_info.protobuf_name
-                            source_input.enumerator_args = python_to_proto(
-                                protobufs, enumerator_proto_name,
-                                full_args)
-                        else:
-                            source_input.enumerator_args = full_args
+                    source_input.enumerator_args = args
+
                 elif op in stream_ops:
                     op_idx = stream_ops[op]
                     # If this is an Unslice Op, ignore it since it has no args
                     if op._name == 'Unslice':
                         continue
-                    # Check for default. If no default
-                    if not op in op_to_op_args:
-                        # If no args specified, check for default args
-                        if op._extra['default'] is not None:
-                            args = op._extra['default']
-                        else:
-                            raise ScannerException(
-                                'No arguments bound to stream operation {:s} '
-                                'and no default arguments specified.'.format(
-                                    op._extra['type']))
-                    else:
-                        args = op_to_op_args[op]
+                    args = op_to_op_args[op]
 
                     saa = j.sampling_args_assignment.add()
                     saa.op_index = op_idx
-                    if ((op._extra['type'] == 'Gather' and
-                         isinstance(args, list) and
-                         not isinstance(args[0], list)) or
-                        not isinstance(args, list)):
-                        args = [args]
+
+                    if not isinstance(args, SliceList):
+                        args = SliceList([args])
 
                     arg_builder = op._extra['arg_builder']
                     for arg in args:
@@ -1495,30 +1515,10 @@ class Database(object):
                     sink_args = j.outputs.add()
                     sink_args.op_index = op_idx
 
-                    if not op in op_to_op_args:
-                        raise ScannerException(
-                            'No arguments bound to sink {:s}.'.format(
-                                op._name))
-                    else:
-                        args = op_to_op_args[op]
+                    args = op_to_op_args[op]
 
-                    # We special case on FrameColumn or Column sinks to catch
-                    # the output table name
-                    n = op._name
-                    if n == 'FrameColumn' or n == 'Column':
-                        assert isinstance(args, str)
-                        job_output_table_names.append(args)
-                        sink_args.args = args.encode('utf-8')
-                    else:
-                        # Encode the args
-                        if len(args) > 0:
-                            sink_info = self._get_sink_info(n)
-                            if len(sink_info.stream_protobuf_name) > 0:
-                                sink_proto_name = sink_info.stream_protobuf_name
-                                sink_args.args = python_to_proto(
-                                    protobufs, sink_proto_name, args)
-                            else:
-                                sink_args.args = args
+                    sink_args.args = args
+
                 else:
                     # Regular old Op
                     op_idx = op_index[op]
@@ -1530,38 +1530,13 @@ class Database(object):
                     else:
                         args = op_to_op_args[op]
 
-                    # Encode the args
-                    n = op._name
-                    def serialize_args(args):
-                        if n in self._python_ops:
-                            return pickle.dumps(args)
-                        else:
-                            if len(args) > 0:
-                                op_info = self._get_op_info(n)
-                                if len(op_info.protobuf_name) > 0:
-                                    proto_name = op_info.protobuf_name
-                                    return python_to_proto(
-                                        protobufs, proto_name, args)
-                                else:
-                                    return args
+                    if not isinstance(args, SliceList):
+                        args = SliceList([args])
 
-                    if not isinstance(args, list):
-                        args = [args]
                     for arg in args:
-                        oargs.op_args.append(serialize_args(arg))
+                        oargs.op_args.append(arg)
+                        #oargs.op_args.append(serialize_args(arg))
 
-        # Delete tables if they exist and force was specified
-        if is_table_output:
-            to_delete = []
-            for name in job_output_table_names:
-                if self.has_table(name):
-                    if force:
-                        to_delete.append(name)
-                    else:
-                        raise ScannerException(
-                            'Job would overwrite existing table {}'.format(
-                                name))
-            self.delete_tables(to_delete)
 
         job_params.compression.extend(compression_options)
 
@@ -1689,7 +1664,7 @@ def start_worker(master_address: str,
                  config_path: str = None,
                  block: bool = False,
                  watchdog: bool = True,
-                 db: Database = None):
+                 db: Client = None):
     r"""Starts a worker instance on this node.
 
     Parameters
@@ -1761,6 +1736,6 @@ def start_worker(master_address: str,
 
 def _batch_load_column(arg):
     (tables, column, callback) = arg
-    db = Database(start_cluster=False, enable_watchdog=False)
+    db = Client(start_cluster=False, enable_watchdog=False)
     for t in tables:
         callback(t, list(db.table(t).column(column).load(workers=1)))

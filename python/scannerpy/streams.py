@@ -2,7 +2,8 @@ import scannerpy.op
 
 from scannerpy.common import *
 from scannerpy.protobufs import protobufs
-from typing import Sequence, Union, Tuple, Optional
+from scannerpy.op import SliceList
+from typing import Sequence, Union, Tuple, Optional, List
 
 class StreamsGenerator:
     r"""Provides Ops for sampling elements from streams.
@@ -13,15 +14,15 @@ class StreamsGenerator:
     This class should not be constructed directly, but accessed via a Database
     object like:
 
-      db.streams.Range(input)
+      sc.streams.Range(input)
     """
 
-    def __init__(self, db):
-        self._db = db
+    def __init__(self, sc):
+        self._sc = sc
 
     def Slice(self,
               input: scannerpy.op.OpColumn,
-              partitioner=None) -> scannerpy.op.OpColumn:
+              partitions) -> scannerpy.op.OpColumn:
         r"""Partitions a stream into independent substreams.
 
         Parameters
@@ -38,13 +39,13 @@ class StreamsGenerator:
         scannerpy.op.OpColumn
           A new stream which represents multiple substreams.
         """
-        def arg_builder(partitioner=partitioner):
+        def arg_builder(partitioner):
             return partitioner
-        return self._db.ops.Slice(
+        return self._sc.ops.Slice(
             col=input,
             extra={'type': 'Slice',
                    'arg_builder': arg_builder,
-                   'default': partitioner})
+                   'job_args': partitions})
 
     def Unslice(self, input: scannerpy.op.OpColumn) -> scannerpy.op.OpColumn:
         r"""Joins substreams back together.
@@ -59,7 +60,7 @@ class StreamsGenerator:
         scannerpy.op.OpColumn
           A new stream which is the concatentation of the input substreams.
         """
-        return self._db.ops.Unslice(col=input)
+        return self._sc.ops.Unslice(col=input)
 
     def All(self, input: scannerpy.op.OpColumn) -> scannerpy.op.OpColumn:
         r"""Samples all elements from the stream.
@@ -80,7 +81,7 @@ class StreamsGenerator:
             sampling_args = protobufs.SamplingArgs()
             sampling_args.sampling_function = "All"
             return sampling_args
-        return self._db.ops.Sample(
+        return self._sc.ops.Sample(
             col=input,
             extra={'type': 'All',
                    'arg_builder': arg_builder,
@@ -88,7 +89,7 @@ class StreamsGenerator:
 
     def Stride(self,
                input: scannerpy.op.OpColumn,
-               stride: int = None) -> scannerpy.op.OpColumn:
+               strides) -> scannerpy.op.OpColumn:
         r"""Samples every n'th element from the stream, where n is the stride.
 
         Parameters
@@ -104,7 +105,7 @@ class StreamsGenerator:
         scannerpy.op.OpColumn
           The sampled stream.
         """
-        def arg_builder(stride=stride):
+        def arg_builder(stride):
             args = protobufs.StridedSamplerArgs()
             args.stride = stride
             sampling_args = protobufs.SamplingArgs()
@@ -112,16 +113,15 @@ class StreamsGenerator:
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
 
-        return self._db.ops.Sample(
+        return self._sc.ops.Sample(
             col=input,
             extra={'type': 'Stride',
                    'arg_builder': arg_builder,
-                   'default': stride})
+                   'job_args': strides})
 
     def Range(self,
               input: scannerpy.op.OpColumn,
-              start: int = None,
-              end: int = None) -> scannerpy.op.OpColumn:
+              ranges) -> scannerpy.op.OpColumn:
         r"""Samples a range of elements from the input stream.
 
         Parameters
@@ -140,7 +140,7 @@ class StreamsGenerator:
         scannerpy.op.OpColumn
           The sampled stream.
         """
-        def arg_builder(start=start, end=end):
+        def arg_builder(start, end):
             args = protobufs.StridedRangeSamplerArgs()
             args.stride = 1
             args.starts.append(start)
@@ -150,17 +150,15 @@ class StreamsGenerator:
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
 
-        return self._db.ops.Sample(
+        return self._sc.ops.Sample(
             col=input,
             extra={'type': 'Range',
                    'arg_builder': arg_builder,
-                   'default': (start, end) if (start is not None and
-                                               end is not None) else None})
-
+                   'job_args': ranges})
 
     def Ranges(self,
                input: scannerpy.op.OpColumn,
-               intervals: Sequence[Tuple[int, int]] = None) -> scannerpy.op.OpColumn:
+               intervals: List[Sequence[Tuple[int, int]]]) -> scannerpy.op.OpColumn:
         r"""Samples multiple ranges of elements from the input stream.
 
         Parameters
@@ -181,9 +179,9 @@ class StreamsGenerator:
         --------
         For example, to select frames 0-10 and 100-200, you would write:
 
-        db.streams.Ranges(input=input, intervals=[(0, 11), (100, 201)])
+        sc.streams.Ranges(input=input, intervals=[(0, 11), (100, 201)])
         """
-        def arg_builder(intervals=intervals):
+        def arg_builder(intervals):
             args = protobufs.StridedRangeSamplerArgs()
             args.stride = 1
             for start, end in intervals:
@@ -194,17 +192,15 @@ class StreamsGenerator:
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
 
-        return self._db.ops.Sample(
+        return self._sc.ops.Sample(
             col=input,
             extra={'type': 'Ranges',
                    'arg_builder': arg_builder,
-                   'default': intervals if intervals else None})
+                   'job_args': intervals})
 
     def StridedRange(self,
                      input: scannerpy.op.OpColumn,
-                     start: int = None,
-                     end: int = None,
-                     stride: int = None) -> scannerpy.op.OpColumn:
+                     ranges) -> scannerpy.op.OpColumn:
         r"""Samples a strided range of elements from the input stream.
 
         Parameters
@@ -226,7 +222,7 @@ class StreamsGenerator:
         scannerpy.op.OpColumn
           The sampled stream.
         """
-        def arg_builder(start=start, end=end, stride=stride):
+        def arg_builder(start, end, stride):
             args = protobufs.StridedRangeSamplerArgs()
             args.stride = stride
             args.starts.append(start)
@@ -236,13 +232,11 @@ class StreamsGenerator:
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
 
-        return self._db.ops.Sample(
+        return self._sc.ops.Sample(
             col=input,
             extra={'type': 'StridedRange',
                    'arg_builder': arg_builder,
-                   'default': (start, end, stride) if (start is not None and
-                                                       end is not None and
-                                                       stride is not None) else None})
+                   'job_args': ranges})
 
 
     def StridedRanges(self,
@@ -279,7 +273,7 @@ class StreamsGenerator:
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
 
-        return self._db.ops.Sample(
+        return self._sc.ops.Sample(
             col=input,
             extra={'type': 'StridedRanges',
                    'arg_builder': arg_builder,
@@ -288,7 +282,7 @@ class StreamsGenerator:
 
     def Gather(self,
                input: scannerpy.op.OpColumn,
-               rows: Sequence[int] = None) -> scannerpy.op.OpColumn:
+               indices: Sequence[Sequence[int]]) -> scannerpy.op.OpColumn:
         r"""Samples a list of elements from the input stream.
 
         Parameters
@@ -304,7 +298,7 @@ class StreamsGenerator:
         scannerpy.op.OpColumn
           The sampled stream.
         """
-        def arg_builder(rows=rows):
+        def arg_builder(rows):
             args = protobufs.GatherSamplerArgs()
             args.rows[:] = rows
             sampling_args = protobufs.SamplingArgs()
@@ -312,15 +306,16 @@ class StreamsGenerator:
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
 
-        return self._db.ops.Sample(
+        return self._sc.ops.Sample(
             col=input,
             extra={'type': 'Gather',
                    'arg_builder': arg_builder,
-                   'default': {'rows': rows}})
+                   'job_args': indices})
+
 
     def RepeatNull(self,
                    input: scannerpy.op.OpColumn,
-                   spacing: int = None) -> scannerpy.op.OpColumn:
+                   spacings) -> scannerpy.op.OpColumn:
         r"""Expands a sequence by inserting nulls.
 
         Parameters
@@ -335,7 +330,7 @@ class StreamsGenerator:
         scannerpy.op.OpColumn
           The sampled stream.
         """
-        def arg_builder(spacing=spacing):
+        def arg_builder(spacing):
             args = protobufs.SpaceNullSamplerArgs()
             args.spacing = spacing
             sampling_args = protobufs.SamplingArgs()
@@ -343,15 +338,15 @@ class StreamsGenerator:
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
 
-        return self._db.ops.Space(
+        return self._sc.ops.Space(
             col=input,
             extra={'type': 'RepeatNull',
                    'arg_builder': arg_builder,
-                   'default': spacing})
+                   'job_args': spacings})
 
     def Repeat(self,
                input: scannerpy.op.OpColumn,
-               spacing: int = None) -> scannerpy.op.OpColumn:
+               spacings) -> scannerpy.op.OpColumn:
         r"""Expands a sequence by repeating elements.
 
         Parameters
@@ -366,7 +361,7 @@ class StreamsGenerator:
         scannerpy.op.OpColumn
           The sampled stream.
         """
-        def arg_builder(spacing=spacing):
+        def arg_builder(spacing):
             args = protobufs.SpaceRepeatSamplerArgs()
             args.spacing = spacing
             sampling_args = protobufs.SamplingArgs()
@@ -374,8 +369,8 @@ class StreamsGenerator:
             sampling_args.sampling_args = args.SerializeToString()
             return sampling_args
 
-        return self._db.ops.Space(
+        return self._sc.ops.Space(
             col=input,
             extra={'type': 'Repeat',
                    'arg_builder': arg_builder,
-                   'default': spacing})
+                   'job_args': spacings})
