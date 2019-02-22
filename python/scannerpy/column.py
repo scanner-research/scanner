@@ -14,7 +14,7 @@ from scannerpy.common import *
 from scannerpy.job import Job
 from scannerpy import types as scannertypes
 from scannerpy.protobufs import protobufs
-from scannerpy.storage import ScannerFrameStream, ScannerStream, NullElement
+from scannerpy.storage import NamedVideoStream, NamedStream, NullElement
 
 LOAD_SPARSITY_THRESHOLD = 10
 
@@ -233,13 +233,13 @@ class Column(object):
                 protobufs.VideoDescriptor.H264):
             png_table_name = self._sc._png_dump_prefix.format(
                 self._table.name(), self._name)
-            frame = self._sc.io.Input([ScannerFrameStream(self._sc, self._table.name())])
+            frame = self._sc.io.Input([NamedVideoStream(self._sc, self._table.name())])
             enc_input = frame
             if rows is not None:
                 sampled_frame = self._sc.streams.Gather(frame, indices=[rows])
                 enc_input = sampled_frame
             img = self._sc.ops.ImageEncoder(frame=enc_input)
-            output = [ScannerStream(self._sc, png_table_name)]
+            output = [NamedStream(self._sc, png_table_name)]
             output_op = self._sc.io.Output(img, output)
             self._sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
             return output[0].load(fn=readers.image)

@@ -2,7 +2,7 @@ import scannerpy
 from scannerpy import (Client, Config, DeviceType, FrameType, Job,
                        ScannerException, Kernel, protobufs, NullElement, SliceList, CacheMode)
 from scannerpy.storage import (
-    ScannerStream, ScannerFrameStream, FilesStream, PythonStream, SQLInputStream,
+    NamedStream, NamedVideoStream, FilesStream, PythonStream, SQLInputStream,
     SQLOutputStream, SQLStorage, AudioStream, CaptionStream)
 from scannerpy.stdlib import readers
 from typing import Dict, List, Sequence, Tuple, Any
@@ -136,6 +136,18 @@ def test_new_client(sc):
     pass
 
 
+def test_auto_ingest(sc):
+    (vid1_path, vid2_path) = download_videos()
+    input = NamedVideoStream(sc, 'test3', path=vid1_path)
+    frame = sc.io.Input([input])
+    hist = sc.ops.Histogram(frame=frame)
+    output = NamedStream(sc, 'test_hist')
+    output_op = sc.io.Output(hist, [output])
+    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+
+    run(['rm', '-rf', vid1_path, vid2_path])
+
+
 def test_table_properties(sc):
     for name, i in [('test1', 0), ('test1_inplace', 2)]:
         table = sc.table(name)
@@ -151,22 +163,22 @@ def test_summarize(sc):
 
 def test_load_video_column(sc):
     for name in ['test1', 'test1_inplace']:
-        next(ScannerFrameStream(sc, name).load())
+        next(NamedVideoStream(sc, name).load())
 
 
 def test_gather_video_column(sc):
     for name in ['test1', 'test1_inplace']:
         # Gather rows
         rows = [0, 10, 100, 200]
-        frames = list(ScannerFrameStream(sc, name).load(rows=rows))
+        frames = list(NamedVideoStream(sc, name).load(rows=rows))
         assert len(frames) == len(rows)
 
 
 def test_profiler(sc):
-    frame = sc.io.Input([ScannerFrameStream(sc, 'test1')])
+    frame = sc.io.Input([NamedVideoStream(sc, 'test1')])
     hist = sc.ops.Histogram(frame=frame)
     ghist = sc.streams.Gather(hist, [[0]])
-    output_op = sc.io.Output(ghist, [ScannerStream(sc, '_ignore')])
+    output_op = sc.io.Output(ghist, [NamedStream(sc, '_ignore')])
 
     time_start = time.time()
     sc.run(output_op, show_progress=False, cache_mode=CacheMode.Overwrite)
@@ -194,11 +206,11 @@ def test_new_table(sc):
 def test_multiple_outputs(sc):
     sampler = sc.streams.Range
     def run_job(args_1, args_2):
-        frame = sc.io.Input([ScannerFrameStream(sc, 'test1')])
+        frame = sc.io.Input([NamedVideoStream(sc, 'test1')])
         sample_frame_1 = sc.streams.Range(input=frame, ranges=[args_1])
         sample_frame_2 = sc.streams.Range(input=frame, ranges=[args_2])
-        output_op_1 = sc.io.Output(sample_frame_1, [ScannerFrameStream(sc, 'test_mp_1')])
-        output_op_2 = sc.io.Output(sample_frame_2, [ScannerFrameStream(sc, 'test_mp_2')])
+        output_op_1 = sc.io.Output(sample_frame_1, [NamedVideoStream(sc, 'test_mp_1')])
+        output_op_2 = sc.io.Output(sample_frame_2, [NamedVideoStream(sc, 'test_mp_2')])
 
         sc.run([output_op_1, output_op_2], cache_mode=CacheMode.Overwrite, show_progress=False)
 
@@ -232,10 +244,10 @@ def test_multiple_outputs(sc):
     assert num_rows == expected_rows_2
 
     # This should succeed
-    frame = sc.io.Input([ScannerFrameStream(sc, 'test1')])
+    frame = sc.io.Input([NamedVideoStream(sc, 'test1')])
     sample_frame_1 = sc.streams.Range(input=frame, ranges=[sampler_args_1])
-    output_op_1 = sc.io.Output(sample_frame_1, [ScannerFrameStream(sc, 'test_mp_1')])
-    output_op_2 = sc.io.Output(sample_frame_1, [ScannerFrameStream(sc, 'test_mp_2')])
+    output_op_1 = sc.io.Output(sample_frame_1, [NamedVideoStream(sc, 'test_mp_1')])
+    output_op_2 = sc.io.Output(sample_frame_1, [NamedVideoStream(sc, 'test_mp_2')])
 
     sc.run([output_op_1, output_op_2], cache_mode=CacheMode.Overwrite, show_progress=False)
 
@@ -247,9 +259,9 @@ def test_multiple_outputs(sc):
 
 def test_sample(sc):
     def run_sampler_job(sampler, sampler_args, expected_rows):
-        frame = sc.io.Input([ScannerFrameStream(sc, 'test1')])
+        frame = sc.io.Input([NamedVideoStream(sc, 'test1')])
         sample_frame = sampler(input=frame, **sampler_args)
-        output = ScannerFrameStream(sc, 'test_sample')
+        output = NamedVideoStream(sc, 'test_sample')
         output_op = sc.io.Output(sample_frame, [output])
         sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
 
@@ -273,10 +285,10 @@ def test_sample(sc):
 
 def test_space(sc):
     def run_spacer_job(spacer, spacing):
-        frame = sc.io.Input([ScannerFrameStream(sc, 'test1')])
+        frame = sc.io.Input([NamedVideoStream(sc, 'test1')])
         hist = sc.ops.Histogram(frame=frame)
         space_hist = spacer(input=hist, spacings=[spacing])
-        output = ScannerStream(sc, 'test_space')
+        output = NamedStream(sc, 'test_space')
         output_op = sc.io.Output(space_hist, [output])
         sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
         return output
@@ -293,7 +305,7 @@ def test_space(sc):
         for c in range(len(hist)):
             assert (ref_hist[c] == hist[c]).all()
         num_rows += 1
-    assert num_rows == ScannerFrameStream(sc, 'test1').len() * spacing_distance
+    assert num_rows == NamedVideoStream(sc, 'test1').len() * spacing_distance
 
     # Null
     table = run_spacer_job(sc.streams.RepeatNull, spacing_distance)
@@ -307,22 +319,22 @@ def test_space(sc):
         else:
             assert isinstance(hist, NullElement)
         num_rows += 1
-    assert num_rows == ScannerFrameStream(sc, 'test1').len() * spacing_distance
+    assert num_rows == NamedVideoStream(sc, 'test1').len() * spacing_distance
 
 
 def test_slice(sc):
-    input = ScannerFrameStream(sc, 'test1')
+    input = NamedVideoStream(sc, 'test1')
     frame = sc.io.Input([input])
     slice_frame = sc.streams.Slice(frame, partitions=[sc.partitioner.all(50)])
     unsliced_frame = sc.streams.Unslice(slice_frame)
-    output = ScannerStream(sc, 'test_slicing')
+    output = NamedStream(sc, 'test_slicing')
     output_op = sc.io.Output(unsliced_frame, [output])
     sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
     assert input.len() == output.len()
 
 
 def test_overlapping_slice(sc):
-    input = ScannerFrameStream(sc, 'test1')
+    input = NamedVideoStream(sc, 'test1')
     frame = sc.io.Input([input])
     slice_frame = sc.streams.Slice(frame, partitions=[
         sc.partitioner.strided_ranges([(0, 15), (5, 25), (15, 35)], 1)])
@@ -332,7 +344,7 @@ def test_overlapping_slice(sc):
         {'start': 5, 'end': 15},
     ])])
     unsliced_frame = sc.streams.Unslice(sample_frame)
-    output = ScannerStream(sc, 'test_slicing')
+    output = NamedStream(sc, 'test_slicing')
     output_op = sc.io.Output(unsliced_frame, [output])
     sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
     assert output.len() == 30
@@ -354,12 +366,12 @@ class TestSliceArgs(Kernel):
 
 
 def test_slice_args(sc):
-    frame = sc.io.Input([ScannerFrameStream(sc, 'test1')])
+    frame = sc.io.Input([NamedVideoStream(sc, 'test1')])
     slice_frame = sc.streams.Slice(frame, [sc.partitioner.ranges(
         [[0, 1], [1, 2], [2, 3]])])
     test = sc.ops.TestSliceArgs(frame=slice_frame, arg=[SliceList([{'arg': i} for i in range(3)])])
     unsliced_frame = sc.streams.Unslice(test)
-    output = ScannerStream(sc, 'test_slicing')
+    output = NamedStream(sc, 'test_slicing')
     output_op = sc.io.Output(unsliced_frame, [output])
     sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
 
@@ -370,10 +382,10 @@ def test_slice_args(sc):
 def test_bounded_state(sc):
     warmup = 3
 
-    frame = sc.io.Input([ScannerFrameStream(sc, 'test1')])
+    frame = sc.io.Input([NamedVideoStream(sc, 'test1')])
     increment = sc.ops.TestIncrementBounded(ignore=frame, bounded_state=warmup)
     sampled_increment = sc.streams.Gather(increment, indices=[[0, 10, 25, 26, 27]])
-    output = ScannerStream(sc, 'test_bounded_state')
+    output = NamedStream(sc, 'test_bounded_state')
     output_op = sc.io.Output(sampled_increment, [output])
     sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
 
@@ -387,12 +399,12 @@ def test_bounded_state(sc):
 
 
 def test_unbounded_state(sc):
-    input = ScannerFrameStream(sc, 'test1')
+    input = NamedVideoStream(sc, 'test1')
     frame = sc.io.Input([input])
     slice_frame = sc.streams.Slice(frame, partitions=[sc.partitioner.all(50)])
     increment = sc.ops.TestIncrementUnbounded(ignore=slice_frame)
     unsliced_increment = sc.streams.Unslice(increment)
-    output = ScannerStream(sc, 'test_unbounded_state')
+    output = NamedStream(sc, 'test_unbounded_state')
     output_op = sc.io.Output(unsliced_increment, [output])
     sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
     assert output.len() == input.len()
@@ -409,10 +421,10 @@ class DeviceTestBench:
 
 class TestHistogram(DeviceTestBench):
     def run(self, sc, device):
-        input = ScannerFrameStream(sc, 'test1')
+        input = NamedVideoStream(sc, 'test1')
         frame = sc.io.Input([input])
         hist = sc.ops.Histogram(frame=frame, device=device)
-        output = ScannerStream(sc, 'test_hist')
+        output = NamedStream(sc, 'test_hist')
         output_op = sc.io.Output(hist, [output])
 
         sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
@@ -421,10 +433,10 @@ class TestHistogram(DeviceTestBench):
 
 class TestInplace(DeviceTestBench):
     def run(self, sc, device):
-        input = ScannerFrameStream(sc, 'test1_inplace')
+        input = NamedVideoStream(sc, 'test1_inplace')
         frame = sc.io.Input([input])
         hist = sc.ops.Histogram(frame=frame, device=device)
-        output = ScannerStream(sc, 'test_hist')
+        output = NamedStream(sc, 'test_hist')
         output_op = sc.io.Output(hist, [output])
 
         sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
@@ -433,11 +445,11 @@ class TestInplace(DeviceTestBench):
 
 class TestOpticalFlow(DeviceTestBench):
     def run(self, sc, device):
-        input = ScannerFrameStream(sc, 'test1')
+        input = NamedVideoStream(sc, 'test1')
         frame = sc.io.Input([input])
         flow = sc.ops.OpticalFlow(frame=frame, stencil=[-1, 0], device=device)
         flow_range = sc.streams.Range(flow, ranges=[{'start': 0, 'end': 50}])
-        output = ScannerStream(sc, 'test_flow')
+        output = NamedStream(sc, 'test_flow')
         output_op = sc.io.Output(flow_range, [output])
         sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
         assert output.len() == 50
@@ -450,12 +462,12 @@ class TestOpticalFlow(DeviceTestBench):
 
 
 def test_stencil(sc):
-    input = ScannerFrameStream(sc, 'test1')
+    input = NamedVideoStream(sc, 'test1')
 
     frame = sc.io.Input([input])
     sample_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 1}])
     flow = sc.ops.OpticalFlow(frame=sample_frame, stencil=[-1, 0])
-    output = ScannerStream(sc, 'test_stencil')
+    output = NamedStream(sc, 'test_stencil')
     output_op = sc.io.Output(flow, [output])
     sc.run(output_op,
            cache_mode=CacheMode.Overwrite,
@@ -466,7 +478,7 @@ def test_stencil(sc):
     frame = sc.io.Input([input])
     sample_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 1}])
     flow = sc.ops.OpticalFlow(frame=sample_frame, stencil=[0, 1])
-    output = ScannerStream(sc, 'test_stencil')
+    output = NamedStream(sc, 'test_stencil')
     output_op = sc.io.Output(flow, [output])
     sc.run(output_op,
            cache_mode=CacheMode.Overwrite,
@@ -476,7 +488,7 @@ def test_stencil(sc):
     frame = sc.io.Input([input])
     sample_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 2}])
     flow = sc.ops.OpticalFlow(frame=sample_frame, stencil=[0, 1])
-    output = ScannerStream(sc, 'test_stencil')
+    output = NamedStream(sc, 'test_stencil')
     output_op = sc.io.Output(flow, [output])
     sc.run(output_op,
            cache_mode=CacheMode.Overwrite,
@@ -487,7 +499,7 @@ def test_stencil(sc):
     frame = sc.io.Input([input])
     flow = sc.ops.OpticalFlow(frame=frame, stencil=[-1, 0])
     sample_flow = sc.streams.Range(flow, ranges=[{'start': 0, 'end': 1}])
-    output = ScannerStream(sc, 'test_stencil')
+    output = NamedStream(sc, 'test_stencil')
     output_op = sc.io.Output(sample_flow, [output])
     sc.run(output_op,
            cache_mode=CacheMode.Overwrite,
@@ -497,11 +509,11 @@ def test_stencil(sc):
 
 
 def test_wider_than_packet_stencil(sc):
-    input = ScannerFrameStream(sc, 'test1')
+    input = NamedVideoStream(sc, 'test1')
     frame = sc.io.Input([input])
     sample_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 3}])
     flow = sc.ops.OpticalFlow(frame=sample_frame, stencil=[0, 1])
-    output = ScannerStream(sc, 'test_stencil')
+    output = NamedStream(sc, 'test_stencil')
     output_op = sc.io.Output(flow, [output])
 
     sc.run(
@@ -563,7 +575,7 @@ def test_files_source(sc):
 
     data = sc.io.Input([FilesStream(paths=paths)])
     pass_data = sc.ops.Pass(input=data)
-    output = ScannerStream(sc, 'test_files_source')
+    output = NamedStream(sc, 'test_files_source')
     output_op = sc.io.Output(pass_data, [output])
     sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
 
@@ -612,7 +624,7 @@ def test_python_source(sc):
 
     data = sc.io.Input([PythonStream(py_data)])
     pass_data = sc.ops.Pass(input=data)
-    output = ScannerStream(sc, 'test_python_source')
+    output = NamedStream(sc, 'test_python_source')
     output_op = sc.io.Output(pass_data, [output])
     sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
 
@@ -643,11 +655,11 @@ class TestPy(Kernel):
 
 
 def test_python_kernel(sc):
-    input = ScannerFrameStream(sc, 'test1')
+    input = NamedVideoStream(sc, 'test1')
     frame = sc.io.Input([input])
     range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 3}])
     test_out = sc.ops.TestPy(frame=range_frame, kernel_arg=1, x=[0], y=[0])
-    output = ScannerStream(sc, 'test_hist')
+    output = NamedStream(sc, 'test_hist')
     output_op = sc.io.Output(test_out, [output])
     sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
     next(output.load())
@@ -665,11 +677,11 @@ class TestPyBatch(Kernel):
 
 
 def test_python_batch_kernel(sc):
-    input = ScannerFrameStream(sc, 'test1')
+    input = NamedVideoStream(sc, 'test1')
     frame = sc.io.Input([input])
     range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
     test_out = sc.ops.TestPyBatch(frame=range_frame, batch=50)
-    output = ScannerStream(sc, 'test_hist')
+    output = NamedStream(sc, 'test_hist')
     output_op = sc.io.Output(test_out, [output])
     sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
     next(output.load())
@@ -686,11 +698,11 @@ class TestPyStencil(Kernel):
 
 
 def test_python_stencil_kernel(sc):
-    input = ScannerFrameStream(sc, 'test1')
+    input = NamedVideoStream(sc, 'test1')
     frame = sc.io.Input([input])
     range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
     test_out = sc.ops.TestPyStencil(frame=range_frame)
-    output = ScannerStream(sc, 'test_hist')
+    output = NamedStream(sc, 'test_hist')
     output_op = sc.io.Output(test_out, [output])
     sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
     next(output.load())
@@ -716,22 +728,22 @@ class TestPyStencilBatch(Kernel):
 
 
 def test_python_stencil_batch_kernel(sc):
-    input = ScannerFrameStream(sc, 'test1')
+    input = NamedVideoStream(sc, 'test1')
     frame = sc.io.Input([input])
     range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
     test_out = sc.ops.TestPyStencilBatch(frame=range_frame, batch=50)
-    output = ScannerStream(sc, 'test_hist')
+    output = NamedStream(sc, 'test_hist')
     output_op = sc.io.Output(test_out, [output])
     sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
     next(output.load())
 
 
 def test_bind_op_args(sc):
-    input = ScannerFrameStream(sc, 'test1')
+    input = NamedVideoStream(sc, 'test1')
     frame = sc.io.Input([input, input])
     range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 1} for _ in range(2)])
     test_out = sc.ops.TestPy(frame=range_frame, kernel_arg=1, x=[1, 10], y=[5, 50])
-    outputs = [ScannerStream(sc, 'test_hist_0'), ScannerStream(sc, 'test_hist_1')]
+    outputs = [NamedStream(sc, 'test_hist_0'), NamedStream(sc, 'test_hist_1')]
     output_op = sc.io.Output(test_out, outputs)
     pairs = [(1, 5), (10, 50)]
     sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
@@ -744,11 +756,11 @@ def test_bind_op_args(sc):
 
 
 def test_blur(sc):
-    input = ScannerFrameStream(sc, 'test1')
+    input = NamedVideoStream(sc, 'test1')
     frame = sc.io.Input([input])
     range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
     blurred_frame = sc.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
-    output = ScannerFrameStream(sc, 'test_blur')
+    output = NamedVideoStream(sc, 'test_blur')
     output_op = sc.io.Output(blurred_frame, [output])
     sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
 
@@ -760,33 +772,33 @@ def test_blur(sc):
 
 
 def test_lossless(sc):
-    input = ScannerFrameStream(sc, 'test1')
+    input = NamedVideoStream(sc, 'test1')
     frame = sc.io.Input([input])
     range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
     blurred_frame = sc.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
-    output = ScannerFrameStream(sc, 'test_blur')
+    output = NamedVideoStream(sc, 'test_blur')
     output_op = sc.io.Output(blurred_frame.lossless(), [output])
     sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
     next(output.load())
 
 
 def test_compress(sc):
-    input = ScannerFrameStream(sc, 'test1')
+    input = NamedVideoStream(sc, 'test1')
     frame = sc.io.Input([input])
     range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
     blurred_frame = sc.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
-    output = ScannerFrameStream(sc, 'test_blur')
+    output = NamedVideoStream(sc, 'test_blur')
     output_op = sc.io.Output(blurred_frame.compress('video', bitrate=1 * 1024 * 1024), [output])
     sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
     next(output.load())
 
 
 def test_save_mp4(sc):
-    input = ScannerFrameStream(sc, 'test1')
+    input = NamedVideoStream(sc, 'test1')
     frame = sc.io.Input([input])
     range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
     blurred_frame = sc.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
-    output = ScannerFrameStream(sc, 'test_save_mp4')
+    output = NamedVideoStream(sc, 'test_save_mp4')
     output_op = sc.io.Output(blurred_frame, [output])
     sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
 
@@ -820,10 +832,10 @@ def no_workers_sc():
 def test_no_workers(no_workers_sc):
     sc = no_workers_sc
 
-    input = ScannerFrameStream(sc, 'test1')
+    input = NamedVideoStream(sc, 'test1')
     frame = sc.io.Input([input])
     hist = sc.ops.Histogram(frame=frame)
-    output_op = sc.io.Output(hist, [ScannerStream(sc, '_ignore')])
+    output_op = sc.io.Output(hist, [NamedStream(sc, '_ignore')])
 
     exc = False
     try:
@@ -1002,11 +1014,11 @@ def test_fault_tolerance(fault_sc):
     killer_process.daemon = True
     killer_process.start()
 
-    input = ScannerFrameStream(sc, 'test1')
+    input = NamedVideoStream(sc, 'test1')
     frame = fault_sc.io.Input([input])
     range_frame = fault_sc.streams.Range(frame, ranges=[{'start': 0, 'end': 20}])
     sleep_frame = fault_sc.ops.SleepFrame(ignore=range_frame)
-    output = ScannerStream(fault_sc, 'test_fault')
+    output = NamedStream(fault_sc, 'test_fault')
     output_op = fault_sc.io.Output(sleep_frame, [output])
 
     fault_sc.run(
@@ -1074,11 +1086,11 @@ def test_job_blacklist(blacklist_sc):
 
     sc = blacklist_sc
 
-    input = ScannerFrameStream(sc, 'test1')
+    input = NamedVideoStream(sc, 'test1')
     frame = sc.io.Input([input])
     range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 1}])
     failed_output = sc.ops.TestPyFail(frame=range_frame)
-    output = ScannerFrameStream(sc, 'test_py_fail')
+    output = NamedVideoStream(sc, 'test_py_fail')
     output_op = sc.io.Output(failed_output, [output])
     sc.run(
         output_op,
@@ -1132,11 +1144,11 @@ def test_job_timeout(timeout_sc):
 
     sc = timeout_sc
 
-    input = ScannerFrameStream(sc, 'test1')
+    input = NamedVideoStream(sc, 'test1')
     frame = sc.io.Input([input])
     range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 1}])
     sleep_frame = sc.ops.timeout_fn(frame=range_frame)
-    output = ScannerFrameStream(sc, 'test_timeout')
+    output = NamedVideoStream(sc, 'test_timeout')
     output_op = sc.io.Output(sleep_frame, [output])
 
     sc.run(
@@ -1279,7 +1291,7 @@ def test_audio(sc):
     (vid_path, _) = download_videos()
     audio = sc.io.Input([AudioStream(vid_path, 1.0)])
     ignored = sc.ops.DiscardFrame(ignore=audio)
-    output = sc.io.Output(ignored, [ScannerStream(sc, 'audio_test')])
+    output = sc.io.Output(ignored, [NamedStream(sc, 'audio_test')])
     sc.run(output, cache_mode=CacheMode.Overwrite)
 
 
@@ -1302,7 +1314,7 @@ def test_captions(sc):
     caption_path = download_transcript()
     captions = sc.io.Input([CaptionStream(caption_path, window_size=10.0, max_time=3600)])
     ignored = sc.ops.DecodeCap(cap=captions)
-    output = sc.io.Output(ignored, [ScannerStream(sc, 'caption_test')])
+    output = sc.io.Output(ignored, [NamedStream(sc, 'caption_test')])
     sc.run(output, cache_mode=CacheMode.Overwrite, pipeline_instances_per_node=1)
 
 
@@ -1314,7 +1326,7 @@ def cache_test(config, n: Any) -> Any:
 def test_cache_mode(sc):
     n = sc.io.Input([PythonStream([0])])
     out = sc.ops.CacheTest(n=n)
-    output = ScannerStream(sc, 'test_cache')
+    output = NamedStream(sc, 'test_cache')
     output_op = sc.io.Output(out, [output])
     sc.run(output_op)
 

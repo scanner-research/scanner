@@ -164,8 +164,8 @@ class StoredStream:
                 yield obj
 
 
-class ScannerStorage(Storage):
-    """Default byte storage for Scanner streams.
+class NamedStorage(Storage):
+    """Named storage for byte streams. Useful default output format for non-video-data.
 
     Stores byte streams in a custom packed binary file format. Supports both local filesystems
     (Linux/Posix) and cloud file systems (S3, GCS).
@@ -187,10 +187,8 @@ class ScannerStorage(Storage):
             sc.delete_tables([e._name for e in streams])
 
 
-class ScannerFrameStorage(ScannerStorage):
-    """Default storage for Scanner frame streams (i.e. videos).
-
-    Ensures that the stream is always stored as compressed video, not raw frames."""
+class NamedVideoStorage(NamedStorage):
+    """Named storage for video streams. Special baked-in storage class for keeping videos compressed."""
 
     def source(self, sc, streams):
         return sc.sources.FrameColumn(
@@ -203,26 +201,32 @@ class ScannerFrameStorage(ScannerStorage):
             table_name=[s._name for s in streams],
             column_name=['frame' for s in streams])
 
+    def ingest(self, sc, streams, batch=500):
+        to_ingest = [(s._name, s._path) for s in streams if s._path is not None]
+        if len(to_ingest) > 0:
+            for i in range(0, len(to_ingest), batch):
+                sc.ingest_videos(to_ingest[i:i+batch], inplace=True, force=True)
 
-class ScannerStream(StoredStream):
-    """Stream of elements stored in Scanner storage."""
+
+class NamedStream(StoredStream):
+    """Stream of elements stored on disk with a given name."""
 
     def __init__(self, sc, name: str, storage=None):
         """
         Parameters
         ----------
         sc: Client
-          Scanner client
+          Scanner client.
 
         name: str
-          Name of the stream in Scanner storage.
+          Name of the stream.
 
-        storage: ScannerStorage
-          Optional ScannerStorage object.
+        storage: NamedStorage
+          Optional NamedStorage object.
         """
 
         if storage is None:
-            self._storage = ScannerStorage()
+            self._storage = NamedStorage()
         else:
             self._storage = storage
 
@@ -255,10 +259,10 @@ class ScannerStream(StoredStream):
         yield from seq.load(fn=lambda x: x, workers=16, rows=rows)
 
 
-class ScannerFrameStream(ScannerStream):
-    """Stream of frame elements stored (compressed) in Scanner storage."""
+class NamedVideoStream(NamedStream):
+    """Stream of video frame stored (compressed) in named storage."""
 
-    def __init__(self, sc, name, storage=None):
+    def __init__(self, sc, name, path=None, storage=None):
         """
         Parameters
         ----------
@@ -268,20 +272,25 @@ class ScannerFrameStream(ScannerStream):
         name: str
           Name of the stream in Scanner storage.
 
-        storage: ScannerStorage
-          Optional ScannerStorage object.
+        path: str
+          Path to corresponding video file. If this parameter is given, the named video stream will be
+          created from the video at the given path.
+
+        storage: NamedFrameStorage
+          Optional NamedFrameStorage object.
         """
 
         if storage is None:
-            self._storage = ScannerFrameStorage()
+            self._storage = NamedVideoStorage()
         else:
             self._storage = storage
 
         self._sc = sc
         self._name = name
+        self._path = path
 
-    def save_mp4(self, *args, **kwargs):
-        return self._sc.sequence(self._name).save_mp4(*args, **kwargs)
+    def save_mp4(self, output_name, fps=None, scale=None):
+        return self._sc.sequence(self._name).save_mp4(output_name, fps=fps, scale=scale)
 
 
 class FilesStorage(Storage):
