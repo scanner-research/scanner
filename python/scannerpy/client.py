@@ -40,7 +40,7 @@ from scannerpy.protobufs import protobufs, python_to_proto
 from scannerpy.job import Job
 from scannerpy.kernel import Kernel
 from scannerpy import types as scannertypes
-from scannerpy.storage import Storage, StoredStream
+from scannerpy.storage import Storage, StoredStream, NamedVideoStream
 from scannerpy.io import IOGenerator
 
 from storehouse import StorageConfig, StorageBackend
@@ -948,7 +948,7 @@ class Client(object):
                 kernel, types.BuiltinFunctionType):
 
             class KernelWrapper(Kernel):
-                def __init__(self, config):
+                def __init__(self, config, **kwargs):
                     self._config = config
 
                 def execute(self, columns):
@@ -1361,6 +1361,11 @@ class Client(object):
         sorted_ops, op_index, source_ops, stream_ops, output_ops = (
             self._toposort(outputs))
 
+        for op in source_ops.keys():
+            streams = op._outputs[0]._streams
+            if isinstance(streams[0], NamedVideoStream):
+                streams[0].storage().ingest(self, streams)
+
         # Collect compression annotations to add to job
         output_column_names = []
         compression_options = []
@@ -1420,18 +1425,18 @@ class Client(object):
                 diff = s - t
                 if len(diff) > 0 :
                     raise Exception(
-                        "Output for stream {} exists in {} but does not exist in {}. Either both or \
-                        neither should exist.".format(
+                        ("Output for stream {} exists in {} but does not exist in {}. Either both or"
+                         "neither should exist.").format(
                             next(iter(diff)), output_ops_list[i]._name, output_ops_list[j]._name))
 
         to_cache = []
         if len(to_delete[0]) > 0:
             if cache_mode == CacheMode.Error:
                 raise ScannerException(
-                    "Running this job would overwrite output `{}` of op `{}`. You can \
-                    change this behavior using db.run(cache_mode=CacheMode.Ignore) to \
-                    ignore outputs that already exist, or CacheMode.Overwrite to \
-                    overwrite them.".format(next(iter(to_delete[0])), output_ops_list[0]._name))
+                    ("Running this job would overwrite output `{}` of op `{}`. You can "
+                     "change this behavior using db.run(cache_mode=CacheMode.Ignore) to "
+                     "ignore outputs that already exist, or CacheMode.Overwrite to "
+                     "overwrite them.").format(next(iter(to_delete[0])), output_ops_list[0]._name))
 
             elif cache_mode == CacheMode.Overwrite:
                 for op, td in zip(output_ops_list, to_delete):
