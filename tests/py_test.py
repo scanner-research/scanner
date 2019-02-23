@@ -698,7 +698,7 @@ def test_fetch_resources(sc):
         output_op = sc.io.Output(test_out, [output])
         sc.run(
             output_op, cache_mode=CacheMode.Overwrite, show_progress=False,
-            pipeline_instances_per_node=1)
+            pipeline_instances_per_node=2)
 
 
 @scannerpy.register_python_op(batch=50)
