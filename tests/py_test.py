@@ -665,6 +665,42 @@ def test_python_kernel(sc):
     next(output.load())
 
 
+@scannerpy.register_python_op()
+class ResourceTest(Kernel):
+    def __init__(self, config, path):
+        self.path = path
+
+    def fetch_resources(self):
+        with open(self.path, 'r') as f:
+            n = int(f.read())
+
+        with open(self.path, 'w') as f:
+            f.write(str(n + 1))
+
+    def setup_with_resources(self):
+        with open(self.path, 'r') as f:
+            assert int(f.read()) == 1
+
+    def execute(self, frame: FrameType) -> Any:
+        return None
+
+
+def test_fetch_resources(sc):
+    with tempfile.NamedTemporaryFile() as f:
+        f.write(b'0')
+        f.flush()
+
+        input = NamedVideoStream(sc, 'test1')
+        frame = sc.io.Input([input])
+        range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 3}])
+        test_out = sc.ops.ResourceTest(frame=frame, path=f.name)
+        output = NamedStream(sc, 'test_hist')
+        output_op = sc.io.Output(test_out, [output])
+        sc.run(
+            output_op, cache_mode=CacheMode.Overwrite, show_progress=False,
+            pipeline_instances_per_node=2)
+
+
 @scannerpy.register_python_op(batch=50)
 class TestPyBatch(Kernel):
     def execute(self, frame: Sequence[FrameType]) -> Sequence[bytes]:

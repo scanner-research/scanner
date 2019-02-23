@@ -127,6 +127,10 @@ struct EvaluateWorkerArgs {
   std::mutex& startup_lock;
   std::condition_variable& startup_cv;
   i32& startup_count;
+  int& resources_fetched_count;
+  std::mutex& resources_fetched_lock;
+  std::condition_variable& resources_fetched_cv;
+  int num_kernel_groups;
 
   // Per worker arguments
   i32 ki;

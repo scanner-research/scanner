@@ -1501,6 +1501,9 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   i32 next_gpu_idx = 0;
   std::mutex startup_lock;
   std::condition_variable startup_cv;
+  i32 resources_fetched_count = 0;
+  std::mutex resources_fetched_lock;
+  std::condition_variable resources_fetched_cv;
   i32 startup_count = 0;
   i32 eval_total = 0;
   for (i32 ki = 0; ki < pipeline_instances_per_node; ++ki) {
@@ -1581,6 +1584,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       thread_args.emplace_back(EvaluateWorkerArgs{
           // Uniform arguments
           node_id_, startup_lock, startup_cv, startup_count,
+          resources_fetched_count, resources_fetched_lock, resources_fetched_cv,
+          num_kernel_groups,
 
           // Per worker arguments
           ki, kg, groups[kg], job_params->boundary_condition(),
