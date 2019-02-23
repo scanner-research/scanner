@@ -126,6 +126,41 @@ msg_type = 'reset'
   }
 }
 
+void PythonKernel::fetch_resources(proto::Result* result) {
+  py::gil_scoped_acquire acquire;
+  try {
+    py::module main = py::module::import("__main__");
+    std::string pycode = tfm::format(R"(
+import cloudpickle
+msg_type = 'fetch_resources'
+%s.send_bytes(cloudpickle.dumps([msg_type, None]))
+%s.recv_bytes()
+)", send_pipe_name_, recv_pipe_name_);
+    py::exec(pycode.c_str(), main.attr("__dict__"));
+  } catch (py::error_already_set &e) {
+    LOG(FATAL) << e.what();
+  }
+
+  result->set_success(true);
+}
+
+void PythonKernel::setup_with_resources(proto::Result* result) {
+  py::gil_scoped_acquire acquire;
+  try {
+    py::module main = py::module::import("__main__");
+    std::string pycode = tfm::format(R"(
+import cloudpickle
+msg_type = 'setup_with_resources'
+%s.send_bytes(cloudpickle.dumps([msg_type, None]))
+)", send_pipe_name_);
+    py::exec(pycode.c_str(), main.attr("__dict__"));
+  } catch (py::error_already_set &e) {
+    LOG(FATAL) << e.what();
+  }
+
+  result->set_success(true);
+}
+
 void PythonKernel::new_stream(const std::vector<u8> &args) {
   py::gil_scoped_acquire acquire;
 
