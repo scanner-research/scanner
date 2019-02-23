@@ -22,6 +22,10 @@ class PythonKernel : public StenciledBatchedKernel {
 
   void reset() override;
 
+  void fetch_resources(proto::Result* result) override;
+
+  void setup_with_resources(proto::Result* result) override;
+
  private:
   KernelConfig config_;
   DeviceHandle device_;

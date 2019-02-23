@@ -157,6 +157,20 @@ class BaseKernel {
   virtual void validate(proto::Result* result) { result->set_success(true); }
 
   /**
+   * @brief Downloads any resources necessary for the kernel to run.
+   *
+   * For a given kernel, only run once per worker.
+   */
+  virtual void fetch_resources(proto::Result* result) { result->set_success(true); }
+
+  /**
+   * @brief Runs any setup code that relies on fetched resources.
+   *
+   * Guaranteed to be called on all kernels after fetch_resources is called on one kernel.
+   */
+  virtual void setup_with_resources(proto::Result* result) { result->set_success(true); }
+
+  /**
    * @brief Called when the Kernel is about to process a new stream.
    *
    * @param args
