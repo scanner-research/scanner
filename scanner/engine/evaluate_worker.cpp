@@ -392,6 +392,7 @@ EvaluateWorker::EvaluateWorker(const EvaluateWorkerArgs& args)
       auto new_instance_start = now();
       auto kernel = factory->new_instance(config);
       args.profiler.add_interval("new_instance:" + op_info->name(), new_instance_start, now());
+
       {
         Result result;
         kernel->validate(&result);
@@ -403,10 +404,32 @@ EvaluateWorker::EvaluateWorker(const EvaluateWorkerArgs& args)
         LOG(ERROR) << "Kernel validate failed: " << args.result.msg();
         THREAD_RETURN_SUCCESS();
       }
+
+      // If we're on worker 0, then fetch resources for the kernel
+      if (worker_id_ == 0) {
+        {
+          Result result;
+          kernel->fetch_resources(&result);
+          args.result.set_msg(result.msg());
+          args.result.set_success(result.success());
+        }
+        VLOG(1) << "Kernel finished fetching resources " << args.result.success();
+        if (!args.result.success()) {
+          LOG(ERROR) << "Kernel fetch_resources failed: " << args.result.msg();
+          THREAD_RETURN_SUCCESS();
+        }
+      }
+
       kernels_.emplace_back(kernel);
     }
   }
   assert(kernels_.size() > 0);
+
+  if (worker_id_ == 0) {
+    std::unique_lock<std::mutex> lk (args.resources_fetched_lock);
+    args.resources_fetched_count += 1;
+    args.resources_fetched_cv.notify_all();
+  }
 
   for (auto& kernel : kernels_) {
     if (kernel != nullptr) {
@@ -430,9 +453,33 @@ EvaluateWorker::EvaluateWorker(const EvaluateWorkerArgs& args)
   args.profiler.add_interval("setup", setup_start, now());
 
   // Signal the main worker thread that we've finished startup
-  std::unique_lock<std::mutex> lk(args.startup_lock);
-  args.startup_count += 1;
-  args.startup_cv.notify_one();
+  {
+    std::unique_lock<std::mutex> lk(args.startup_lock);
+    args.startup_count += 1;
+    args.startup_cv.notify_all();
+  }
+
+  // Wait for all resources to be fetched from worker 0
+  {
+    std::unique_lock<std::mutex> lk(args.resources_fetched_lock);
+    args.resources_fetched_cv.wait(lk, [&] {
+        return args.resources_fetched_count == args.num_kernel_groups;
+      });
+  }
+
+  // Now that resources are guaranteed to be fetched, call setup_with_resources
+  for (auto& kernel : kernels_) {
+    if (kernel == nullptr) { continue; }
+
+    Result result;
+    kernel->setup_with_resources(&result);
+    args.result.set_msg(result.msg());
+    args.result.set_success(result.success());
+    if (!args.result.success()) {
+      LOG(ERROR) << "Kernel setup_with_resources failed: " << args.result.msg();
+      THREAD_RETURN_SUCCESS();
+    }
+  }
 }
 
 EvaluateWorker::~EvaluateWorker() {

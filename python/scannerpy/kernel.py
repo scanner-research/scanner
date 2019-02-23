@@ -25,6 +25,12 @@ class Kernel(object):
     def reset(self):
         pass
 
+    def fetch_resources(self):
+        pass
+
+    def setup_with_resources(self):
+        pass
+
     def execute(self, input_columns):
         raise NotImplementedError
 
@@ -55,6 +61,11 @@ def python_kernel_fn(n, recv_conn, send_conn, p_conn1, p_conn2):
       elif msg_type == 'execute':
         result = kernel.execute(data)
         send_conn.send_bytes(cloudpickle.dumps(result))
+      elif msg_type == 'fetch_resources':
+        kernel.fetch_resources()
+        send_conn.send_bytes(b'')
+      elif msg_type == 'setup_with_resources':
+        kernel.setup_with_resources()
   except Exception as e:
     traceback.print_exc()
     raise
