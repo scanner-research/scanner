@@ -1,4 +1,5 @@
-from scannerpy import Database, Job, DeviceType
+from scannerpy import Client
+from scannerpy.storage import NamedStream, NamedVideoStream
 
 ################################################################################
 # This tutorial discusses how Scanner compresses output columns, how to        #
@@ -7,57 +8,60 @@ from scannerpy import Database, Job, DeviceType
 ################################################################################
 
 def main():
-    db = Database()
+    sc = Client()
 
     # Frames on disk can either be stored uncompressed (raw bits) or compressed
     # (encoded using some form of image or video compression). When Scanner
     # reads frames from a table, it automatically decodes the data if necessary.
     # The Op DAG only sees the raw frames. For example, this table is stored
     # as compressed video.
-    def make_blurred_frame():
-        frame = db.sources.FrameColumn()
-        blurred_frame = db.ops.Blur(frame=frame, kernel_size=3, sigma=0.5)
-        sampled_frame = db.streams.Range(blurred_frame, 0, 30)
+    def make_blurred_frame(streams):
+        frame = sc.io.Input(streams)
+        blurred_frame = sc.ops.Blur(frame=frame, kernel_size=3, sigma=0.5)
+        sampled_frame = sc.streams.Range(blurred_frame, 0, 30)
         return frame, sampled_frame
 
+    example_video_path = util.download_video()
+    video_stream = NamedVideoStream(sc, 'example', path=example_video_path)
 
     # By default, if an Op outputs a frame with 3 channels with type uint8,
     # those frames will be compressed using video encoding. No other frame
     # type is currently compressed.
-    frame, blurred_frame = make_blurred_frame()
-    output_op = db.sinks.Column(columns={'frame': blurred_frame})
-    job = Job(op_args={
-        frame: db.table('example').column('frame'),
-        output_op: 'output_table_name',
-    })
-    db.run(output_op, [job], force=True)
+    frame, blurred_frame = make_blurred_frame([video_stream])
 
-    frame, blurred_frame = make_blurred_frame()
+    stream = NamedVideoStream(sc, 'output_table_name')
+    output = sc.io.Output(blurred_frame, [stream])
+    sc.run(output)
+
+    stream.delete()
+
+    frame, blurred_frame = make_blurred_frame([video_stream])
     # The compression parameters can be controlled by annotating the column
     low_quality_frame = blurred_frame.compress_video(quality=35)
-    output_op = db.sinks.Column(columns={'frame': low_quality_frame})
-    job = Job(op_args={
-        frame: db.table('example').column('frame'),
-        output_op: 'low_quality_table',
-    })
-    db.run(output_op, [job], force=True)
+
+    low_quality_stream = NamedVideoStream(sc, 'low_quality_video')
+    output = sc.io.Output(low_quality_frame, [stream])
+    sc.run(output)
 
     # If no compression is desired, this can be specified by indicating that
     # the column should be lossless.
     frame, blurred_frame = make_blurred_frame()
     # The compression parameters can be controlled by annotating the column
     lossless_frame = blurred_frame.lossless()
-    output_op = db.sinks.Column(columns={'frame': lossless_frame})
-    job = Job(op_args={
-        frame: db.table('example').column('frame'),
-        output_op: 'pristine_frame',
-    })
-    db.run(output_op, [job], force=True)
+
+    lossless_stream = NamedVideoStream(sc, 'lossless_video')
+
+    output = sc.io.Output(lossless_frame, [lossless_stream])
+    sc.run(output)
 
     # Any column which is saved as compressed video can be exported as an mp4
     # file by calling save_mp4 on the column. This will output a file called
     # 'low_quality_video.mp4' in the current directory.
-    db.table('low_quality_table').column('frame').save_mp4('low_quality_video')
+    low_quality_stream.save_mp4('low_quality_video')
+    lossless_stream.save_mp4('lossless_video')
+
+    low_quality_stream.delete()
+    lossless_stream.delete()
 
 if __name__ == "__main__":
     main()

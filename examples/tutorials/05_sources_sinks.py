@@ -1,5 +1,8 @@
+from scannerpy import Client, FrameType
+from scannerpy.storage import FilesStream
+from typing import Sequence
+
 import scannerpy
-from scannerpy import Database, Job, DeviceType
 import cv2
 
 import sys
@@ -13,7 +16,7 @@ import util
 ################################################################################
 
 def main():
-    db = Database()
+    sc = Client()
 
     # What if, instead of a video, you had a list of image files that you
     # wanted to process? Scanner provides an extensible interface for reading and
@@ -26,8 +29,10 @@ def main():
 
     # Scanner provides a built-in source to read files from the local filesystem:
 
-    compressed_images = db.sources.Files()
-    # Like with db.sources.FrameColumn, we will bind the inputs to this source when
+    image_stream = FilesStream(image_paths)
+
+    compressed_images = sc.io.Input([image_stream])
+    # Like with sc.sources.FrameColumn, we will bind the inputs to this source when
     # we define a job later on.
 
     # Let's write a pipeline that reads our images, resizes them, and writes them
@@ -35,24 +40,19 @@ def main():
 
     # Since the input images are compressed, we decompress them with the
     # ImageDecoder
-    frame = db.ops.ImageDecoder(img=compressed_images)
+    frame = sc.ops.ImageDecoder(img=compressed_images)
 
-    resized = db.ops.Resize(frame=frame, width=640, height=360)
+    resized = sc.ops.Resize(frame=frame, width=640, height=360)
 
     # Rencode the image to jpg
-    encoded_frame = db.ops.ImageEncoder(frame=resized, format='jpg')
+    encoded_frame = sc.ops.ImageEncoder(frame=resized, format='jpg')
 
     # Write the compressed images to files
-    output = db.sinks.Files(input=encoded_frame)
-
     resized_paths = ['resized-1.jpg', 'resized-2.jpg', 'resized-3.jpg']
+    resized_stream = FilesStream(resized_paths)
+    output = sc.io.Output(encoded_frame, [resized_stream])
 
-    job = Job(op_args={
-        compressed_images: {'paths': image_paths},
-        output: {'paths': resized_paths}
-    })
-
-    db.run(output=output, jobs=[job])
+    sc.run(output)
 
     print('Finished! Wrote the following images: ' + ', '.join(resized_paths))
 
