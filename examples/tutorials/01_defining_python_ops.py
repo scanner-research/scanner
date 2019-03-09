@@ -1,4 +1,5 @@
-from scannerpy import Database, Job, DeviceType, FrameType
+from scannerpy import Client, DeviceType, FrameType
+from scannerpy.storage import NamedStream, NamedVideoStream
 import scannerpy
 import cv2
 import sys
@@ -49,9 +50,9 @@ def resize_fn(config, frame: FrameType) -> FrameType:
 @scannerpy.register_python_op()
 class ResizeClass(scannerpy.Kernel):
     # Init runs once when the class instance is initialized
-    def __init__(self, config):
-        self._width = config.args['width']
-        self._height = config.args['height']
+    def __init__(self, config, width, height):
+        self._width = width
+        self._height = height
 
     # The execute method serves the same purpose the registered op function
     # above does and has to provide the same type annotations.
@@ -61,33 +62,32 @@ class ResizeClass(scannerpy.Kernel):
 
 def main():
     # Now we can use these new Ops in Scanner:
-    db = Database()
+    sc = Client()
 
     # Download an example video
     example_video_path = util.download_video()
 
-    # Ingest it into the database
-    [input_table], _ = db.ingest_videos([('example', example_video_path)],
-                                        force=True)
+    # Create a stream and input to read our example video
+    video_stream = NamedVideoStream(sc, 'example', path=example_video_path)
+    frame = sc.io.Input([video_stream])
 
-    frame = db.sources.FrameColumn()
+    resized_frame_fn = sc.ops.resize_fn(frame=frame, width=640, height=480)
 
-    resized_frame_fn = db.ops.resize_fn(frame=frame, width=640, height=480)
+    resized_frame_class = sc.ops.ResizeClass(frame=frame, width=320, height=240)
 
-    resized_frame_class = db.ops.ResizeClass(frame=frame, width=320, height=240)
+    fn_stream = NamedVideoStream(sc, 'fn_frames')
+    fn_output = sc.io.Output(resized_frame_fn, [fn_stream])
 
-    output = db.sinks.FrameColumn(columns={'frame1': resized_frame_fn,
-                                           'frame2': resized_frame_class})
+    class_stream = NamedVideoStream(sc, 'class_frames')
+    class_output = sc.io.Output(resized_frame_class, [class_stream])
 
-    job = Job(op_args={
-        frame: input_table.column('frame'),
-        output: 'example_python_op'
-    })
+    sc.run([fn_output, class_output])
 
-    [table] = db.run(output=output, jobs=[job], force=True)
+    fn_stream.save_mp4('01_resized_fn')
+    class_stream.save_mp4('01_resized_class')
 
-    table.column('frame1').save_mp4('01_resized_fn')
-    table.column('frame2').save_mp4('01_resized_class')
+    for stream in [fn_stream, class_stream]:
+        stream.delete(sc)
 
     print('Finished! Two videos were saved to the current directory: '
           '01_resized_fn.mp4, 01_resized_class.mp4')
@@ -95,6 +95,7 @@ def main():
     # If you are trying to integrate with a C++ library or you want a more efficient
     # implementation for your Ops, you can also define Ops in C++. See the
     # 08_defining_cpp_ops.py tutorial.
+
 
 
 if __name__ == "__main__":

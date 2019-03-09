@@ -1,6 +1,7 @@
-import scannerpy
-from scannerpy import Database, Job, DeviceType, FrameType
+from scannerpy import Client, DeviceType, FrameType
+from scannerpy.storage import NamedStream, NamedVideoStream
 from typing import Sequence
+import scannerpy
 import cv2
 import numpy as np
 
@@ -15,14 +16,15 @@ import util
 ################################################################################
 
 def main():
-    db = Database()
+    videos = []
+    # Keep track of the streams so we can delete them at the end
+    streams = []
+
+    sc = Client()
 
     example_video_path = util.download_video()
-    [input_table], _ = db.ingest_videos([('example', example_video_path)],
-                                        force=True)
-
-    videos = []
-
+    video_stream = NamedVideoStream(sc, 'example', path=example_video_path)
+    streams.append(video_stream)
     # Many ops simply involve applying some processing to their inputs and then
     # returning their outputs. But there are also many operations in video
     # processing that require the ability to see adjacent frames (such as for
@@ -33,7 +35,6 @@ def main():
     # Scanner ops therefore have several optional attributes that enable them to
     # support these forms of operations:
 
-
     # 1. Device Type:
     #   Ops can specify that they require CPUs or GPUs by declaring their device
     #   type. By default, the device_type is DeviceType.CPU.
@@ -42,19 +43,17 @@ def main():
     def device_resize(config, frame: FrameType) -> FrameType:
         return cv2.resize(frame, (config.args['width'], config.args['height']))
 
-    frame = db.sources.FrameColumn()
-    resized_frame = db.ops.device_resize(frame=frame, width=640, height=480)
-    output = db.sinks.FrameColumn(columns={'frame': resized_frame})
+    frame = sc.io.Input([video_stream])
 
-    job = Job(op_args={
-        frame: input_table.column('frame'),
-        output: 'example_resize'
-    })
+    resized_frame = sc.ops.device_resize(frame=frame, width=640, height=480)
 
-    [table] = db.run(output=output, jobs=[job], force=True)
+    stream = NamedVideoStream(sc, 'example_resize')
+    streams.append(stream)
+    output = sc.io.Output(resized_frame, [stream])
 
-    table.column('frame').save_mp4('02_device_resize')
+    sc.run(output)
 
+    stream.save_mp4('02_device_resize')
     videos.append('02_device_resize.mp4')
 
     # 2. Batch:
@@ -75,20 +74,18 @@ def main():
     # batch processing. If there are not enough elements left in a stream,
     # the Op may receive less than a batch worth of elements.
 
-    frame = db.sources.FrameColumn()
-    resized_frame = db.ops.batch_resize(frame=frame, width=640, height=480,
+    frame = sc.io.Input([video_stream])
+
+    resized_frame = sc.ops.batch_resize(frame=frame, width=640, height=480,
                                         batch=10)
-    output = db.sinks.FrameColumn(columns={'frame': resized_frame})
 
-    job = Job(op_args={
-        frame: input_table.column('frame'),
-        output: 'example_batch_resize'
-    })
+    stream = NamedVideoStream(sc, 'example_batch_resize')
+    streams.append(stream)
+    output = sc.io.Output(resized_frame, [stream])
 
-    [table] = db.run(output=output, jobs=[job], force=True)
+    sc.run(output)
 
-    table.column('frame').save_mp4('02_batch_resize')
-
+    stream.save_mp4('02_batch_resize')
     videos.append('02_batch_resize.mp4')
 
 
@@ -120,24 +117,22 @@ def main():
         rgb = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
         return rgb
 
-    frame = db.sources.FrameColumn()
+    frame = sc.io.Input([video_stream])
+
     # This next line is using a feature we'll discuss in the next tutorial, but you
     # can think of it as selecting a subset of elements from the stream (here,
     # frames 0 to 30)
-    range_frame = db.streams.Range(frame, 0, 30)
-    flow = db.ops.optical_flow(frame=range_frame, stencil=[0, 1])
-    flow_viz = db.ops.visualize_flow(flow=flow)
-    output = db.sinks.FrameColumn(columns={'flow_viz': flow_viz})
+    range_frame = sc.streams.Range(frame, [(0, 30)])
+    flow = sc.ops.optical_flow(frame=range_frame, stencil=[0, 1])
+    flow_viz = sc.ops.visualize_flow(flow=flow)
 
-    job = Job(op_args={
-        frame: input_table.column('frame'),
-        output: 'example_flow'
-    })
+    stream = NamedVideoStream(sc, 'example_flow')
+    streams.append(stream)
+    output = sc.io.Output(flow_viz, [stream])
 
-    [table] = db.run(output=output, jobs=[job], force=True)
+    sc.run(output)
 
-    table.column('flow_viz').save_mp4('02_flow')
-
+    stream.save_mp4('02_flow')
     videos.append('02_flow.mp4')
 
     # 4. Bounded State:
@@ -152,10 +147,10 @@ def main():
 
     @scannerpy.register_python_op(bounded_state=60)
     class BackgroundSubtraction(scannerpy.Kernel):
-        def __init__(self, config):
+        def __init__(self, config, alpha, threshold):
             self.config = config
-            self.alpha = config.args['alpha']
-            self.thresh = config.args['threshold']
+            self.alpha = alpha
+            self.thresh = threshold
 
         # Reset is called when the kernel switches to a new part of the stream
         # and so shouldn't maintain it's previous state
@@ -183,31 +178,23 @@ def main():
     # to indicate that this kernel needs at least 60 frames before the output
     # should be considered reasonable.
 
-    # First, we download a static camera video from youtube
-    # subprocess.check_call(
-    #     'youtube-dl -f 137 \'https://youtu.be/cVHqFqNz7eM\' -o test.mp4',
-    #     shell=True)
-    # [static_table], _ = db.ingest_videos([('static_video', 'test.mp4')],
-    #                                     force=True)
-    static_table = input_table
+    frame = sc.io.Input([video_stream])
 
-    # Then we perform background subtraction and indicate we need 60 prior
+    # We perform background subtraction and indicate we need 60 prior
     # frames to produce correct output
-    frame = db.sources.FrameColumn()
-    masked_frame = db.ops.BackgroundSubtraction(frame=frame,
+    masked_frame = sc.ops.BackgroundSubtraction(frame=frame,
                                                 alpha=0.05, threshold=0.05,
                                                 bounded_state=60)
     # Here, we say that we only want the outputs for this range of frames
-    sampled_frame = db.streams.Range(masked_frame, 0, 120)
-    output = db.sinks.Column(columns={'frame': sampled_frame})
-    job = Job(op_args={
-        frame: static_table.column('frame'),
-        output: 'masked_video',
-    })
-    [table] = db.run(output=output, jobs=[job], force=True)
+    sampled_frame = sc.streams.Range(masked_frame, [(0, 120)])
 
-    table.column('frame').save_mp4('02_masked')
+    stream = NamedVideoStream(sc, 'masked_video')
+    streams.append(stream)
+    output = sc.io.Output(sampled_frame, [stream])
 
+    sc.run(output)
+
+    stream.save_mp4('02_masked')
     videos.append('02_masked.mp4')
 
 
@@ -229,6 +216,9 @@ def main():
         def execute(self, frame: FrameType) -> bytes:
             pass
 
+
+    for stream in streams:
+        stream.delete(sc)
 
     print('Finished! The following videos were written: {:s}'
           .format(', '.join(videos)))
