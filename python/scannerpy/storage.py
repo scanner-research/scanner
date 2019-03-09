@@ -213,10 +213,18 @@ class NamedVideoStorage(NamedStorage):
             column_name=['frame' for s in streams])
 
     def ingest(self, sc, streams, batch=500):
-        to_ingest = [(s._name, s._path) for s in streams if s._path is not None]
+        to_ingest = [(s._name, s._path) for s in streams
+                     if (s._path is not None and
+                         s._inplace == False)]
+        to_ingest_inplace = [(s._name, s._path) for s in streams
+                             if (s._path is not None and
+                                 s._inplace == True)]
         if len(to_ingest) > 0:
             for i in range(0, len(to_ingest), batch):
-                sc.ingest_videos(to_ingest[i:i+batch], inplace=True, force=True)
+                sc.ingest_videos(to_ingest[i:i+batch], inplace=False, force=True)
+        if len(to_ingest_inplace) > 0:
+            for i in range(0, len(to_ingest_inplace), batch):
+                sc.ingest_videos(to_ingest_inplace[i:i+batch], inplace=True, force=True)
 
 
 class NamedStream(StoredStream):
@@ -273,7 +281,7 @@ class NamedStream(StoredStream):
 class NamedVideoStream(NamedStream):
     """Stream of video frame stored (compressed) in named storage."""
 
-    def __init__(self, sc, name, path=None, storage=None):
+    def __init__(self, sc, name, path=None, inplace=False, storage=None):
         """
         Parameters
         ----------
@@ -299,6 +307,7 @@ class NamedVideoStream(NamedStream):
         self._sc = sc
         self._name = name
         self._path = path
+        self._inplace = inplace
 
     def save_mp4(self, output_name, fps=None, scale=None):
         return self._sc.sequence(self._name).save_mp4(output_name, fps=fps, scale=scale)
