@@ -121,7 +121,7 @@ class StreamsGenerator:
 
     def Range(self,
               input: scannerpy.op.OpColumn,
-              ranges) -> scannerpy.op.OpColumn:
+              ranges: Sequence[Tuple[int]]) -> scannerpy.op.OpColumn:
         r"""Samples a range of elements from the input stream.
 
         Parameters
@@ -129,16 +129,20 @@ class StreamsGenerator:
         input
           The stream to sample.
 
-        start
-          The default index to start sampling from.
-
-        end
-          The default index to end sampling at.
+        ranges
+          Pairs of (start, end) for each stream being processed.
 
         Returns
         -------
         scannerpy.op.OpColumn
           The sampled stream.
+
+        Examples
+        --------
+        For example, to select frames 0-10 for one stream, you would write:
+
+        sc.streams.Ranges(input=input, ranges=[(0, 11)])
+
         """
         def arg_builder(start, end):
             args = protobufs.StridedRangeSamplerArgs()
@@ -167,7 +171,7 @@ class StreamsGenerator:
           The stream to sample.
 
         intervals
-          The default intervals to sample from. This should be a list
+          The intervals to sample from. This should be a list
           of tuples representing start and end ranges.
 
         Returns
@@ -177,9 +181,9 @@ class StreamsGenerator:
 
         Examples
         --------
-        For example, to select frames 0-10 and 100-200, you would write:
+        For example, to select frames 0-10 and 100-200 for one stream, you would write:
 
-        sc.streams.Ranges(input=input, intervals=[(0, 11), (100, 201)])
+        sc.streams.Ranges(input=input, intervals=[[(0, 11), (100, 201)]])
         """
         def arg_builder(intervals):
             args = protobufs.StridedRangeSamplerArgs()

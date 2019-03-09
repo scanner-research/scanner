@@ -6,7 +6,7 @@ import uuid
 
 from scannerpy.common import *
 from scannerpy.protobufs import python_to_proto, protobufs, analyze_proto
-from scannerpy import scannertypes
+from scannerpy import types as scannertypes
 from typing import Dict, List, Union, Tuple, Optional, Sequence
 from inspect import signature
 from itertools import islice
