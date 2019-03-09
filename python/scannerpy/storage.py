@@ -163,6 +163,17 @@ class StoredStream:
             else:
                 yield obj
 
+    def delete(self, sc):
+        """Deletes the stream from its storage if it exists.
+
+        Parameters
+        ----------
+        sc: Client
+          Scanner client
+        """
+
+        self.storage().delete(sc, [self])
+
 
 class NamedStorage(Storage):
     """Named storage for byte streams. Useful default output format for non-video-data.
