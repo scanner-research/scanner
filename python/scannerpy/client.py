@@ -550,7 +550,7 @@ class Client(object):
         summary = ''
         db_meta = self._load_db_metadata()
         if len(db_meta.tables) == 0:
-            return 'Your client is empty!'
+            return 'summarize: your client is empty!'
 
         tables = [
             ('TABLES', [
