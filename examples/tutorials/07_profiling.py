@@ -1,26 +1,37 @@
-from scannerpy import Database, Job, DeviceType
+from scannerpy import Client
+from scannerpy.storage import NamedStream, NamedVideoStream
+
+import sys
+import os.path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/..')
+import util
 
 ################################################################################
 # This tutorial shows how to look at profiling information for your job.       #
 ################################################################################
 
 def main():
-    db = Database()
+    sc = Client()
 
-    frame = db.sources.FrameColumn()
-    histogram = db.ops.Histogram(frame=frame)
-    output_op = db.sinks.Column(columns={'hist': histogram})
-    job = Job(op_args={
-        frame: db.table('example').column('frame'),
-        output_op: 'example_hist_profile'
-    })
-    [output_table] = db.run(output_op, [job], force=True)
+    example_video_path = util.download_video()
+    video_stream = NamedVideoStream(sc, 'example', path=example_video_path)
+    frame = sc.io.Input([video_stream])
+
+    histogram = sc.ops.Histogram(frame=frame)
+
+    output_stream = NamedVideoStream(sc, 'example_hist_profile')
+    output = sc.io.Output(histogram, [output_stream])
+
+    sc.run(output)
 
     # The profiler contains information about how long different parts of your
     # computation take to run. We use Google Chrome's trace format, which you
     # can view by going to chrome://tracing in Chrome and clicking "load" in
     # the top left.
-    output_table.profiler().write_trace('hist.trace')
+    sc.table('example_hist_profile').profiler().write_trace('hist.trace')
+
+    video_stream.delete(sc)
+    output_stream.delete(sc)
 
     # Each row corresponds to a different part of the system, e.g. the thread
     # loading bytes from disk or the thread running your kernels. If you have

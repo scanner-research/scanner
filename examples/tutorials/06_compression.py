@@ -1,6 +1,11 @@
 from scannerpy import Client
 from scannerpy.storage import NamedStream, NamedVideoStream
 
+import sys
+import os.path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/..')
+import util
+
 ################################################################################
 # This tutorial discusses how Scanner compresses output columns, how to        #
 # control how and when this compression happens, and how to export compressed  #
@@ -18,7 +23,7 @@ def main():
     def make_blurred_frame(streams):
         frame = sc.io.Input(streams)
         blurred_frame = sc.ops.Blur(frame=frame, kernel_size=3, sigma=0.5)
-        sampled_frame = sc.streams.Range(blurred_frame, 0, 30)
+        sampled_frame = sc.streams.Range(blurred_frame, [(0, 30)])
         return frame, sampled_frame
 
     example_video_path = util.download_video()
@@ -33,35 +38,34 @@ def main():
     output = sc.io.Output(blurred_frame, [stream])
     sc.run(output)
 
-    stream.delete()
+    stream.delete(sc)
 
     frame, blurred_frame = make_blurred_frame([video_stream])
-    # The compression parameters can be controlled by annotating the column
+    # The compression parameters can be controlled by annotating the output
+    # of an Op that produces frames
     low_quality_frame = blurred_frame.compress_video(quality=35)
 
     low_quality_stream = NamedVideoStream(sc, 'low_quality_video')
-    output = sc.io.Output(low_quality_frame, [stream])
+    output = sc.io.Output(low_quality_frame, [low_quality_stream])
     sc.run(output)
 
+    frame, blurred_frame = make_blurred_frame([video_stream])
     # If no compression is desired, this can be specified by indicating that
-    # the column should be lossless.
-    frame, blurred_frame = make_blurred_frame()
-    # The compression parameters can be controlled by annotating the column
+    # the Op output should be lossless.
     lossless_frame = blurred_frame.lossless()
 
     lossless_stream = NamedVideoStream(sc, 'lossless_video')
-
     output = sc.io.Output(lossless_frame, [lossless_stream])
+
     sc.run(output)
 
-    # Any column which is saved as compressed video can be exported as an mp4
-    # file by calling save_mp4 on the column. This will output a file called
-    # 'low_quality_video.mp4' in the current directory.
+    # Any sequence of frames which are saved as a compressed `NamedVideoStream` can
+    # be exported as an mp4 file by calling save_mp4 on the stream. This will output
+    # a file called 'low_quality_video.mp4' in the current directory.
     low_quality_stream.save_mp4('low_quality_video')
-    lossless_stream.save_mp4('lossless_video')
 
-    low_quality_stream.delete()
-    lossless_stream.delete()
+    low_quality_stream.delete(sc)
+    lossless_stream.delete(sc)
 
 if __name__ == "__main__":
     main()
