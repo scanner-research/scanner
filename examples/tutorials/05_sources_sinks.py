@@ -52,7 +52,7 @@ def main():
     resized_stream = FilesStream(resized_paths)
     output = sc.io.Output(encoded_frame, [resized_stream])
 
-    sc.run(output)
+    sc.run(output, cache_mode=CacheMode.Overwrite)
 
     print('Finished! Wrote the following images: ' + ', '.join(resized_paths))
 
