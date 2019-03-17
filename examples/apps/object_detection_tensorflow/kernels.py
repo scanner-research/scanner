@@ -10,6 +10,7 @@ import tarfile
 
 from scannerpy import FrameType, DeviceType
 from scannerpy.stdlib import tensorflow
+from scannerpy.types import NumpyArrayFloat32
 from typing import Tuple, Sequence
 from tqdm import tqdm
 
@@ -22,8 +23,8 @@ PATH_TO_LABELS = os.path.join(PATH_TO_REPO, 'data', 'mscoco_label_map.pbtxt')
 categories = vis_util.parse_labelmap(PATH_TO_LABELS)
 category_index = vis_util.create_category_index(categories)
 
-def download_and_extract_model(url):
-    path = scannerpy.stdlib.util.download_temp_file(url)
+def download_and_extract_model(url, local_path=None):
+    path = scannerpy.stdlib.util.download_temp_file(url, local_path)
     tar_file = tarfile.open(path)
     for f in tar_file.getmembers():
         file_name = os.path.basename(f.name)
@@ -38,15 +39,23 @@ def download_and_extract_model(url):
                                            (DeviceType.GPU, 1)],
                               batch=2)
 class ObjDetect(tensorflow.TensorFlowKernel):
-    def build_graph(self):
-        url = self.config.args['dnn_url']
-        # Download the DNN model
-        path = download_and_extract_model(url)
+    def __init__(self, config, dnn_url):
+        tensorflow.TensorFlowKernel.__init__(self, config)
+        self.dnn_url = dnn_url
+        self.model_name = dnn_url.rsplit('/', 1)[-1]
+        self.local_model_path = os.path.join(
+            scannerpy.stdlib.util.temp_directory(),
+            self.model_name.rsplit('.')[0],
+            'frozen_inference_graph.pb')
 
+    def fetch_resources(self):
+        download_and_extract_model(self.dnn_url, self.model_name)
+
+    def build_graph(self):
         dnn = tf.Graph()
         with dnn.as_default():
             od_graph_def = tf.GraphDef()
-            with tf.gfile.GFile(path, 'rb') as fid:
+            with tf.gfile.GFile(self.local_model_path, 'rb') as fid:
                 serialized_graph = fid.read()
                 od_graph_def.ParseFromString(serialized_graph)
                 tf.import_graph_def(od_graph_def, name='')
@@ -54,7 +63,7 @@ class ObjDetect(tensorflow.TensorFlowKernel):
 
     # Evaluate object detection DNN model on a frame
     # Return bounding box position, class and score
-    def execute(self, frame: Sequence[FrameType]) -> Sequence[bytes]:
+    def execute(self, frame: Sequence[FrameType]) -> Sequence[NumpyArrayFloat32]:
         frames = frame
         image_tensor = self.graph.get_tensor_by_name('image_tensor:0')
         boxes = self.graph.get_tensor_by_name('detection_boxes:0')
@@ -73,7 +82,7 @@ class ObjDetect(tensorflow.TensorFlowKernel):
                 bundled_data = np.concatenate(
                     (boxes[i].reshape(100, 4), classes[i].reshape(100, 1),
                      scores[i].reshape(100, 1)), 1)[:20]
-                data.append(bundled_data.tobytes())
+                data.append(bundled_data)
 
             return data
 

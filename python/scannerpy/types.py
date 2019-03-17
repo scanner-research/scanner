@@ -80,3 +80,19 @@ class Histogram:
 
     def deserializer(buf):
         return np.split(np.frombuffer(buf, dtype=np.dtype(np.int32)), 3)
+
+@register_type
+class NumpyArrayFloat32:
+    def serializer(buf):
+        return buf.tobytes()
+
+    def deserializer(buf):
+        return np.fromstring(buf, dtype=np.float32)
+
+@register_type
+class NumpyArrayInt32:
+    def serializer(buf):
+        return buf.tobytes()
+
+    def deserializer(buf):
+        return np.fromstring(buf, dtype=np.float32)
