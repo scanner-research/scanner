@@ -1,40 +1,36 @@
-from scannerpy import Database, Job
+from scannerpy import Client
 
 # The following performs the same computation as main.py, but now on a collection
 # of videos instead of just one
+def main():
+    sc = Client()
+    
+    # Create a stored stream to represent the input video
+    videos_to_process = [
+        ('sample-clip-1', 'sample-clip-1.mp4'),
+        ('sample-clip-2', 'sample-clip-2.mp4'),
+        ('sample-clip-3', 'sample-clip-3.mp4')
+       ]
+    input_streams = [NamedVideoStream(sc, info[0], path=info[1])
+                     for info in videos_to_process]
+    
+    # Define a Computation Graph
+    frame = sc.io.Input(input_streams)
+    sampled_frame = sc.streams.Stride(frame, 3) # Select every third frame
+    resized = sc.ops.Resize(frame=sampled_frame, width=640, height=480) # Resize input frame
+    
+    # Create stored streams to represent the output videos
+    output_streams = [NamedVideoStream(sc, info[0] + 'resized')
+                     for info in videos_to_process]
+    output = sc.io.Output(resized, output_streams)
+    
+    # Execute the computation graph 
+    sc.run(output)
+    
+    # Save the resized video as an mp4 file
+    for stream in output_streams:
+        stream.save_mp4(stream.name())
 
-db = Database()
 
-# This is the list of videos we are going to process formatted as
-# (table_name, video_path).
-videos_to_process = [
-    ('sample-clip-1', 'sample-clip-1.mp4'),
-    ('sample-clip-2', 'sample-clip-2.mp4'),
-    ('sample-clip-3', 'sample-clip-3.mp4')
-]
-
-# Ingest the videos into the database
-db.ingest_videos(videos_to_process)
-
-# Define the same Computation Graph
-frame = db.sources.FrameColumn() # Read from the database
-sampled_frame = db.streams.Stride(frame, 3) # Select every third frame
-resized = db.ops.Resize(frame=sampled_frame, width=640, height=480) # Resize input frame
-output_frame = db.sinks.Column(columns={'frame': resized}) # Save resized frame
-
-# Create multiple jobs now, one for each video we want to process
-jobs = []
-for table_name, _ in videos_to_process:
-    job = Job(op_args={
-        frame: db.table(table_name).column('frame'), # Column to read input frames from
-        output_frame: '{:s}-resized'.format(table_name) # Name of output table
-    })
-    jobs.append(job)
-
-
-# Execute the computation graph and return a handle to the newly produced tables
-output_tables = db.run(output=output_frame, jobs=jobs, force=True)
-
-# Save the resized video as an mp4 file
-for output_table in output_tables:
-    output_table.column('frame').save_mp4(output_table.name())
+if __name__ == "__main__":
+    main()

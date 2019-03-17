@@ -3,18 +3,18 @@
 Quickstart
 ==========
 
-To explain how Scanner is used, let's walk through a simple example that reads every third frame from a video, resizes the frames, and then creates a new video from the sequence of resized frames.
+If you want to try Scanner out on one of your own videos as quickly as possible, install `Docker <https://docs.docker.com/install/>`__ (if you have a GPU and you're running on Linux, you can also install `nvidia-docker <https://github.com/NVIDIA/nvidia-docker>`__ which provides GPU support inside Docker containers). Then run:
 
-.. note::
+.. code-block:: bash
 
-   This Quickstart walks you through a very basic Scanner application that downsamples a video in space and time. Once you are done with this guide, check out the `examples <https://github.com/scanner-research/scanner/blob/master/examples>`__ directory for more useful applications, such as using Tensorflow `for detecting objects in all frames of a video <https://github.com/scanner-research/scanner/blob/master/examples/apps/object_detection_tensorflow>`__ and Caffe for `face detection <https://github.com/scanner-research/scanner/blob/master/examples/apps/face_detection>`__.
+   pip3 install --upgrade docker-compose
+   wget https://raw.githubusercontent.com/scanner-research/scanner/master/docker/docker-compose.yml
+   docker-compose run --service-ports cpu /bin/bash
 
-To run the code discussed here, install Scanner (:ref:`installation`). Then from the top-level Scanner directory, run:
+Now you can run any of the example applications on your video:
 
 .. code-block:: bash
 
    cd examples/apps/quickstart
    wget https://storage.googleapis.com/scanner-data/public/sample-clip.mp4
    python3 main.py
-
-After :code:`main.py` exits, you should now have a resized version of :code:`sample-clip.mp4` named :code:`sample-clip-resized.mp4` in the current directory. Let's see how that happened by looking inside :code:`main.py`.
