@@ -759,7 +759,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
 
     // Determine input op max rows for handling boundary
     i64 max_rows;
-    if (is_sink) {
+    if (is_source || is_sink) {
       max_rows = 0;
     } else if (arg_group_.op_input_domain_size.at(k).at(job_idx_).size() == 1) {
       // HACK(apoms): we can only do this because we guarantee that there is
