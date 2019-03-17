@@ -341,15 +341,23 @@ void MasterServerImpl::DeleteTablesHandler(
   auto params = &call->request;
 
   // For each table, remove the entry from the database
+  std::vector<i32> table_ids;
   for (const auto& table_name : params->tables()) {
     if (meta_.has_table(table_name)) {
-      meta_.remove_table(meta_.get_table_id(table_name));
+      i32 table_id = meta_.get_table_id(table_name);
+      meta_.remove_table(table_id);
+      table_ids.push_back(table_id);
     }
   }
 
-  // TODO(apoms): delete the actual table data
-
   write_database_metadata(storage_, meta_);
+
+  // Delete the table data
+  for (i32 table_id : table_ids) {
+    pool_->enqueue_front([this, table_id]() {
+      storage_->delete_dir(table_directory(table_id), true);
+    });
+  }
 
   REQUEST_RPC(DeleteTables, proto::DeleteTablesParams, proto::Empty);
   call->Respond(grpc::Status::OK);
