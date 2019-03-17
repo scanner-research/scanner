@@ -1,7 +1,7 @@
 .. _kubernetes:
 
-Scanner on Kubernetes
-=====================
+Kubernetes Integration
+======================
 
 The easiest way to scale out using Scanner is via `kubernetes <https://kubernetes.io/>`__.
 Kubernetes is tool for automating the deployment and management of a cluster of
