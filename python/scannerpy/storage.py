@@ -252,6 +252,9 @@ class NamedStream(StoredStream):
         self._sc = sc
         self._name = name
 
+    def name(self):
+        return self._name
+
     def type(self):
         seq = self._sc.sequence(self._name)
         seq._load_meta()
