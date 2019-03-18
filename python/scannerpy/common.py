@@ -84,7 +84,7 @@ class PerfParams(object):
         return resolve
 
     @classmethod
-    def estimate(cls, max_memory_util=0.8):
+    def estimate(cls, max_memory_util=0.5, work_io_ratio=0.2):
         def resolve(inputs, ops, tasks_in_queue_per_pu):
             max_size = 0
             for ins in inputs:
@@ -94,6 +94,9 @@ class PerfParams(object):
                     continue
 
                 max_size = max(max([i.estimate_size() for i in ins]), max_size)
+
+            if max_size == 0:
+                raise NotImplemented
 
             has_gpu = False
             for op in ops:
@@ -105,10 +108,11 @@ class PerfParams(object):
                 raise NotImplemented
 
             else:
+                overhead_factor = 4
                 pipeline_instances = cpu_count()
                 total_memory = virtual_memory().total * max_memory_util
-                work_packet_size = int(total_memory / (tasks_in_queue_per_pu * max_size * pipeline_instances))
-                io_packet_size = work_packet_size
+                io_packet_size = int(total_memory / (tasks_in_queue_per_pu * max_size * pipeline_instances * overhead_factor)) // 100 * 100
+                work_packet_size = int(io_packet_size * work_io_ratio)
 
             return cls(work_packet_size, io_packet_size)
 

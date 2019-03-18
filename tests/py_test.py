@@ -523,11 +523,9 @@ def test_wider_than_packet_stencil(sc):
 
     sc.run(
         output_op,
-        PerfParams.estimate(),
+        PerfParams.manual(1, 1),
         cache_mode=CacheMode.Overwrite,
         show_progress=False,
-        io_packet_size=1,
-        work_packet_size=1,
         pipeline_instances_per_node=1)
 
     assert output.len() == 3
