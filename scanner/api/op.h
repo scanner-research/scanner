@@ -107,6 +107,11 @@ class OpBuilder {
     return *this;
   }
 
+  OpBuilder& stream_protobuf_name(std::string protobuf_name) {
+    stream_protobuf_name_ = protobuf_name;
+    return *this;
+  }
+
  private:
   std::string name_;
   bool variadic_inputs_;
@@ -118,6 +123,7 @@ class OpBuilder {
   i32 warmup_;
   bool has_unbounded_state_;
   std::string protobuf_name_;
+  std::string stream_protobuf_name_;
 };
 }
 

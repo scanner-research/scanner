@@ -149,6 +149,12 @@ class OpGenerator:
         # This will raise an exception if the op does not exist.
         op_info = self._sc._get_op_info(name)
 
+        if (not name in PYTHON_OP_REGISTRY and
+            len(op_info.stream_protobuf_name) > 0):
+            stream_proto = getattr(protobufs, op_info.stream_protobuf_name)
+            for proto_field_name, _ in analyze_proto(stream_proto).items():
+                stream_params.append(proto_field_name)
+
         def make_op(*args, **kwargs):
             inputs = []
             if op_info.variadic_inputs:
@@ -169,26 +175,34 @@ class OpGenerator:
             extra = kwargs.pop('extra', None)
             args = kwargs.pop('args', None)
 
-            if orig_name in PYTHON_OP_REGISTRY:
-                if len(stream_params) > 0:
-                    stream_args = [(k, kwargs.pop(k, None)) for k in stream_params]
-                    example_list = stream_args[0][1]
-                    N = len(example_list)
-                    if not isinstance(example_list[0], SliceList):
-                        stream_args = [
-                            (k, [SliceList([x]) for x in arg]) for (k, arg) in stream_args]
-                    M = len(stream_args[0][1][0])
+            if len(stream_params) > 0:
+                stream_args = [(k, kwargs.pop(k, None)) for k in stream_params
+                               if k in kwargs]
+                for e in stream_args:
+                    if not isinstance(e[1], list):
+                        raise ScannerException("Per-stream arguments to op `{}` must be a list." \
+                                               .format(orig_name))
+                example_list = stream_args[0][1]
+                N = len(example_list)
+                if not isinstance(example_list[0], SliceList):
+                    stream_args = [
+                        (k, [SliceList([x]) for x in arg]) for (k, arg) in stream_args]
+                M = len(stream_args[0][1][0])
 
+                if name in PYTHON_OP_REGISTRY:
                     stream_args = [
                         SliceList([pickle.dumps({k: v[i][j] for k, v in stream_args})
                                    for j in range(M)])
                         for i in range(N)
                     ]
-                    print(stream_args)
                 else:
-                    stream_args = None
+                    stream_args = [
+                        SliceList([python_to_proto(op_info.stream_protobuf_name,
+                                                   {k: v[i][j] for k, v in stream_args})
+                                  for j in range(M)])
+                        for i in range(N)
+                    ]
             else:
-                # TODO: protobuf op stream args
                 stream_args = None
 
             op = Op(self._sc, name, inputs, device, batch, bounded_state,

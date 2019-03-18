@@ -620,6 +620,7 @@ void MasterServerImpl::GetOpInfoHandler(
     info->CopyFrom(output_column);
   }
   op_info->set_protobuf_name(info->protobuf_name());
+  op_info->set_stream_protobuf_name(info->stream_protobuf_name());
 
   op_info->mutable_result()->set_success(true);
 
@@ -792,7 +793,7 @@ void MasterServerImpl::RegisterOpHandler(
     OpInfo* info = new OpInfo(name, variadic_inputs, input_columns,
                               output_columns, can_stencil, stencil,
                               has_bounded_state, warmup, has_unbounded_state,
-                              "");
+                              "", "");
     OpRegistry* registry = get_op_registry();
     *result = registry->add_op(name, info);
   }

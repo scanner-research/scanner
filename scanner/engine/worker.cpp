@@ -762,9 +762,9 @@ void WorkerImpl::register_op(const proto::OpRegistration* op_registration) {
   bool has_bounded_state = op_registration->has_bounded_state();
   i32 warmup = op_registration->warmup();
   bool has_unbounded_state = op_registration->has_unbounded_state();
-  OpInfo* info = new OpInfo(name, variadic_inputs, input_columns,
-                            output_columns, can_stencil, stencil,
-                            has_bounded_state, warmup, has_unbounded_state, "");
+  OpInfo* info = new OpInfo(
+      name, variadic_inputs, input_columns, output_columns, can_stencil,
+      stencil, has_bounded_state, warmup, has_unbounded_state, "", "");
   OpRegistry* registry = get_op_registry();
   registry->add_op(name, info);
   LOG(INFO) << "Worker " << node_id_ << " registering Op: " << name;

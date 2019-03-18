@@ -322,6 +322,17 @@ def test_space(sc):
     assert num_rows == NamedVideoStream(sc, 'test1').len() * spacing_distance
 
 
+def test_stream_args(sc):
+    frame = sc.io.Input([NamedVideoStream(sc, 'test1')])
+    resized_frame = sc.ops.Resize(frame=frame, width=[640], height=[480])
+    range_frame = sc.streams.Range(resized_frame, [(0, 10)])
+    output_stream = NamedVideoStream(sc, 'test_stream_args')
+    output_op = sc.io.Output(range_frame, [output_stream])
+    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+
+    list(output_stream.load())
+
+
 def test_slice(sc):
     input = NamedVideoStream(sc, 'test1')
     frame = sc.io.Input([input])
