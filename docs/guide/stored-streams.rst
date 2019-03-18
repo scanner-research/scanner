@@ -60,7 +60,7 @@ This code creates a sequence of video frames, :code:`frame`, that can be used in
 
 Here, the frames we read in from before will be written back out to a :py:class:`~scannerpy.storage.NamedVideoStream` called :code:`example-output`.
 
-Reading data locally
+Reading Data Locally
 --------------------
 Stored streams can be read directly in Python by calling the :py:meth:`~scannerpy.storage.StoredStream.load` method:
 
@@ -71,7 +71,7 @@ Stored streams can be read directly in Python by calling the :py:meth:`~scannerp
 
 Reading from this stream lazily loads video frames from :code:`video_stream` as numpy arrays. If we were reading bounding boxes or some other data format, the :code:`load` method would return data elements formatted according to the data type of the stream.
 
-Deleting stored streams
+Deleting Stored Streams
 -----------------------
 Stored stream data is persistent: unless a stored stream is explicitly deleted, the data will stay around and can be used in future Scanner applications. A stored stream can be deleted by invoking the :py:meth:`~scannerpy.storage.StoredStream.delete` method:
 
@@ -85,11 +85,11 @@ If there are multiple streams to delete, it can be more efficient to invoke a bu
 
    video_stream.storage().delete(sc, [...])
 
-
-- Introduce what stored streams are used  for in scanner
-- Talk about storage objects
-- Give an example/  show syntax
-- Talk about how they are used in scanner graphs
-- Explain how multiple streams can be used in a scanner graph
-- Persistence of streams
-- Explain API for streams/storage objects
+..
+    - Introduce what stored streams are used  for in scanner
+    - Talk about storage objects
+    - Give an example/  show syntax
+    - Talk about how they are used in scanner graphs
+    - Explain how multiple streams can be used in a scanner graph
+    - Persistence of streams
+    - Explain API for streams/storage objects
