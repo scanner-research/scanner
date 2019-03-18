@@ -1,4 +1,4 @@
-from scannerpy import Client
+from scannerpy import Client, PerfParams
 from scannerpy.storage import NamedStream, NamedVideoStream
 
 import sys
@@ -29,7 +29,7 @@ def main():
     hist_stream = NamedVideoStream(sc, 'example_hist_strided')
     output = sc.io.Output(hist, [hist_stream])
 
-    sc.run(output)
+    sc.run(output, PerfParams.estimate())
 
     # Loop over the column's rows. Each row is a tuple of the frame number and
     # value for that row.

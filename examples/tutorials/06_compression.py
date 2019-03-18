@@ -1,4 +1,4 @@
-from scannerpy import Client
+from scannerpy import Client, PerfParams
 from scannerpy.storage import NamedStream, NamedVideoStream
 
 import sys
@@ -47,7 +47,7 @@ def main():
 
     low_quality_stream = NamedVideoStream(sc, 'low_quality_video')
     output = sc.io.Output(low_quality_frame, [low_quality_stream])
-    sc.run(output)
+    sc.run(output, PerfParams.estimate())
 
     frame, blurred_frame = make_blurred_frame([video_stream])
     # If no compression is desired, this can be specified by indicating that

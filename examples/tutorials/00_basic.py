@@ -1,5 +1,6 @@
-from scannerpy import Client
+from scannerpy import Client, PerfParams
 from scannerpy.storage import NamedStream, NamedVideoStream
+import scannertools
 
 import numpy as np
 import cv2
@@ -47,7 +48,7 @@ def main():
     frame = sc.io.Input([video_stream1, video_stream2])
     # The output of the `Input` op is an edge in the computation graph which represents
     # the sequence of values produced by `Input`, which in this case are frames from
-    # the two videos we provided. 
+    # the two videos we provided.
 
     # Now we will process the frames from `Input` using a `Histogram` op that computes
     # a color histogram for each frame.
@@ -58,13 +59,17 @@ def main():
     # `NamedVideoStream` but for non-video data), one for each input stream:
     named_stream1 = NamedStream(sc, 'example1_hist')
     named_stream2 = NamedStream(sc, 'example2_hist')
-    # Then, just like we defined an `Input` op to read the input streams,  we'll define 
+    # Then, just like we defined an `Input` op to read the input streams,  we'll define
     # an `Output` op to write to the output streams we just defined:
     output_op = sc.io.Output(hist, [named_stream1, named_stream2])
 
     # Now we can execute this computation graph to compute the output streams.
     # You'll see a progress bar while Scanner is computing the outputs.
-    sc.run(output_op)
+    # Note that the .run function also takes as input a PerfParams object which contains some
+    # parameters that tune the performance of the job, e.g. how many video frames can fit into memory.
+    # By default, you can use PerfParams.estimate() which heuristically guesses an appropriate set of
+    # parameters (but is not guaranteed to work!). Later tutorials will address how to tune these params.
+    sc.run(output_op, PerfParams.estimate())
     # For each of the streams we provided to the one `Input` op in our graph, Scanner will
     # execute the computation graph on the frames from those streams independently. This
     # mechanism allows you to provide Scanner with potentially thousands of videos you

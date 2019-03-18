@@ -1,4 +1,4 @@
-from scannerpy import Client
+from scannerpy import Client, PerfParams
 from scannerpy.storage import NamedStream, NamedVideoStream
 
 import sys
@@ -40,7 +40,7 @@ def main():
     output_stream = NamedVideoStream(sc, 'example_resized')
     output = sc.io.Output(resize, [output_stream])
 
-    sc.run(output)
+    sc.run(output, PerfParams.estimate())
 
     video_stream.delete(sc)
     output_stream.delete(sc)

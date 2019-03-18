@@ -1,4 +1,4 @@
-from scannerpy import Client, DeviceType, FrameType
+from scannerpy import Client, DeviceType, FrameType, PerfParams
 from scannerpy.storage import NamedStream, NamedVideoStream
 from typing import Sequence
 import scannerpy
@@ -51,7 +51,7 @@ def main():
     streams.append(stream)
     output = sc.io.Output(resized_frame, [stream])
 
-    sc.run(output)
+    sc.run(output, PerfParams.estimate())
 
     stream.save_mp4('02_device_resize')
     videos.append('02_device_resize.mp4')
@@ -83,7 +83,7 @@ def main():
     streams.append(stream)
     output = sc.io.Output(resized_frame, [stream])
 
-    sc.run(output)
+    sc.run(output, PerfParams.estimate())
 
     stream.save_mp4('02_batch_resize')
     videos.append('02_batch_resize.mp4')
@@ -192,7 +192,7 @@ def main():
     streams.append(stream)
     output = sc.io.Output(sampled_frame, [stream])
 
-    sc.run(output)
+    sc.run(output, PerfParams.estimate())
 
     stream.save_mp4('02_masked')
     videos.append('02_masked.mp4')

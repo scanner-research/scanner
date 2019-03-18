@@ -79,12 +79,39 @@ class PerfParams(object):
 
     @classmethod
     def manual(cls, work_packet_size, io_packet_size):
+        r"""Explicitly provide values for each performance parameter.
+
+        See class definition for explanation of each parameter.
+
+        Parameters
+        ----------
+        work_packet_size
+
+        io_packet_size
+        """
+
         def resolve(*args, **kwargs):
             return cls(work_packet_size, io_packet_size)
         return resolve
 
     @classmethod
-    def estimate(cls, max_memory_util=0.5, work_io_ratio=0.2):
+    def estimate(cls, max_memory_util=0.5, total_memory=None, work_io_ratio=0.2):
+        r"""Guess the best value of each performance parameters given the computation graph.
+
+        Parameters
+        ----------
+        max_memory_util
+          Target maximum memory utilization as a fraction of the total system memory, e.g. 0.5 means Scanner
+          should try to use 50% of the machine's memory.
+
+        total_memory
+          Total memory on the worker machines in bytes. Memory of the current machine will be used if none is
+          is provided.
+
+        work_io_ratio
+          Ratio of work_packet_size to io_packet_size.
+        """
+
         def resolve(inputs, ops, tasks_in_queue_per_pu):
             max_size = 0
             for ins in inputs:
@@ -110,8 +137,10 @@ class PerfParams(object):
             else:
                 overhead_factor = 4
                 pipeline_instances = cpu_count()
-                total_memory = virtual_memory().total * max_memory_util
-                io_packet_size = int(total_memory / (tasks_in_queue_per_pu * max_size * pipeline_instances * overhead_factor)) // 100 * 100
+                max_memory = virtual_memory().total if total_memory is None else total_memory
+                max_memory *= max_memory_util
+                io_packet_size = int(max_memory / (tasks_in_queue_per_pu * max_size * pipeline_instances * overhead_factor)) // 100 * 100
+                io_packet_size = max(io_packet_size, 100)
                 work_packet_size = int(io_packet_size * work_io_ratio)
 
             return cls(work_packet_size, io_packet_size)
