@@ -1,5 +1,6 @@
 from scannerpy import Client, PerfParams
 from scannerpy.storage import NamedVideoStream
+import scannertools
 
 def main():
     sc = Client()
