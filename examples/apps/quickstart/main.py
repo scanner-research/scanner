@@ -10,8 +10,8 @@ def main():
 
     # Define a Computation Graph
     frame = sc.io.Input([input_stream])
-    sampled_frame = sc.streams.Stride(frame, 3) # Select every third frame
-    resized = sc.ops.Resize(frame=sampled_frame, width=640, height=480) # Resize input frame
+    sampled_frame = sc.streams.Stride(frame, [3]) # Select every third frame
+    resized = sc.ops.Resize(frame=sampled_frame, width=[640], height=[480]) # Resize input frame
 
     # Create a stored stream to represent the output video
     output_stream = NamedVideoStream(sc, 'sample-clip-resized')
