@@ -339,7 +339,7 @@ def test_stream_args(sc):
     range_frame = sc.streams.Range(resized_frame, [(0, 10)])
     output_stream = NamedVideoStream(sc, 'test_stream_args')
     output_op = sc.io.Output(range_frame, [output_stream])
-    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
 
     list(output_stream.load())
 
