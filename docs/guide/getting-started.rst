@@ -1,10 +1,5 @@
 .. _getting-started:
 
-Getting Started
-===============
-
-Let's get started with Scanner by installing it to your machine. 
-
 Installation
 ------------
 
@@ -62,19 +57,9 @@ On MacOS, you can install Scanner using homebrew with the following commands:
 
 .. _source:
 
-Source
-******
+From Source
+***********
 Building Scanner from source is a bit more involved than the other installation options. Check out the :ref:`from_source` page for more information.
-
-Walkthroughs
-------------
-
-Tutorials
----------
-Scanner provides a set of tutorials that provide step-by-step examples of many
-of the basic features provided by Scanner. These tutorials can be found
-`here <https://github.com/scanner-research/scanner/tree/master/examples/tutorials>`__.
-
 
 .. toctree::
    :hidden:

@@ -208,3 +208,9 @@ If you installed Scanner yourself, then run:
 
 Then visit port 8888 on your server/localhost, click through to
 :code:`examples/Walkthrough.ipynb`, and follow the directions in the notebook.
+
+Extended Tutorials
+~~~~~~~~~~~~~~~~~~
+Scanner provides a set of tutorials that provide step-by-step examples of many
+of the basic features provided by Scanner. These tutorials can be found
+`here <https://github.com/scanner-research/scanner/tree/master/examples/tutorials>`__.

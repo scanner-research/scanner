@@ -110,7 +110,7 @@ html_theme_options = {
     'navbar_links': [
         #("Overview", "overview"),
         ("Guide", "guide"),
-        ("Scannertools", "scannertools"),
+        #("Scannertools", "scannertools"),
         ("API", "api"),
         ("Github", "https://github.com/scanner-research/scanner"),
         ("About", "about"),
