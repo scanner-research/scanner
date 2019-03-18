@@ -1,4 +1,4 @@
-from scannerpy import Client
+from scannerpy import Client, PerfParams
 from scannerpy.storage import NamedStream, NamedVideoStream
 
 import sys
@@ -22,7 +22,7 @@ def main():
     output_stream = NamedVideoStream(sc, 'example_hist_profile')
     output = sc.io.Output(histogram, [output_stream])
 
-    sc.run(output)
+    sc.run(output, PerfParams.estimate())
 
     # The profiler contains information about how long different parts of your
     # computation take to run. We use Google Chrome's trace format, which you

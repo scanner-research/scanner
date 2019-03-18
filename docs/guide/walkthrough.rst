@@ -24,7 +24,7 @@ The first step in any Scanner program is to create a :py:class:`~scannerpy.clien
 
 .. code-block:: python
 
-   from scannerpy import Client
+   from scannerpy import Client, PerfParams
 
    sc = Client()
 
@@ -105,9 +105,9 @@ Executing a graph is done by calling :code:`run` on the client object, specifyin
 
 .. code-block:: python
 
-   sc.run(output) 
+   sc.run(output, PerfParams.estimate())
 
-This call will block until Scanner has finished processing the job. You should see a progress bar while Scanner is executing the computation graph. 
+This call will block until Scanner has finished processing the job. You should see a progress bar while Scanner is executing the computation graph. The :py:class:`~scannerpy.common.PerfParams` are parameters used to tune the performance of graph execution, e.g. the number of video frames that should be in memory at any one time. By default, the :py:meth:`~scannerpy.common.PerfParams.estimate` guesses an appropriate value of all parameters for your graph.
 
 Reading from a stored stream
 ----------------------------

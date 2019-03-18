@@ -1,4 +1,4 @@
-from scannerpy import Client, FrameType
+from scannerpy import Client, FrameType, PerfParams
 from scannerpy.storage import NamedStream, NamedVideoStream
 from typing import Sequence
 import scannerpy
@@ -90,7 +90,7 @@ def main():
     stream = NamedVideoStream(sc, '04_masked_video')
     output = sc.io.Output(unsliced_frame, [stream])
 
-    sc.run(output)
+    sc.run(output, PerfParams.estimate())
 
     stream.save_mp4('04_masked')
     stream.delete()

@@ -1,4 +1,4 @@
-from scannerpy import Client, FrameType
+from scannerpy import Client, FrameType, PerfParams
 from scannerpy.storage import FilesStream
 from typing import Sequence
 
@@ -52,7 +52,7 @@ def main():
     resized_stream = FilesStream(resized_paths)
     output = sc.io.Output(encoded_frame, [resized_stream])
 
-    sc.run(output, cache_mode=CacheMode.Overwrite)
+    sc.run(output, PerfParams.estimate(), cache_mode=CacheMode.Overwrite)
 
     print('Finished! Wrote the following images: ' + ', '.join(resized_paths))
 

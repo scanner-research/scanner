@@ -106,7 +106,7 @@ class Client(object):
     ops : OpGenerator
       Represents the set of available Ops. Ops can be created like so:
 
-      `output = db.ops.ExampleOp(arg='example')`
+      `output = sc.ops.ExampleOp(arg='example')`
 
       For a more detailed description, see :class:`~scannerpy.op.OpGenerator`
 
@@ -1332,7 +1332,7 @@ class Client(object):
         Returns
         -------
         List[Table]
-          The new table objects if `output` is a db.sinks.Column, otherwise an
+          The new table objects if `output` is a sc.sinks.Column, otherwise an
           empty list.
         """
 
@@ -1415,7 +1415,7 @@ class Client(object):
             if cache_mode == CacheMode.Error:
                 raise ScannerException(
                     ("Running this job would overwrite output `{}` of op `{}`. You can "
-                     "change this behavior using db.run(cache_mode=CacheMode.Ignore) to "
+                     "change this behavior using sc.run(cache_mode=CacheMode.Ignore) to "
                      "ignore outputs that already exist, or CacheMode.Overwrite to "
                      "overwrite them.").format(next(iter(to_delete[0])), output_ops_list[0]._name))
 
@@ -1726,6 +1726,6 @@ def start_worker(master_address: str,
 
 def _batch_load_column(arg):
     (tables, column, callback) = arg
-    db = Client(start_cluster=False, enable_watchdog=False)
+    sc = Client(start_cluster=False, enable_watchdog=False)
     for t in tables:
-        callback(t, list(db.table(t).column(column).load(workers=1)))
+        callback(t, list(sc.table(t).column(column).load(workers=1)))

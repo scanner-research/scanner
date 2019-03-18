@@ -1,4 +1,4 @@
-from scannerpy import Client, DeviceType, FrameType
+from scannerpy import Client, DeviceType, FrameType, PerfParams
 from scannerpy.storage import NamedStream, NamedVideoStream
 import scannerpy
 import cv2
@@ -81,7 +81,7 @@ def main():
     class_stream = NamedVideoStream(sc, 'class_frames')
     class_output = sc.io.Output(resized_frame_class, [class_stream])
 
-    sc.run([fn_output, class_output])
+    sc.run([fn_output, class_output], PerfParams.estimate())
 
     fn_stream.save_mp4('01_resized_fn')
     class_stream.save_mp4('01_resized_class')
