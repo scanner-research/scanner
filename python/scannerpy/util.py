@@ -1,8 +1,9 @@
-from ..config import mkdir_p
+from .config import mkdir_p
 import os
 import urllib.request, urllib.error, urllib.parse
 import errno
 import tarfile
+
 
 def temp_directory():
     path = os.path.expanduser('~/.scanner/resources')

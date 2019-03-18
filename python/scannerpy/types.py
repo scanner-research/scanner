@@ -67,7 +67,7 @@ def ProtoList(name, proto):
             element.ParseFromString(buf[:serialized_size])
             buf = buf[serialized_size:]
             elements.append(element)
-        return element
+        return elements
 
     return register_type(type(name, (), dict(serializer=serializer, deserializer=deserializer)))
 
@@ -76,10 +76,19 @@ BboxList = ProtoList('BboxList', protobufs.BoundingBox)
 @register_type
 class Histogram:
     def serializer(buf):
-        raise NotImplemented
+        return b''.join([b.tobytes() for b in buf])
 
     def deserializer(buf):
         return np.split(np.frombuffer(buf, dtype=np.dtype(np.int32)), 3)
+
+@register_type
+class EncodedImage:
+    def serializer(buf):
+        raise NotImplemented
+
+    def deserializer(buf):
+        import cv2
+        return cv2.imdecode(np.frombuffer(buf, dtype=np.dtype(np.uint8)), cv2.IMREAD_COLOR)
 
 @register_type
 class NumpyArrayFloat32:

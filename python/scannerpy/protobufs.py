@@ -4,7 +4,6 @@ import sys
 
 from scannerpy.common import *
 
-import scanner.stdlib.stdlib_pb2 as stdlib_types
 import scanner.metadata_pb2 as metadata_types
 import scanner.source_args_pb2 as source_types
 import scanner.sink_args_pb2 as sink_types
@@ -21,11 +20,14 @@ class ProtobufGenerator:
         self._paths = []
         for mod in [
                 misc_types, rpc_types, grpc_types, metadata_types,
-                source_types, sink_types, sampler_types, stdlib_types
+                source_types, sink_types, sampler_types
         ]:
             self.add_module(mod)
 
     def add_module(self, path):
+        if path in self._paths:
+            return
+
         if isinstance(path, str):
             if not os.path.isfile(path):
                 raise ScannerException('Protobuf path does not exist: {}'

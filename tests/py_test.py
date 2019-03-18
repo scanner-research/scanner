@@ -1,10 +1,8 @@
 import scannerpy
 from scannerpy import (Client, Config, DeviceType, FrameType, Job,
-                       ScannerException, Kernel, protobufs, NullElement, SliceList, CacheMode)
-from scannerpy.storage import (
-    NamedStream, NamedVideoStream, FilesStream, PythonStream, SQLInputStream,
-    SQLOutputStream, SQLStorage, AudioStream, CaptionStream)
-from scannerpy.stdlib import readers
+                       ScannerException, Kernel, protobufs, NullElement, SliceList, CacheMode,
+                       PerfParams)
+from scannerpy.storage import NamedStream, NamedVideoStream
 from typing import Dict, List, Sequence, Tuple, Any
 import tempfile
 import toml
@@ -21,10 +19,10 @@ import grpc
 import struct
 import pickle
 import subprocess
-from testing.postgresql import Postgresql
-import psycopg2
 import json
 import time
+import cv2
+from scannerpy import types
 
 cwd = os.path.dirname(os.path.abspath(__file__))
 
@@ -136,6 +134,19 @@ def test_new_client(sc):
     pass
 
 
+def test_perf_params(sc):
+    frame = sc.io.Input([NamedVideoStream(sc, 'test1')])
+    hist = sc.ops.Histogram(frame=frame)
+    ghist = sc.streams.Gather(hist, [[0]])
+    output_op = sc.io.Output(ghist, [NamedStream(sc, '_ignore')])
+
+    sc.run(output_op, PerfParams.manual(10, 10),
+           show_progress=False, cache_mode=CacheMode.Overwrite)
+
+    sc.run(output_op, PerfParams.estimate(),
+           show_progress=False, cache_mode=CacheMode.Overwrite)
+
+
 def test_auto_ingest(sc):
     (vid1_path, vid2_path) = download_videos()
     input = NamedVideoStream(sc, 'test3', path=vid1_path)
@@ -143,7 +154,7 @@ def test_auto_ingest(sc):
     hist = sc.ops.Histogram(frame=frame)
     output = NamedStream(sc, 'test_hist')
     output_op = sc.io.Output(hist, [output])
-    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
 
     run(['rm', '-rf', vid1_path, vid2_path])
 
@@ -181,7 +192,7 @@ def test_profiler(sc):
     output_op = sc.io.Output(ghist, [NamedStream(sc, '_ignore')])
 
     time_start = time.time()
-    sc.run(output_op, show_progress=False, cache_mode=CacheMode.Overwrite)
+    sc.run(output_op, PerfParams.estimate(), show_progress=False, cache_mode=CacheMode.Overwrite)
     output = [sc.table('_ignore')]
     print('Time', time.time() - time_start)
     profiler = output[0].profiler()
@@ -212,7 +223,7 @@ def test_multiple_outputs(sc):
         output_op_1 = sc.io.Output(sample_frame_1, [NamedVideoStream(sc, 'test_mp_1')])
         output_op_2 = sc.io.Output(sample_frame_2, [NamedVideoStream(sc, 'test_mp_2')])
 
-        sc.run([output_op_1, output_op_2], cache_mode=CacheMode.Overwrite, show_progress=False)
+        sc.run([output_op_1, output_op_2], PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
 
     # This should fail
     sampler_args_1 = {'start': 0, 'end': 30}
@@ -249,7 +260,7 @@ def test_multiple_outputs(sc):
     output_op_1 = sc.io.Output(sample_frame_1, [NamedVideoStream(sc, 'test_mp_1')])
     output_op_2 = sc.io.Output(sample_frame_1, [NamedVideoStream(sc, 'test_mp_2')])
 
-    sc.run([output_op_1, output_op_2], cache_mode=CacheMode.Overwrite, show_progress=False)
+    sc.run([output_op_1, output_op_2], PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
 
     num_rows = 0
     for _ in sc.table('test_mp_1').column('frame').load():
@@ -263,7 +274,7 @@ def test_sample(sc):
         sample_frame = sampler(input=frame, **sampler_args)
         output = NamedVideoStream(sc, 'test_sample')
         output_op = sc.io.Output(sample_frame, [output])
-        sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+        sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
 
         num_rows = len(list(output.load()))
         assert num_rows == expected_rows
@@ -290,7 +301,7 @@ def test_space(sc):
         space_hist = spacer(input=hist, spacings=[spacing])
         output = NamedStream(sc, 'test_space')
         output_op = sc.io.Output(space_hist, [output])
-        sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+        sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
         return output
 
     # # Repeat
@@ -340,7 +351,7 @@ def test_slice(sc):
     unsliced_frame = sc.streams.Unslice(slice_frame)
     output = NamedStream(sc, 'test_slicing')
     output_op = sc.io.Output(unsliced_frame, [output])
-    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
     assert input.len() == output.len()
 
 
@@ -357,7 +368,7 @@ def test_overlapping_slice(sc):
     unsliced_frame = sc.streams.Unslice(sample_frame)
     output = NamedStream(sc, 'test_slicing')
     output_op = sc.io.Output(unsliced_frame, [output])
-    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
     assert output.len() == 30
 
 
@@ -384,7 +395,7 @@ def test_slice_args(sc):
     unsliced_frame = sc.streams.Unslice(test)
     output = NamedStream(sc, 'test_slicing')
     output_op = sc.io.Output(unsliced_frame, [output])
-    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
 
     num_rows = 0
     list(output.load())
@@ -398,7 +409,7 @@ def test_bounded_state(sc):
     sampled_increment = sc.streams.Gather(increment, indices=[[0, 10, 25, 26, 27]])
     output = NamedStream(sc, 'test_bounded_state')
     output_op = sc.io.Output(sampled_increment, [output])
-    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
 
     num_rows = 0
     expected_output = [0, warmup, warmup, warmup + 1, warmup + 2]
@@ -417,7 +428,7 @@ def test_unbounded_state(sc):
     unsliced_increment = sc.streams.Unslice(increment)
     output = NamedStream(sc, 'test_unbounded_state')
     output_op = sc.io.Output(unsliced_increment, [output])
-    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
     assert output.len() == input.len()
 
 
@@ -430,17 +441,14 @@ class DeviceTestBench:
         self.run(sc, DeviceType.GPU)
 
 
-class TestHistogram(DeviceTestBench):
-    def run(self, sc, device):
-        input = NamedVideoStream(sc, 'test1')
-        frame = sc.io.Input([input])
-        hist = sc.ops.Histogram(frame=frame, device=device)
-        output = NamedStream(sc, 'test_hist')
-        output_op = sc.io.Output(hist, [output])
+@scannerpy.register_python_op()
+def Histogram(config, frame: FrameType) -> types.Histogram:
+    return [cv2.calcHist([frame], [i], None, [16], [0,256]) for i in range(3)]
 
-        sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
-        next(output.load())
 
+@scannerpy.register_python_op(stencil=[0, 1])
+def OpticalFlow(config, frame: Sequence[FrameType]) -> FrameType:
+    return frame[0] # TODO
 
 class TestInplace(DeviceTestBench):
     def run(self, sc, device):
@@ -450,26 +458,8 @@ class TestInplace(DeviceTestBench):
         output = NamedStream(sc, 'test_hist')
         output_op = sc.io.Output(hist, [output])
 
-        sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+        sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
         next(output.load())
-
-
-class TestOpticalFlow(DeviceTestBench):
-    def run(self, sc, device):
-        input = NamedVideoStream(sc, 'test1')
-        frame = sc.io.Input([input])
-        flow = sc.ops.OpticalFlow(frame=frame, stencil=[-1, 0], device=device)
-        flow_range = sc.streams.Range(flow, ranges=[{'start': 0, 'end': 50}])
-        output = NamedStream(sc, 'test_flow')
-        output_op = sc.io.Output(flow_range, [output])
-        sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
-        assert output.len() == 50
-
-        flow_array = next(output.load())
-        assert flow_array.dtype == np.float32
-        assert flow_array.shape[0] == 480
-        assert flow_array.shape[1] == 640
-        assert flow_array.shape[2] == 2
 
 
 def test_stencil(sc):
@@ -481,6 +471,7 @@ def test_stencil(sc):
     output = NamedStream(sc, 'test_stencil')
     output_op = sc.io.Output(flow, [output])
     sc.run(output_op,
+           PerfParams.estimate(),
            cache_mode=CacheMode.Overwrite,
            show_progress=False,
            pipeline_instances_per_node=1)
@@ -492,6 +483,7 @@ def test_stencil(sc):
     output = NamedStream(sc, 'test_stencil')
     output_op = sc.io.Output(flow, [output])
     sc.run(output_op,
+           PerfParams.estimate(),
            cache_mode=CacheMode.Overwrite,
            show_progress=False,
            pipeline_instances_per_node=1)
@@ -502,6 +494,7 @@ def test_stencil(sc):
     output = NamedStream(sc, 'test_stencil')
     output_op = sc.io.Output(flow, [output])
     sc.run(output_op,
+           PerfParams.estimate(),
            cache_mode=CacheMode.Overwrite,
            show_progress=False,
            pipeline_instances_per_node=1)
@@ -513,6 +506,7 @@ def test_stencil(sc):
     output = NamedStream(sc, 'test_stencil')
     output_op = sc.io.Output(sample_flow, [output])
     sc.run(output_op,
+           PerfParams.estimate(),
            cache_mode=CacheMode.Overwrite,
            show_progress=False,
            pipeline_instances_per_node=1)
@@ -529,6 +523,7 @@ def test_wider_than_packet_stencil(sc):
 
     sc.run(
         output_op,
+        PerfParams.estimate(),
         cache_mode=CacheMode.Overwrite,
         show_progress=False,
         io_packet_size=1,
@@ -561,7 +556,7 @@ def test_wider_than_packet_stencil(sc):
 #         output_op: 'test_cpp_source',
 #     })
 
-#     sc.run(output_op, [job], cache_mode=CacheMode.Overwrite, show_progress=False)
+#     sc.run(output_op, [job], PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
 #     tables = [sc.table('test_cpp_source')]
 
 #     num_rows = 0
@@ -570,81 +565,6 @@ def test_wider_than_packet_stencil(sc):
 #         assert val == num_rows
 #         num_rows += 1
 #     assert num_elements == tables[0].num_rows()
-
-
-def test_files_source(sc):
-    # Write test files
-    path_template = '/tmp/files_source_test_{:d}'
-    num_elements = 4
-    paths = []
-    for i in range(num_elements):
-        path = path_template.format(i)
-        with open(path, 'wb') as f:
-            # Write data
-            f.write(struct.pack('=Q', i))
-        paths.append(path)
-
-    data = sc.io.Input([FilesStream(paths=paths)])
-    pass_data = sc.ops.Pass(input=data)
-    output = NamedStream(sc, 'test_files_source')
-    output_op = sc.io.Output(pass_data, [output])
-    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
-
-    num_rows = 0
-    for buf in output.load():
-        (val, ) = struct.unpack('=Q', buf)
-        assert val == num_rows
-        num_rows += 1
-    assert num_elements == num_rows
-
-
-def test_files_sink(sc):
-    # Write initial test files
-    path_template = '/tmp/files_source_test_{:d}'
-    num_elements = 4
-    input_paths = []
-    for i in range(num_elements):
-        path = path_template.format(i)
-        with open(path, 'wb') as f:
-            # Write data
-            f.write(struct.pack('=Q', i))
-        input_paths.append(path)
-
-    # Write output test files
-    path_template = '/tmp/files_sink_test_{:d}'
-    num_elements = 4
-    output_paths = []
-    for i in range(num_elements):
-        path = path_template.format(i)
-        output_paths.append(path)
-    data = sc.io.Input([FilesStream(paths=input_paths)])
-    pass_data = sc.ops.Pass(input=data)
-    output = FilesStream(paths=output_paths)
-    output_op = sc.io.Output(pass_data, [output])
-    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
-
-    # Read output test files
-    for i, s in enumerate(output.load()):
-        d, = struct.unpack('=Q', s)
-        assert d == i
-
-
-def test_python_source(sc):
-    # Write test files
-    py_data = [{'{:d}'.format(i): i} for i in range(4)]
-
-    data = sc.io.Input([PythonStream(py_data)])
-    pass_data = sc.ops.Pass(input=data)
-    output = NamedStream(sc, 'test_python_source')
-    output_op = sc.io.Output(pass_data, [output])
-    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
-
-    num_rows = 0
-    for i, buf in enumerate(output.load()):
-        d = pickle.loads(buf)
-        assert d['{:d}'.format(i)] == i
-        num_rows += 1
-    assert num_rows == 4
 
 
 @scannerpy.register_python_op()
@@ -672,7 +592,7 @@ def test_python_kernel(sc):
     test_out = sc.ops.TestPy(frame=range_frame, kernel_arg=1, x=[0], y=[0])
     output = NamedStream(sc, 'test_hist')
     output_op = sc.io.Output(test_out, [output])
-    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
     next(output.load())
 
 
@@ -708,7 +628,7 @@ def test_fetch_resources(sc):
         output = NamedStream(sc, 'test_hist')
         output_op = sc.io.Output(test_out, [output])
         sc.run(
-            output_op, cache_mode=CacheMode.Overwrite, show_progress=False,
+            output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False,
             pipeline_instances_per_node=2)
 
 
@@ -730,7 +650,7 @@ def test_python_batch_kernel(sc):
     test_out = sc.ops.TestPyBatch(frame=range_frame, batch=50)
     output = NamedStream(sc, 'test_hist')
     output_op = sc.io.Output(test_out, [output])
-    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
     next(output.load())
 
 
@@ -751,7 +671,7 @@ def test_python_stencil_kernel(sc):
     test_out = sc.ops.TestPyStencil(frame=range_frame)
     output = NamedStream(sc, 'test_hist')
     output_op = sc.io.Output(test_out, [output])
-    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
     next(output.load())
 
 
@@ -781,7 +701,7 @@ def test_python_stencil_batch_kernel(sc):
     test_out = sc.ops.TestPyStencilBatch(frame=range_frame, batch=50)
     output = NamedStream(sc, 'test_hist')
     output_op = sc.io.Output(test_out, [output])
-    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
     next(output.load())
 
 
@@ -793,29 +713,13 @@ def test_bind_op_args(sc):
     outputs = [NamedStream(sc, 'test_hist_0'), NamedStream(sc, 'test_hist_1')]
     output_op = sc.io.Output(test_out, outputs)
     pairs = [(1, 5), (10, 50)]
-    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
 
     for i, (x, y) in enumerate(pairs):
         values = list(outputs[i].load())
         p = values[0]
         assert p['x'] == x
         assert p['y'] == y
-
-
-def test_blur(sc):
-    input = NamedVideoStream(sc, 'test1')
-    frame = sc.io.Input([input])
-    range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
-    blurred_frame = sc.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
-    output = NamedVideoStream(sc, 'test_blur')
-    output_op = sc.io.Output(blurred_frame, [output])
-    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
-
-    frame_array = next(output.load())
-    assert frame_array.dtype == np.uint8
-    assert frame_array.shape[0] == 480
-    assert frame_array.shape[1] == 640
-    assert frame_array.shape[2] == 3
 
 
 def test_lossless(sc):
@@ -825,7 +729,7 @@ def test_lossless(sc):
     blurred_frame = sc.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
     output = NamedVideoStream(sc, 'test_blur')
     output_op = sc.io.Output(blurred_frame.lossless(), [output])
-    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
     next(output.load())
 
 
@@ -836,7 +740,7 @@ def test_compress(sc):
     blurred_frame = sc.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
     output = NamedVideoStream(sc, 'test_blur')
     output_op = sc.io.Output(blurred_frame.compress('video', bitrate=1 * 1024 * 1024), [output])
-    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
     next(output.load())
 
 
@@ -847,7 +751,7 @@ def test_save_mp4(sc):
     blurred_frame = sc.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
     output = NamedVideoStream(sc, 'test_save_mp4')
     output_op = sc.io.Output(blurred_frame, [output])
-    sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
+    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
 
     f = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
     f.close()
@@ -886,7 +790,7 @@ def test_no_workers(no_workers_sc):
 
     exc = False
     try:
-        sc.run(output_op, show_progress=False, cache_mode=CacheMode.Overwrite)
+        sc.run(output_op, PerfParams.estimate(), show_progress=False, cache_mode=CacheMode.Overwrite)
     except ScannerException:
         exc = True
 
@@ -982,7 +886,7 @@ def fault_sc():
 #         }
 #     )
 #
-#     table = fault_sc.run(output_op, [job], pipeline_instances_per_node=1, cache_mode=CacheMode.Overwrite,
+#     table = fault_sc.run(output_op, [job], pipeline_instances_per_node=1, PerfParams.estimate(), cache_mode=CacheMode.Overwrite,
 #                          show_progress=False)
 #     table = table[0]
 #     assert len([_ for _, _ in table.column('dummy').load()]) == 15
@@ -1070,6 +974,7 @@ def test_fault_tolerance(fault_sc):
 
     fault_sc.run(
         output_op,
+        PerfParams.estimate(),
         pipeline_instances_per_node=1,
         cache_mode=CacheMode.Overwrite,
         show_progress=False)
@@ -1141,6 +1046,7 @@ def test_job_blacklist(blacklist_sc):
     output_op = sc.io.Output(failed_output, [output])
     sc.run(
         output_op,
+        PerfParams.estimate(),
         cache_mode=CacheMode.Overwrite,
         show_progress=False,
         pipeline_instances_per_node=1)
@@ -1200,6 +1106,7 @@ def test_job_timeout(timeout_sc):
 
     sc.run(
         output_op,
+        PerfParams.estimate(),
         pipeline_instances_per_node=1,
         task_timeout=0.1,
         cache_mode=CacheMode.Overwrite,
@@ -1207,162 +1114,6 @@ def test_job_timeout(timeout_sc):
 
     assert not output.committed()
 
-
-@pytest.fixture(scope='module')
-def sql_sc(sc):
-    with Postgresql() as postgresql:
-        conn = psycopg2.connect(**postgresql.dsn())
-        cur = conn.cursor()
-
-        cur.execute(
-            'CREATE TABLE test (id serial PRIMARY KEY, a integer, b integer, c text, d varchar(255), e boolean, f float, grp integer)'
-        )
-        cur.execute(
-            "INSERT INTO test (a, b, c, d, e, f, grp) VALUES (10, 0, 'hi', 'hello', true, 2.0, 0)"
-        )
-        cur.execute(
-            "INSERT INTO test (a, b, c, d, e, f, grp) VALUES (20, 0, 'hi', 'hello', true, 2.0, 0)"
-        )
-        cur.execute(
-            "INSERT INTO test (a, b, c, d, e, f, grp) VALUES (30, 0, 'hi', 'hello', true, 2.0, 1)"
-        )
-        cur.execute('CREATE TABLE jobs (id serial PRIMARY KEY, name text)')
-        cur.execute(
-            'CREATE TABLE test2 (id serial PRIMARY KEY, b integer, s text)')
-        conn.commit()
-
-        sql_params = postgresql.dsn()
-        sql_config = protobufs.SQLConfig(
-            hostaddr=sql_params['host'],
-            port=sql_params['port'],
-            dbname=sql_params['database'],
-            user=sql_params['user'],
-            adapter='postgres')
-
-        yield sc, SQLStorage(config=sql_config, job_table='jobs'), cur
-
-        cur.close()
-        conn.close()
-
-
-@scannerpy.register_python_op(name='AddOne')
-def add_one(config, row: bytes) -> bytes:
-    row = json.loads(row.decode('utf-8'))
-    return json.dumps([{'id': r['id'], 'b': r['a'] + 1} for r in row])
-
-
-def test_sql(sql_sc):
-    (sc, storage, cur) = sql_sc
-
-    cur.execute('SELECT COUNT(*) FROM test');
-    n, = cur.fetchone()
-
-    row = sc.io.Input([SQLInputStream(
-        query=protobufs.SQLQuery(
-            fields='test.id as id, test.a, test.c, test.d, test.e, test.f',
-            table='test',
-            id='test.id',
-            group='test.id'),
-        filter='true',
-        storage=storage,
-        num_elements=n)])
-    row2 = sc.ops.AddOne(row=row)
-    output_op = sc.io.Output(row2, [SQLOutputStream(
-        table='test',
-        storage=storage,
-        job_name='foobar',
-        insert=False)])
-    sc.run(output_op)
-
-    cur.execute('SELECT b FROM test')
-    assert cur.fetchone()[0] == 11
-
-    cur.execute('SELECT name FROM jobs')
-    assert cur.fetchone()[0] == 'foobar'
-
-@scannerpy.register_python_op(name='AddAll')
-def add_all(config, row: bytes) -> bytes:
-    row = json.loads(row.decode('utf-8'))
-    total = sum([r['a'] for r in row])
-    return json.dumps([{'id': r['id'], 'b': total} for r in row])
-
-
-def test_sql_grouped(sql_sc):
-    (sc, storage, cur) = sql_sc
-
-    row = sc.io.Input([SQLInputStream(
-        storage=storage,
-        query=protobufs.SQLQuery(
-            fields='test.id as id, test.a',
-            table='test',
-            id='test.id',
-            group='test.grp'),
-        filter='true')])
-    row2 = sc.ops.AddAll(row=row)
-    output_op = sc.io.Output(
-        row2, [SQLOutputStream(storage=storage, table='test', job_name='test', insert=False)])
-    sc.run(output_op)
-
-    cur.execute('SELECT b FROM test')
-    assert cur.fetchone()[0] == 30
-
-
-@scannerpy.register_python_op(name='SQLInsertTest')
-def sql_insert_test(config, row: bytes) -> bytes:
-    row = json.loads(row.decode('utf-8'))
-    return json.dumps([{'s': 'hello world', 'b': r['a'] + 1} for r in row])
-
-
-def test_sql_insert(sql_sc):
-    (sc, storage, cur) = sql_sc
-
-    row = sc.io.Input([SQLInputStream(
-        storage=storage,
-        query=protobufs.SQLQuery(
-            fields='test.id as id, test.a',
-            table='test',
-            id='test.id',
-            group='test.grp'),
-        filter='true')])
-    row2 = sc.ops.SQLInsertTest(row=row)
-    output_op = sc.io.Output(
-        row2, [SQLOutputStream(
-            storage=storage, table='test2', job_name='test', insert=True)])
-    sc.run(output_op, show_progress=False)
-
-    cur.execute('SELECT s FROM test2')
-    assert cur.fetchone()[0] == "hello world"
-
-
-def test_audio(sc):
-    (vid_path, _) = download_videos()
-    audio = sc.io.Input([AudioStream(vid_path, 1.0)])
-    ignored = sc.ops.DiscardFrame(ignore=audio)
-    output = sc.io.Output(ignored, [NamedStream(sc, 'audio_test')])
-    sc.run(output, cache_mode=CacheMode.Overwrite)
-
-
-def download_transcript():
-    url = "https://storage.googleapis.com/scanner-data/test/transcript.cc1.srt"
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.cc1.srt') as f:
-        resp = requests.get(url, stream=True)
-        assert resp.ok
-        for block in resp.iter_content(1024):
-            f.write(block)
-        return f.name
-
-@scannerpy.register_python_op(name='DecodeCap')
-def decode_cap(config, cap: bytes) -> bytes:
-    cap = json.loads(cap.decode('utf-8'))
-    return b' '
-
-
-def test_captions(sc):
-    caption_path = download_transcript()
-    captions = sc.io.Input([CaptionStream(caption_path, window_size=10.0, max_time=3600)])
-    ignored = sc.ops.DecodeCap(cap=captions)
-    output = sc.io.Output(ignored, [NamedStream(sc, 'caption_test')])
-    sc.run(output, cache_mode=CacheMode.Overwrite, pipeline_instances_per_node=1)
 
 
 @scannerpy.register_python_op(name='CacheTest')
@@ -1375,13 +1126,13 @@ def test_cache_mode(sc):
     out = sc.ops.CacheTest(n=n)
     output = NamedStream(sc, 'test_cache')
     output_op = sc.io.Output(out, [output])
-    sc.run(output_op)
+    sc.run(output_op, PerfParams.estimate())
 
     assert next(output.load()) == 1
 
     exc = False
     try:
-        sc.run(output_op)
+        sc.run(output_op, PerfParams.estimate())
     except ScannerException:
         exc = True
     assert exc
@@ -1390,10 +1141,10 @@ def test_cache_mode(sc):
     out = sc.ops.CacheTest(n=n)
     output_op = sc.io.Output(out, [output])
 
-    sc.run(output_op, cache_mode=CacheMode.Ignore)
+    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Ignore)
     assert next(output.load()) == 1
 
-    sc.run(output_op, cache_mode=CacheMode.Overwrite)
+    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite)
     assert next(output.load()) == 2
 
 

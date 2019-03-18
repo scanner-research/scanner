@@ -19,7 +19,6 @@ def main():
     shutil.copytree(PYTHON_DIR, PIP_DIR)
     #os.makedirs(PIP_DIR, exist_ok=True)
     #os.makedirs(PIP_DIR + '/scanner', exist_ok=True)
-    #os.makedirs(PIP_DIR + '/scanner/stdlib', exist_ok=True)
 
     # Copy python into pip directory
     #shutil.copytree(SCANNERPY_DIR, PIP_DIR + '/scannerpy')
@@ -30,14 +29,10 @@ def main():
         EXT = '.dylib'
 
     # Copy libraries into pip directory
-    LIBRARIES = [
-        os.path.join(BUILD_DIR, 'libscanner' + EXT),
-        os.path.join(BUILD_DIR, 'stdlib', 'libscanner_stdlib' + EXT)
-       ]
     os.makedirs(os.path.join(PIP_DIR, 'scannerpy', 'lib'))
-    for library in LIBRARIES:
-        name = os.path.splitext(os.path.basename(library))[0]
-        shutil.copyfile(library, os.path.join(PIP_DIR, 'scannerpy', 'lib', name + EXT))
+    library = os.path.join(BUILD_DIR, 'libscanner' + EXT)
+    name = os.path.splitext(os.path.basename(library))[0]
+    shutil.copyfile(library, os.path.join(PIP_DIR, 'scannerpy', 'lib', name + EXT))
 
 
     def copy_partial_tree(from_dir, to_dir, pattern):
@@ -78,9 +73,6 @@ def main():
     copy_partial_tree(
         os.path.join(BUILD_DIR, 'scanner'), os.path.join(PIP_DIR, 'scanner'),
         '*.py')
-    copy_partial_tree(
-        os.path.join(BUILD_DIR, 'stdlib'),
-        os.path.join(PIP_DIR, 'scanner', 'stdlib'), '*.py')
 
     # Copy cmake files
     os.makedirs(os.path.join(PIP_DIR, 'scannerpy', 'cmake'))
@@ -99,11 +91,17 @@ def main():
         os.path.join(PIP_DIR, 'scannerpy', 'include', 'scanner'), '*.h')
     copy_partial_tree(
         os.path.join(SCANNER_DIR, 'scanner'),
+        os.path.join(PIP_DIR, 'scannerpy', 'include', 'scanner'), '*.hpp')
+    copy_partial_tree(
+        os.path.join(SCANNER_DIR, 'scanner'),
         os.path.join(PIP_DIR, 'scannerpy', 'include', 'scanner'), '*.inl')
 
     copy_partial_tree(
         os.path.join(BUILD_DIR, 'scanner'),
         os.path.join(PIP_DIR, 'scannerpy', 'include', 'scanner'), '*.h')
+    copy_partial_tree(
+        os.path.join(BUILD_DIR, 'scanner'),
+        os.path.join(PIP_DIR, 'scannerpy', 'include', 'scanner'), '*.hpp')
 
     include_files = glob_files(
         os.path.join(PIP_DIR, 'scannerpy', 'include'), 'include')
@@ -115,12 +113,10 @@ def main():
     REQUIRED_PACKAGES = [
         'protobuf == 3.6.1', 'grpcio == 1.16.0', 'toml >= 0.9.2',
         'numpy >= 1.12.0,<=1.16.0', 'tqdm >= 4.19.5', 'cloudpickle >=0.5.3,<=0.6.1',
-        'attrs == 18.2.0'
+        'attrs == 18.2.0', 'psutil == 5.6.1'
        ]
 
-    TEST_PACKAGES = [
-        'pytest', 'psycopg2-binary == 2.7.6.1', 'testing.postgresql == 1.3.0'
-       ]
+    TEST_PACKAGES = ['pytest']
 
     if platform == 'linux' or platform == 'linux2':
         REQUIRED_PACKAGES.append('python-prctl >= 1.7.0')
