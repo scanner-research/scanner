@@ -82,9 +82,8 @@ def main():
     assert num_rows == video_stream1.len()
 
     # Just to cleanup, we'll delete the streams we created:
-    for stream in [video_stream1, video_stream2, named_stream1, named_stream2]:
-        stream.delete(sc)
-        
+    streams = [video_stream1, video_stream2, named_stream1, named_stream2]
+    streams[0].storage().delete(sc, streams)
 
 
 # It is **CRITICALLY IMPORTANT** that any scripts using Scanner should have their top-level

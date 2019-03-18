@@ -12,6 +12,7 @@
    guide/quickstart
    guide/getting-started
    guide/walkthrough
+   guide/stored-streams
    guide/graphs
    guide/ops
    guide/extensions

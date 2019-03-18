@@ -40,10 +40,8 @@ from scannerpy.protobufs import protobufs, python_to_proto
 from scannerpy.job import Job
 from scannerpy.kernel import Kernel
 from scannerpy import types as scannertypes
-from scannerpy.storage import Storage, StoredStream, NamedVideoStream
+from scannerpy.storage import StorageBackend, StoredStream, NamedVideoStream
 from scannerpy.io import IOGenerator
-
-from storehouse import StorageConfig, StorageBackend
 
 import scannerpy._python as bindings
 import scanner.metadata_pb2 as metadata_types
