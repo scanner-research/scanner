@@ -17,7 +17,7 @@ Here, the :code:`sc.io.Input` and :code:`sc.ops.Resize` operations are both node
 
 Processing lists of stored streams
 ----------------------------------
-The partial computation graph defined above only processes one video, but Scanner supports defining graphs that operate on hundreds or thousands of videos at once. To process multiple videos, create a list of :ref:`stored-streams` representing those videos and then pass that list to the input operation:
+The partial computation graph defined above only processes one video, but Scanner supports defining graphs that operate on hundreds or even thousands of videos at once. To process multiple videos, create a list of :ref:`stored-streams` representing those videos and then pass that list to the input operation:
 
 .. code-block:: python
 
@@ -31,7 +31,7 @@ The partial computation graph defined above only processes one video, but Scanne
                                  width=[640, 640, ..., 640],
                                  height=[480, 480, ..., 480])
 
-Notice the other change that we made to this graph: the :code:`width` and :code:`height` arguments to :code:`Resize` are now lists of the same length as :code:`video_streams`. This is because :code:`height` and :code:`width` are *stream rate* arguments to  :code:`Resize`. Check out the section on *Argument Rates* in the :ref:`ops` guide to learn more.
+Notice the other change that we made to this graph: the :code:`width` and :code:`height` arguments to :code:`Resize` are now lists of the same length as :code:`video_streams`. This is because :code:`height` and :code:`width` are *stream rate* arguments to  :code:`Resize`. Check out the section on *Parameter Rates* in the :ref:`ops` guide to learn more.
 
 Executing a computation graph
 -----------------------------
