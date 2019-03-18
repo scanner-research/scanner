@@ -7,14 +7,14 @@ from concurrent.futures import ThreadPoolExecutor
 import multiprocessing as mp
 import numpy as np
 
-
 from storehouse import RandomReadFile
-from scannerpy.stdlib import readers
 from scannerpy.common import *
 from scannerpy.job import Job
 from scannerpy import types as scannertypes
 from scannerpy.protobufs import protobufs
 from scannerpy.storage import NamedVideoStream, NamedStream, NullElement
+
+
 
 LOAD_SPARSITY_THRESHOLD = 10
 
@@ -231,6 +231,7 @@ class Column(object):
         if (self._descriptor.type == protobufs.Video
                 and self._video_descriptor.codec_type ==
                 protobufs.VideoDescriptor.H264):
+            import scannertools
             png_table_name = self._sc._png_dump_prefix.format(
                 self._table.name(), self._name)
             frame = self._sc.io.Input([NamedVideoStream(self._sc, self._table.name())])
@@ -241,8 +242,8 @@ class Column(object):
             img = self._sc.ops.ImageEncoder(frame=enc_input)
             output = [NamedStream(self._sc, png_table_name)]
             output_op = self._sc.io.Output(img, output)
-            self._sc.run(output_op, cache_mode=CacheMode.Overwrite, show_progress=False)
-            return output[0].load(fn=readers.image)
+            self._sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
+            return output[0].load()
         elif self._descriptor.type == protobufs.Video:
             frame_type = self._video_descriptor.frame_type
             if frame_type == protobufs.U8:
@@ -251,7 +252,15 @@ class Column(object):
                 dtype = np.float32
             elif frame_type == protobufs.F64:
                 dtype = np.float64
-            parser_fn = readers.raw_frame_gen(
+
+            def raw_frame_gen(shape0, shape1, shape2, typ):
+                def parser(bufs):
+                    output = np.frombuffer(bufs, dtype=typ)
+                    return output.reshape((shape0, shape1, shape2))
+
+                return parser
+
+            parser_fn = raw_frame_gen(
                 self._video_descriptor.height, self._video_descriptor.width,
                 self._video_descriptor.channels, dtype)
             return self._load(fn=parser_fn, rows=rows, workers=workers)

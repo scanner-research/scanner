@@ -3,7 +3,7 @@ import grpc
 import copy
 
 from scannerpy.common import *
-from scannerpy.op import OpColumn, collect_per_stream_args
+from scannerpy.op import OpColumn, collect_per_stream_args, check_modules
 from scannerpy.protobufs import python_to_proto, protobufs, analyze_proto
 
 
@@ -93,6 +93,8 @@ class SinkGenerator:
         self._sc = sc
 
     def __getattr__(self, name):
+        check_modules(self._sc)
+
         # Use Sequence as alias of Column
         if name == 'Sequence' or name == 'FrameSequence':
             name = name.replace('Sequence', 'Column')

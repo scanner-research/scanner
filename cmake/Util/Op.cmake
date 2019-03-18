@@ -34,9 +34,12 @@ function(build_op)
       DEPENDS ${PROTO_HDRS} ${PROTO_PY})
     add_library(${args_LIB_NAME} SHARED ${args_CPP_SRCS} ${PROTO_SRCS})
     add_dependencies(${args_LIB_NAME} ${args_LIB_NAME}_proto_files)
+    install(FILES ${PROTO_HDRS} ${PROTO_PY} DESTINATION .)
   else()
     add_library(${args_LIB_NAME} SHARED ${args_CPP_SRCS})
   endif()
+
+  install(TARGETS ${args_LIB_NAME} DESTINATION .)
 
   # NO_FLAGS is primarily for special treatment of libstdlib right now
   if("${args_NO_FLAGS}" STREQUAL "")
@@ -44,7 +47,7 @@ function(build_op)
     execute_process(
       OUTPUT_VARIABLE SCANNER_LIB_PATH
       COMMAND
-      python3 -c "import scannerpy.stdlib.build_flags as b; b.print_lib()")
+      python3 -c "import scannerpy.build_flags as b; b.print_lib()")
 
     if(APPLE)
       target_link_libraries(${args_LIB_NAME} PUBLIC
@@ -57,7 +60,7 @@ function(build_op)
     execute_process(
       OUTPUT_VARIABLE BUILD_FLAGS
       COMMAND
-      python3 -c "import scannerpy.stdlib.build_flags as b; b.print_compile_flags()")
+      python3 -c "import scannerpy.build_flags as b; b.print_compile_flags()")
     set_target_properties(
       ${args_LIB_NAME} PROPERTIES
       COMPILE_FLAGS "${BUILD_FLAGS}")
@@ -65,7 +68,7 @@ function(build_op)
     execute_process(
       OUTPUT_VARIABLE LINK_FLAGS
       COMMAND
-      python3 -c "import scannerpy.stdlib.build_flags as b; b.print_link_flags()")
+      python3 -c "import scannerpy.build_flags as b; b.print_link_flags()")
     set_target_properties(
       ${args_LIB_NAME} PROPERTIES
       LINK_FLAGS "${LINK_FLAGS}")

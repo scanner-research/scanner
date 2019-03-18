@@ -15,7 +15,7 @@ import subprocess
 import cloudpickle
 import types
 from tqdm import tqdm
-from typing import Sequence, List, Union, Tuple, Optional
+from typing import Sequence, List, Union, Tuple, Optional, Callable
 
 if sys.platform == 'linux' or sys.platform == 'linux2':
     import prctl
@@ -52,6 +52,7 @@ import scanner.types_pb2 as misc_types
 
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
+
 
 
 class Client(object):
@@ -181,6 +182,7 @@ class Client(object):
         self.io = IOGenerator(self)
         self._op_cache = {}
         self._python_ops = set()
+        self._modules = set()
         self._enumerator_info_cache = {}
         self._sink_info_cache = {}
 
@@ -532,6 +534,7 @@ class Client(object):
         op_path.path = so_path
         self._try_rpc(
             lambda: self._master.LoadOp(op_path, timeout=self._grpc_timeout))
+        self._modules.add((so_path, proto_path))
 
     def has_gpu(self):
         try:
@@ -693,14 +696,6 @@ class Client(object):
             if slept_so_far >= sleep_time:
                 raise ScannerException(
                     'Timed out waiting to connect to master')
-
-        # Load stdlib
-        if sys.platform == 'linux' or sys.platform == 'linux2':
-            EXT = '.so'
-        else:
-            EXT = '.dylib'
-        self.load_op('__stdlib' + EXT,
-                     '{}/../scanner/stdlib/stdlib_pb2.py'.format(SCRIPT_DIR))
 
     def start_workers(self, workers: List[str]):
         r"""Starts Scanner workers.
@@ -1286,9 +1281,8 @@ class Client(object):
 
     def run(self,
             outputs: Union[Sink, List[Sink]],
+            perf_params: Callable[[], PerfParams],
             cache_mode: CacheMode = CacheMode.Error,
-            work_packet_size: int = 32,
-            io_packet_size: int = 128,
             cpu_pool: str = None,
             gpu_pool: str = None,
             pipeline_instances_per_node: int = None,
@@ -1310,17 +1304,6 @@ class Client(object):
         cache_mode
           Determines whether to overwrite, ignore, or raise an error when running a job on
           existing outputs.
-
-        work_packet_size
-          The size of the packets of intermediate elements to pass between
-          operations. This parameter only affects performance and should not
-          affect the output.
-
-        io_packet_size
-          The size of the packets of elements to read and write from Sources and
-          sinks. This parameter only affects performance and should not
-          affect the output. When reading and writing to high latency storage
-          (such as the cloud), it is helpful to increase this value.
 
         cpu_pool
 
@@ -1540,12 +1523,16 @@ class Client(object):
                         oargs.op_args.append(arg)
                         #oargs.op_args.append(serialize_args(arg))
 
+        perf_params = perf_params(
+            inputs=[op._outputs[0]._streams for op in source_ops.keys()],
+            ops=sorted_ops,
+            tasks_in_queue_per_pu=tasks_in_queue_per_pu)
 
         job_params.compression.extend(compression_options)
 
         job_params.pipeline_instances_per_node = (pipeline_instances_per_node or -1)
-        job_params.work_packet_size = work_packet_size
-        job_params.io_packet_size = io_packet_size
+        job_params.work_packet_size = perf_params.work_packet_size
+        job_params.io_packet_size = perf_params.io_packet_size
         job_params.profiling = profiling
         job_params.tasks_in_queue_per_pu = tasks_in_queue_per_pu
         job_params.load_sparsity_threshold = load_sparsity_threshold

@@ -101,6 +101,19 @@ class OpColumn:
         return new_col
 
 
+MODULE_REGISTRY = set()
+
+
+def register_module(so_path: str, proto_path: str = None):
+    MODULE_REGISTRY.add((so_path, proto_path))
+
+
+def check_modules(sc):
+    unregistered_modules = MODULE_REGISTRY - sc._modules
+    for module in unregistered_modules:
+        sc.load_op(*module)
+
+
 PYTHON_OP_REGISTRY = {}
 
 
@@ -117,6 +130,8 @@ class OpGenerator:
         self._sc = sc
 
     def __getattr__(self, name):
+        check_modules(self._sc)
+
         stream_params = []
 
         orig_name = name
@@ -478,6 +493,17 @@ def register_python_op(name: str = None,
             raise ScannerException(
                 'Attempted to register Op with name {:s} twice'.format(kname))
 
+        def parse_params(in_cols):
+            args = {}
+            for (param_name, _1, type_info), cs in zip(input_columns, in_cols):
+                if can_batch ^ can_stencil:
+                    args[param_name] = [type_info.deserializer(c) for c in cs]
+                elif can_batch and can_stencil:
+                    args[param_name] = [[type_info.deserializer(c) for c in c2] for c2 in cs]
+                else:
+                    args[param_name] = type_info.deserializer(cs)
+            return args
+
         def parse_ret(r):
             columns = r if return_is_tuple else (r, )
             outputs = []
@@ -503,10 +529,7 @@ def register_python_op(name: str = None,
 
                 @wraps(fn_or_class)
                 def wrapper_exec(config, in_cols):
-                    args = {}
-                    for (param_name, _1, type_info), c in zip(input_columns, in_cols):
-                        args[param_name] = type_info.deserializer(c)
-
+                    args = parse_params(in_cols)
                     return parse_ret(exec_fn(config, **args))
 
             wrapped_fn_or_class = wrapper_exec
@@ -520,9 +543,7 @@ def register_python_op(name: str = None,
             else:
 
                 def execute(self, in_cols):
-                    args = {}
-                    for (param_name, _, type_info), c in zip(input_columns, in_cols):
-                        args[param_name] = type_info.deserializer(c)
+                    args = parse_params(in_cols)
                     return parse_ret(exec_fn(self, **args))
             wrapped_fn_or_class.execute = execute
 

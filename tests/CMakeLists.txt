@@ -4,6 +4,6 @@ add_test(
 
 if (NO_FFMPEG STREQUAL "false")
   add_executable(FfmpegTest ffmpeg_test.cpp)
-  target_link_libraries(FfmpegTest ${GTEST_LIBRARIES} ${GTEST_LIB_MAIN} scanner scanner_stdlib)
+  target_link_libraries(FfmpegTest ${GTEST_LIBRARIES} ${GTEST_LIB_MAIN} scanner)
   add_test(FfmpegTests FfmpegTest)
 endif()
