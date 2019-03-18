@@ -14,10 +14,7 @@ ENV PKG_CONFIG_PATH "/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
 RUN cd /opt/scanner && \
     (bash deps.sh --install-none --prefix /usr/local ${deps_opt}) && \
     mkdir build && cd build && \
-    cmake -D BUILD_IMGPROC_OPS=ON \
-          -D BUILD_CAFFE_OPS=ON \
-          -D BUILD_OPENFACE_OPS=OFF \
-          -D BUILD_TESTS=ON \
+    cmake -D BUILD_TESTS=ON \
           -D BUILD_CUDA=${gpu} \
           -D CMAKE_BUILD_TYPE=RelWithDebinfo \
           .. && \
@@ -25,6 +22,10 @@ RUN cd /opt/scanner && \
     (yes | pip3 uninstall grpcio protobuf) && \
     ./build.sh && \
     ldconfig
+RUN git clone https://github.com/scanner-research/scannertools -b api-redesign && \
+    cd scannertools && \
+    cd scannertools_infra && pip3 install -e . && cd .. && \
+    cd scannertools && pip3 install -e .
 
 ENV LC_ALL C.UTF-8
 ENV LANG C.UTF-8
