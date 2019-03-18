@@ -79,4 +79,4 @@ of the basic features provided by Scanner. These tutorials can be found
 .. toctree::
    :hidden:
 
-   guide/from_source
+   from_source

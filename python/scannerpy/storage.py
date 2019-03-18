@@ -16,7 +16,7 @@ class NullElement:
     pass
 
 
-class Storage:
+class StorageBackend:
     """I/O backend for streams fed in/out of Scanner."""
 
     def source(self, sc, streams):
@@ -37,7 +37,7 @@ class Storage:
         """
 
         raise ScannerException(
-            "Storage class `{}` cannot serve as a Scanner input.".format(type(self).__name__))
+            "StorageBackend class `{}` cannot serve as a Scanner input.".format(type(self).__name__))
 
     def sink(self, sc, op, streams):
         """Returns the Scanner sink corresponding to this storage backend.
@@ -60,7 +60,7 @@ class Storage:
         """
 
         raise ScannerException(
-            "Storage class `{}` cannot serve as a Scanner output.".format(type(self).__name__))
+            "StorageBackend class `{}` cannot serve as a Scanner output.".format(type(self).__name__))
 
     def delete(self, sc, streams):
         """Deletes the streams from storage if they exist.
@@ -75,7 +75,7 @@ class Storage:
         """
 
         raise ScannerException(
-            "Storage class `{}` cannot delete elements.".format(type(self).__name__))
+            "StorageBackend class `{}` cannot delete elements.".format(type(self).__name__))
 
 
 class StoredStream:
@@ -111,7 +111,7 @@ class StoredStream:
         """Check if any part of a stream exists in storage."""
         raise NotImplementedError
 
-    def storage(self) -> Storage:
+    def storage(self) -> StorageBackend:
         """Get the storage backend corresponding to this stream."""
         raise NotImplementedError
 
@@ -175,7 +175,7 @@ class StoredStream:
         self.storage().delete(sc, [self])
 
 
-class NamedStorage(Storage):
+class NamedStorage(StorageBackend):
     """Named storage for byte streams. Useful default output format for non-video-data.
 
     Stores byte streams in a custom packed binary file format. Supports both local filesystems
@@ -316,7 +316,7 @@ class NamedVideoStream(NamedStream):
         return self._sc.sequence(self._name).save_mp4(output_name, fps=fps, scale=scale)
 
 
-class FilesStorage(Storage):
+class FilesStorage(StorageBackend):
     """Storage of streams where each element is its own file."""
 
     def __init__(self, storage_type: str = "posix", bucket: str = None, region: str = None, endpoint: str = None):
@@ -405,8 +405,8 @@ class FilesStream(StoredStream):
         return None
 
 
-class PythonStorage(Storage):
-    """Storage for a stream of elements directly from the current Python process.
+class PythonStorage(StorageBackend):
+    """StorageBackend for a stream of elements directly from the current Python process.
 
     Only supports input, not output.
     """
@@ -431,8 +431,8 @@ class PythonStream(StoredStream):
         return PythonStorage()
 
 
-class SQLStorage(Storage):
-    """Storage backend for streams from a SQL database.
+class SQLStorage(StorageBackend):
+    """StorageBackend backend for streams from a SQL database.
 
     Currently only supports Postgres."""
 
@@ -541,8 +541,8 @@ class SQLOutputStream(StoredStream):
         return False
 
 
-class AudioStorage(Storage):
-    """Storage for stream of elements from a compressed audio file.
+class AudioStorage(StorageBackend):
+    """StorageBackend for stream of elements from a compressed audio file.
 
     Currently input-only."""
 
@@ -581,8 +581,8 @@ class AudioStream(StoredStream):
         return self._storage
 
 
-class CaptionStorage(Storage):
-    """Storage for caption streams."""
+class CaptionStorage(StorageBackend):
+    """StorageBackend for caption streams."""
 
     def source(self, sc, streams):
         return sc.sources.Captions(

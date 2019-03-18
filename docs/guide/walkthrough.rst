@@ -1,7 +1,10 @@
 .. _walkthrough:
 
-Walkthrough
-===========
+Walkthroughs
+============
+
+Walking through a simple application
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 To explain how Scanner is used, let's walk through a simple example that reads every third frame from a video, resizes the frames, and then creates a new video from the sequence of resized frames.
 
@@ -27,13 +30,13 @@ The first step in any Scanner program is to create a :py:class:`~scannerpy.clien
 
 Reading data with stored streams
 --------------------------------
-Inputs and outputs to Scanner applications are represented as streams of data, called :py:class:`~scannerpy.storage.StoredStream` s. Scanner has built-in support for videos, audio, lists of binary data, sequences of files, and SQL databases. For example, let's create a stream representing a video:
+Inputs and outputs to Scanner applications are represented as streams of data, called :py:class:`~scannerpy.storage.StoredStream` s (check out the :ref:`stored-streams` guide for more information). Scanner has built-in support for videos, audio, lists of binary data, sequences of files, and SQL databases. For example, let's create a stream representing a video:
 
 .. code-block:: python
 
    input_stream = NamedVideoStream(sc, 'sample-clip', path='sample-clip.mp4')
 
-:py:class:`~scannerpy.storage.NamedVideoStream` is a stream that stores data in Scanner's internal database format. In this case, we stored the data under the name 'sample-clip' for the video file 'sample-clip.mp4'.
+:py:class:`~scannerpy.storage.NamedVideoStream` is a stream that stores data in Scanner's internal database format. In this case, we stored the data under the name :code:`sample-clip` for the video file :code:`sample-clip.mp4`.
 
 Since Scanner was built specifically for processing video, it has specialized support for fast access to frames in videos, even under random access patterns. In order to provide this functionality, Scanner first needs to analyze the video to build an index on the video. This index is built when a :py:class:`~scannerpy.storage.NamedVideoStream` is first accessed. By default, Scanner copies the video data to Scanner's internal database (located at :code:`~/.scanner/db` by default). However, Scanner can also read videos without copying them using the :code:`inplace` flag:
 
@@ -183,7 +186,7 @@ We also need a corresponding output stream for each input stream:
 When executing this graph, Scanner will read and process each input stream independently to produce the output streams. If Scanner is running on a multi-core machine, multi-GPU machine, or on a cluster of machines, the videos will be processed in parallel across any of those configurations.
 
 Walking through a more advanced Jupyter-based app
-=================================================
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 To get a more detailed understanding of how Scanner can be used in a real
 application, we recommend trying the Jupyter notebook tutorial. To start the

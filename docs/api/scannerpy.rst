@@ -28,6 +28,14 @@ scannerpy\.op module
     :undoc-members:
     :show-inheritance:
 
+scannerpy\.io module
+-------------------------
+
+.. automodule:: scannerpy.io
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 scannerpy\.streams module
 -------------------------
 

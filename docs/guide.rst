@@ -16,7 +16,7 @@ The guide is organized into the following sections:
 
 Support
 -------
-If you're having trouble using Scanner, the best way to get help is to join the Scanner Research slack channel:
+If you're having trouble using Scanner, the best way to get help is to join the Scanner Research slack channel. Send  an email to scanner@cs.stanford.edu with the subject line "Slack Access" to join our Slack channel.
 
 If you'd like to talk with the core team directly, contact Alex Poms (https://www.cs.cmu.edu/~apoms/) or Will Crichton (http://willcrichton.net/).
 
