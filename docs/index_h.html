@@ -68,19 +68,22 @@
         <tbody>
           <tr>
             <td>
-              <pre><code class="jljs python">from scannertools import face_detection, vis, sample_video
-import scannerpy
+              <pre><code class="jljs python">from scannerpy import Client, PerfParams, utils
+from scannerpy.storage import NamedVideoStream
+import scannertools
 
 def main():
-    with sample_video() as video: # get an example video
-        db = scannerpy.Database() # start up Scanner
-        frames = list(range(50))  # select the first 50 frames
-        bboxes = face_detection.detect_faces(
-            db, videos=[video], frames=[frames])
-        vis.draw_bboxes(
-            db, videos=[video], frames=[frames],
-            bboxes=bboxes, paths=['sample_faces.mp4'])
-        # output video is saved to 'sample_faces.mp4'
+    with utils.sample_video() as video_path: # get an example video
+        sc = Client() # start up Scanner
+        video = NamedVideoStream(sc, 'example', video_path)
+        input_op = sc.io.Input([video])
+        faces = sc.io.MTCNNFaceDetect(frame=input_op)
+        drawn_faces = sc.io.DrawBboxes(frame=input_op, bboxes=faces)
+        output_video = NamedVideoStream(sc, 'example_faces')
+        output_op = sc.io.Output([output_video])
+        sc.run(output_op, PerfParams.estimate())
+        output_video.save_mp4('example_faces')
+        # output video is saved to 'example_faces.mp4'
 
 if __name__ == "__main__":
     main()</code></pre>
@@ -117,7 +120,7 @@ if __name__ == "__main__":
     <div>
       <h4>
         3. Cloud & cluster ready
-      </h4> 
+      </h4>
       <p>
         Scanner is integrated with Kubernetes, Google Cloud Platform, and AWS to make it easy to spin up machines to get your results back faster.
       </p>
