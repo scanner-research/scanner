@@ -15,5 +15,5 @@
    guide/stored-streams
    guide/graphs
    guide/ops
-   guide/extensions
+   guide/profiling
    guide/kubernetes

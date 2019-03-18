@@ -97,8 +97,8 @@ class StreamsGenerator:
         input
           The stream to sample.
 
-        stride
-          The default value to stride by for all jobs.
+        strides
+          The list of strides for each input stream.
 
         Returns
         -------
