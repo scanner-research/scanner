@@ -2,6 +2,9 @@
 
 Computation Graphs
 ==================
+
+Overview
+--------
 Scanner represents applications as *computation graphs*. The nodes in computation graphs are Scanner operations (check out the :ref:`operations` guide for more information) and the edges between operations represent streams of data consumed and produced by operations. For example, let's look at a partial computation graph that with an operation that resizes frames:
 
 .. code-block:: python
@@ -14,6 +17,8 @@ Scanner represents applications as *computation graphs*. The nodes in computatio
    resized_frame = sc.ops.Resize(frame=input_frame, width=[640], height=[480])
 
 Here, the :code:`sc.io.Input` and :code:`sc.ops.Resize` operations are both nodes in a two node graph. :code:`sc.ops.Resize` is connected to :code:`sc.io.Input` by passing the output of the input operation, :code:`input_frame`, as an input to the resize operation, :code:`frame=input_frame`. It's important to note that we have not processed any data at this point. We have only defined a partial computation graph that we can finish later and then tell Scanner to execute.
+
+TODO: make a "TLDR"  section at the top of graphs/stored-streams/ops and  then more reference material below
 
 Processing lists of stored streams
 ----------------------------------
@@ -98,3 +103,51 @@ To see the full list of stream operations, check out the methods of :py:class:`~
     - Multiple inputs/output streams
     - Slicing
     - Argument binding
+
+
+
+Processing multiple videos
+--------------------------
+
+Now let's say that we have a directory of videos we want to process, instead of just a single one as above. To see the multiple video code in action, run the following commands from the quickstart app directoroy:
+
+.. code-block:: bash
+
+   wget https://storage.googleapis.com/scanner-data/public/sample-clip-1.mp4
+   wget https://storage.googleapis.com/scanner-data/public/sample-clip-2.mp4
+   wget https://storage.googleapis.com/scanner-data/public/sample-clip-3.mp4
+   python3 main-multi-video.py
+
+After :code:`main-multi-video.py` exits, you should now have a resized version of each of the downloaded videos named :code:`sample-clip-%d-resized.mp4` in the current directory, where :code:`%d` is replaced with the number of the video.
+
+There are two places in the code that need to change to process multiple videos. Let's look at those pieces of code inside :code:`main-multi-video.py` now.
+
+Processing multiple stored streams
+----------------------------------
+
+Instead of passing a single stream to the **Input** op, we are going to create a stream for each of our videos and pass them all at once into the **Input**:
+
+.. code-block:: python
+
+   videos_to_process = [
+       ('sample-clip-1', 'sample-clip-1.mp4'),
+       ('sample-clip-2', 'sample-clip-2.mp4'),
+       ('sample-clip-3', 'sample-clip-3.mp4')
+      ]
+   input_streams = [NamedVideoStream(sc, info[0], path=info[1])
+                    for info in videos_to_process]
+   frame = sc.io.Input(input_streams)
+
+
+TODO: differentirate between multiple input ops and multiple input streams
+TODO: better explanation for why we need the same number of output streams as input streams
+
+We also need a corresponding output stream for each input stream:
+
+.. code-block:: python
+
+   output_streams = [NamedVideoStream(sc, info[0] + 'resized')
+                    for info in videos_to_process]
+   output = sc.io.Output(resized, output_streams)
+
+When executing this graph, Scanner will read and process each input stream independently to produce the output streams. If Scanner is running on a multi-core machine, multi-GPU machine, or on a cluster of machines, the videos will be processed in parallel across any of those configurations.

@@ -3,18 +3,20 @@
 Walkthroughs
 ============
 
-Walking through a simple application
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Converting a video to grayscale
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-To explain how Scanner is used, let's walk through a simple example that reads every third frame from a video, resizes the frames, and then creates a new video from the sequence of resized frames.
+To explain how Scanner is used, let's walk through a simple example that takes every third frame from a video, resizes it, converts from color to grayscale, and then generates a new video from the result.
 
-To run the code discussed here, install Scanner (:ref:`installation`). Then from the top-level Scanner directory, run:
+TODO: insert figure describing the graph this walkthrough builds up to
+
+To run the code discussed here, install Scanner (:ref:`getting-started`). Then from the top-level Scanner directory, run:
 
 .. code-block:: bash
 
    cd examples/apps/quickstart
    wget https://storage.googleapis.com/scanner-data/public/sample-clip.mp4
-   python3 main.py
+   python3 grayscale_conversion.py
 
 After :code:`main.py` exits, you should now have a resized version of :code:`sample-clip.mp4` named :code:`sample-clip-resized.mp4` in the current directory. Let's see how that happened by looking inside :code:`main.py`.
 
@@ -25,6 +27,8 @@ The first step in any Scanner program is to create a :py:class:`~scannerpy.clien
 .. code-block:: python
 
    from scannerpy import Client, PerfParams
+   from scannerpy.storage import NamedVideoStream
+   import scannertools
 
    sc = Client()
 
@@ -47,6 +51,15 @@ Since Scanner was built specifically for processing video, it has specialized su
 
 This still builds the index for accessing the video but avoids copying the files.
 
+TODO: why use inplace vs not inplace
+
+TODO: get rid of inplace and stored streams description, just explain that it's how to read videos for now
+
+TODO: have a sequence of two compute operations
+
+TODO: 
+
+
 .. _defining_a_graph:
 
 Defining a Computation Graph
@@ -64,7 +77,7 @@ The :code:`frame` object returned by **Input** represents the stream of frames t
 
 .. code-block:: python
 
-   sampled_frame = sc.streams.Stride(frame, 3) # Select every third frame
+   sampled_frame = sc.streams.Stride(frame, [3]) # Select every third frame
 
 This is where we select only every third frame from the stream of frames we read from the **Source**. This comes from a special class of ops (from :code:`sc.streams`) that can change the size of a stream, as opposed to transforming inputs to outputs 1-to-1.
 
@@ -72,7 +85,7 @@ We then process the sampled frames by instantiating a Resize **Op** that will re
 
 .. code-block:: python
 
-   resized = sc.ops.Resize(frame=sampled_frame, width=640, height=480)
+   resized = sc.ops.Resize(frame=sampled_frame, width=[640], height=[480])
 
 This **Op** returns a new stream of frames which we call :code:`resized`. The Resize **Op** is one of the collection of built-in **Ops** in the :ref:`standard_library`. (You can learn how to write your own **Ops** by following the :ref:`tutorial`.)
 
@@ -89,8 +102,8 @@ Putting it all together, we have:
 
    input_stream = NamedVideoStream(sc, 'sample-clip', path='sample-clip.mp4')
    frame = sc.io.Input([input_stream])
-   sampled_frame = sc.streams.Stride(frame, 3) # Select every third frame
-   resized = sc.ops.Resize(frame=sampled_frame, width=640, height=480) # Resize input frame
+   sampled_frame = sc.streams.Stride(frame, [3]) # Select every third frame
+   resized = sc.ops.Resize(frame=sampled_frame, width=[640], height=[480]) # Resize input frame
    output_stream = NamedVideoStream(sc, 'sample-clip-resized')
    output = sc.io.Output(resized, [output_stream])
 
@@ -108,18 +121,6 @@ Executing a graph is done by calling :code:`run` on the client object, specifyin
    sc.run(output, PerfParams.estimate())
 
 This call will block until Scanner has finished processing the job. You should see a progress bar while Scanner is executing the computation graph. The :py:class:`~scannerpy.common.PerfParams` are parameters used to tune the performance of graph execution, e.g. the number of video frames that should be in memory at any one time. By default, the :py:meth:`~scannerpy.common.PerfParams.estimate` guesses an appropriate value of all parameters for your graph.
-
-Reading from a stored stream
-----------------------------
-
-We can directly read the results of executing a graph by reading from the stored streams we computed:
-
-.. code-block:: python
-
-   for resized_frame in output_stream.load():
-       print(resized_frame.shape)
-
-Video frames are returned as numpy arrays. Here we are printing out the shape of the frame, which should have a width of 640 and height of 480.
 
 Exporting to mp4
 ----------------
@@ -143,47 +144,6 @@ That's a complete Scanner application! If you'd like to learn about process mult
 .. toctree::
    :maxdepth: 1
 
-Processing multiple videos
---------------------------
-
-Now let's say that we have a directory of videos we want to process, instead of just a single one as above. To see the multiple video code in action, run the following commands from the quickstart app directoroy:
-
-.. code-block:: bash
-
-   wget https://storage.googleapis.com/scanner-data/public/sample-clip-1.mp4
-   wget https://storage.googleapis.com/scanner-data/public/sample-clip-2.mp4
-   wget https://storage.googleapis.com/scanner-data/public/sample-clip-3.mp4
-   python3 main-multi-video.py
-
-After :code:`main-multi-video.py` exits, you should now have a resized version of each of the downloaded videos named :code:`sample-clip-%d-resized.mp4` in the current directory, where :code:`%d` is replaced with the number of the video.
-
-There are two places in the code that need to change to process multiple videos. Let's look at those pieces of code inside :code:`main-multi-video.py` now.
-
-Processing multiple stored streams
-----------------------------------
-
-Instead of passing a single stream to the **Input** op, we are going to create a stream for each of our videos and pass them all at once into the **Input**:
-
-.. code-block:: python
-
-   videos_to_process = [
-       ('sample-clip-1', 'sample-clip-1.mp4'),
-       ('sample-clip-2', 'sample-clip-2.mp4'),
-       ('sample-clip-3', 'sample-clip-3.mp4')
-      ]
-   input_streams = [NamedVideoStream(sc, info[0], path=info[1])
-                    for info in videos_to_process]
-   frame = sc.io.Input(input_streams)
-
-We also need a corresponding output stream for each input stream:
-
-.. code-block:: python
-
-   output_streams = [NamedVideoStream(sc, info[0] + 'resized')
-                    for info in videos_to_process]
-   output = sc.io.Output(resized, output_streams)
-
-When executing this graph, Scanner will read and process each input stream independently to produce the output streams. If Scanner is running on a multi-core machine, multi-GPU machine, or on a cluster of machines, the videos will be processed in parallel across any of those configurations.
 
 Walking through a more advanced Jupyter-based app
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

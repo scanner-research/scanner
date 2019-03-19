@@ -2,6 +2,9 @@
 
 Stored Streams
 ==============
+
+Overview
+--------
 Scanner represents input and output data as sequences of data items called :py:class:`~scannerpy.storage.StoredStream` s. Stored streams are Python objects that describe to Scanner how to read data to be processed and how to write data after it has been processed by a Scanner application. Stored streams can represent data stored in a variety of locations or formats:
 
 - Video files (mp4, mkv, etc).
