@@ -16,6 +16,7 @@ RUN cd /opt/scanner && \
     mkdir build && cd build && \
     cmake -D BUILD_TESTS=ON \
           -D BUILD_CUDA=${gpu} \
+          -D HAVE_GPU=${gpu} \
           -D CMAKE_BUILD_TYPE=RelWithDebinfo \
           .. && \
     cd .. && \
