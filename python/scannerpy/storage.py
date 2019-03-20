@@ -1,6 +1,8 @@
 from scannerpy.common import ScannerException
 from typing import List, Callable, Any, Generator
 from scannerpy.types import get_type_info_cpp
+import hwang
+import storehouse
 
 
 class NullElement:
@@ -185,6 +187,17 @@ class NamedStorage(StorageBackend):
     (Linux/Posix) and cloud file systems (S3, GCS).
     """
 
+    def __init__(self, storage_config=None):
+        if storage_config is None:
+            storage_config = storehouse.StorageConfig.make_posix_config()
+        self._storage_config = storage_config
+        self._storehouse_backend = None
+
+    def _storehouse(self):
+        if self._storehouse_backend is None:
+            self._storehouse_backend = storehouse.StorageBackend.make_from_config(self._storage_config)
+        return self._storehouse_backend
+
     def source(self, sc, streams):
         return sc.sources.Column(
             table_name=[s._name for s in streams],
@@ -323,3 +336,10 @@ class NamedVideoStream(NamedStream):
 
     def save_mp4(self, output_name, fps=None, scale=None):
         return self._sc.sequence(self._name).save_mp4(output_name, fps=fps, scale=scale)
+
+    def as_hwang(self):
+        try:
+            video_file = storehouse.RandomReadFile(self._storage._storehouse(), self._path.encode('ascii'))
+        except UserWarning:
+            raise Exception('Path to video `{}` does not exist.'.format(self._path))
+        return hwang.Decoder(video_file)
