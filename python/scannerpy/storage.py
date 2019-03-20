@@ -150,7 +150,7 @@ class StoredStream:
         if not self.committed():
             raise ScannerException("Tried to load from uncommitted stream")
 
-        # Use a deserializer function if provided.
+        # Use a deserialize function if provided.
         # If not, use a type if provided.
         # If not, attempt to determine the type from the column's table descriptor.
         # If that doesn't work, then assume no deserialization function, and return bytes.
@@ -158,7 +158,7 @@ class StoredStream:
             if ty is None:
                 ty = self.type()
             if ty is not None:
-                fn = ty.deserializer
+                fn = ty.deserialize
 
         for obj in self.load_bytes(rows=rows):
             if fn is not None and type(obj) == bytes:

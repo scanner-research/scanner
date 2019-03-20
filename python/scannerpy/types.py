@@ -12,16 +12,16 @@ PYTHON_TYPE_REGISTRY = {}
 class ScannerTypeInfo:
     type = attrib()
     cpp_name = attrib()
-    serializer = attrib()
-    deserializer = attrib()
+    serialize = attrib()
+    deserialize = attrib()
 
-def _register_type(ty, cpp_name, serializer, deserializer):
+def _register_type(ty, cpp_name, serialize, deserialize):
     global PYTHON_TYPE_REGISTRY
     PYTHON_TYPE_REGISTRY[ty] = ScannerTypeInfo(
         type=ty,
         cpp_name=cpp_name,
-        serializer=serializer,
-        deserializer=deserializer)
+        serialize=serialize,
+        deserialize=deserialize)
 
 def get_type_info(ty):
     global PYTHON_TYPE_REGISTRY
@@ -43,65 +43,85 @@ _register_type(FrameType, "FrameType", lambda x: x, lambda x: x)
 # TODO: document this
 def register_type(cls):
     name = cls.__name__
-    _register_type(cls, name, cls.serializer, cls.deserializer)
+    _register_type(cls, name, cls.serialize, cls.deserialize)
     return cls
 
+def ProtobufType(name, proto):
+    def serialize(obj):
+        return obj.SerializeToString()
 
-def ProtoList(name, proto):
-    def serializer(proto_list):
-        s = struct.pack('=Q', len(proto_list))
-        for element in proto_list:
-            serialized = element.SerializeToString()
+    def deserialize(buf):
+        p = proto()
+        p.ParseFromString(buf)
+        return p
+
+    return register_type(type(name, (), dict(serialize=serialize, deserialize=deserialize)))
+
+
+def VariableList(name, typ):
+    def serialize(list):
+        s = struct.pack('=Q', len(list))
+        for element in list:
+            serialized = typ.serialize(element)
             s += struct.pack('=Q', len(serialized))
             s += serialized
         return s
 
-    def deserializer(buf):
+    def deserialize(buf):
         (N, ) = struct.unpack("=Q", buf[:8])
         buf = buf[8:]
         elements = []
         for i in range(N):
             (serialized_size, ) = struct.unpack("=Q", buf[:8])
             buf = buf[8:]
-            element = proto()
-            element.ParseFromString(buf[:serialized_size])
+            element = typ.deserialize(buf[:serialized_size])
             buf = buf[serialized_size:]
             elements.append(element)
         return elements
 
-    return register_type(type(name, (), dict(serializer=serializer, deserializer=deserializer)))
+    return register_type(type(name, (), dict(serialize=serialize, deserialize=deserialize)))
 
-BboxList = ProtoList('BboxList', protobufs.BoundingBox)
+def UniformList(name, typ, size=None, parts=None):
+    assert (size is not None) ^ (parts is not None)
 
-@register_type
-class Histogram:
-    def serializer(buf):
-        return b''.join([b.tobytes() for b in buf])
+    def serialize(list):
+        return b''.join([typ.serialize(obj) for obj in list])
 
-    def deserializer(buf):
-        return np.split(np.frombuffer(buf, dtype=np.dtype(np.int32)), 3)
+    def deserialize(buf):
+        if parts is not None:
+            size = len(buf) // parts
 
-@register_type
-class EncodedImage:
-    def serializer(buf):
-        raise NotImplemented
+        assert len(buf) % size == 0
+        return [typ.deserialize(buf[i:i+size]) for i in range(0, len(buf), size)]
 
-    def deserializer(buf):
-        import cv2
-        return cv2.imdecode(np.frombuffer(buf, dtype=np.dtype(np.uint8)), cv2.IMREAD_COLOR)
+    return register_type(type(name, (), dict(serialize=serialize, deserialize=deserialize)))
+
+Bbox = ProtobufType('Bbox', protobufs.BoundingBox)
+BboxList = VariableList('BboxList', Bbox)
 
 @register_type
 class NumpyArrayFloat32:
-    def serializer(buf):
+    def serialize(buf):
         return buf.tobytes()
 
-    def deserializer(buf):
+    def deserialize(buf):
         return np.fromstring(buf, dtype=np.float32)
 
 @register_type
 class NumpyArrayInt32:
-    def serializer(buf):
+    def serialize(buf):
         return buf.tobytes()
 
-    def deserializer(buf):
-        return np.fromstring(buf, dtype=np.float32)
+    def deserialize(buf):
+        return np.fromstring(buf, dtype=np.int32)
+
+Histogram = UniformList('Histogram', NumpyArrayInt32, parts=3)
+
+@register_type
+class EncodedImage:
+    def serialize(buf):
+        raise NotImplemented
+
+    def deserialize(buf):
+        import cv2
+        return cv2.imdecode(np.frombuffer(buf, dtype=np.dtype(np.uint8)), cv2.IMREAD_COLOR)
