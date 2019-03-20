@@ -497,11 +497,11 @@ def register_python_op(name: str = None,
             args = {}
             for (param_name, _1, type_info), cs in zip(input_columns, in_cols):
                 if can_batch ^ can_stencil:
-                    args[param_name] = [type_info.deserializer(c) for c in cs]
+                    args[param_name] = [type_info.deserialize(c) for c in cs]
                 elif can_batch and can_stencil:
-                    args[param_name] = [[type_info.deserializer(c) for c in c2] for c2 in cs]
+                    args[param_name] = [[type_info.deserialize(c) for c in c2] for c2 in cs]
                 else:
-                    args[param_name] = type_info.deserializer(cs)
+                    args[param_name] = type_info.deserialize(cs)
             return args
 
         def parse_ret(r):
@@ -510,12 +510,12 @@ def register_python_op(name: str = None,
             for (_1, _2, type_info), column in zip(output_columns, columns):
                 if can_batch:
                     outputs.append([
-                        type_info.serializer(element)
+                        type_info.serialize(element)
                         for element in column
                     ])
                 else:
                     outputs.append(
-                        type_info.serializer(column))
+                        type_info.serialize(column))
             return tuple(outputs)
 
         # Wrap exec_fn to destructure input and outputs to proper python inputs

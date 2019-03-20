@@ -3,7 +3,7 @@ from collections import defaultdict
 from enum import Enum
 from multiprocessing import cpu_count
 from psutil import virtual_memory
-
+import GPUtil
 
 class ScannerException(Exception):
     pass
@@ -131,17 +131,18 @@ class PerfParams(object):
                     has_gpu = True
 
             if has_gpu:
-                # TODO
-                raise NotImplemented
-
+                gpus = GPUtil.getGPUs()
+                pipeline_instances = len(gpus)
+                max_memory = min([g.memoryTotal for g in gpus])
             else:
-                overhead_factor = 4
                 pipeline_instances = cpu_count()
                 max_memory = virtual_memory().total if total_memory is None else total_memory
-                max_memory *= max_memory_util
-                io_packet_size = int(max_memory / (tasks_in_queue_per_pu * max_size * pipeline_instances * overhead_factor)) // 100 * 100
-                io_packet_size = max(io_packet_size, 100)
-                work_packet_size = int(io_packet_size * work_io_ratio)
+
+            overhead_factor = 4
+            max_memory *= max_memory_util
+            io_packet_size = int(max_memory / (tasks_in_queue_per_pu * max_size * pipeline_instances * overhead_factor)) // 100 * 100
+            io_packet_size = max(io_packet_size, 100)
+            work_packet_size = int(io_packet_size * work_io_ratio)
 
             return cls(work_packet_size, io_packet_size)
 

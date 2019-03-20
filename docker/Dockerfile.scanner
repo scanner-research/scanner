@@ -12,11 +12,14 @@ ENV LD_LIBRARY_PATH \
        "/usr/lib/x86_64-linux-gnu:/usr/local/cuda/lib64:$LD_LIBRARY_PATH:/usr/local/cuda/lib64/stubs"
 ENV PKG_CONFIG_PATH "/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
 RUN cd /opt/scanner && \
-    (bash deps.sh --install-none --prefix /usr/local ${deps_opt}) && \
+    (if [ "${gpu}" = "ON" ]; then \
+     bash deps.sh -g --install-none --prefix /usr/local ${deps_opt}; \
+     else \
+     bash deps.sh -ng --install-none --prefix /usr/local ${deps_opt}; \
+     fi) && \
     mkdir build && cd build && \
     cmake -D BUILD_TESTS=ON \
           -D BUILD_CUDA=${gpu} \
-          -D HAVE_GPU=${gpu} \
           -D CMAKE_BUILD_TYPE=RelWithDebinfo \
           .. && \
     cd .. && \
