@@ -4,6 +4,29 @@ from enum import Enum
 from multiprocessing import cpu_count
 from psutil import virtual_memory
 import GPUtil
+import logging
+import datetime
+
+log = logging.getLogger('scanner')
+log.setLevel(logging.INFO)
+log.propagate = False
+if not log.handlers:
+
+    class CustomFormatter(logging.Formatter):
+        def format(self, record):
+            level = record.levelname[0]
+            time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')[2:]
+            if len(record.args) > 0:
+                record.msg = '({})'.format(', '.join(
+                    [str(x) for x in [record.msg] + list(record.args)]))
+                record.args = ()
+            return '{level} {time} {filename}:{lineno:03d}] {msg}'.format(
+                level=level, time=time, **record.__dict__)
+
+    handler = logging.StreamHandler()
+    handler.setFormatter(CustomFormatter())
+    log.addHandler(handler)
+
 
 class ScannerException(Exception):
     pass
@@ -117,13 +140,14 @@ class PerfParams(object):
             for ins in inputs:
                 try:
                     ins[0].estimate_size()
-                except NotImplemented:
+                except NotImplementedError:
                     continue
 
                 max_size = max(max([i.estimate_size() for i in ins]), max_size)
 
             if max_size == 0:
-                raise NotImplemented
+                log.warning('Could not estimate size of input stream elements, falling back to conservative guess')
+                return cls(10, 100)
 
             has_gpu = False
             for op in ops:
