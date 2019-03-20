@@ -88,6 +88,13 @@ def UniformList(name, typ, size=None, parts=None):
         return b''.join([typ.serialize(obj) for obj in list])
 
     def deserialize(buf):
+        nonlocal size
+        nonlocal parts
+
+        # HACK(will): need a placeholder for an empty list
+        if len(buf) <= 4:
+            return []
+
         if parts is not None:
             size = len(buf) // parts
 
