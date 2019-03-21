@@ -6,6 +6,7 @@ from psutil import virtual_memory
 import GPUtil
 import logging
 import datetime
+import math
 
 log = logging.getLogger('scanner')
 log.setLevel(logging.INFO)
@@ -118,7 +119,7 @@ class PerfParams(object):
         return resolve
 
     @classmethod
-    def estimate(cls, max_memory_util=0.5, total_memory=None, work_io_ratio=0.2):
+    def estimate(cls, max_memory_util=0.7, total_memory=None, work_io_ratio=0.2):
         r"""Guess the best value of each performance parameters given the computation graph.
 
         Parameters
@@ -146,7 +147,8 @@ class PerfParams(object):
                 max_size = max(max([i.estimate_size() for i in ins]), max_size)
 
             if max_size == 0:
-                log.warning('Could not estimate size of input stream elements, falling back to conservative guess')
+                log.warning('PerfParams.estimate could not estimate size of input stream elements, '
+                            'falling back to conservative guess')
                 return cls(10, 100)
 
             has_gpu = False
@@ -162,11 +164,33 @@ class PerfParams(object):
                 pipeline_instances = cpu_count()
                 max_memory = virtual_memory().total if total_memory is None else total_memory
 
-            overhead_factor = 4
+            def fmt_bytes(n):
+                exp = math.log2(n)
+                if exp < 10:
+                    return '{}B'.format(n)
+                elif exp < 20:
+                    return '{:.1f}KB'.format(n / (2**10))
+                elif exp < 30:
+                    return '{:.1f}MB'.format(n / (2**20))
+                elif exp < 40:
+                    return '{:.1f}GB'.format(n / (2**30))
+
             max_memory *= max_memory_util
-            io_packet_size = int(max_memory / (tasks_in_queue_per_pu * max_size * pipeline_instances * overhead_factor)) // 100 * 100
+
+            log.debug(
+                """PERF PARAMS STATISTICS
+                Maximum element size: {}
+                Memory size: {}
+                Pipeline instances: {}
+                Tasks in queue per PU: {}
+                """.format(fmt_bytes(max_size), fmt_bytes(max_memory), pipeline_instances, tasks_in_queue_per_pu))
+
+            io_packet_size = int(max_memory / (tasks_in_queue_per_pu * max_size * pipeline_instances))
             io_packet_size = max(io_packet_size, 100)
             work_packet_size = int(io_packet_size * work_io_ratio)
+
+            log.info('Estimated params: work packet size {}, io packet size {}'.format(
+                work_packet_size, io_packet_size))
 
             return cls(work_packet_size, io_packet_size)
 
