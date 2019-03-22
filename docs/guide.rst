@@ -8,11 +8,10 @@ The guide is organized into the following sections:
 - :ref:`quickstart`: run a simple Scanner program in as few steps as possible.
 - :ref:`getting-started`: get Scanner set up on your machine and ready for writing your own applications.
 - :ref:`walkthrough`: step-by-step walkthrough of a Scanner application.
-- :ref:`stored-streams`: describes stored streams, which represent streams of data that Scanner can read and write to.
 - :ref:`graphs`: describes computation graphs, which are how applications are represented in Scanner.
 - :ref:`ops`: describes the properties of ops (operations). Ops are the nodes in computation graphs that process data.
+- :ref:`stored-streams`: describes stored streams, which represent streams of data that Scanner can read and write to.
 - :ref:`profiling`: describes how to profile Scanner jobs and tweak parameters to improve performance.
-- :ref:`extensions`: learn how to extend Scanner with custom functionality.
 - :ref:`kubernetes`: run Scanner in the cloud with Kubernetes.
 
 Support
