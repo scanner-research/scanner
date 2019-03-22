@@ -5,16 +5,21 @@ Computation Graphs
 
 Overview
 --------
-Scanner represents applications as *computation graphs*. The nodes in computation graphs are Scanner operations (check out the :ref:`operations` guide for more information) and the edges between operations represent streams of data consumed and produced by operations. For example, let's look at a partial computation graph that with an operation that resizes frames:
+Scanner represents applications as *computation graphs*. The nodes in computation graphs are Scanner operations (check out the :ref:`operations` guide for more information) and the edges between operations represent streams of data consumed and produced by operations. Nodes in a computation graph are one of three types: input nodes (**Inputs**), function nodes (**Ops**), and output nodes (**Outputs**). **Inputs** read data from stored streams, such as the video stream we just created. **Ops** represent functions that transform their inputs into new outputs. **Outputs** write data to stored streams.
+
+For example, let's look at computation graph with an operation that resizes frames:
 
 .. code-block:: python
 
-   from scannerpy import Client
-   from scannerpy.storage import NamedVideoStream
-   sc = Client()
-   video_stream = NamedVideoStream(sc, 'example', path='example.mp4')
-   input_frame = sc.io.Input([video_stream])
-   resized_frame = sc.ops.Resize(frame=input_frame, width=[640], height=[480])
+   import scannerpy as sp
+   import scannertools.imgproc
+
+   cl = sp.Client()
+   video_stream = sp.NamedVideoStream(cl, 'example', path='example.mp4')
+   input_frame = cl.io.Input([video_stream])
+   resized_frame = cl.ops.Resize(frame=input_frame, width=[640], height=[480])
+   output_stream = sp.NamedVideoStream(cl, 'example-output')
+   resized_frame = cl.io.Output(resized_frame, [output_stream])
 
 Here, the :code:`sc.io.Input` and :code:`sc.ops.Resize` operations are both nodes in a two node graph. :code:`sc.ops.Resize` is connected to :code:`sc.io.Input` by passing the output of the input operation, :code:`input_frame`, as an input to the resize operation, :code:`frame=input_frame`. It's important to note that we have not processed any data at this point. We have only defined a partial computation graph that we can finish later and then tell Scanner to execute.
 
@@ -65,6 +70,8 @@ This operation will kick-off a Scanner job that will read all the elements in th
    frame_stream = NamedVideoStream(sc, 'frame-example-output')
    frame_output = sc.io.Output(input_frame, [frame_stream])
    sc.run([resized_output, frame_output])
+
+.. _stream-operations:
 
 Stream Operations
 -----------------

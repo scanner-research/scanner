@@ -2,6 +2,9 @@
 
 Operations
 ==========
+
+Overview
+--------
 Processing data in Scanner occurs primarily through *operations* (*ops*). Operations are built-in or user defined functionality that transform streams of input elements to streams of output elements.
 
 Defining an Operation in Python

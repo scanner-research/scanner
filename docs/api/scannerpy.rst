@@ -1,6 +1,3 @@
-Scanner Python API
-==================
-
 .. toctree::
 
 scannerpy\.client module
@@ -129,15 +126,6 @@ scannerpy\.storage module
 -----------------------
 
 .. automodule:: scannerpy.storage
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-
-Module contents
----------------
-
-.. automodule:: scannerpy
     :members:
     :undoc-members:
     :show-inheritance:

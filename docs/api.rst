@@ -1,8 +1,13 @@
 API Reference
 =============
 
+scannerpy - the main scanner API
+--------------------------------
+
 .. toctree::
    :maxdepth: 3
 
    api/scannerpy
-   api/scanner
+
+scannertools - the Scanner standard library
+-------------------------------------------
