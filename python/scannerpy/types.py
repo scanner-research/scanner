@@ -1,5 +1,5 @@
 from attr import attrs, attrib
-from scannerpy.common import FrameType, ScannerException
+from scannerpy.common import ScannerException
 from scannerpy.protobufs import protobufs
 import pickle
 from typing import NewType, Generic, TypeVar, Any
@@ -7,6 +7,13 @@ import numpy as np
 import struct
 
 PYTHON_TYPE_REGISTRY = {}
+
+# This is a special built-in type for video frame streams.
+# Class purely for type annotation.
+class FrameType(object):
+    pass
+
+BlobType = bytes
 
 @attrs(frozen=True)
 class ScannerTypeInfo:
@@ -47,8 +54,8 @@ def register_type(cls):
     return cls
 
 def ProtobufType(name, proto):
-    def serialize(obj):
-        return obj.SerializeToString()
+    def serialize(proto_obj):
+        return proto_obj.SerializeToString()
 
     def deserialize(buf):
         p = proto()
@@ -59,9 +66,9 @@ def ProtobufType(name, proto):
 
 
 def VariableList(name, typ):
-    def serialize(list):
-        s = struct.pack('=Q', len(list))
-        for element in list:
+    def serialize(variable_list):
+        s = struct.pack('=Q', len(variable_list))
+        for element in variable_list:
             serialized = typ.serialize(element)
             s += struct.pack('=Q', len(serialized))
             s += serialized
@@ -84,8 +91,8 @@ def VariableList(name, typ):
 def UniformList(name, typ, size=None, parts=None):
     assert (size is not None) ^ (parts is not None)
 
-    def serialize(list):
-        return b''.join([typ.serialize(obj) for obj in list])
+    def serialize(uniform_list):
+        return b''.join([typ.serialize(obj) for obj in uniform_list])
 
     def deserialize(buf):
         nonlocal size
@@ -108,27 +115,28 @@ BboxList = VariableList('BboxList', Bbox)
 
 @register_type
 class NumpyArrayFloat32:
-    def serialize(buf):
-        return buf.tobytes()
+    def serialize(array):
+        return array.tobytes()
 
-    def deserialize(buf):
-        return np.fromstring(buf, dtype=np.float32)
+    def deserialize(data_buffer):
+        return np.fromstring(data_buffer, dtype=np.float32)
 
 @register_type
 class NumpyArrayInt32:
-    def serialize(buf):
-        return buf.tobytes()
+    def serialize(array):
+        return array.tobytes()
 
-    def deserialize(buf):
-        return np.fromstring(buf, dtype=np.int32)
+    def deserialize(data_buffer):
+        return np.fromstring(data_buffer, dtype=np.int32)
 
 Histogram = UniformList('Histogram', NumpyArrayInt32, parts=3)
 
 @register_type
-class EncodedImage:
-    def serialize(buf):
-        raise NotImplemented
-
-    def deserialize(buf):
+class Image:
+    def serialize(image):
         import cv2
-        return cv2.imdecode(np.frombuffer(buf, dtype=np.dtype(np.uint8)), cv2.IMREAD_COLOR)
+        return cv2.imencode('.png', image)
+
+    def deserialize(encoded_image):
+        import cv2
+        return cv2.imdecode(np.frombuffer(encoded_image, dtype=np.dtype(np.uint8)), cv2.IMREAD_COLOR)

@@ -1,4 +1,5 @@
-from scannerpy.common import ScannerException, DeviceType, DeviceHandle, FrameType, ColumnType, PerfParams
+from scannerpy.common import ScannerException, DeviceType, DeviceHandle, ColumnType, PerfParams
+from scannerpy.types import FrameType
 from scannerpy.job import Job
 from scannerpy.client import Client, start_master, start_worker, CacheMode
 from scannerpy.config import Config
