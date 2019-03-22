@@ -13,25 +13,70 @@ class KernelConfig(object):
 
 
 class Kernel(object):
-    def __init__(self, config):
+    def __init__(self, config: KernelConfig, init_parameter = None):
+        r"""
+
+        Parameters
+        ----------
+        config
+          Contains the configuration settings for this instance of the kernel.
+
+        init_parameter
+          An example init parameter. Any parameters defined in the __init__ method
+          of a Kernel can be set when creating an instance of the corresponding operation.
+          For example, an operation for this Kernel could be initialized like this:
+
+          :code:`cl.ops.Kernel(init_parameter='test', ...)`
+        """
         self.config = config
 
     def close(self):
+        r"""Called when this Kernel instance will no longer be used.
+        """
         pass
 
-    def new_stream(self):
+    def new_stream(self, stream_config_parameter):
+        r"""Runs after fetch_resources for each instance of this operation.
+
+        Parameters
+        ----------
+        stream_config_parameter
+          The Sink or Sinks that should be processed.
+        """
         pass
 
     def reset(self):
+        r"""Called for stateful operations when the operation should reset its logical state.
+        """
         pass
 
     def fetch_resources(self):
+        r"""Runs once per Scanner worker to download resources for running this operation.
+        """
         pass
 
     def setup_with_resources(self):
+        r"""Runs after fetch_resources for each instance of this operation.
+
+        This method is reponsible for handling any setup that requires resources to first be downloaded.
+        """
         pass
 
-    def execute(self, input_columns):
+    def execute(self, stream_parameter: bytes) -> bytes:
+        r"""Runs the kernel on input elements and returns new output elements.
+
+        Parameters
+        ----------
+        stream_parameter
+          An example stream parameter. Must be annotated with a stream parameter type.
+          See :ref:`stream-parameters`.
+
+        Returns
+        -------
+        bytes
+          The outputs for the operation.
+        """
+
         raise NotImplementedError
 
 
