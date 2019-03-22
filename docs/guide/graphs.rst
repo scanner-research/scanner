@@ -5,9 +5,14 @@ Computation Graphs
 
 Overview
 --------
-Scanner represents applications as *computation graphs*. The nodes in computation graphs are Scanner operations (check out the :ref:`operations` guide for more information) and the edges between operations represent streams of data consumed and produced by operations. Nodes in a computation graph are one of three types: input nodes (**Inputs**), function nodes (**Ops**), and output nodes (**Outputs**). **Inputs** read data from stored streams, such as the video stream we just created. **Ops** represent functions that transform their inputs into new outputs. **Outputs** write data to stored streams.
+Scanner represents applications as *computation graphs*. The nodes in computation graphs are Scanner operations (check out the :ref:`operations` guide for more information) and the edges between operations represent streams of data consumed and produced by operations. Nodes in a computation graph are one of four types:
 
-For example, let's look at computation graph with an operation that resizes frames:
+- **Input nodes** (:code:`cl.io.Input`): read data from stored streams (:ref:`stored-streams`), such as from videos or previously generated metadata. 
+- **Operation nodes** (:code:`cl.ops.XXX`): represent functions that transform their inputs into new outputs, such as performing a resize of a frame. 
+- **Stream operation nodes** (:code:`cl.streams.XXX`):
+- **Output nodes** (:code:`cl.io.Output`): write data to empty stored streams.
+
+For example, let's look at a computation graph with an operation that resizes frames:
 
 .. code-block:: python
 
@@ -16,60 +21,75 @@ For example, let's look at computation graph with an operation that resizes fram
 
    cl = sp.Client()
    video_stream = sp.NamedVideoStream(cl, 'example', path='example.mp4')
-   input_frame = cl.io.Input([video_stream])
-   resized_frame = cl.ops.Resize(frame=input_frame, width=[640], height=[480])
+   input_frames = cl.io.Input([video_stream])
+   resized_frames = cl.ops.Resize(frame=input_frames, width=[640], height=[480])
    output_stream = sp.NamedVideoStream(cl, 'example-output')
-   resized_frame = cl.io.Output(resized_frame, [output_stream])
+   output = cl.io.Output(resized_frames, [output_stream])
 
-Here, the :code:`sc.io.Input` and :code:`sc.ops.Resize` operations are both nodes in a two node graph. :code:`sc.ops.Resize` is connected to :code:`sc.io.Input` by passing the output of the input operation, :code:`input_frame`, as an input to the resize operation, :code:`frame=input_frame`. It's important to note that we have not processed any data at this point. We have only defined a partial computation graph that we can finish later and then tell Scanner to execute.
+Here, the :code:`cl.io.Input`, :code:`cl.ops.Resize`, and :code:`cl.io.Output` operations are nodes in a three node graph. :code:`cl.ops.Resize` is connected to :code:`cl.io.Input` through passing its output, :code:`input_frames`, to the resize operation, :code:`frame=input_frames`. Likewise for :code:`cl.io.Output` and :code:`cl.ops.Resize`, but :py:meth:`~scannerpy.io.IOGenerator.Output` operations also bind an edge from a computation graph to an empty stored stream (:code:`output_stream` here) to be filled in with the sequence of elements produce from that edge. Importantly, note that we have not processed any data at this point: we have only defined a computation graph that we can tell Scanner to execute. Let's do that now:
 
-TODO: make a "TLDR"  section at the top of graphs/stored-streams/ops and  then more reference material below
+.. code-block:: python
 
-Processing lists of stored streams
+   cl.run(output)
+
+This operation will kick-off a Scanner job that will read all the elements in the input :code:`video_stream` and write outputs to :code:`output_stream`. 
+
+The rest of this guide goes into further detail on the capabilities of computation graphs.
+
+Multiple inputs and outputs
+---------------------------
+Computation graphs can have any number of inputs and outputs. Here's an example graph with one input and two outputs:
+
+.. code-block:: python
+
+   video_stream = sp.NamedVideoStream(cl, 'example', path='example.mp4')
+   input_frames = cl.io.Input([video_stream])
+
+   large_frames = cl.ops.Resize(frame=input_frames, width=[1280], height=[720])
+   small_frames = cl.ops.Resize(frame=input_frames, width=[640], height=[480])
+
+   large_stream = sp.NamedVideoStream(cl, 'large-output')
+   large_output = cl.io.Output(large_frames, [large_stream])
+
+   small_stream = sp.NamedVideoStream(cl, 'small-output')
+   small_output = cl.io.Output(small_frames, [small_stream])
+
+   cl.run([large_output, small_output])
+
+Notice how we pass both outputs to the :py:meth:`~scannerpy.client.Client.run` method. Scanner only runs the portions of the graph needed to produce the streams for the outputs passed to :code:`run`.
+
+.. _batch-processing:
+
+Batch processing of stored streams
 ----------------------------------
-The partial computation graph defined above only processes one video, but Scanner supports defining graphs that operate on hundreds or even thousands of videos at once. To process multiple videos, create a list of :ref:`stored-streams` representing those videos and then pass that list to the input operation:
+Often, one has a large collection of videos that they want to run the same computation graph over. Scanner supports this via batch processing of input and output streams. To process a batch of streams, create a list of :ref:`stored-streams` representing the input videos and then pass that list to the input operation:
 
 .. code-block:: python
 
-   video_streams = [
-       NamedVideoStream(sc, 'example1', path='example1.mp4'),
-       NamedVideoStream(sc, 'example2', path='example2.mp4'),
+   input_streams = [
+       NamedVideoStream(cl, 'example1', path='example1.mp4'),
+       NamedVideoStream(cl, 'example2', path='example2.mp4'),
        ...
-       NamedVideoStream(sc, 'example100', path='example100.mp4')]
-   input_frame = sc.io.Input(video_streams)
-   resized_frame = sc.ops.Resize(frame=input_frame,
-                                 width=[640, 640, ..., 640],
-                                 height=[480, 480, ..., 480])
+       NamedVideoStream(cl, 'example100', path='example100.mp4')]
+   input_frames = cl.io.Input(input_streams)
+   resized_frames = cl.ops.Resize(frame=input_frames,
+                                  width=[640, 1280, ..., 480],
+                                  height=[480, 720, ..., 360])
 
-Notice the other change that we made to this graph: the :code:`width` and :code:`height` arguments to :code:`Resize` are now lists of the same length as :code:`video_streams`. This is because :code:`height` and :code:`width` are *stream rate* arguments to  :code:`Resize`. Check out the section on *Parameter Rates* in the :ref:`ops` guide to learn more.
+Note that this is different from having multiple inputs or outputs to a computation graph. This graph still has only  one input because each video in the batch is processed independently. Conceptually, you can think of batch processing as executing a separate instance of the graph for each input stream in a batch. Notice the other change that we made to this graph: the :code:`width` and :code:`height` arguments to :code:`Resize` are now lists of the same length as :code:`input_streams`. This is because :code:`height` and :code:`width` are *stream config parameters* to :code:`Resize`: each input stream gets its own set of parameters. Check out the :ref:`stream-config-parameters` section to learn more about how stream config parameters work.
 
-Executing a computation graph
------------------------------
-Once a complete graph has been defined, we can execute it using a Scanner client object. A graph is considered complete when it has at least one :py:meth:`~scannerpy.io.IOGenerator.Output` operation:
+We also need a corresponding output stream for each of our input streams:
 
 .. code-block:: python
 
-   input_stream = NamedVideoStream(sc, 'example', path='example.mp4')
-   input_frame = sc.io.Input([input_stream])
-   resized_frame = sc.ops.Resize(frame=input_frame, width=[640], height=[480])
-   output_stream = NamedVideoStream(sc, 'example-output')
-   output = sc.io.Output(resized_frame, [output_stream])
+   output_streams = [
+       NamedVideoStream(cl, 'example1-resized'),
+       NamedVideoStream(cl, 'example2-resized'),
+       ...
+       NamedVideoStream(cl, 'example100-resized')]
+   output = cl.io.Output(resized_frames, output_streams)
 
-:py:meth:`~scannerpy.io.IOGenerator.Output` operations bind an edge from a computation graph to an empty stored stream to be filled in with the sequence of elements produce from that edge. Now that we have a complete graph, we can execute it:
-
-.. code-block:: python
-
-   sc.run(output)
-
-This operation will kick-off a Scanner job that will read all the elements in the input stored streams and write outputs to the stored streams provided to the output operation. Scanner also supports saving multiple outputs:
-
-.. code-block:: python
-
-   resized_stream = NamedVideoStream(sc, 'resized-example-output')
-   resized_output = sc.io.Output(resized_frame, [resized_stream])
-   frame_stream = NamedVideoStream(sc, 'frame-example-output')
-   frame_output = sc.io.Output(input_frame, [frame_stream])
-   sc.run([resized_output, frame_output])
+When executing this graph, Scanner will read and process each input stream independently to produce the output streams. If Scanner is running on a multi-core machine, multi-GPU machine, or on a cluster of machines, the videos will be processed in parallel across any of those configurations.
 
 .. _stream-operations:
 
@@ -79,15 +99,15 @@ Most operations are restricted to produce a single output element for each input
 
 .. code-block:: python
 
-   input_frame = sc.io.Input([video_stream])
-   resized_frame = sc.ops.Resize(frame=input_frame, width=[640], height=[480])
-   sampled_frame = sc.streams.Stride(resized_frame, [3])
+   input_frame = cl.io.Input([video_stream])
+   resized_frame = cl.ops.Resize(frame=input_frame, width=[640], height=[480])
+   sampled_frame = cl.streams.Stride(resized_frame, [3])
 
 If :code:`video_stream` is of length 30, then :code:`sampled_frame` will be a sequence of length 10 with the frames at indices [0, 3, 6, 9, ... 27]. Scanner also supports other types of stream operations, such as :py:meth:`~scannerpy.streams.StreamsGeneator.Gather`, which selects frames given a list of indices:
 
 .. code-block:: python
 
-   sampled_frame = sc.streams.Gather(resized_frame, [[0, 5, 7, 29]])
+   sampled_frame = cl.streams.Gather(resized_frame, [[0, 5, 7, 29]])
 
 To see the full list of stream operations, check out the methods of :py:class:`~scannerpy.streams.StreamsGeneator`.
 
@@ -110,51 +130,3 @@ To see the full list of stream operations, check out the methods of :py:class:`~
     - Multiple inputs/output streams
     - Slicing
     - Argument binding
-
-
-
-Processing multiple videos
---------------------------
-
-Now let's say that we have a directory of videos we want to process, instead of just a single one as above. To see the multiple video code in action, run the following commands from the quickstart app directoroy:
-
-.. code-block:: bash
-
-   wget https://storage.googleapis.com/scanner-data/public/sample-clip-1.mp4
-   wget https://storage.googleapis.com/scanner-data/public/sample-clip-2.mp4
-   wget https://storage.googleapis.com/scanner-data/public/sample-clip-3.mp4
-   python3 main-multi-video.py
-
-After :code:`main-multi-video.py` exits, you should now have a resized version of each of the downloaded videos named :code:`sample-clip-%d-resized.mp4` in the current directory, where :code:`%d` is replaced with the number of the video.
-
-There are two places in the code that need to change to process multiple videos. Let's look at those pieces of code inside :code:`main-multi-video.py` now.
-
-Processing multiple stored streams
-----------------------------------
-
-Instead of passing a single stream to the **Input** op, we are going to create a stream for each of our videos and pass them all at once into the **Input**:
-
-.. code-block:: python
-
-   videos_to_process = [
-       ('sample-clip-1', 'sample-clip-1.mp4'),
-       ('sample-clip-2', 'sample-clip-2.mp4'),
-       ('sample-clip-3', 'sample-clip-3.mp4')
-      ]
-   input_streams = [NamedVideoStream(sc, info[0], path=info[1])
-                    for info in videos_to_process]
-   frame = sc.io.Input(input_streams)
-
-
-TODO: differentirate between multiple input ops and multiple input streams
-TODO: better explanation for why we need the same number of output streams as input streams
-
-We also need a corresponding output stream for each input stream:
-
-.. code-block:: python
-
-   output_streams = [NamedVideoStream(sc, info[0] + 'resized')
-                    for info in videos_to_process]
-   output = sc.io.Output(resized, output_streams)
-
-When executing this graph, Scanner will read and process each input stream independently to produce the output streams. If Scanner is running on a multi-core machine, multi-GPU machine, or on a cluster of machines, the videos will be processed in parallel across any of those configurations.
