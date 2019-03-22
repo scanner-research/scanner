@@ -23,6 +23,24 @@ For example, the following code creates a stored stream for a video file named :
 
 :py:class:`~scannerpy.storage.NamedVideoStream` is a special type of stored stream which represents data stored inside Scanner's internal datastore. In order to efficiently read frames from a video, Scanner needs to build an index over the compressed video. By specifying :code:`path = 'example.mp4`, we've told Scanner to initialize a stream named :code:`example` from the :code:`example.mp4` video.
 
+FIX THIS
+
+Since Scanner was built specifically for processing video, it has specialized support for fast access to frames in videos, even under random access patterns. In order to provide this functionality, Scanner first needs to analyze the video to build an index on the video. This index is built when a :py:class:`~scannerpy.storage.NamedVideoStream` is first accessed. By default, Scanner copies the video data to Scanner's internal database (located at :code:`~/.scanner/db` by default). However, Scanner can also read videos without copying them using the :code:`inplace` flag:
+
+.. code-block:: python
+
+   input_stream = NamedVideoStream(cl, 'sample-clip', path='sample-clip.mp4',
+                                   inplace=True)
+
+This still builds the index for accessing the video but avoids copying the files.
+
+TODO: why use inplace vs not inplace
+
+TODO: get rid of inplace and stored streams description, just explain that it's how to read videos for now
+
+FIX THIS
+
+
 Another example of a stored stream is the :py:class:`~scannerpy.storage.FilesStream`, which represents a stream of individual files stored on a filesystem or cloud blob storage:
 
 .. code-block:: python
