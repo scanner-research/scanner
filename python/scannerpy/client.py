@@ -106,7 +106,7 @@ class Client(object):
     ops : OpGenerator
       Represents the set of available Ops. Ops can be created like so:
 
-      `output = sc.ops.ExampleOp(arg='example')`
+      :code:`output = cl.ops.ExampleOp(arg='example')`
 
       For a more detailed description, see :class:`~scannerpy.op.OpGenerator`
 

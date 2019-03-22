@@ -25,6 +25,14 @@ scannerpy\.op module
     :undoc-members:
     :show-inheritance:
 
+scannerpy\.types module
+--------------------
+
+.. automodule:: scannerpy.types
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 scannerpy\.io module
 -------------------------
 
@@ -126,6 +134,14 @@ scannerpy\.storage module
 -----------------------
 
 .. automodule:: scannerpy.storage
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+scannerpy\.kube module
+-----------------------
+
+.. automodule:: scannerpy.kube
     :members:
     :undoc-members:
     :show-inheritance:

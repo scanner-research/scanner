@@ -5,7 +5,7 @@ Stored Streams
 
 Overview
 --------
-Scanner represents input and output data as sequences of data items called :py:class:`~scannerpy.storage.StoredStream` s. Stored streams are Python objects that describe to Scanner how to read data to be processed and how to write data after it has been processed by a Scanner application. Stored streams can represent data stored in a variety of locations or formats:
+Scanner represents input and output data as sequences of data items called :py:class:`~scannerpy.storage.StoredStream`. Stored streams are Python objects that describe to Scanner how to read data to be processed and how to write data after it has been processed by a Scanner application. Stored streams can represent data stored in a variety of locations or formats:
 
 - Video files (mp4, mkv, etc).
 - Collections of files (images, text, etc)
@@ -16,53 +16,36 @@ For example, the following code creates a stored stream for a video file named :
 
 .. code-block:: python
 
-   from scannerpy import Client
-   from scannerpy.storage import NamedVideoStream
-   sc = Client()
-   video_stream = NamedVideoStream(sc, 'example', path='example.mp4')
+   import scannerpy as sp
+   cl = sp.Client()
+   video_stream = sp.NamedVideoStream(cl, 'example', path='example.mp4')
 
-:py:class:`~scannerpy.storage.NamedVideoStream` is a special type of stored stream which represents data stored inside Scanner's internal datastore. In order to efficiently read frames from a video, Scanner needs to build an index over the compressed video. By specifying :code:`path = 'example.mp4`, we've told Scanner to initialize a stream named :code:`example` from the :code:`example.mp4` video.
-
-FIX THIS
-
-Since Scanner was built specifically for processing video, it has specialized support for fast access to frames in videos, even under random access patterns. In order to provide this functionality, Scanner first needs to analyze the video to build an index on the video. This index is built when a :py:class:`~scannerpy.storage.NamedVideoStream` is first accessed. By default, Scanner copies the video data to Scanner's internal database (located at :code:`~/.scanner/db` by default). However, Scanner can also read videos without copying them using the :code:`inplace` flag:
-
-.. code-block:: python
-
-   input_stream = NamedVideoStream(cl, 'sample-clip', path='sample-clip.mp4',
-                                   inplace=True)
-
-This still builds the index for accessing the video but avoids copying the files.
-
-TODO: why use inplace vs not inplace
-
-TODO: get rid of inplace and stored streams description, just explain that it's how to read videos for now
-
-FIX THIS
-
+:py:class:`~scannerpy.storage.NamedVideoStream` is a special type of stored stream which represents data stored inside Scanner's internal datastore. Since Scanner was built specifically for processing video, it has specialized support for fast access to frames in videos, even under random access patterns. In order to efficiently read frames from a video, Scanner needs to build an index over the compressed video. By specifying :code:`path = 'example.mp4`, we've told Scanner to initialize a stream named :code:`example` from the :code:`example.mp4` video.
 
 Another example of a stored stream is the :py:class:`~scannerpy.storage.FilesStream`, which represents a stream of individual files stored on a filesystem or cloud blob storage:
 
 .. code-block:: python
 
-   from scannerpy.storage import FilesStream
+   from scannertools.storage.files import FilesStream
    image_paths = ['image1.jpg', 'image2.jpg', 'image3.jpg']
-   file_stream = FilesStream(sc, paths=image_paths)
+   file_stream = FilesStream(cl, paths=image_paths)
 
-By default, :py:class:`~scannerpy.storage.FilesStream` reads from the local filesystem. However, like all stored streams, the storage location and configuration options can be specified with :py:class:`~scannerpy.storage.StorageBackend` s.
+By default, :py:class:`~scannertools.storage.files.FilesStream` reads from the local filesystem. However, like all stored streams, the storage location and configuration options can be specified with a :py:class:`~scannerpy.storage.StorageBackend`.
+
+Te rest of this guide explains the additional features of stored streams.
 
 Storage Backends 
 ----------------
-:py:class:`~scannerpy.storage.StorageBackend` s represent the specific storage location or format for stored streams. For example, :py:class:`~scannerpy.storage.FilesStream` can be configured to read files from Amazon's S3 storage service instead of the default local file system by creating the appropriate storage backend:
+:py:class:`~scannerpy.storage.StorageBackend` s represent the specific storage location or format for stored streams. For example, :py:class:`~scannertools.storage.files.FilesStream` can be configured to read files from Amazon's S3 storage service instead of the default local file system by creating the appropriate storage backend:
 
 .. code-block:: python
 
-   from scannerpy.storage import FileStroage, FilesStream
+   from scannertools.storage.files import FileStorage, FilesStream
    image_paths = ['image1.jpg', 'image2.jpg', 'image3.jpg']
    file_storage = FileStorage(storage_type='s3',
                               bucket='example-bucket',
                               region='us-west-1')
-   file_stream = FilesStream(sc, paths=image_paths, storage=file_storage)
+   file_stream = FilesStream(cl, paths=image_paths, storage=file_storage)
 
 I/O Operations
 --------------
@@ -105,6 +88,18 @@ If there are multiple streams to delete, it can be more efficient to invoke a bu
 .. code-block:: python
 
    video_stream.storage().delete(sc, [...])
+
+Inplace video indexing
+----------------------
+By default, Scanner copies the video data for a :py:class:`~scannerpy.storage.NamedVideoStream` to Scanner's internal database (located at :code:`~/.scanner/db` by default) when it builds the index over the video for fast frame access. For a limited set of video container formats (currently only MP4), Scanner also supports accessing videos without copying them using the :code:`inplace=True` flag:
+
+.. code-block:: python
+
+   input_stream = NamedVideoStream(cl, 'sample-clip', path='sample-clip.mp4',
+                                   inplace=True)
+
+This still builds the index for accessing the video but avoids copying the files. When Scanner accesses the video data, it will read it directly from the path provided to the named video stream.
+
 
 ..
     - Introduce what stored streams are used  for in scanner
