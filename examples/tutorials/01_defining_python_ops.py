@@ -1,6 +1,4 @@
-from scannerpy import Client, DeviceType, FrameType, PerfParams
-from scannerpy.storage import NamedStream, NamedVideoStream
-import scannerpy
+import scannerpy as sp
 import cv2
 import sys
 import os
@@ -19,9 +17,9 @@ import util
 # input sequence. For example:
 
 # Ops have to be registered with the Scanner runtime, which is done
-# here using the decorator @scannerpy.register_python_op()
-@scannerpy.register_python_op()
-def resize_fn(config, frame: FrameType) -> FrameType:
+# here using the decorator @sp.register_python_op()
+@sp.register_python_op()
+def resize_fn(config, frame: sp.FrameType) -> sp.FrameType:
     # Function ops first input (here, config) is always the kernel config.
     # The kernel config provides metadata about the invocation of the Op,
     # such as:
@@ -47,8 +45,8 @@ def resize_fn(config, frame: FrameType) -> FrameType:
 # If your op has state (e.g. it tracks objects over time) or if it has high
 # start-up costs (e.g. it loads a neural network model into memory), then you
 # can also use our class-based interface:
-@scannerpy.register_python_op()
-class ResizeClass(scannerpy.Kernel):
+@sp.register_python_op()
+class ResizeClass(sp.Kernel):
     # Init runs once when the class instance is initialized
     def __init__(self, config, width, height):
         self._width = width
@@ -56,38 +54,38 @@ class ResizeClass(scannerpy.Kernel):
 
     # The execute method serves the same purpose the registered op function
     # above does and has to provide the same type annotations.
-    def execute(self, frame: FrameType) -> FrameType:
+    def execute(self, frame: sp.FrameType) -> sp.FrameType:
         return cv2.resize(frame, (self._width, self._height))
 
 
 def main():
     # Now we can use these new Ops in Scanner:
-    sc = Client()
+    cl = sp.Client()
 
     # Download an example video
     example_video_path = util.download_video()
 
     # Create a stream and input to read our example video
-    video_stream = NamedVideoStream(sc, 'example', path=example_video_path)
-    frame = sc.io.Input([video_stream])
+    video_stream = sp.NamedVideoStream(cl, 'example', path=example_video_path)
+    frames = cl.io.Input([video_stream])
 
-    resized_frame_fn = sc.ops.resize_fn(frame=frame, width=640, height=480)
+    resized_fn_frames = cl.ops.resize_fn(frame=frames, width=640, height=480)
 
-    resized_frame_class = sc.ops.ResizeClass(frame=frame, width=320, height=240)
+    resized_class_frames = cl.ops.ResizeClass(frame=frames, width=320, height=240)
 
-    fn_stream = NamedVideoStream(sc, 'fn_frames')
-    fn_output = sc.io.Output(resized_frame_fn, [fn_stream])
+    fn_stream = sp.NamedVideoStream(cl, 'fn_frames')
+    fn_output = cl.io.Output(resized_fn_frames, [fn_stream])
 
-    class_stream = NamedVideoStream(sc, 'class_frames')
-    class_output = sc.io.Output(resized_frame_class, [class_stream])
+    class_stream = sp.NamedVideoStream(cl, 'class_frames')
+    class_output = cl.io.Output(resized_class_frames, [class_stream])
 
-    sc.run([fn_output, class_output], PerfParams.estimate())
+    cl.run([fn_output, class_output], sp.PerfParams.estimate())
 
     fn_stream.save_mp4('01_resized_fn')
     class_stream.save_mp4('01_resized_class')
 
     for stream in [fn_stream, class_stream]:
-        stream.delete(sc)
+        stream.delete(cl)
 
     print('Finished! Two videos were saved to the current directory: '
           '01_resized_fn.mp4, 01_resized_class.mp4')

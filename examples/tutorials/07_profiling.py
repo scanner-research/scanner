@@ -1,6 +1,5 @@
-from scannerpy import Client, PerfParams
-from scannerpy.storage import NamedStream, NamedVideoStream
-import scannertools
+import scannerpy as sp
+import scannertools.imgproc
 
 import sys
 import os.path
@@ -12,27 +11,27 @@ import util
 ################################################################################
 
 def main():
-    sc = Client()
+    cl = sp.Client()
 
     example_video_path = util.download_video()
-    video_stream = NamedVideoStream(sc, 'example', path=example_video_path)
-    frame = sc.io.Input([video_stream])
+    video_stream = sp.NamedVideoStream(cl, 'example', path=example_video_path)
+    frames = cl.io.Input([video_stream])
 
-    histogram = sc.ops.Histogram(frame=frame)
+    histograms = cl.ops.Histogram(frame=frames)
 
-    output_stream = NamedVideoStream(sc, 'example_hist_profile')
-    output = sc.io.Output(histogram, [output_stream])
+    output_stream = sp.NamedVideoStream(cl, 'example_hist_profile')
+    output = cl.io.Output(histograms, [output_stream])
 
-    sc.run(output, PerfParams.estimate())
+    job_id = cl.run(output, sp.PerfParams.estimate())
 
     # The profiler contains information about how long different parts of your
     # computation take to run. We use Google Chrome's trace format, which you
     # can view by going to chrome://tracing in Chrome and clicking "load" in
     # the top left.
-    sc.table('example_hist_profile').profiler().write_trace('hist.trace')
+    cl.get_profiler(job_id).write_trace('hist.trace')
 
-    video_stream.delete(sc)
-    output_stream.delete(sc)
+    video_stream.delete(cl)
+    output_stream.delete(cl)
 
     # Each row corresponds to a different part of the system, e.g. the thread
     # loading bytes from disk or the thread running your kernels. If you have

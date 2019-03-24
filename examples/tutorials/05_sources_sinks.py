@@ -1,9 +1,7 @@
-from scannerpy import Client, FrameType, PerfParams
-from scannerpy.storage import FilesStream
-import scannertools
+from scannertools.storage.files_strage import FilesStream
 from typing import Sequence
 
-import scannerpy
+import scannerpy as sp
 import cv2
 
 import sys
@@ -17,7 +15,7 @@ import util
 ################################################################################
 
 def main():
-    sc = Client()
+    cl = sp.Client()
 
     # What if, instead of a video, you had a list of image files that you
     # wanted to process? Scanner provides an extensible interface for reading and
@@ -32,7 +30,7 @@ def main():
 
     image_stream = FilesStream(image_paths)
 
-    compressed_images = sc.io.Input([image_stream])
+    compressed_images = cl.io.Input([image_stream])
     # Like with sc.sources.FrameColumn, we will bind the inputs to this source when
     # we define a job later on.
 
@@ -41,19 +39,19 @@ def main():
 
     # Since the input images are compressed, we decompress them with the
     # ImageDecoder
-    frame = sc.ops.ImageDecoder(img=compressed_images)
+    frames = cl.ops.ImageDecoder(img=compressed_images)
 
-    resized = sc.ops.Resize(frame=frame, width=640, height=360)
+    resized_frames = cl.ops.Resize(frame=frames, width=640, height=360)
 
     # Rencode the image to jpg
-    encoded_frame = sc.ops.ImageEncoder(frame=resized, format='jpg')
+    encoded_frames = cl.ops.ImageEncoder(frame=resized_frames, format='jpg')
 
     # Write the compressed images to files
     resized_paths = ['resized-1.jpg', 'resized-2.jpg', 'resized-3.jpg']
     resized_stream = FilesStream(resized_paths)
-    output = sc.io.Output(encoded_frame, [resized_stream])
+    output = cl.io.Output(encoded_frames, [resized_stream])
 
-    sc.run(output, PerfParams.estimate(), cache_mode=CacheMode.Overwrite)
+    cl.run(output, sp.PerfParams.estimate(), cache_mode=sp.CacheMode.Overwrite)
 
     print('Finished! Wrote the following images: ' + ', '.join(resized_paths))
 

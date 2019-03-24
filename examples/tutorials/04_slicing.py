@@ -1,7 +1,5 @@
-from scannerpy import Client, FrameType, PerfParams
-from scannerpy.storage import NamedStream, NamedVideoStream
+import scannerpy as sp
 from typing import Sequence
-import scannerpy
 import cv2
 import numpy as np
 import subprocess
@@ -17,12 +15,12 @@ import util
 ################################################################################
 
 def main():
-    sc = Client()
+    cl = Client()
 
     example_video_path = util.download_video()
-    video_stream = NamedVideoStream(sc, 'example', path=example_video_path)
+    video_stream = sp.NamedVideoStream(cl, 'example', path=example_video_path)
 
-    frame = sc.io.Input([video_stream])
+    frame = cl.io.Input([video_stream])
 
     # When working with bounded or unbounded stateful operations, it is sometimes
     # useful to introduce boundaries between sequences of frames which restrict
@@ -32,15 +30,15 @@ def main():
 
     # Scanner provides support for limiting state propagation across frames through
     # "slicing" operations.
-    sliced_frame = sc.streams.Slice(frame, [sc.partitioner.all(50)])
+    sliced_frame = cl.streams.Slice(frame, [cl.partitioner.all(50)])
     # Here, we sliced the input frame stream into chunks of 50 elements. What this
     # means is that any ops which process 'sliced_frame' will *only* be able to
     # maintain state within each chunk of 50 elements.
 
     # For example, let's say we grab the background subtraction op from the previous
     # tutorial (02_op_attributes) and want to run it on our example video:
-    @scannerpy.register_python_op(bounded_state=60)
-    class BackgroundSubtraction(scannerpy.Kernel):
+    @sp.register_python_op(bounded_state=60)
+    class BackgroundSubtraction(sp.Kernel):
         def __init__(self, config, alpha, threshold):
             self.config = config
             self.alpha = alpha
@@ -49,7 +47,7 @@ def main():
         def reset(self):
             self.average_image = None
 
-        def execute(self, frame: FrameType) -> FrameType:
+        def execute(self, frame: sp.FrameType) -> sp.FrameType:
             if self.average_image is None:
                 self.average_image = frame
 
@@ -66,31 +64,31 @@ def main():
             return masked_image
 
 
-    frame = sc.io.Input([video_stream])
+    frame = cl.io.Input([video_stream])
 
     # Imagine that there are scene changes at frames 1100, 1200, and 1500, To tell
     # scanner that we do not want background subtraction to cross these boundaries,
     # we can create a 'partitioner' which splits the input.
-    scene_partitions = sc.partitioner.ranges([(1100, 1200), (1200, 1500)])
+    scene_partitions = cl.partitioner.ranges([(1100, 1200), (1200, 1500)])
 
     # Now we slice the input frame sequence into these two partitions using a
     # slice operation
-    sliced_frame = sc.streams.Slice(frame, partitioner=scene_partitions)
+    sliced_frame = cl.streams.Slice(frame, partitioner=scene_partitions)
 
     # Then we perform background subtraction and indicate we need 60 prior
     # frames to produce correct output
-    masked_frame = sc.ops.BackgroundSubtraction(frame=sliced_frame,
+    masked_frame = cl.ops.BackgroundSubtraction(frame=sliced_frame,
                                                 alpha=0.02, threshold=0.05,
                                                 bounded_state=60)
     # Since the background subtraction operation is done, we can unslice the
     # sequence to join it back into a single contiguous stream. You must unslice
     # sequences before feeding them back into sinks
-    unsliced_frame = sc.streams.Unslice(masked_frame)
+    unsliced_frame = cl.streams.Unslice(masked_frame)
 
-    stream = NamedVideoStream(sc, '04_masked_video')
-    output = sc.io.Output(unsliced_frame, [stream])
+    stream = sp.NamedVideoStream(cl, '04_masked_video')
+    output = cl.io.Output(unsliced_frame, [stream])
 
-    sc.run(output, PerfParams.estimate())
+    cl.run(output, sp.PerfParams.estimate())
 
     stream.save_mp4('04_masked')
     stream.delete()
