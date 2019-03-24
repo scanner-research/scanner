@@ -1,7 +1,5 @@
-from scannerpy import Client, DeviceType, FrameType, PerfParams
-from scannerpy.storage import NamedStream, NamedVideoStream
+import scannerpy as sp
 from typing import Sequence
-import scannerpy
 import cv2
 import numpy as np
 
@@ -20,10 +18,10 @@ def main():
     # Keep track of the streams so we can delete them at the end
     streams = []
 
-    sc = Client()
+    cl = sp.Client()
 
     example_video_path = util.download_video()
-    video_stream = NamedVideoStream(sc, 'example', path=example_video_path)
+    video_stream = sp.NamedVideoStream(cl, 'example', path=example_video_path)
     streams.append(video_stream)
     # Many ops simply involve applying some processing to their inputs and then
     # returning their outputs. But there are also many operations in video
@@ -39,19 +37,19 @@ def main():
     #   Ops can specify that they require CPUs or GPUs by declaring their device
     #   type. By default, the device_type is DeviceType.CPU.
 
-    @scannerpy.register_python_op(device_type=DeviceType.CPU)
-    def device_resize(config, frame: FrameType) -> FrameType:
+    @sp.register_python_op(device_type=sp.DeviceType.CPU)
+    def device_resize(config, frame: sp.FrameType) -> sp.FrameType:
         return cv2.resize(frame, (config.args['width'], config.args['height']))
 
-    frame = sc.io.Input([video_stream])
+    frames = cl.io.Input([video_stream])
 
-    resized_frame = sc.ops.device_resize(frame=frame, width=640, height=480)
+    resized_frames = cl.ops.device_resize(frame=frames, width=640, height=480)
 
-    stream = NamedVideoStream(sc, 'example_resize')
+    stream = sp.NamedVideoStream(cl, 'example_resize')
     streams.append(stream)
-    output = sc.io.Output(resized_frame, [stream])
+    output = cl.io.Output(resized_frames, [stream])
 
-    sc.run(output, PerfParams.estimate())
+    cl.run(output, sp.PerfParams.estimate())
 
     stream.save_mp4('02_device_resize')
     videos.append('02_device_resize.mp4')
@@ -60,8 +58,8 @@ def main():
     #   The Op can receive multiple elements at once to enable SIMD or
     #   vector-style processing.
 
-    @scannerpy.register_python_op(batch=10)
-    def batch_resize(config, frame: Sequence[FrameType]) -> Sequence[FrameType]:
+    @sp.register_python_op(batch=10)
+    def batch_resize(config, frame: Sequence[sp.FrameType]) -> Sequence[sp.FrameType]:
         output_frames = []
         for fr in frame:
             output_frames.append(cv2.resize(
@@ -74,16 +72,16 @@ def main():
     # batch processing. If there are not enough elements left in a stream,
     # the Op may receive less than a batch worth of elements.
 
-    frame = sc.io.Input([video_stream])
+    frame = cl.io.Input([video_stream])
 
-    resized_frame = sc.ops.batch_resize(frame=frame, width=640, height=480,
+    resized_frame = cl.ops.batch_resize(frame=frame, width=640, height=480,
                                         batch=10)
 
-    stream = NamedVideoStream(sc, 'example_batch_resize')
+    stream = sp.NamedVideoStream(cl, 'example_batch_resize')
     streams.append(stream)
-    output = sc.io.Output(resized_frame, [stream])
+    output = cl.io.Output(resized_frame, [stream])
 
-    sc.run(output, PerfParams.estimate())
+    cl.run(output, sp.PerfParams.estimate())
 
     stream.save_mp4('02_batch_resize')
     videos.append('02_batch_resize.mp4')
@@ -96,8 +94,8 @@ def main():
 
     # Here, we use the stencil attribute to write an optical flow op which
     # computes flow between the current and next frame.
-    @scannerpy.register_python_op(stencil=[0, 1])
-    def optical_flow(config, frame: Sequence[FrameType]) -> FrameType:
+    @sp.register_python_op(stencil=[0, 1])
+    def optical_flow(config, frame: Sequence[sp.FrameType]) -> sp.FrameType:
         gray1 = cv2.cvtColor(frame[0], cv2.COLOR_BGR2GRAY)
         gray2 = cv2.cvtColor(frame[1], cv2.COLOR_BGR2GRAY)
         flow = cv2.calcOpticalFlowFarneback(gray1, gray2, None, 0.5, 3, 15, 3, 5,
@@ -106,8 +104,8 @@ def main():
 
 
     # This op visualizes the flow field by converting it into an rgb image
-    @scannerpy.register_python_op()
-    def visualize_flow(config, flow: FrameType) -> FrameType:
+    @sp.register_python_op()
+    def visualize_flow(config, flow: sp.FrameType) -> sp.FrameType:
         hsv = np.zeros(shape=(flow.shape[0], flow.shape[1], 3), dtype=np.uint8)
         hsv[..., 1] = 255
 
@@ -117,20 +115,20 @@ def main():
         rgb = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
         return rgb
 
-    frame = sc.io.Input([video_stream])
+    frames = cl.io.Input([video_stream])
 
     # This next line is using a feature we'll discuss in the next tutorial, but you
     # can think of it as selecting a subset of elements from the stream (here,
     # frames 0 to 30)
-    range_frame = sc.streams.Range(frame, [(0, 30)])
-    flow = sc.ops.optical_flow(frame=range_frame, stencil=[0, 1])
-    flow_viz = sc.ops.visualize_flow(flow=flow)
+    range_frames = cl.streams.Range(frames, [(0, 30)])
+    flows = cl.ops.optical_flow(frame=range_frames, stencil=[0, 1])
+    flow_viz_frames = cl.ops.visualize_flow(flow=flows)
 
-    stream = NamedVideoStream(sc, 'example_flow')
+    stream = sp.NamedVideoStream(cl, 'example_flow')
     streams.append(stream)
-    output = sc.io.Output(flow_viz, [stream])
+    output = cl.io.Output(flow_viz_frames, [stream])
 
-    sc.run(output)
+    cl.run(output, sp.PerfParams.estimate())
 
     stream.save_mp4('02_flow')
     videos.append('02_flow.mp4')
@@ -145,8 +143,8 @@ def main():
 
     import subprocess
 
-    @scannerpy.register_python_op(bounded_state=60)
-    class BackgroundSubtraction(scannerpy.Kernel):
+    @sp.register_python_op(bounded_state=60)
+    class BackgroundSubtraction(sp.Kernel):
         def __init__(self, config, alpha, threshold):
             self.config = config
             self.alpha = alpha
@@ -157,7 +155,7 @@ def main():
         def reset(self):
             self.average_image = None
 
-        def execute(self, frame: FrameType) -> FrameType:
+        def execute(self, frame: sp.FrameType) -> sp.FrameType:
             if self.average_image is None:
                 self.average_image = frame
 
@@ -178,21 +176,21 @@ def main():
     # to indicate that this kernel needs at least 60 frames before the output
     # should be considered reasonable.
 
-    frame = sc.io.Input([video_stream])
+    frames = cl.io.Input([video_stream])
 
     # We perform background subtraction and indicate we need 60 prior
     # frames to produce correct output
-    masked_frame = sc.ops.BackgroundSubtraction(frame=frame,
-                                                alpha=0.05, threshold=0.05,
-                                                bounded_state=60)
+    masked_frames = cl.ops.BackgroundSubtraction(frame=frames,
+                                                 alpha=0.05, threshold=0.05,
+                                                 bounded_state=60)
     # Here, we say that we only want the outputs for this range of frames
-    sampled_frame = sc.streams.Range(masked_frame, [(0, 120)])
+    sampled_frames = cl.streams.Range(masked_frames, [(0, 120)])
 
-    stream = NamedVideoStream(sc, 'masked_video')
+    stream = sp.NamedVideoStream(cl, 'masked_video')
     streams.append(stream)
-    output = sc.io.Output(sampled_frame, [stream])
+    output = cl.io.Output(sampled_frames, [stream])
 
-    sc.run(output, PerfParams.estimate())
+    cl.run(output, sp.PerfParams.estimate())
 
     stream.save_mp4('02_masked')
     videos.append('02_masked.mp4')
@@ -205,20 +203,19 @@ def main():
     #     can not change how many inputs it receives. In the next
     #     tutorial, we will show how this can be relaxed for
     #     sub-streams of the input.
-    @scannerpy.register_python_op(unbounded_state=True)
-    class Example(scannerpy.Kernel):
+    @sp.register_python_op(unbounded_state=True)
+    class Example(sp.Kernel):
         def __init__(self, config):
             pass
 
         def reset(self):
             pass
 
-        def execute(self, frame: FrameType) -> bytes:
+        def execute(self, frame: sp.FrameType) -> bytes:
             pass
 
-
     for stream in streams:
-        stream.delete(sc)
+        stream.delete(cl)
 
     print('Finished! The following videos were written: {:s}'
           .format(', '.join(videos)))
