@@ -35,13 +35,11 @@ class Kernel(object):
         """
         pass
 
-    def new_stream(self, stream_config_parameter):
+    def new_stream(self):
         r"""Runs after fetch_resources for each instance of this operation.
 
-        Parameters
-        ----------
-        stream_config_parameter
-          The Sink or Sinks that should be processed.
+        Parameters added for this method by operations are considered
+        `stream config parameters` (see :ref:`stream-config-parameters`).
         """
         pass
 

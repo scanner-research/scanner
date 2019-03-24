@@ -1163,7 +1163,7 @@ class Client(object):
         else:
             return t.column('column')
 
-    def profiler(self, job_name, **kwargs):
+    def get_profiler(self, job_name, **kwargs):
         db_meta = self._load_db_metadata()
         if isinstance(job_name, str):
             job_id = None
@@ -1289,7 +1289,7 @@ class Client(object):
             show_progress: bool = True,
             profiling: bool = False,
             load_sparsity_threshold: int = 8,
-            tasks_in_queue_per_pu: int = 4,
+            queue_size_per_pipeline: int = 4,
             task_timeout: int = 0,
             checkpoint_frequency: int = 10,
             detach: bool = False,
@@ -1323,7 +1323,7 @@ class Client(object):
         ----------------
         load_sparsity_threshold
 
-        tasks_in_queue_per_pu
+        queue_size_per_pipeline
 
         task_timeout
 
@@ -1377,8 +1377,12 @@ class Client(object):
                 n = len(op._job_args)
             elif op._extra is not None and 'job_args' in op._extra:
                 if not isinstance(op._extra['job_args'], list):
-                    raise ScannerException("Per-stream arguments to op `{}` must be a list." \
-                                           .format(op._name))
+                    op_name = op._name
+                    if op_name == 'Sample':
+                        op_name = op._extra['type']
+                    raise ScannerException(
+                        "The arguments to op `{}` are stream config arguments and must be lists."
+                        .format(op._name))
                 n = len(op._extra['job_args'])
             else:
                 continue
@@ -1410,22 +1414,33 @@ class Client(object):
                             next(iter(diff)), output_ops_list[i]._name, output_ops_list[j]._name))
 
         to_cache = []
-        if len(to_delete[0]) > 0:
+        for output_idx, per_output_to_delete in enumerate(to_delete):
+            if len(per_output_to_delete) == 0:
+                to_cache.append([])
+                continue
+
+            op = output_ops_list[output_idx]
+
             if cache_mode == CacheMode.Error:
+                stream_idx = next(iter(per_output_to_delete))
+                stream = op._streams[stream_idx]
+                stored_stream_type_name = stream.__class__.__name__
+                stored_stream_instance_name = stream.name()
                 raise ScannerException(
-                    ("Running this job would overwrite output `{}` of op `{}`. You can "
-                     "change this behavior using sc.run(cache_mode=CacheMode.Ignore) to "
+                    ("Running this job would overwrite the {:s} `{}`. You can "
+                     "change this behavior using cl.run(cache_mode=CacheMode.Ignore) to "
                      "ignore outputs that already exist, or CacheMode.Overwrite to "
-                     "overwrite them.").format(next(iter(to_delete[0])), output_ops_list[0]._name))
+                     "overwrite them.").format(stored_stream_type_name,
+                                               stored_stream_instance_name))
 
             elif cache_mode == CacheMode.Overwrite:
-                for op, td in zip(output_ops_list, to_delete):
-                    streams = op._streams
-                    storage = streams[0].storage()
-                    storage.delete(self, [streams[i] for i in td])
+                td = per_output_to_delete
+                streams = op._streams
+                storage = streams[0].storage()
+                storage.delete(self, [streams[i] for i in td])
 
             elif cache_mode == CacheMode.Ignore:
-                to_cache = to_delete[0]
+                to_cache.append(per_output_to_delete)
 
         # Struct of arrays to array of structs conversion
         jobs = []
@@ -1525,7 +1540,7 @@ class Client(object):
         perf_params = perf_params(
             inputs=[op._outputs[0]._streams for op in source_ops.keys()],
             ops=sorted_ops,
-            tasks_in_queue_per_pu=tasks_in_queue_per_pu)
+            queue_size_per_pipeline=queue_size_per_pipeline)
 
         job_params.compression.extend(compression_options)
 
@@ -1533,7 +1548,7 @@ class Client(object):
         job_params.work_packet_size = perf_params.work_packet_size
         job_params.io_packet_size = perf_params.io_packet_size
         job_params.profiling = profiling
-        job_params.tasks_in_queue_per_pu = tasks_in_queue_per_pu
+        job_params.tasks_in_queue_per_pu = queue_size_per_pipeline
         job_params.load_sparsity_threshold = load_sparsity_threshold
         job_params.boundary_condition = (
             protobufs.BulkJobParameters.REPEAT_EDGE)

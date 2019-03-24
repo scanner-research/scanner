@@ -119,6 +119,10 @@ class StoredStream:
         """Get the number of elements in this stream."""
         raise NotImplementedError
 
+    def name(self) -> str:
+        """Gets a human interpretable name for this stored stream."""
+        raise NotImplementedError
+
     def type(self) -> type:
         """Get the Scanner type of elements in this stream if it exists, and return None otherwise."""
         raise NotImplementedError
@@ -268,9 +272,6 @@ class NamedStream(StoredStream):
         self._sc = sc
         self._name = name
 
-    def name(self):
-        return self._name
-
     def type(self):
         seq = self._sc.sequence(self._name)
         seq._load_meta()
@@ -279,6 +280,9 @@ class NamedStream(StoredStream):
             return get_type_info_cpp(type_name)
         else:
             return None
+
+    def name(self):
+        return self._name
 
     def storage(self):
         return self._storage
