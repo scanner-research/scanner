@@ -11,6 +11,13 @@
 
 namespace scanner {
 namespace internal {
+namespace {
+const std::string DECODER_SETUP_LABEL = "Decoder Setup";
+const std::string DECODE_LABEL = "Decode Frames";
+const std::string FEED_LABEL = "Feed Input";
+const std::string YIELD_LABEL = "Produce Output";
+const std::string PIPELINE_SETUP_LABEL= "Setup Operations Pipeline";
+}
 
 PreEvaluateWorker::PreEvaluateWorker(const PreEvaluateWorkerArgs& args)
   : node_id_(args.node_id),
@@ -155,7 +162,7 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
         media_col_idx++;
       }
     }
-    profiler_.add_interval("init", init_start, now());
+    profiler_.add_interval(DECODER_SETUP_LABEL, init_start, now());
   }
 
   media_col_idx = 0;
@@ -167,6 +174,7 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
     }
   }
   decode_args_.clear();
+  auto decode_start = now();
   for (size_t c = 0; c < work_entry.columns.size(); ++c) {
     if (work_entry.column_types[c] == ColumnType::Video &&
         work_entry.video_encoding_type[media_col_idx] ==
@@ -234,9 +242,13 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
       media_col_idx++;
     }
   }
+  if (media_col_idx > 0) {
+    profiler_.add_interval(DECODE_LABEL, decode_start, now());
+  }
+
   first_item_ = first;
   current_row_ = 0;
-  profiler_.add_interval("feed", feed_start, now());
+  profiler_.add_interval(FEED_LABEL, feed_start, now());
 }
 
 bool PreEvaluateWorker::yield(i32 item_size,
@@ -317,7 +329,7 @@ bool PreEvaluateWorker::yield(i32 item_size,
         std::vector<i64>(work_entry.row_ids[c].begin() + column_start_row,
                          work_entry.row_ids[c].begin() + column_end_row);
   }
-  profiler_.add_interval("yield", yield_start, now());
+  profiler_.add_interval(YIELD_LABEL, yield_start, now());
 
   current_row_ += item_size;
 
@@ -483,7 +495,7 @@ EvaluateWorker::EvaluateWorker(const EvaluateWorkerArgs& args)
   current_valid_input_idx_.resize(kernels_.size());
   current_valid_output_idx_.assign(kernels_.size(), 0);
 
-  args.profiler.add_interval("setup", setup_start, now());
+  args.profiler.add_interval(PIPELINE_SETUP_LABEL, setup_start, now());
 
   // Signal the main worker thread that we've finished startup
   {
@@ -1177,7 +1189,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
                              side_row_ids[i].end());
   }
 
-  profiler_.add_interval("feed", feed_start, now());
+  profiler_.add_interval(FEED_LABEL, feed_start, now());
 }
 
 bool EvaluateWorker::yield(i32 item_size, EvalWorkEntry& output_entry) {
@@ -1217,7 +1229,7 @@ bool EvaluateWorker::yield(i32 item_size, EvalWorkEntry& output_entry) {
 
   output_entry = output_work_entry;
 
-  profiler_.add_interval("yield", yield_start, now());
+  profiler_.add_interval(YIELD_LABEL, yield_start, now());
 
   return true;
 }
@@ -1472,7 +1484,7 @@ bool PostEvaluateWorker::yield(EvalWorkEntry& output) {
     got_result = true;
   }
 
-  profiler_.add_interval("yield", yield_start, now());
+  profiler_.add_interval(YIELD_INTERVAL, yield_start, now());
   return got_result;
 }
 
