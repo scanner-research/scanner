@@ -1331,9 +1331,8 @@ class Client(object):
 
         Returns
         -------
-        List[Table]
-          The new table objects if `output` is a sc.sinks.Column, otherwise an
-          empty list.
+        int
+          The job id.
         """
 
         if not isinstance(outputs, list):
@@ -1445,7 +1444,7 @@ class Client(object):
         N -= len(to_cache)
 
         if len(jobs) == 0:
-            return
+            return None
 
         for job in jobs:
             j = job_params.jobs.add()
@@ -1570,23 +1569,19 @@ class Client(object):
         result = self._try_rpc(lambda: self._master.NewJob(
             job_params, timeout=self._grpc_timeout))
 
-        if detach:
-            return None
-
         bulk_job_id = result.bulk_job_id
+
+        if detach:
+            return bulk_job_id
+
         job_status = self.wait_on_job(bulk_job_id, show_progress)
 
         if not job_status.result.success:
             raise ScannerException(job_status.result.msg)
 
         db_meta = self._load_db_metadata()
-        job_id = None
-        for job in db_meta.bulk_jobs:
-            if job.name == job_name:
-                job_id = job.id
-        if job_id is None:
-            raise ScannerException(
-                'Internal error: job id not found after run')
+
+        return bulk_job_id
 
 
 def start_master(port: int = None,
