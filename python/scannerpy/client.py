@@ -27,7 +27,7 @@ from random import choice
 from string import ascii_uppercase
 
 from scannerpy.common import *
-from scannerpy.profiler import Profiler
+from scannerpy.profiler import Profile
 from scannerpy.config import Config
 from scannerpy.op import OpGenerator, Op, OpColumn, SliceList
 from scannerpy.source import SourceGenerator, Source
@@ -1163,7 +1163,7 @@ class Client(object):
         else:
             return t.column('column')
 
-    def get_profiler(self, job_name, **kwargs):
+    def get_profile(self, job_name, **kwargs):
         db_meta = self._load_db_metadata()
         if isinstance(job_name, str):
             job_id = None
@@ -1177,7 +1177,7 @@ class Client(object):
         else:
             job_id = job_name
 
-        return Profiler(self, job_id, **kwargs)
+        return Profile(self, job_id, **kwargs)
 
     def get_active_jobs(self):
         req = protobufs.GetJobsRequest()

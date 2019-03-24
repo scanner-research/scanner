@@ -69,6 +69,19 @@ inline bool operator!=(const MemoryPoolConfig& lhs,
   return !(lhs == rhs);
 }
 
+const std::string IDLE_DRIVER_LABEL = "Wait on Input Queue";
+const std::string TASK_LABEL = "Process Packet";
+const std::string TASK_FINISHED_LABEL = "IO Packet Finished";
+const std::string PUSH_DRIVER_LABEL = "Wait on Output Queue";
+const std::string CLEANUP_SAVE_WORKER_LABEL = "Cleanup Save Worker";
+const std::string REGISTER_OPS_LABEL = "Register Ops";
+const std::string LOAD_METADATA_LABEL = "Load Database Metadata";
+const std::string DAG_ANALYSIS_LABEL = "Analyze Graph Dependencies";
+const std::string PIPELINE_SETUP_LABEL = "Setup Pipeline Arguments";
+const std::string SETUP_MEMORY_POOL_LABEL = "Setup Memory Pool";
+const std::string CREATE_PIPELINES_LABEL = "Create Pipeline Threads";
+const std::string WAIT_PIPELINES_LABEL = "Wait on Pipeline Thread Setup";
+
 void load_driver(LoadInputQueue& load_work,
                  std::vector<EvalQueue>& initial_eval_work,
                  LoadWorkerArgs args) {
@@ -83,7 +96,7 @@ void load_driver(LoadInputQueue& load_work,
     auto& task_streams = std::get<1>(entry);
     LoadWorkEntry& load_work_entry = std::get<2>(entry);
 
-    args.profiler.add_interval("idle", idle_start, now());
+    args.profiler.add_interval(IDLE_DRIVER_LABEL, idle_start, now());
 
     if (load_work_entry.job_index() == -1) {
       break;
@@ -114,7 +127,7 @@ void load_driver(LoadInputQueue& load_work,
         break;
       }
     }
-    profiler.add_interval("task", work_start, now());
+    profiler.add_interval(TASK_LABEL, work_start, now());
     VLOG(2) << "Load (N/PU: " << args.node_id << "/" << args.worker_id
             << "): finished job task (" << load_work_entry.job_index() << ", "
             << load_work_entry.task_index() << "), pushed to worker "
@@ -169,7 +182,7 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
           .push(entry);
     }
 
-    args.profiler.add_interval("idle", idle_start, now());
+    args.profiler.add_interval(IDLE_DRIVER_LABEL, idle_start, now());
 
     if (std::get<0>(active_job_task) == -1) {
       // Choose the next task to work on
@@ -239,7 +252,7 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
       active_job_task = std::make_tuple(-1, -1);
     }
 
-    profiler.add_interval("task", work_start, now());
+    profiler.add_interval(TASK_LABEL, work_start, now());
   }
 
   VLOG(1) << "Pre-evaluate (N/PU: " << args.node_id << "/" << args.worker_id
@@ -259,7 +272,7 @@ void evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
     auto& task_streams = std::get<0>(entry);
     EvalWorkEntry& work_entry = std::get<1>(entry);
 
-    args.profiler.add_interval("idle_pull", idle_pull_start, now());
+    args.profiler.add_interval(IDLE_DRIVER_LABEL, idle_pull_start, now());
 
     if (work_entry.job_index == -1) {
       break;
@@ -295,11 +308,11 @@ void evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
     (void)result;
     assert(result);
 
-    profiler.add_interval("task", work_start, now());
+    profiler.add_interval(TASK_LABEL, work_start, now());
 
     auto idle_push_start = now();
     output_work.push(std::make_tuple(task_streams, output_entry));
-    args.profiler.add_interval("idle_push", idle_push_start, now());
+    args.profiler.add_interval(PUSH_DRIVER_LABEL, idle_push_start, now());
 
   }
   VLOG(1) << "Evaluate (N/KI: " << args.node_id << "/" << args.ki
@@ -317,7 +330,7 @@ void post_evaluate_driver(EvalQueue& input_work, OutputEvalQueue& output_work,
     input_work.pop(entry);
     EvalWorkEntry& work_entry = std::get<1>(entry);
 
-    args.profiler.add_interval("idle", idle_start, now());
+    args.profiler.add_interval(IDLE_DRIVER_LABEL, idle_start, now());
 
     if (work_entry.job_index == -1) {
       break;
@@ -333,7 +346,7 @@ void post_evaluate_driver(EvalQueue& input_work, OutputEvalQueue& output_work,
     worker.feed(input_entry);
     EvalWorkEntry output_entry;
     bool result = worker.yield(output_entry);
-    profiler.add_interval("task", work_start, now());
+    profiler.add_interval(TASK_LABEL, work_start, now());
 
     if (result) {
       VLOG(1) << "Post-evaluate (N/PU: " << args.node_id << "/" << args.id
@@ -369,7 +382,7 @@ void save_coordinator(OutputEvalQueue& eval_work,
     eval_work.pop(entry);
     EvalWorkEntry& work_entry = std::get<1>(entry);
 
-    //args.profiler.add_interval("idle", idle_start, now());
+    //args.profiler.add_interval(IDLE_DRIVER_LABEL, idle_start, now());
 
     if (work_entry.job_index == -1) {
       break;
@@ -415,7 +428,7 @@ void save_driver(SaveInputQueue& save_work,
     i32 pipeline_instance = std::get<0>(entry);
     EvalWorkEntry& work_entry = std::get<1>(entry);
 
-    args.profiler.add_interval("idle", idle_start, now());
+    args.profiler.add_interval(IDLE_DRIVER_LABEL, idle_start, now());
 
     if (work_entry.job_index == -1) {
       break;
@@ -445,21 +458,21 @@ void save_driver(SaveInputQueue& save_work,
             << "): finished task (" << work_entry.job_index << ", "
             << work_entry.task_index << ")";
 
-    args.profiler.add_interval("task", work_start, now());
+    args.profiler.add_interval(TASK_LABEL, work_start, now());
 
     if (work_entry.last_in_task) {
       auto finished_start = now();
       worker->finished();
-      args.profiler.add_interval("finished", finished_start, now());
+      args.profiler.add_interval(TASK_FINISHED_LABEL, finished_start, now());
 
       auto workpush_start = now();
       output_work.enqueue(std::make_tuple(
           pipeline_instance, work_entry.job_index, work_entry.task_index));
-      args.profiler.add_interval("workpush", workpush_start, now());
+      args.profiler.add_interval(PUSH_DRIVER_LABEL, workpush_start, now());
       auto save_worker_delete_start = now();
       workers.erase(job_task_id);
-      args.profiler.add_interval("save_worker_delete", save_worker_delete_start,
-                                 now());
+      args.profiler.add_interval(CLEANUP_SAVE_WORKER_LABEL,
+                                 save_worker_delete_start, now());
     }
   }
 
@@ -922,7 +935,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       }
     }
   }
-  profiler.add_interval("process_job:ops_setup", setup_ops_start, now());
+  profiler.add_interval(REGISTER_OPS_LABEL, setup_ops_start, now());
 
   auto finished_fn = [&]() {
     if (!trigger_shutdown_.raised()) {
@@ -979,7 +992,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   // Setup table metadata cache for use in other operations
   DatabaseMetadata meta(job_params->db_meta());
   TableMetaCache table_meta(storage_, meta);
-  profiler.add_interval("process_job:cache_table_metadata", meta_cache_start, now());
+  profiler.add_interval(LOAD_METADATA_LABEL, meta_cache_start, now());
   // Perform analysis on the graph to determine:
   //
   // - populate_analysis_info: Analayze the graph to build lookup structures to
@@ -1039,7 +1052,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     final_compression_options.push_back(o);
   }
   assert(final_output_columns.size() == final_compression_options.size());
-  profiler.add_interval("process_job:dag_analysis", dag_analysis_start, now());
+  profiler.add_interval(DAG_ANALYSIS_LABEL, dag_analysis_start, now());
 
   // Setup kernel factories and the kernel configs that will be used
   // to instantiate instances of the op pipeline
@@ -1413,7 +1426,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           std::vector<u8>(so.args().begin(), so.args().end());
     }
   }
-  profiler.add_interval("process_job:pipeline_setup", pipeline_setup_start, now());
+  profiler.add_interval(PIPELINE_SETUP_LABEL, pipeline_setup_start, now());
 
   auto memory_pool_start = now();
   // Set up memory pool if different than previous memory pool
@@ -1440,7 +1453,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     cached_memory_pool_config_ = job_params->memory_pool_config();
     memory_pool_initialized_ = true;
   }
-  profiler.add_interval("process_job:create_memory_pool", memory_pool_start, now());
+  profiler.add_interval(SETUP_MEMORY_POOL_LABEL, memory_pool_start, now());
 
 
 #ifdef __linux__
@@ -1704,7 +1717,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
                               std::ref(retired_tasks), args);
   }
 
-  profiler.add_interval("process_job:create_pipelines", pipeline_create_start, now());
+  profiler.add_interval(CREATE_PIPELINES_LABEL, pipeline_create_start, now());
 
   if (job_params->profiling()) {
     auto wait_for_others_start = now();
@@ -1713,7 +1726,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     startup_cv.wait(lk, [&] {
       return eval_total == startup_count;
     });
-    profiler.add_interval("process_job:wait_for_pipelines", wait_for_others_start, now());
+    profiler.add_interval(WAIT_PIPELINES_LABEL, wait_for_others_start, now());
   }
 
   timepoint_t start_time = now();
