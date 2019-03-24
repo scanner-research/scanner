@@ -70,7 +70,7 @@ Init parameters are specified once and given to the constructor of an operation,
 
 .. _stream-config-parameters:
 
-Stream Config Paramters
+Stream Config Parameters
 ~~~~~~~~~~~~~~~~~~~~~~~
 Stream config parameters are provided to an operation before processing elements from a stream in a batch of streams (see :ref:`batch-processing`). For example, the :code:`threshold` parameter specified in the :py:meth:`~scannerpy.kernel.Kernel.new_stream` method of the :code:`PersonDetectorDNN` operation is a stream config parameter. For each stream in the batch of streams being processed, Scanner expects a separate :code:`threshold` parameter to be provided. This is done by passing a list like so: :code:`PersonDetectorDNN(threshold=[0.5, 0.6, ..., 0.2], ...)`.
 

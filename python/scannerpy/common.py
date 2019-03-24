@@ -128,7 +128,7 @@ class PerfParams(object):
           Ratio of work_packet_size to io_packet_size.
         """
 
-        def resolve(inputs, ops, tasks_in_queue_per_pu):
+        def resolve(inputs, ops, queue_size_per_pipeline):
             max_size = 0
             for ins in inputs:
                 try:
@@ -175,11 +175,13 @@ class PerfParams(object):
                 Memory size: {}
                 Pipeline instances: {}
                 Tasks in queue per PU: {}
-                """.format(fmt_bytes(max_size), fmt_bytes(max_memory), pipeline_instances, tasks_in_queue_per_pu))
+                """.format(fmt_bytes(max_size), fmt_bytes(max_memory), pipeline_instances, queue_size_per_pipeline))
 
-            io_packet_size = int(max_memory / (tasks_in_queue_per_pu * max_size * pipeline_instances))
+            io_packet_size = int(max_memory / (queue_size_per_pipeline * max_size * pipeline_instances))
             io_packet_size = max(io_packet_size, 100)
             work_packet_size = int(io_packet_size * work_io_ratio)
+            # IO packet size must be a multiple of work packet size
+            io_packet_size = int(work_packet_size * max(1, int(1.0 / work_io_ratio)))
 
             log.info('Estimated params: work packet size {}, io packet size {}'.format(
                 work_packet_size, io_packet_size))

@@ -193,10 +193,15 @@ class OpGenerator:
             if len(stream_params) > 0:
                 stream_args = [(k, kwargs.pop(k, None)) for k in stream_params
                                if k in kwargs]
+                if len(stream_args) == 0:
+                    raise ScannerException(
+                           "No arguments provided to op `{}` for stream parameters."
+                            .format(orig_name))
                 for e in stream_args:
                     if not isinstance(e[1], list):
-                        raise ScannerException("Per-stream arguments to op `{}` must be a list." \
-                                               .format(orig_name))
+                        raise ScannerException(
+                            "The argument `{}` to op `{}` is a stream config argument and must be a list."
+                            .format(e[0], orig_name))
                 example_list = stream_args[0][1]
                 N = len(example_list)
                 if not isinstance(example_list[0], SliceList):
@@ -416,7 +421,7 @@ def register_python_op(name: str = None,
                          ))
                 typ = typ.__args__[0]
 
-            if typ == FrameType:
+            if typ == scannertypes.FrameType:
                 column_type = ColumnType.Video
             elif typ == bytes:
                 column_type = ColumnType.Blob
