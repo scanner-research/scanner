@@ -68,20 +68,20 @@
         <tbody>
           <tr>
             <td>
-              <pre><code class="jljs python">from scannerpy import Client, PerfParams, utils
-from scannerpy.storage import NamedVideoStream
-import scannertools
+              <pre><code class="jljs python">import scannerpy as sp
+import scannertools.face_detection
 
 def main():
-    with utils.sample_video() as video_path: # get an example video
-        sc = Client() # start up Scanner
-        video = NamedVideoStream(sc, 'example', video_path)
-        input_op = sc.io.Input([video])
-        faces = sc.io.MTCNNFaceDetect(frame=input_op)
-        drawn_faces = sc.io.DrawBboxes(frame=input_op, bboxes=faces)
-        output_video = NamedVideoStream(sc, 'example_faces')
-        output_op = sc.io.Output([output_video])
-        sc.run(output_op, PerfParams.estimate())
+    # get an example video
+    with sp.utils.sample_video() as video_path:
+        cl = sp.Client() # start up Scanner
+        video = sp.NamedVideoStream(cl, 'example', path=video_path)
+        frames = cl.io.Input([video])
+        faces = cl.io.MTCNNFaceDetect(frame=frames)
+        drawn_faces = cl.io.DrawBboxes(frame=frames, bboxes=faces)
+        output_video = sp.NamedVideoStream(cl, 'example_faces')
+        output_op = cl.io.Output([output_video])
+        cl.run(output_op, sp.PerfParams.estimate())
         output_video.save_mp4('example_faces')
         # output video is saved to 'example_faces.mp4'
 
