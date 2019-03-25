@@ -118,6 +118,7 @@ class Profile:
             })
             num_load_workers = len(worker_profiler_groups['load'])
             num_eval_workers = sum([len(profs) for profs in worker_profiler_groups['eval']])
+            num_stages_per_pipeline = len(worker_profiler_groups['eval'][0]) if num_eval_workers > 0 else 0
             for worker_type, profs in [('process_job',
                                         worker_profiler_groups['process_job']),
                                        ('load',
@@ -136,19 +137,26 @@ class Profile:
                         ('process_job', ''):  {'name': 'EventLoop',
                                                'index': lambda x: 0},
                         ('eval', 'pre'):  {'name': 'Pipeline[{:d}]:DecodeVideo',
-                                           'index': lambda x: 1 + num_load_workers + x * 3 + 0},
-                        ('eval', 'eval'):  {'name': 'Pipeline[{:d}]:Ops',
-                                            'index': lambda x: 1 + num_load_workers + x * 3 + 1},
+                                           'index':
+                                           lambda x: 1 + num_load_workers + x * num_stages_per_pipeline + 0},
+                        ('eval', 'eval'):  {'name': 'Pipeline[{:d}]:Ops[{:d}]',
+                                            'index':
+                                            lambda x: 1 + num_load_workers + x * num_stages_per_pipeline + 1},
                         ('eval', 'post'):  {'name': 'Pipeline[{:d}]:EncodeVideo',
-                                            'index': lambda x: 1 + num_load_workers + x * 3 + 2},
+                                            'index':
+                                            lambda x: 1 + num_load_workers + x * num_stages_per_pipeline + 2},
                         ('load', ''):  {'name': 'Reader[{:d}]',
-                                        'index': lambda x: 1 + x},
+                                        'index':
+                                        lambda x: 1 + x},
                         ('save', ''):  {'name': 'Writer[{:d}]',
-                                        'index': lambda x: 1 +  num_load_workers + num_eval_workers + x},
+                                        'index':
+                                        lambda x: 1 +  num_load_workers + num_eval_workers + x},
                     }
                     info = display_info[(worker_type, tag)]
                     name = info['name']
-                    if worker_type != 'process_job':
+                    if tag == 'eval':
+                        name = name.format(pipeline_num, prof['kernel_group'])
+                    elif worker_type != 'process_job':
                         name = name.format(pipeline_num)
                     traces.append({
                         'name': 'thread_name',
@@ -316,6 +324,8 @@ class Profile:
                 for fg in range(groups_per_chain):
                     prof, offset = self._parse_profiler_output(
                         bytes_buffer, offset)
+                    if fg > 0 and fg < groups_per_chain - 1:
+                        prof['kernel_group'] = fg - 1
                     profilers[prof['worker_type']].append(prof)
             # Save worker profilers
             t, offset = read_advance('B', bytes_buffer, offset)

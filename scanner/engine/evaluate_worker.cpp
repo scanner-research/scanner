@@ -1484,7 +1484,7 @@ bool PostEvaluateWorker::yield(EvalWorkEntry& output) {
     got_result = true;
   }
 
-  profiler_.add_interval(YIELD_INTERVAL, yield_start, now());
+  profiler_.add_interval(YIELD_LABEL, yield_start, now());
   return got_result;
 }
 
