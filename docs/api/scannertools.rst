@@ -1,100 +1,87 @@
-.. toctree::
+scannertools
+============
 
-scannertools\.caffe2 module
----------------------------
+Operations
+----------
 
-.. automodule:: scannertools.caffe2
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-scannertools\.face_detection module
------------------------------------
+Face Detection
+~~~~~~~~~~~~~~
 
 .. automodule:: scannertools.face_detection
     :members:
     :undoc-members:
     :show-inheritance:
 
-scannertools\.face_embedding module
------------------------------------
+
+Face Embedding
+~~~~~~~~~~~~~~
 
 .. automodule:: scannertools.face_embedding
     :members:
     :undoc-members:
     :show-inheritance:
 
-scannertools\.gender_detection module
--------------------------------------
+Gender Detection
+~~~~~~~~~~~~~~~~
 
 .. automodule:: scannertools.gender_detection
     :members:
     :undoc-members:
     :show-inheritance:
 
-scannertools\.imgproc module
-----------------------------
-
-.. automodule:: scannertools.imgproc
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-scannertools\.object_detection module
-----------------------------
+Object Detection
+~~~~~~~~~~~~~~~~
 
 .. automodule:: scannertools.object_detection
     :members:
     :undoc-members:
     :show-inheritance:
 
-scannertools\.shot_detection module
------------------------------------
+Shot Detection
+~~~~~~~~~~~~~~
 
 .. automodule:: scannertools.shot_detection
     :members:
     :undoc-members:
     :show-inheritance:
 
-scannertools\.tensorflow module
------------------------------------
-
-.. automodule:: scannertools.tensorflow
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-scannertools\.torch module
------------------------------------
-
-.. automodule:: scannertools.torch
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-scannertools\.tracker module
------------------------------------
+Tracker
+~~~~~~~
 
 .. automodule:: scannertools.tracker
     :members:
     :undoc-members:
     :show-inheritance:
 
-scannertools\.types module
------------------------------------
+Utilities for writing Operations
+--------------------------------
 
-.. automodule:: scannertools.types
+Caffe2
+~~~~~~
+
+.. automodule:: scannertools.caffe
     :members:
     :undoc-members:
     :show-inheritance:
 
-scannertools\.storage module
------------------------------------
+Pytorch
+~~~~~~~
 
-.. automodule:: scannertools.storage
+.. automodule:: scannertools.torch
     :members:
     :undoc-members:
     :show-inheritance:
+
+TensorFlow
+~~~~~~~~~~
+
+.. automodule:: scannertools.tensorflow
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+Storage
+-------
 
 scannertools\.storage.files_storage module
 -----------------------------------
@@ -103,3 +90,4 @@ scannertools\.storage.files_storage module
     :members:
     :undoc-members:
     :show-inheritance:
+
