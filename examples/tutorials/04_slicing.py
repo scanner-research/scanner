@@ -79,10 +79,10 @@ def main():
 
     frame = db.sources.FrameColumn()
 
-    # Imagine that there are scene changes at frames 1100, 1200, and 1500, To tell
+    # Imagine that there are scene changes at frames 1100, 1200, and 1400, To tell
     # scanner that we do not want background subtraction to cross these boundaries,
     # we can create a 'partitioner' which splits the input.
-    scene_partitions = db.partitioner.ranges([(1100, 1200), (1200, 1500)])
+    scene_partitions = db.partitioner.ranges([(1100, 1200), (1200, 1400)])
 
     # Now we slice the input frame sequence into these two partitions using a
     # slice operation
