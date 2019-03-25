@@ -1529,7 +1529,7 @@ class Client(object):
 
         job_params.compression.extend(compression_options)
 
-        job_params.pipeline_instances_per_node = (perf_paramspipeline_instances_per_node or -1)
+        job_params.pipeline_instances_per_node = (perf_params.pipeline_instances_per_node or -1)
         job_params.work_packet_size = perf_params.work_packet_size
         job_params.io_packet_size = perf_params.io_packet_size
         job_params.profiling = profiling
