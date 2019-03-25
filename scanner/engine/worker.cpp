@@ -2101,7 +2101,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   // Evaluate worker profilers
   u8 eval_worker_count = pipeline_instances_per_node;
   s_write(profiler_output.get(), eval_worker_count);
-  u8 profilers_per_chain = 3;
+  u8 profilers_per_chain = num_kernel_groups + 2;
   s_write(profiler_output.get(), profilers_per_chain);
   for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
     i32 i = pu;
@@ -2110,15 +2110,15 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       write_profiler_to_file(profiler_output.get(), out_rank, "eval", tag, i,
                              eval_profilers[pu][0]);
     }
-    {
+    for (u8 kg = 0; kg < num_kernel_groups; ++kg) {
       std::string tag = "eval";
       write_profiler_to_file(profiler_output.get(), out_rank, "eval", tag, i,
-                             eval_profilers[pu][1]);
+                             eval_profilers[pu][1 + kg]);
     }
     {
       std::string tag = "post";
       write_profiler_to_file(profiler_output.get(), out_rank, "eval", tag, i,
-                             eval_profilers[pu][2]);
+                             eval_profilers[pu][1 + num_kernel_groups]);
     }
   }
 
