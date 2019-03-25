@@ -23,6 +23,7 @@ import json
 import time
 import cv2
 from scannerpy import types
+import scannertools.imgproc
 
 cwd = os.path.dirname(os.path.abspath(__file__))
 
@@ -192,14 +193,13 @@ def test_profiler(sc):
     output_op = sc.io.Output(ghist, [NamedStream(sc, '_ignore')])
 
     time_start = time.time()
-    sc.run(output_op, PerfParams.estimate(), show_progress=False, cache_mode=CacheMode.Overwrite)
-    output = [sc.table('_ignore')]
+    job_id = sc.run(output_op, PerfParams.estimate(), show_progress=False, cache_mode=CacheMode.Overwrite)
     print('Time', time.time() - time_start)
-    profiler = output[0].profiler()
+    profile = sc.get_profile(job_id)
     f = tempfile.NamedTemporaryFile(delete=False, suffix='.trace')
     f.close()
-    profiler.write_trace(f.name)
-    profiler.statistics()
+    profile.write_trace(f.name)
+    profile.statistics()
     run(['rm', '-f', f.name])
 
 
@@ -471,10 +471,9 @@ def test_stencil(sc):
     output = NamedStream(sc, 'test_stencil')
     output_op = sc.io.Output(flow, [output])
     sc.run(output_op,
-           PerfParams.estimate(),
+           PerfParams.estimate(pipeline_instances_per_node=1),
            cache_mode=CacheMode.Overwrite,
-           show_progress=False,
-           pipeline_instances_per_node=1)
+           show_progress=False)
     assert output.len() == 1
 
     frame = sc.io.Input([input])
@@ -483,10 +482,9 @@ def test_stencil(sc):
     output = NamedStream(sc, 'test_stencil')
     output_op = sc.io.Output(flow, [output])
     sc.run(output_op,
-           PerfParams.estimate(),
+           PerfParams.estimate(pipeline_instances_per_node=1),
            cache_mode=CacheMode.Overwrite,
-           show_progress=False,
-           pipeline_instances_per_node=1)
+           show_progress=False)
 
     frame = sc.io.Input([input])
     sample_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 2}])
@@ -494,10 +492,9 @@ def test_stencil(sc):
     output = NamedStream(sc, 'test_stencil')
     output_op = sc.io.Output(flow, [output])
     sc.run(output_op,
-           PerfParams.estimate(),
+           PerfParams.estimate(pipeline_instances_per_node=1),
            cache_mode=CacheMode.Overwrite,
-           show_progress=False,
-           pipeline_instances_per_node=1)
+           show_progress=False)
     assert output.len() == 2
 
     frame = sc.io.Input([input])
@@ -506,10 +503,9 @@ def test_stencil(sc):
     output = NamedStream(sc, 'test_stencil')
     output_op = sc.io.Output(sample_flow, [output])
     sc.run(output_op,
-           PerfParams.estimate(),
+           PerfParams.estimate(pipeline_instances_per_node=1),
            cache_mode=CacheMode.Overwrite,
-           show_progress=False,
-           pipeline_instances_per_node=1)
+           show_progress=False)
     assert output.len() == 1
 
 
@@ -523,10 +519,9 @@ def test_wider_than_packet_stencil(sc):
 
     sc.run(
         output_op,
-        PerfParams.manual(1, 1),
+        PerfParams.manual(1, 1, pipeline_instances_per_node=1),
         cache_mode=CacheMode.Overwrite,
-        show_progress=False,
-        pipeline_instances_per_node=1)
+        show_progress=False)
 
     assert output.len() == 3
 
@@ -626,8 +621,8 @@ def test_fetch_resources(sc):
         output = NamedStream(sc, 'test_hist')
         output_op = sc.io.Output(test_out, [output])
         sc.run(
-            output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False,
-            pipeline_instances_per_node=2)
+            output_op, PerfParams.estimate(pipeline_instances_per_node=2),
+            cache_mode=CacheMode.Overwrite, show_progress=False)
 
 
 @scannerpy.register_python_op(batch=50)
@@ -972,8 +967,7 @@ def test_fault_tolerance(fault_sc):
 
     fault_sc.run(
         output_op,
-        PerfParams.estimate(),
-        pipeline_instances_per_node=1,
+        PerfParams.estimate(pipeline_instances_per_node=1),
         cache_mode=CacheMode.Overwrite,
         show_progress=False)
 
@@ -1044,10 +1038,9 @@ def test_job_blacklist(blacklist_sc):
     output_op = sc.io.Output(failed_output, [output])
     sc.run(
         output_op,
-        PerfParams.estimate(),
+        PerfParams.estimate(pipeline_instances_per_node=1),
         cache_mode=CacheMode.Overwrite,
-        show_progress=False,
-        pipeline_instances_per_node=1)
+        show_progress=False)
     assert not output.committed()
 
 
@@ -1104,8 +1097,7 @@ def test_job_timeout(timeout_sc):
 
     sc.run(
         output_op,
-        PerfParams.estimate(),
-        pipeline_instances_per_node=1,
+        PerfParams.estimate(pipeline_instances_per_node=1),
         task_timeout=0.1,
         cache_mode=CacheMode.Overwrite,
         show_progress=False)
