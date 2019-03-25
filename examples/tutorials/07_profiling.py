@@ -17,7 +17,7 @@ def main():
     video_stream = sp.NamedVideoStream(cl, 'example', path=example_video_path)
     frames = cl.io.Input([video_stream])
 
-    resizeed_frames = cl.ops.Resize(frame=frames, width=[640], height=[480])
+    resized_frames = cl.ops.Resize(frame=frames, width=[640], height=[480])
 
     output_stream = sp.NamedVideoStream(cl, 'example_profile')
     output = cl.io.Output(resized_frames, [output_stream])
@@ -29,7 +29,8 @@ def main():
     # can view by going to chrome://tracing in Chrome and clicking "load" in
     # the top left.
     profile = cl.get_profile(job_id)
-    profile.write_trace('resized-frames.trace')
+    profile.write_trace('resize-graph.trace')
+    print('Wrote trace file to "resize-graph.trace".')
 
     # Each row corresponds to a different part of the system, e.g. the thread
     # loading bytes from disk or the thread running your kernels. If you have

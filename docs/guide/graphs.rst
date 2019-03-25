@@ -99,15 +99,15 @@ Most operations are restricted to produce a single output element for each input
 
 .. code-block:: python
 
-   input_frame = cl.io.Input([video_stream])
-   resized_frame = cl.ops.Resize(frame=input_frame, width=[640], height=[480])
-   sampled_frame = cl.streams.Stride(resized_frame, [3])
+   input_frames = cl.io.Input([video_stream])
+   resized_frames = cl.ops.Resize(frame=input_frames, width=[640], height=[480])
+   sampled_frames = cl.streams.Stride(resized_frames, [3])
 
 If :code:`video_stream` is of length 30, then :code:`sampled_frame` will be a sequence of length 10 with the frames at indices [0, 3, 6, 9, ... 27]. Scanner also supports other types of stream operations, such as :py:meth:`~scannerpy.streams.StreamsGeneator.Gather`, which selects frames given a list of indices:
 
 .. code-block:: python
 
-   sampled_frame = cl.streams.Gather(resized_frame, [[0, 5, 7, 29]])
+   sampled_frames = cl.streams.Gather(resized_frames, [[0, 5, 7, 29]])
 
 To see the full list of stream operations, check out the methods of :py:class:`~scannerpy.streams.StreamsGeneator`.
 
