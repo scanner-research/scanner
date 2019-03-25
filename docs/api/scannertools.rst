@@ -7,6 +7,10 @@ Operations
 Face Detection
 ~~~~~~~~~~~~~~
 
+.. raw:: html
+
+         <iframe width="560" height="315" src="https://www.youtube.com/embed/iqsb_nbpf9m" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+
 .. automodule:: scannertools.face_detection
     :members:
     :undoc-members:
@@ -32,18 +36,34 @@ Gender Detection
 Object Detection
 ~~~~~~~~~~~~~~~~
 
+.. raw:: html
+
+         <iframe width="560" height="315" src="https://www.youtube.com/embed/6xt-yvfcc9i" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+
 .. automodule:: scannertools.object_detection
     :members:
     :undoc-members:
     :show-inheritance:
 
+
+Pose Detection
+~~~~~~~~~~~~~~
+
+.. raw:: html
+
+         <iframe width="560" height="315" src="https://www.youtube.com/embed/n1bt1yjnvmy" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+
 Shot Detection
 ~~~~~~~~~~~~~~
+
+.. image:: https://storage.googleapis.com/scanner-data/public/sample-shots-small.jpg
+   :target: https://storage.googleapis.com/scanner-data/public/sample-shots.jpg
 
 .. automodule:: scannertools.shot_detection
     :members:
     :undoc-members:
     :show-inheritance:
+
 
 Tracker
 ~~~~~~~
