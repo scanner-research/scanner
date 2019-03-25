@@ -1283,13 +1283,8 @@ class Client(object):
             outputs: Union[Sink, List[Sink]],
             perf_params: Callable[[], PerfParams],
             cache_mode: CacheMode = CacheMode.Error,
-            cpu_pool: str = None,
-            gpu_pool: str = None,
-            pipeline_instances_per_node: int = None,
             show_progress: bool = True,
             profiling: bool = False,
-            load_sparsity_threshold: int = 8,
-            queue_size_per_pipeline: int = 4,
             task_timeout: int = 0,
             checkpoint_frequency: int = 10,
             detach: bool = False,
@@ -1301,18 +1296,13 @@ class Client(object):
         outputs
           The Sink or Sinks that should be processed.
 
+        perf_params
+          Performance-related parameters. These options should be tuned to improve the performance
+          of executing a computation graph.
+
         cache_mode
           Determines whether to overwrite, ignore, or raise an error when running a job on
           existing outputs.
-
-        cpu_pool
-
-        gpu_pool
-
-        pipeline_instances_per_node
-          The number of concurrent instances of the computation graph to
-          execute. If set to None, it will be automatically inferred based on
-          computation graph and the available machine resources.
 
         show_progress
           If true, will display an ASCII progress bar measuring job status.
@@ -1321,10 +1311,6 @@ class Client(object):
 
         Other Parameters
         ----------------
-        load_sparsity_threshold
-
-        queue_size_per_pipeline
-
         task_timeout
 
         checkpoint_frequency
@@ -1539,22 +1525,24 @@ class Client(object):
 
         perf_params = perf_params(
             inputs=[op._outputs[0]._streams for op in source_ops.keys()],
-            ops=sorted_ops,
-            queue_size_per_pipeline=queue_size_per_pipeline)
+            ops=sorted_ops)
 
         job_params.compression.extend(compression_options)
 
-        job_params.pipeline_instances_per_node = (pipeline_instances_per_node or -1)
+        job_params.pipeline_instances_per_node = (perf_paramspipeline_instances_per_node or -1)
         job_params.work_packet_size = perf_params.work_packet_size
         job_params.io_packet_size = perf_params.io_packet_size
         job_params.profiling = profiling
-        job_params.tasks_in_queue_per_pu = queue_size_per_pipeline
-        job_params.load_sparsity_threshold = load_sparsity_threshold
+        job_params.tasks_in_queue_per_pu = perf_params.queue_size_per_pipeline
+        job_params.load_sparsity_threshold = perf_params.load_sparsity_threshold
         job_params.boundary_condition = (
             protobufs.BulkJobParameters.REPEAT_EDGE)
         job_params.task_timeout = task_timeout
         job_params.checkpoint_frequency = checkpoint_frequency
         job_params.profiler_level = profiler_level
+
+        cpu_pool = perf_params.cpu_pool
+        gpu_pool = perf_params.gpu_pool
 
         job_params.memory_pool_config.pinned_cpu = False
         if cpu_pool is not None:

@@ -77,24 +77,59 @@ class CacheMode(Enum):
 
 class PerfParams(object):
     """
-        work_packet_size
-          The size of the packets of intermediate elements to pass between
-          operations. This parameter only affects performance and should not
-          affect the output.
 
-        io_packet_size
-          The size of the packets of elements to read and write from Sources and
-          sinks. This parameter only affects performance and should not
-          affect the output. When reading and writing to high latency storage
-          (such as the cloud), it is helpful to increase this value.
+    Parameters
+    ----------
+    work_packet_size
+      The size of the packets of intermediate elements to pass between
+      operations. This parameter only affects performance and should not
+      affect the output.
+
+    io_packet_size
+      The size of the packets of elements to read and write from Sources and
+      sinks. This parameter only affects performance and should not
+      affect the output. When reading and writing to high latency storage
+      (such as the cloud), it is helpful to increase this value.
+
+    cpu_pool
+      A string describing the size of the CPU memory pool to initialize.
+      If none, no memory pool is used.
+
+    gpu_pool
+      A string describing the size of the GPU memory pool to initialize.
+      If none, no memory pool is used.
+
+    pipeline_instances_per_node
+      The number of concurrent instances of the computation graph to
+      execute. If set to None, it will be automatically inferred based on
+      computation graph and the available machine resources.
+
+    load_sparsity_threshold
+
+    queue_size_per_pipeline
+      The max number of tasks that a worker will request from the master
+      for each pipeline instance. This influences the amount of data that
+      can will be resident in memory at once.
     """
 
-    def __init__(self, work_packet_size, io_packet_size):
+    def __init__(self,
+                 work_packet_size: int,
+                 io_packet_size: int,
+                 cpu_pool: str = None,
+                 gpu_pool: str = None,
+                 pipeline_instances_per_node: int = None,
+                 load_sparsity_threshold: int = 8,
+                 queue_size_per_pipeline: int = 4):
         self.work_packet_size = work_packet_size
         self.io_packet_size = io_packet_size
+        self.cpu_pool = cpu_pool
+        self.gpu_pool = gpu_pool
+        self.pipeline_instances_per_node = pipeline_instances_per_node
+        self.load_sparsity_threshold = load_sparsity_threshold
+        self.queue_size_per_pipeline = queue_size_per_pipeline
 
     @classmethod
-    def manual(cls, work_packet_size, io_packet_size):
+    def manual(cls, work_packet_size, io_packet_size, **kwargs):
         r"""Explicitly provide values for each performance parameter.
 
         See class definition for explanation of each parameter.
@@ -106,12 +141,17 @@ class PerfParams(object):
         io_packet_size
         """
 
-        def resolve(*args, **kwargs):
-            return cls(work_packet_size, io_packet_size)
+        def resolve(*args, **kwargs2):
+            return cls(work_packet_size, io_packet_size, **kwargs)
         return resolve
 
     @classmethod
-    def estimate(cls, max_memory_util=0.7, total_memory=None, work_io_ratio=0.2):
+    def estimate(cls,
+                 max_memory_util: float = 0.7,
+                 total_memory: int =  None,
+                 work_io_ratio: float = 0.2,
+                 queue_size_per_pipeline: int = 4,
+                 **kwargs):
         r"""Guess the best value of each performance parameters given the computation graph.
 
         Parameters
@@ -126,9 +166,12 @@ class PerfParams(object):
 
         work_io_ratio
           Ratio of work_packet_size to io_packet_size.
+
+        queue_size_per_pipeline
+          The max number of tasks potentially resident for each pipeline on a worker.
         """
 
-        def resolve(inputs, ops, queue_size_per_pipeline):
+        def resolve(inputs, ops):
             max_size = 0
             for ins in inputs:
                 try:
@@ -186,6 +229,6 @@ class PerfParams(object):
             log.info('Estimated params: work packet size {}, io packet size {}'.format(
                 work_packet_size, io_packet_size))
 
-            return cls(work_packet_size, io_packet_size)
+            return cls(work_packet_size, io_packet_size, **kwargs)
 
         return resolve
