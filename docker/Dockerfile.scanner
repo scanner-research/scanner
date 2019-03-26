@@ -26,10 +26,6 @@ RUN cd /opt/scanner && \
     (yes | pip3 uninstall grpcio protobuf) && \
     ./build.sh && \
     ldconfig
-RUN git clone https://github.com/scanner-research/scannertools -b api-redesign && \
-    cd scannertools && \
-    cd scannertools_infra && pip3 install -e . && cd .. && \
-    cd scannertools && pip3 install -e .
 
 ENV LC_ALL C.UTF-8
 ENV LANG C.UTF-8
