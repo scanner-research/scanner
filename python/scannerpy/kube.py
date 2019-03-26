@@ -468,8 +468,7 @@ class Cluster:
         if cfg.worker.gpu > 0:
             # Install GPU drivers
             # https://cloud.google.com/kubernetes-engine/docs/concepts/gpus#installing_drivers
-            run('kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/stable/nvidia-driver-installer/cos/daemonset-preloaded.yaml'
-                )
+            run('kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/stable/nvidia-driver-installer/cos/daemonset-preloaded.yaml')
 
     def _kube_start(self, reset=True, wait=True):
         cfg = self._cluster_config
@@ -564,7 +563,9 @@ class Cluster:
         while True:
             try:
                 return scannerpy.Client(
-                    master=self.master_address(), start_cluster=False, **kwargs)
+                    master=self.master_address(), start_cluster=False,
+                    config_path=self._cluster_config.scanner_config,
+                    **kwargs)
             except scannerpy.ScannerException:
                 if retries == 0:
                     raise
