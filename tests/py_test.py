@@ -391,7 +391,7 @@ def test_slice_args(sc):
     frame = sc.io.Input([NamedVideoStream(sc, 'test1')])
     slice_frame = sc.streams.Slice(frame, [sc.partitioner.ranges(
         [[0, 1], [1, 2], [2, 3]])])
-    test = sc.ops.TestSliceArgs(frame=slice_frame, arg=[SliceList([{'arg': i} for i in range(3)])])
+    test = sc.ops.TestSliceArgs(frame=slice_frame, arg=[SliceList([i for i in range(3)])])
     unsliced_frame = sc.streams.Unslice(test)
     output = NamedStream(sc, 'test_slicing')
     output_op = sc.io.Output(unsliced_frame, [output])

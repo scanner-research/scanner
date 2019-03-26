@@ -164,7 +164,7 @@ class OpGenerator:
         # This will raise an exception if the op does not exist.
         op_info = self._sc._get_op_info(name)
 
-        if (not name in PYTHON_OP_REGISTRY and
+        if (not orig_name in PYTHON_OP_REGISTRY and
             len(op_info.stream_protobuf_name) > 0):
             stream_proto = getattr(protobufs, op_info.stream_protobuf_name)
             for proto_field_name, _ in analyze_proto(stream_proto).items():
@@ -180,7 +180,7 @@ class OpGenerator:
                     if val is None:
                         raise ScannerException(
                             'Op {} required sequence {} as input'.format(
-                                name, c.name))
+                                orig_name, c.name))
                     inputs.append(val)
 
             device = kwargs.pop('device', DeviceType.CPU)
@@ -209,7 +209,7 @@ class OpGenerator:
                         (k, [SliceList([x]) for x in arg]) for (k, arg) in stream_args]
                 M = len(stream_args[0][1][0])
 
-                if name in PYTHON_OP_REGISTRY:
+                if orig_name in PYTHON_OP_REGISTRY:
                     stream_args = [
                         SliceList([pickle.dumps({k: v[i][j] for k, v in stream_args})
                                    for j in range(M)])
