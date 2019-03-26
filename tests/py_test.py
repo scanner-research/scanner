@@ -115,7 +115,9 @@ def sc():
     with Client(config_path=cfg_path, debug=True) as sc:
         (vid1_path, vid2_path) = download_videos()
 
-        sc.load_op(os.path.abspath(os.path.join(cwd, '..', 'build/tests/libscanner_tests.so')))
+        sc.load_op(
+            os.path.abspath(os.path.join(cwd, '..', 'build/tests/libscanner_tests.so')),
+            os.path.abspath(os.path.join(cwd, '..', 'build/tests/test_ops_pb2.py')))
 
         sc.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
 

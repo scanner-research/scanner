@@ -119,7 +119,7 @@ class NumpyArrayFloat32:
         return array.tobytes()
 
     def deserialize(data_buffer):
-        return np.fromstring(data_buffer, dtype=np.float32)
+        return np.frombuffer(data_buffer, dtype=np.float32)
 
 @register_type
 class NumpyArrayInt32:
@@ -127,7 +127,7 @@ class NumpyArrayInt32:
         return array.tobytes()
 
     def deserialize(data_buffer):
-        return np.fromstring(data_buffer, dtype=np.int32)
+        return np.frombuffer(data_buffer, dtype=np.int32)
 
 Histogram = UniformList('Histogram', NumpyArrayInt32, parts=3)
 

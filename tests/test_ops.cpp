@@ -2,6 +2,8 @@
 #include "scanner/api/op.h"
 #include "scanner/util/memory.h"
 #include "scanner/util/opencv.h"
+#include "tests/test_ops.pb.h"
+#include <cmath>
 
 namespace scanner {
 namespace {
@@ -107,5 +109,204 @@ REGISTER_OP(OpticalFlow)
 REGISTER_KERNEL(OpticalFlow, OpticalFlowKernelCPU)
     .device(DeviceType::CPU)
     .num_devices(1);
+
+
+class ResizeKernel : public BatchedKernel {
+ public:
+  ResizeKernel(const KernelConfig& config)
+    : BatchedKernel(config), device_(config.devices[0]) {
+  }
+
+  void new_stream(const std::vector<u8>& args) override {
+    args_.ParseFromArray(args.data(), args.size());
+  }
+
+  void execute(const BatchedElements& input_columns,
+               BatchedElements& output_columns) override {
+    auto& frame_col = input_columns[0];
+
+    const Frame* frame = frame_col[0].as_const_frame();
+
+    i32 target_width = args_.width();
+    i32 target_height = args_.height();
+    if (args_.preserve_aspect()) {
+      if (target_width == 0) {
+        target_width =
+            frame->width() * target_height / frame->height();
+      } else {
+        target_height =
+            frame->height() * target_width / frame->width();
+      }
+    }
+    if (args_.min()) {
+      if (frame->width() <= target_width &&
+          frame->height() <= target_height) {
+        target_width = frame->width();
+        target_height = frame->height();
+      }
+    }
+
+    i32 input_count = num_rows(frame_col);
+    FrameInfo info(target_height, target_width, frame->channels(), frame->type);
+    std::vector<Frame*> output_frames = new_frames(device_, info, input_count);
+
+    for (i32 i = 0; i < input_count; ++i) {
+      cv::Mat img = frame_to_mat(frame_col[i].as_const_frame());
+      cv::Mat out_mat = frame_to_mat(output_frames[i]);
+      cv::resize(img, out_mat, cv::Size(target_width, target_height));
+      insert_frame(output_columns[0], output_frames[i]);
+    }
+  }
+
+ private:
+  DeviceHandle device_;
+  ResizeArgs args_;
+  int interp_type_;
+};
+
+REGISTER_OP(Resize).frame_input("frame").frame_output("frame").stream_protobuf_name(
+    "ResizeArgs");
+
+REGISTER_KERNEL(Resize, ResizeKernel).device(DeviceType::CPU).batch().num_devices(1);
+
+
+class TestIncrementKernel : public Kernel {
+ public:
+  TestIncrementKernel(const KernelConfig& config)
+    : Kernel(config),
+      device_(config.devices[0]) {}
+
+  void reset() {
+    next_int_ = 0;
+  }
+
+  void execute(const Elements& input_columns,
+               Elements& output_columns) override {
+    if (last_row_ + 1 != input_columns[0].index) {
+      last_row_ = input_columns[0].index - 1;
+      reset();
+    }
+    last_row_++;
+
+    u8* buffer = new_buffer(device_, sizeof(i64));
+    *((i64*)buffer) = next_int_++;
+    insert_element(output_columns[0], buffer, sizeof(i64));
+  }
+
+ private:
+  DeviceHandle device_;
+  i64 next_int_ = 0;
+  i64 last_row_ = 0;
+};
+
+REGISTER_OP(TestIncrementUnbounded)
+.input("ignore")
+.output("integer")
+.unbounded_state();
+
+REGISTER_OP(TestIncrementUnboundedFrame)
+.frame_input("ignore")
+.output("integer")
+.unbounded_state();
+
+REGISTER_KERNEL(TestIncrementUnbounded, TestIncrementKernel)
+.device(DeviceType::CPU)
+.num_devices(1);
+
+REGISTER_KERNEL(TestIncrementUnboundedFrame, TestIncrementKernel)
+.device(DeviceType::CPU)
+.num_devices(1);
+
+REGISTER_OP(TestIncrementBounded)
+.input("ignore")
+.output("integer")
+.bounded_state();
+
+REGISTER_OP(TestIncrementBoundedFrame)
+.frame_input("ignore")
+.output("integer")
+.bounded_state();
+
+REGISTER_KERNEL(TestIncrementBounded, TestIncrementKernel)
+.device(DeviceType::CPU)
+.num_devices(1);
+
+REGISTER_KERNEL(TestIncrementBoundedFrame, TestIncrementKernel)
+.device(DeviceType::CPU)
+.num_devices(1);
+
+
+class BlurKernel : public Kernel, public VideoKernel {
+ public:
+  BlurKernel(const KernelConfig& config) : Kernel(config) {
+    BlurArgs args;
+    bool parsed = args.ParseFromArray(config.args.data(), config.args.size());
+    if (!parsed || config.args.size() == 0) {
+      RESULT_ERROR(&valid_, "Could not parse BlurArgs");
+      return;
+    }
+
+    kernel_size_ = args.kernel_size();
+    sigma_ = args.sigma();
+
+    filter_left_ = std::ceil(kernel_size_ / 2.0) - 1;
+    filter_right_ = kernel_size_ / 2;
+
+    valid_.set_success(true);
+  }
+
+  void validate(Result* result) override { result->CopyFrom(valid_); }
+
+  void new_frame_info() {
+    frame_width_ = frame_info_.width();
+    frame_height_ = frame_info_.height();
+  }
+
+  void execute(const Elements& input_columns,
+               Elements& output_columns) override {
+    auto& frame_col = input_columns[0];
+    check_frame(CPU_DEVICE, frame_col);
+
+    i32 width = frame_width_;
+    i32 height = frame_height_;
+    size_t frame_size = width * height * 3 * sizeof(u8);
+    FrameInfo info = frame_col.as_const_frame()->as_frame_info();
+    Frame* output_frame = new_frame(CPU_DEVICE, info);
+
+    const u8* frame_buffer = frame_col.as_const_frame()->data;
+    u8* blurred_buffer = output_frame->data;
+    for (i32 y = filter_left_; y < height - filter_right_; ++y) {
+      for (i32 x = filter_left_; x < width - filter_right_; ++x) {
+        for (i32 c = 0; c < 3; ++c) {
+          u32 value = 0;
+          for (i32 ry = -filter_left_; ry < filter_right_ + 1; ++ry) {
+            for (i32 rx = -filter_left_; rx < filter_right_ + 1; ++rx) {
+              value += frame_buffer[(y + ry) * width * 3 + (x + rx) * 3 + c];
+            }
+          }
+          blurred_buffer[y * width * 3 + x * 3 + c] =
+              value / ((filter_right_ + filter_left_ + 1) *
+                       (filter_right_ + filter_left_ + 1));
+        }
+      }
+    }
+    insert_frame(output_columns[0], output_frame);
+  }
+
+ private:
+  i32 kernel_size_;
+  i32 filter_left_;
+  i32 filter_right_;
+  f64 sigma_;
+
+  i32 frame_width_;
+  i32 frame_height_;
+  Result valid_;
+};
+
+REGISTER_OP(Blur).frame_input("frame").frame_output("frame").protobuf_name(
+    "BlurArgs");
+
+REGISTER_KERNEL(Blur, BlurKernel).device(DeviceType::CPU).num_devices(1);
 
 }
