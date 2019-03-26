@@ -214,7 +214,7 @@ class Cluster:
     def __init__(self, cloud_config, cluster_config, no_start=False, no_delete=False, containers=None):
         self._cloud_config = cloud_config
         self._cluster_config = cluster_config
-        self._cluster_cmd = 'gcloud container --project {} clusters --zone {}' \
+        self._cluster_cmd = 'gcloud beta container --project {} clusters --zone {}' \
             .format(self._cloud_config.project, self._cluster_config.zone)
         self._no_start = no_start
         self._no_delete = no_delete
