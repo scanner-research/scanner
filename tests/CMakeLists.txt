@@ -1,9 +1,8 @@
 include(${CMAKE_SOURCE_DIR}/cmake/Util/Op.cmake)
-build_op(LIB_NAME scanner_tests CPP_SRCS test_ops.cpp PROTO_SRC test_ops.proto)
+build_op(LIB_NAME scanner_tests CPP_SRCS test_ops.cpp PROTO_SRC test_ops.proto NO_FLAGS)
 
 find_package(OpenCV REQUIRED COMPONENTS core imgproc highgui video)
-target_link_libraries(scanner_tests PUBLIC ${OpenCV_LIBRARIES})
-
+target_link_libraries(scanner_tests PUBLIC ${OpenCV_LIBRARIES} scanner)
 
 add_test(
   NAME PythonTests
