@@ -23,7 +23,6 @@ import json
 import time
 import cv2
 from scannerpy import types
-import scannertools.imgproc
 
 cwd = os.path.dirname(os.path.abspath(__file__))
 
@@ -115,6 +114,8 @@ def sc():
     # Setup and ingest video
     with Client(config_path=cfg_path, debug=True) as sc:
         (vid1_path, vid2_path) = download_videos()
+
+        sc.load_op(os.path.abspath(os.path.join(cwd, '..', 'build/tests/libscanner_tests.so')))
 
         sc.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
 

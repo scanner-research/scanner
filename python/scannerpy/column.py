@@ -231,7 +231,6 @@ class Column(object):
         if (self._descriptor.type == protobufs.Video
                 and self._video_descriptor.codec_type ==
                 protobufs.VideoDescriptor.H264):
-            import scannertools
             png_table_name = self._sc._png_dump_prefix.format(
                 self._table.name(), self._name)
             frame = self._sc.io.Input([NamedVideoStream(self._sc, self._table.name())])
