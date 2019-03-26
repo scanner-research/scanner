@@ -71,11 +71,13 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
       // the available decoders
       if (device_handle.type == DeviceType::GPU &&
           VideoDecoder::has_decoder_type(VideoDecoderType::NVIDIA)) {
+        LOG(INFO) << "Selecting GPU decoder type";
         decoder_output_handle.type = DeviceType::GPU;
         decoder_output_handle.id = device_handle.id;
         decoder_type = VideoDecoderType::NVIDIA;
         num_devices = 1;
       } else if (VideoDecoder::has_decoder_type(VideoDecoderType::SOFTWARE)) {
+        LOG(INFO) << "Selecting CPU decoder type";
         decoder_output_handle = CPU_DEVICE;
         decoder_type = VideoDecoderType::SOFTWARE;
         num_devices = decoder_cpus_;

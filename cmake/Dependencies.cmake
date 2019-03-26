@@ -28,6 +28,7 @@ if (BUILD_CUDA)
     set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -std=c++11")
   endif()
   find_package(NVCUVID REQUIRED)
+  add_definitions(-DHAVE_NVIDIA_VIDEO_HARDWARE)
 endif()
 
 if (BUILD_CUDA)
