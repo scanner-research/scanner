@@ -1,3 +1,6 @@
+include(${CMAKE_SOURCE_DIR}/cmake/Util/Op.cmake)
+build_op(LIB_NAME scanner_tests CPP_SRCS test_ops.cpp)
+
 add_test(
   NAME PythonTests
   COMMAND pytest ${CMAKE_CURRENT_SOURCE_DIR} -x -vv)
