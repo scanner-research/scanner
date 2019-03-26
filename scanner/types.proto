@@ -24,3 +24,7 @@ message Point {
   float y = 2;
   float score = 3;
 }
+
+message ImageEncoderArgs {
+ string format = 1;
+}
