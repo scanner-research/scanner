@@ -974,12 +974,7 @@ void copy_or_ref_buffers(std::vector<u8*>& dest_buffers,
       dest_allocator->add_refs(buf, 1);
     }
   } else {
-    size_t total_size = 0;
-    for (auto size : sizes) {
-      total_size += size;
-    }
-
-    u8* dest_buff = dest_allocator->allocate(total_size, sizes.size());
+    u8* dest_buff = dest_allocator->allocate_sizes(sizes);
     for (size_t size : sizes) {
       dest_buffers.push_back(dest_buff);
       dest_buff += size;

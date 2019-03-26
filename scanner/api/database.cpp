@@ -72,9 +72,12 @@ MachineParameters default_machine_params() {
   machine_params.num_save_workers = 4;
 #ifdef HAVE_CUDA
   i32 gpu_count;
-  CU_CHECK(cudaGetDeviceCount(&gpu_count));
-  for (i32 i = 0; i < gpu_count; ++i) {
-    machine_params.gpu_ids.push_back(i);
+  cudaError_t code = cudaGetDeviceCount(&gpu_count);
+  if (code != cudaErrorNoDevice) {
+    CU_CHECK(code);
+    for (i32 i = 0; i < gpu_count; ++i) {
+      machine_params.gpu_ids.push_back(i);
+    }
   }
 #endif
   return machine_params;
