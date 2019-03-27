@@ -30,7 +30,7 @@ def main():
 
     # Scanner provides support for limiting state propagation across frames through
     # "slicing" operations.
-    sliced_frame = cl.streams.Slice(frame, [cl.partitioner.all(50)])
+    sliced_frame = cl.streams.Slice(frame, partitions=[cl.partitioner.all(50)])
     # Here, we sliced the input frame stream into chunks of 50 elements. What this
     # means is that any ops which process 'sliced_frame' will *only* be able to
     # maintain state within each chunk of 50 elements.
@@ -66,14 +66,14 @@ def main():
 
     frame = cl.io.Input([video_stream])
 
-    # Imagine that there are scene changes at frames 1100, 1200, and 1500, To tell
+    # Imagine that there are scene changes at frames 1100, 1200, and 1400, To tell
     # scanner that we do not want background subtraction to cross these boundaries,
     # we can create a 'partitioner' which splits the input.
-    scene_partitions = cl.partitioner.ranges([(1100, 1200), (1200, 1500)])
+    scene_partitions = cl.partitioner.ranges([(1100, 1200), (1200, 1400)])
 
     # Now we slice the input frame sequence into these two partitions using a
     # slice operation
-    sliced_frame = cl.streams.Slice(frame, partitioner=scene_partitions)
+    sliced_frame = cl.streams.Slice(frame, partitions=[scene_partitions])
 
     # Then we perform background subtraction and indicate we need 60 prior
     # frames to produce correct output
