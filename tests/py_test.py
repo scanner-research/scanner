@@ -107,25 +107,25 @@ def download_videos():
     return (vid1_path, vid2_path)
 
 @pytest.fixture(scope="module")
-def sc():
+def cl():
     # Create new config
     (cfg_path, cfg) = make_config()
 
     # Setup and ingest video
-    with Client(config_path=cfg_path, debug=True) as sc:
+    with Client(config_path=cfg_path, debug=True) as cl:
         (vid1_path, vid2_path) = download_videos()
 
-        sc.load_op(
+        cl.load_op(
             os.path.abspath(os.path.join(cwd, '..', 'build/tests/libscanner_tests.so')),
             os.path.abspath(os.path.join(cwd, '..', 'build/tests/test_ops_pb2.py')))
 
-        sc.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
+        cl.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
 
-        sc.ingest_videos(
+        cl.ingest_videos(
             [('test1_inplace', vid1_path), ('test2_inplace', vid2_path)],
             inplace=True)
 
-        yield sc
+        yield cl
 
         # Tear down
         run([
@@ -134,71 +134,71 @@ def sc():
         ])
 
 
-def test_new_client(sc):
+def test_new_client(cl):
     pass
 
 
-def test_perf_params(sc):
-    frame = sc.io.Input([NamedVideoStream(sc, 'test1')])
-    hist = sc.ops.Histogram(frame=frame)
-    ghist = sc.streams.Gather(hist, [[0]])
-    output_op = sc.io.Output(ghist, [NamedStream(sc, '_ignore')])
+def test_perf_params(cl):
+    frame = cl.io.Input([NamedVideoStream(cl, 'test1')])
+    hist = cl.ops.Histogram(frame=frame)
+    ghist = cl.streams.Gather(hist, [[0]])
+    output_op = cl.io.Output(ghist, [NamedStream(cl, '_ignore')])
 
-    sc.run(output_op, PerfParams.manual(10, 10),
+    cl.run(output_op, PerfParams.manual(10, 10),
            show_progress=False, cache_mode=CacheMode.Overwrite)
 
-    sc.run(output_op, PerfParams.estimate(),
+    cl.run(output_op, PerfParams.estimate(),
            show_progress=False, cache_mode=CacheMode.Overwrite)
 
 
-def test_auto_ingest(sc):
+def test_auto_ingest(cl):
     (vid1_path, vid2_path) = download_videos()
-    input = NamedVideoStream(sc, 'test3', path=vid1_path)
-    frame = sc.io.Input([input])
-    hist = sc.ops.Histogram(frame=frame)
-    output = NamedStream(sc, 'test_hist')
-    output_op = sc.io.Output(hist, [output])
-    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
+    input = NamedVideoStream(cl, 'test3', path=vid1_path)
+    frame = cl.io.Input([input])
+    hist = cl.ops.Histogram(frame=frame)
+    output = NamedStream(cl, 'test_hist')
+    output_op = cl.io.Output(hist, [output])
+    cl.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
 
     run(['rm', '-rf', vid1_path, vid2_path])
 
 
-def test_table_properties(sc):
+def test_table_properties(cl):
     for name, i in [('test1', 0), ('test1_inplace', 2)]:
-        table = sc.table(name)
+        table = cl.table(name)
         assert table.id() == i
         assert table.name() == name
         assert table.num_rows() == 720
         assert [c for c in table.column_names()] == ['index', 'frame']
 
 
-def test_summarize(sc):
-    sc.summarize()
+def test_summarize(cl):
+    cl.summarize()
 
 
-def test_load_video_column(sc):
+def test_load_video_column(cl):
     for name in ['test1', 'test1_inplace']:
-        next(NamedVideoStream(sc, name).load())
+        next(NamedVideoStream(cl, name).load())
 
 
-def test_gather_video_column(sc):
+def test_gather_video_column(cl):
     for name in ['test1', 'test1_inplace']:
         # Gather rows
         rows = [0, 10, 100, 200]
-        frames = list(NamedVideoStream(sc, name).load(rows=rows))
+        frames = list(NamedVideoStream(cl, name).load(rows=rows))
         assert len(frames) == len(rows)
 
 
-def test_profiler(sc):
-    frame = sc.io.Input([NamedVideoStream(sc, 'test1')])
-    hist = sc.ops.Histogram(frame=frame)
-    ghist = sc.streams.Gather(hist, [[0]])
-    output_op = sc.io.Output(ghist, [NamedStream(sc, '_ignore')])
+def test_profiler(cl):
+    frame = cl.io.Input([NamedVideoStream(cl, 'test1')])
+    hist = cl.ops.Histogram(frame=frame)
+    ghist = cl.streams.Gather(hist, [[0]])
+    output_op = cl.io.Output(ghist, [NamedStream(cl, '_ignore')])
 
     time_start = time.time()
-    job_id = sc.run(output_op, PerfParams.estimate(), show_progress=False, cache_mode=CacheMode.Overwrite)
+    job_id = cl.run(output_op, PerfParams.estimate(), show_progress=False, cache_mode=CacheMode.Overwrite)
     print('Time', time.time() - time_start)
-    profile = sc.get_profile(job_id)
+    profile = cl.get_profile(job_id)
     f = tempfile.NamedTemporaryFile(delete=False, suffix='.trace')
     f.close()
     profile.write_trace(f.name)
@@ -206,27 +206,27 @@ def test_profiler(sc):
     run(['rm', '-f', f.name])
 
 
-def test_new_table(sc):
+def test_new_table(cl):
     def b(s):
         return bytes(s, 'utf-8')
 
-    sc.new_table('test', ['col1', 'col2'],
+    cl.new_table('test', ['col1', 'col2'],
                  [[b('r00'), b('r01')], [b('r10'), b('r11')]])
-    t = sc.table('test')
+    t = cl.table('test')
     assert (t.num_rows() == 2)
     assert (next(t.column('col2').load()) == b('r01'))
 
 
-def test_multiple_outputs(sc):
-    sampler = sc.streams.Range
+def test_multiple_outputs(cl):
+    sampler = cl.streams.Range
     def run_job(args_1, args_2):
-        frame = sc.io.Input([NamedVideoStream(sc, 'test1')])
-        sample_frame_1 = sc.streams.Range(input=frame, ranges=[args_1])
-        sample_frame_2 = sc.streams.Range(input=frame, ranges=[args_2])
-        output_op_1 = sc.io.Output(sample_frame_1, [NamedVideoStream(sc, 'test_mp_1')])
-        output_op_2 = sc.io.Output(sample_frame_2, [NamedVideoStream(sc, 'test_mp_2')])
+        frame = cl.io.Input([NamedVideoStream(cl, 'test1')])
+        sample_frame_1 = cl.streams.Range(input=frame, ranges=[args_1])
+        sample_frame_2 = cl.streams.Range(input=frame, ranges=[args_2])
+        output_op_1 = cl.io.Output(sample_frame_1, [NamedVideoStream(cl, 'test_mp_1')])
+        output_op_2 = cl.io.Output(sample_frame_2, [NamedVideoStream(cl, 'test_mp_2')])
 
-        sc.run([output_op_1, output_op_2], PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
+        cl.run([output_op_1, output_op_2], PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
 
     # This should fail
     sampler_args_1 = {'start': 0, 'end': 30}
@@ -248,68 +248,68 @@ def test_multiple_outputs(sc):
     run_job(sampler_args_1, sampler_args_2)
 
     num_rows = 0
-    for _ in sc.table('test_mp_1').column('frame').load():
+    for _ in cl.table('test_mp_1').column('frame').load():
         num_rows += 1
     assert num_rows == expected_rows_1
 
     num_rows = 0
-    for _ in sc.table('test_mp_2').column('frame').load():
+    for _ in cl.table('test_mp_2').column('frame').load():
         num_rows += 1
     assert num_rows == expected_rows_2
 
     # This should succeed
-    frame = sc.io.Input([NamedVideoStream(sc, 'test1')])
-    sample_frame_1 = sc.streams.Range(input=frame, ranges=[sampler_args_1])
-    output_op_1 = sc.io.Output(sample_frame_1, [NamedVideoStream(sc, 'test_mp_1')])
-    output_op_2 = sc.io.Output(sample_frame_1, [NamedVideoStream(sc, 'test_mp_2')])
+    frame = cl.io.Input([NamedVideoStream(cl, 'test1')])
+    sample_frame_1 = cl.streams.Range(input=frame, ranges=[sampler_args_1])
+    output_op_1 = cl.io.Output(sample_frame_1, [NamedVideoStream(cl, 'test_mp_1')])
+    output_op_2 = cl.io.Output(sample_frame_1, [NamedVideoStream(cl, 'test_mp_2')])
 
-    sc.run([output_op_1, output_op_2], PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
+    cl.run([output_op_1, output_op_2], PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
 
     num_rows = 0
-    for _ in sc.table('test_mp_1').column('frame').load():
+    for _ in cl.table('test_mp_1').column('frame').load():
         num_rows += 1
     assert num_rows == expected_rows_1
 
 
-def test_sample(sc):
+def test_sample(cl):
     def run_sampler_job(sampler, sampler_args, expected_rows):
-        frame = sc.io.Input([NamedVideoStream(sc, 'test1')])
+        frame = cl.io.Input([NamedVideoStream(cl, 'test1')])
         sample_frame = sampler(input=frame, **sampler_args)
-        output = NamedVideoStream(sc, 'test_sample')
-        output_op = sc.io.Output(sample_frame, [output])
-        sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
+        output = NamedVideoStream(cl, 'test_sample')
+        output_op = cl.io.Output(sample_frame, [output])
+        cl.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
 
         num_rows = len(list(output.load()))
         assert num_rows == expected_rows
 
     # Stride
-    expected = int((sc.table('test1').num_rows() + 8 - 1) / 8)
-    run_sampler_job(sc.streams.Stride, {'strides': [{'stride': 8}]}, expected)
+    expected = int((cl.table('test1').num_rows() + 8 - 1) / 8)
+    run_sampler_job(cl.streams.Stride, {'strides': [{'stride': 8}]}, expected)
     # Range
-    run_sampler_job(sc.streams.Range, {'ranges': [{'start': 0, 'end': 30}]}, 30)
+    run_sampler_job(cl.streams.Range, {'ranges': [{'start': 0, 'end': 30}]}, 30)
     # Strided Range
-    run_sampler_job(sc.streams.StridedRange, {'ranges': [{
+    run_sampler_job(cl.streams.StridedRange, {'ranges': [{
         'start': 0,
         'end': 300,
         'stride': 10
     }]}, 30)
     # Gather
-    run_sampler_job(sc.streams.Gather, {'indices': [[0, 150, 377, 500]]}, 4)
+    run_sampler_job(cl.streams.Gather, {'indices': [[0, 150, 377, 500]]}, 4)
 
 
-def test_space(sc):
+def test_space(cl):
     def run_spacer_job(spacer, spacing):
-        frame = sc.io.Input([NamedVideoStream(sc, 'test1')])
-        hist = sc.ops.Histogram(frame=frame)
+        frame = cl.io.Input([NamedVideoStream(cl, 'test1')])
+        hist = cl.ops.Histogram(frame=frame)
         space_hist = spacer(input=hist, spacings=[spacing])
-        output = NamedStream(sc, 'test_space')
-        output_op = sc.io.Output(space_hist, [output])
-        sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
+        output = NamedStream(cl, 'test_space')
+        output_op = cl.io.Output(space_hist, [output])
+        cl.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
         return output
 
     # # Repeat
     spacing_distance = 8
-    table = run_spacer_job(sc.streams.Repeat, spacing_distance)
+    table = run_spacer_job(cl.streams.Repeat, spacing_distance)
     num_rows = 0
     for hist in table.load():
         # Verify outputs are repeated correctly
@@ -319,10 +319,10 @@ def test_space(sc):
         for c in range(len(hist)):
             assert (ref_hist[c] == hist[c]).all()
         num_rows += 1
-    assert num_rows == NamedVideoStream(sc, 'test1').len() * spacing_distance
+    assert num_rows == NamedVideoStream(cl, 'test1').len() * spacing_distance
 
     # Null
-    table = run_spacer_job(sc.streams.RepeatNull, spacing_distance)
+    table = run_spacer_job(cl.streams.RepeatNull, spacing_distance)
     num_rows = 0
     for hist in table.load():
         # Verify outputs are None for null rows
@@ -333,45 +333,45 @@ def test_space(sc):
         else:
             assert isinstance(hist, NullElement)
         num_rows += 1
-    assert num_rows == NamedVideoStream(sc, 'test1').len() * spacing_distance
+    assert num_rows == NamedVideoStream(cl, 'test1').len() * spacing_distance
 
 
-def test_stream_args(sc):
-    frame = sc.io.Input([NamedVideoStream(sc, 'test1')])
-    resized_frame = sc.ops.Resize(frame=frame, width=[640], height=[480])
-    range_frame = sc.streams.Range(resized_frame, [(0, 10)])
-    output_stream = NamedVideoStream(sc, 'test_stream_args')
-    output_op = sc.io.Output(range_frame, [output_stream])
-    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
+def test_stream_args(cl):
+    frame = cl.io.Input([NamedVideoStream(cl, 'test1')])
+    resized_frame = cl.ops.Resize(frame=frame, width=[640], height=[480])
+    range_frame = cl.streams.Range(resized_frame, [(0, 10)])
+    output_stream = NamedVideoStream(cl, 'test_stream_args')
+    output_op = cl.io.Output(range_frame, [output_stream])
+    cl.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
 
     list(output_stream.load())
 
 
-def test_slice(sc):
-    input = NamedVideoStream(sc, 'test1')
-    frame = sc.io.Input([input])
-    slice_frame = sc.streams.Slice(frame, partitions=[sc.partitioner.all(50)])
-    unsliced_frame = sc.streams.Unslice(slice_frame)
-    output = NamedStream(sc, 'test_slicing')
-    output_op = sc.io.Output(unsliced_frame, [output])
-    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
+def test_slice(cl):
+    input = NamedVideoStream(cl, 'test1')
+    frame = cl.io.Input([input])
+    slice_frame = cl.streams.Slice(frame, partitions=[cl.partitioner.all(50)])
+    unsliced_frame = cl.streams.Unslice(slice_frame)
+    output = NamedStream(cl, 'test_slicing')
+    output_op = cl.io.Output(unsliced_frame, [output])
+    cl.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
     assert input.len() == output.len()
 
 
-def test_overlapping_slice(sc):
-    input = NamedVideoStream(sc, 'test1')
-    frame = sc.io.Input([input])
-    slice_frame = sc.streams.Slice(frame, partitions=[
-        sc.partitioner.strided_ranges([(0, 15), (5, 25), (15, 35)], 1)])
-    sample_frame = sc.streams.Range(slice_frame, ranges=[SliceList([
+def test_overlapping_slice(cl):
+    input = NamedVideoStream(cl, 'test1')
+    frame = cl.io.Input([input])
+    slice_frame = cl.streams.Slice(frame, partitions=[
+        cl.partitioner.strided_ranges([(0, 15), (5, 25), (15, 35)], 1)])
+    sample_frame = cl.streams.Range(slice_frame, ranges=[SliceList([
         {'start': 0, 'end': 10},
         {'start': 5, 'end': 15},
         {'start': 5, 'end': 15},
     ])])
-    unsliced_frame = sc.streams.Unslice(sample_frame)
-    output = NamedStream(sc, 'test_slicing')
-    output_op = sc.io.Output(unsliced_frame, [output])
-    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
+    unsliced_frame = cl.streams.Unslice(sample_frame)
+    output = NamedStream(cl, 'test_slicing')
+    output_op = cl.io.Output(unsliced_frame, [output])
+    cl.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
     assert output.len() == 30
 
 
@@ -390,29 +390,29 @@ class TestSliceArgs(Kernel):
         return self.arg
 
 
-def test_slice_args(sc):
-    frame = sc.io.Input([NamedVideoStream(sc, 'test1')])
-    slice_frame = sc.streams.Slice(frame, [sc.partitioner.ranges(
+def test_slice_args(cl):
+    frame = cl.io.Input([NamedVideoStream(cl, 'test1')])
+    slice_frame = cl.streams.Slice(frame, [cl.partitioner.ranges(
         [[0, 1], [1, 2], [2, 3]])])
-    test = sc.ops.TestSliceArgs(frame=slice_frame, arg=[SliceList([i for i in range(3)])])
-    unsliced_frame = sc.streams.Unslice(test)
-    output = NamedStream(sc, 'test_slicing')
-    output_op = sc.io.Output(unsliced_frame, [output])
-    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
+    test = cl.ops.TestSliceArgs(frame=slice_frame, arg=[SliceList([i for i in range(3)])])
+    unsliced_frame = cl.streams.Unslice(test)
+    output = NamedStream(cl, 'test_slicing')
+    output_op = cl.io.Output(unsliced_frame, [output])
+    cl.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
 
     num_rows = 0
     list(output.load())
 
 
-def test_bounded_state(sc):
+def test_bounded_state(cl):
     warmup = 3
 
-    frame = sc.io.Input([NamedVideoStream(sc, 'test1')])
-    increment = sc.ops.TestIncrementBounded(ignore=frame, bounded_state=warmup)
-    sampled_increment = sc.streams.Gather(increment, indices=[[0, 10, 25, 26, 27]])
-    output = NamedStream(sc, 'test_bounded_state')
-    output_op = sc.io.Output(sampled_increment, [output])
-    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
+    frame = cl.io.Input([NamedVideoStream(cl, 'test1')])
+    increment = cl.ops.TestIncrementBounded(ignore=frame, bounded_state=warmup)
+    sampled_increment = cl.streams.Gather(increment, indices=[[0, 10, 25, 26, 27]])
+    output = NamedStream(cl, 'test_bounded_state')
+    output_op = cl.io.Output(sampled_increment, [output])
+    cl.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
 
     num_rows = 0
     expected_output = [0, warmup, warmup, warmup + 1, warmup + 2]
@@ -423,95 +423,95 @@ def test_bounded_state(sc):
     assert num_rows == 5
 
 
-def test_unbounded_state(sc):
-    input = NamedVideoStream(sc, 'test1')
-    frame = sc.io.Input([input])
-    slice_frame = sc.streams.Slice(frame, partitions=[sc.partitioner.all(50)])
-    increment = sc.ops.TestIncrementUnbounded(ignore=slice_frame)
-    unsliced_increment = sc.streams.Unslice(increment)
-    output = NamedStream(sc, 'test_unbounded_state')
-    output_op = sc.io.Output(unsliced_increment, [output])
-    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
+def test_unbounded_state(cl):
+    input = NamedVideoStream(cl, 'test1')
+    frame = cl.io.Input([input])
+    slice_frame = cl.streams.Slice(frame, partitions=[cl.partitioner.all(50)])
+    increment = cl.ops.TestIncrementUnbounded(ignore=slice_frame)
+    unsliced_increment = cl.streams.Unslice(increment)
+    output = NamedStream(cl, 'test_unbounded_state')
+    output_op = cl.io.Output(unsliced_increment, [output])
+    cl.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
     assert output.len() == input.len()
 
 
 class DeviceTestBench:
     def test_cpu(self, sc):
-        self.run(sc, DeviceType.CPU)
+        self.run(cl, DeviceType.CPU)
 
     @gpu
     def test_gpu(self, sc):
-        self.run(sc, DeviceType.GPU)
+        self.run(cl, DeviceType.GPU)
 
 
 class TestInplace(DeviceTestBench):
-    def run(self, sc, device):
-        input = NamedVideoStream(sc, 'test1_inplace')
-        frame = sc.io.Input([input])
-        hist = sc.ops.Histogram(frame=frame, device=device)
-        output = NamedStream(sc, 'test_hist')
-        output_op = sc.io.Output(hist, [output])
+    def run(self, cl, device):
+        input = NamedVideoStream(cl, 'test1_inplace')
+        frame = cl.io.Input([input])
+        hist = cl.ops.Histogram(frame=frame, device=device)
+        output = NamedStream(cl, 'test_hist')
+        output_op = cl.io.Output(hist, [output])
 
-        sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
+        cl.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
         next(output.load())
 
 
-def test_stencil(sc):
-    input = NamedVideoStream(sc, 'test1')
+def test_stencil(cl):
+    input = NamedVideoStream(cl, 'test1')
 
-    frame = sc.io.Input([input])
-    sample_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 1}])
-    flow = sc.ops.OpticalFlow(frame=sample_frame, stencil=[-1, 0])
-    output = NamedStream(sc, 'test_stencil')
-    output_op = sc.io.Output(flow, [output])
-    sc.run(output_op,
+    frame = cl.io.Input([input])
+    sample_frame = cl.streams.Range(frame, ranges=[{'start': 0, 'end': 1}])
+    flow = cl.ops.OpticalFlow(frame=sample_frame, stencil=[-1, 0])
+    output = NamedStream(cl, 'test_stencil')
+    output_op = cl.io.Output(flow, [output])
+    cl.run(output_op,
            PerfParams.estimate(pipeline_instances_per_node=1),
            cache_mode=CacheMode.Overwrite,
            show_progress=False)
     assert output.len() == 1
 
-    frame = sc.io.Input([input])
-    sample_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 1}])
-    flow = sc.ops.OpticalFlow(frame=sample_frame, stencil=[0, 1])
-    output = NamedStream(sc, 'test_stencil')
-    output_op = sc.io.Output(flow, [output])
-    sc.run(output_op,
+    frame = cl.io.Input([input])
+    sample_frame = cl.streams.Range(frame, ranges=[{'start': 0, 'end': 1}])
+    flow = cl.ops.OpticalFlow(frame=sample_frame, stencil=[0, 1])
+    output = NamedStream(cl, 'test_stencil')
+    output_op = cl.io.Output(flow, [output])
+    cl.run(output_op,
            PerfParams.estimate(pipeline_instances_per_node=1),
            cache_mode=CacheMode.Overwrite,
            show_progress=False)
 
-    frame = sc.io.Input([input])
-    sample_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 2}])
-    flow = sc.ops.OpticalFlow(frame=sample_frame, stencil=[0, 1])
-    output = NamedStream(sc, 'test_stencil')
-    output_op = sc.io.Output(flow, [output])
-    sc.run(output_op,
+    frame = cl.io.Input([input])
+    sample_frame = cl.streams.Range(frame, ranges=[{'start': 0, 'end': 2}])
+    flow = cl.ops.OpticalFlow(frame=sample_frame, stencil=[0, 1])
+    output = NamedStream(cl, 'test_stencil')
+    output_op = cl.io.Output(flow, [output])
+    cl.run(output_op,
            PerfParams.estimate(pipeline_instances_per_node=1),
            cache_mode=CacheMode.Overwrite,
            show_progress=False)
     assert output.len() == 2
 
-    frame = sc.io.Input([input])
-    flow = sc.ops.OpticalFlow(frame=frame, stencil=[-1, 0])
-    sample_flow = sc.streams.Range(flow, ranges=[{'start': 0, 'end': 1}])
-    output = NamedStream(sc, 'test_stencil')
-    output_op = sc.io.Output(sample_flow, [output])
-    sc.run(output_op,
+    frame = cl.io.Input([input])
+    flow = cl.ops.OpticalFlow(frame=frame, stencil=[-1, 0])
+    sample_flow = cl.streams.Range(flow, ranges=[{'start': 0, 'end': 1}])
+    output = NamedStream(cl, 'test_stencil')
+    output_op = cl.io.Output(sample_flow, [output])
+    cl.run(output_op,
            PerfParams.estimate(pipeline_instances_per_node=1),
            cache_mode=CacheMode.Overwrite,
            show_progress=False)
     assert output.len() == 1
 
 
-def test_wider_than_packet_stencil(sc):
-    input = NamedVideoStream(sc, 'test1')
-    frame = sc.io.Input([input])
-    sample_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 3}])
-    flow = sc.ops.OpticalFlow(frame=sample_frame, stencil=[0, 1])
-    output = NamedStream(sc, 'test_stencil')
-    output_op = sc.io.Output(flow, [output])
+def test_wider_than_packet_stencil(cl):
+    input = NamedVideoStream(cl, 'test1')
+    frame = cl.io.Input([input])
+    sample_frame = cl.streams.Range(frame, ranges=[{'start': 0, 'end': 3}])
+    flow = cl.ops.OpticalFlow(frame=sample_frame, stencil=[0, 1])
+    output = NamedStream(cl, 'test_stencil')
+    output_op = cl.io.Output(flow, [output])
 
-    sc.run(
+    cl.run(
         output_op,
         PerfParams.manual(1, 1, pipeline_instances_per_node=1),
         cache_mode=CacheMode.Overwrite,
@@ -520,7 +520,7 @@ def test_wider_than_packet_stencil(sc):
     assert output.len() == 3
 
 
-# def test_packed_file_source(sc):
+# def test_packed_file_source(cl):
 #     # Write test file
 #     path = '/tmp/cpp_source_test'
 #     with open(path, 'wb') as f:
@@ -533,9 +533,9 @@ def test_wider_than_packet_stencil(sc):
 #         for i in range(num_elements):
 #             f.write(struct.pack('=Q', i))
 
-#     data = sc.sources.PackedFile()
-#     pass_data = sc.ops.Pass(input=data)
-#     output_op = sc.sinks.Column(columns={'integer': pass_data})
+#     data = cl.sources.PackedFile()
+#     pass_data = cl.ops.Pass(input=data)
+#     output_op = cl.sinks.Column(columns={'integer': pass_data})
 #     job = Job(op_args={
 #         data: {
 #             'path': path
@@ -543,8 +543,8 @@ def test_wider_than_packet_stencil(sc):
 #         output_op: 'test_cpp_source',
 #     })
 
-#     sc.run(output_op, [job], PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
-#     tables = [sc.table('test_cpp_source')]
+#     cl.run(output_op, [job], PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
+#     tables = [cl.table('test_cpp_source')]
 
 #     num_rows = 0
 #     for buf in tables[0].column('integer').load():
@@ -572,14 +572,14 @@ class TestPy(Kernel):
         return point
 
 
-def test_python_kernel(sc):
-    input = NamedVideoStream(sc, 'test1')
-    frame = sc.io.Input([input])
-    range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 3}])
-    test_out = sc.ops.TestPy(frame=range_frame, kernel_arg=1, x=[0], y=[0])
-    output = NamedStream(sc, 'test_hist')
-    output_op = sc.io.Output(test_out, [output])
-    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
+def test_python_kernel(cl):
+    input = NamedVideoStream(cl, 'test1')
+    frame = cl.io.Input([input])
+    range_frame = cl.streams.Range(frame, ranges=[{'start': 0, 'end': 3}])
+    test_out = cl.ops.TestPy(frame=range_frame, kernel_arg=1, x=[0], y=[0])
+    output = NamedStream(cl, 'test_hist')
+    output_op = cl.io.Output(test_out, [output])
+    cl.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
     next(output.load())
 
 
@@ -603,18 +603,18 @@ class ResourceTest(Kernel):
         return None
 
 
-def test_fetch_resources(sc):
+def test_fetch_resources(cl):
     with tempfile.NamedTemporaryFile() as f:
         f.write(b'0')
         f.flush()
 
-        input = NamedVideoStream(sc, 'test1')
-        frame = sc.io.Input([input])
-        range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 3}])
-        test_out = sc.ops.ResourceTest(frame=frame, path=f.name)
-        output = NamedStream(sc, 'test_hist')
-        output_op = sc.io.Output(test_out, [output])
-        sc.run(
+        input = NamedVideoStream(cl, 'test1')
+        frame = cl.io.Input([input])
+        range_frame = cl.streams.Range(frame, ranges=[{'start': 0, 'end': 3}])
+        test_out = cl.ops.ResourceTest(frame=frame, path=f.name)
+        output = NamedStream(cl, 'test_hist')
+        output_op = cl.io.Output(test_out, [output])
+        cl.run(
             output_op, PerfParams.estimate(pipeline_instances_per_node=2),
             cache_mode=CacheMode.Overwrite, show_progress=False)
 
@@ -630,14 +630,14 @@ class TestPyBatch(Kernel):
         return [point.SerializeToString() for _ in range(input_count)]
 
 
-def test_python_batch_kernel(sc):
-    input = NamedVideoStream(sc, 'test1')
-    frame = sc.io.Input([input])
-    range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
-    test_out = sc.ops.TestPyBatch(frame=range_frame, batch=50)
-    output = NamedStream(sc, 'test_hist')
-    output_op = sc.io.Output(test_out, [output])
-    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
+def test_python_batch_kernel(cl):
+    input = NamedVideoStream(cl, 'test1')
+    frame = cl.io.Input([input])
+    range_frame = cl.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
+    test_out = cl.ops.TestPyBatch(frame=range_frame, batch=50)
+    output = NamedStream(cl, 'test_hist')
+    output_op = cl.io.Output(test_out, [output])
+    cl.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
     next(output.load())
 
 
@@ -651,14 +651,14 @@ class TestPyStencil(Kernel):
         return point.SerializeToString()
 
 
-def test_python_stencil_kernel(sc):
-    input = NamedVideoStream(sc, 'test1')
-    frame = sc.io.Input([input])
-    range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
-    test_out = sc.ops.TestPyStencil(frame=range_frame)
-    output = NamedStream(sc, 'test_hist')
-    output_op = sc.io.Output(test_out, [output])
-    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
+def test_python_stencil_kernel(cl):
+    input = NamedVideoStream(cl, 'test1')
+    frame = cl.io.Input([input])
+    range_frame = cl.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
+    test_out = cl.ops.TestPyStencil(frame=range_frame)
+    output = NamedStream(cl, 'test_hist')
+    output_op = cl.io.Output(test_out, [output])
+    cl.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
     next(output.load())
 
 
@@ -681,26 +681,26 @@ class TestPyStencilBatch(Kernel):
         return [point.SerializeToString() for _ in range(input_count)]
 
 
-def test_python_stencil_batch_kernel(sc):
-    input = NamedVideoStream(sc, 'test1')
-    frame = sc.io.Input([input])
-    range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
-    test_out = sc.ops.TestPyStencilBatch(frame=range_frame, batch=50)
-    output = NamedStream(sc, 'test_hist')
-    output_op = sc.io.Output(test_out, [output])
-    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
+def test_python_stencil_batch_kernel(cl):
+    input = NamedVideoStream(cl, 'test1')
+    frame = cl.io.Input([input])
+    range_frame = cl.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
+    test_out = cl.ops.TestPyStencilBatch(frame=range_frame, batch=50)
+    output = NamedStream(cl, 'test_hist')
+    output_op = cl.io.Output(test_out, [output])
+    cl.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
     next(output.load())
 
 
-def test_bind_op_args(sc):
-    input = NamedVideoStream(sc, 'test1')
-    frame = sc.io.Input([input, input])
-    range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 1} for _ in range(2)])
-    test_out = sc.ops.TestPy(frame=range_frame, kernel_arg=1, x=[1, 10], y=[5, 50])
-    outputs = [NamedStream(sc, 'test_hist_0'), NamedStream(sc, 'test_hist_1')]
-    output_op = sc.io.Output(test_out, outputs)
+def test_bind_op_args(cl):
+    input = NamedVideoStream(cl, 'test1')
+    frame = cl.io.Input([input, input])
+    range_frame = cl.streams.Range(frame, ranges=[{'start': 0, 'end': 1} for _ in range(2)])
+    test_out = cl.ops.TestPy(frame=range_frame, kernel_arg=1, x=[1, 10], y=[5, 50])
+    outputs = [NamedStream(cl, 'test_hist_0'), NamedStream(cl, 'test_hist_1')]
+    output_op = cl.io.Output(test_out, outputs)
     pairs = [(1, 5), (10, 50)]
-    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
+    cl.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
 
     for i, (x, y) in enumerate(pairs):
         values = list(outputs[i].load())
@@ -709,36 +709,36 @@ def test_bind_op_args(sc):
         assert p['y'] == y
 
 
-def test_lossless(sc):
-    input = NamedVideoStream(sc, 'test1')
-    frame = sc.io.Input([input])
-    range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
-    blurred_frame = sc.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
-    output = NamedVideoStream(sc, 'test_blur')
-    output_op = sc.io.Output(blurred_frame.lossless(), [output])
-    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
+def test_lossless(cl):
+    input = NamedVideoStream(cl, 'test1')
+    frame = cl.io.Input([input])
+    range_frame = cl.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
+    blurred_frame = cl.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
+    output = NamedVideoStream(cl, 'test_blur')
+    output_op = cl.io.Output(blurred_frame.lossless(), [output])
+    cl.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
     next(output.load())
 
 
-def test_compress(sc):
-    input = NamedVideoStream(sc, 'test1')
-    frame = sc.io.Input([input])
-    range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
-    blurred_frame = sc.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
-    output = NamedVideoStream(sc, 'test_blur')
-    output_op = sc.io.Output(blurred_frame.compress('video', bitrate=1 * 1024 * 1024), [output])
-    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
+def test_compress(cl):
+    input = NamedVideoStream(cl, 'test1')
+    frame = cl.io.Input([input])
+    range_frame = cl.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
+    blurred_frame = cl.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
+    output = NamedVideoStream(cl, 'test_blur')
+    output_op = cl.io.Output(blurred_frame.compress('video', bitrate=1 * 1024 * 1024), [output])
+    cl.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
     next(output.load())
 
 
-def test_save_mp4(sc):
-    input = NamedVideoStream(sc, 'test1')
-    frame = sc.io.Input([input])
-    range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
-    blurred_frame = sc.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
-    output = NamedVideoStream(sc, 'test_save_mp4')
-    output_op = sc.io.Output(blurred_frame, [output])
-    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
+def test_save_mp4(cl):
+    input = NamedVideoStream(cl, 'test1')
+    frame = cl.io.Input([input])
+    range_frame = cl.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
+    blurred_frame = cl.ops.Blur(frame=range_frame, kernel_size=3, sigma=0.1)
+    output = NamedVideoStream(cl, 'test_save_mp4')
+    output_op = cl.io.Output(blurred_frame, [output])
+    cl.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
 
     f = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
     f.close()
@@ -756,7 +756,7 @@ def no_workers_sc():
                   debug=True) as sc:
         (vid1_path, vid2_path) = download_videos()
 
-        sc.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
+        cl.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
 
         yield sc
 
@@ -770,14 +770,14 @@ def no_workers_sc():
 def test_no_workers(no_workers_sc):
     sc = no_workers_sc
 
-    input = NamedVideoStream(sc, 'test1')
-    frame = sc.io.Input([input])
-    hist = sc.ops.Histogram(frame=frame)
-    output_op = sc.io.Output(hist, [NamedStream(sc, '_ignore')])
+    input = NamedVideoStream(cl, 'test1')
+    frame = cl.io.Input([input])
+    hist = cl.ops.Histogram(frame=frame)
+    output_op = cl.io.Output(hist, [NamedStream(cl, '_ignore')])
 
     exc = False
     try:
-        sc.run(output_op, PerfParams.estimate(), show_progress=False, cache_mode=CacheMode.Overwrite)
+        cl.run(output_op, PerfParams.estimate(), show_progress=False, cache_mode=CacheMode.Overwrite)
     except ScannerException:
         exc = True
 
@@ -800,11 +800,11 @@ def fault_sc():
             debug=True) as sc:
         (vid1_path, vid2_path) = download_videos()
 
-        sc.load_op(
+        cl.load_op(
             os.path.abspath(os.path.join(cwd, '..', 'build/tests/libscanner_tests.so')),
             os.path.abspath(os.path.join(cwd, '..', 'build/tests/test_ops_pb2.py')))
 
-        sc.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
+        cl.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
 
         yield sc
 
@@ -857,27 +857,27 @@ def fault_sc():
 #         subprocess.call(['python ' +  script_dir + '/spawn_worker.py'],
 #                         shell=True)
 
-#     master_addr = fault_sc._master_address
-#     worker_addr = fault_sc._worker_addresses[0]
+#     master_addr = fault_cl._master_address
+#     worker_addr = fault_cl._worker_addresses[0]
 #     shutdown_process = Process(target=worker_shutdown_task,
-#                              args=(fault_sc.config, master_addr, worker_addr))
+#                              args=(fault_cl.config, master_addr, worker_addr))
 #     shutdown_process.daemon = True
 #     shutdown_process.start()
 
-#     frame = fault_sc.sources.FrameColumn()
+#     frame = fault_cl.sources.FrameColumn()
 #     range_frame = frame.sample()
-#     sleep_frame = fault_sc.ops.SleepFrame(ignore = range_frame)
-#     output_op = fault_sc.sinks.Column(columns=[sleep_frame])
+#     sleep_frame = fault_cl.ops.SleepFrame(ignore = range_frame)
+#     output_op = fault_cl.sinks.Column(columns=[sleep_frame])
 
 #     job = Job(
 #         op_args={
-#             frame: fault_sc.table('test1').column('frame'),
-#             range_frame: fault_sc.sampler.range(0, 15),
+#             frame: fault_cl.table('test1').column('frame'),
+#             range_frame: fault_cl.sampler.range(0, 15),
 #             output_op: 'test_shutdown',
 #         }
 #     )
 #
-#     table = fault_sc.run(output_op, [job], pipeline_instances_per_node=1, PerfParams.estimate(), cache_mode=CacheMode.Overwrite,
+#     table = fault_cl.run(output_op, [job], pipeline_instances_per_node=1, PerfParams.estimate(), cache_mode=CacheMode.Overwrite,
 #                          show_progress=False)
 #     table = table[0]
 #     assert len([_ for _, _ in table.column('dummy').load()]) == 15
@@ -886,10 +886,10 @@ def fault_sc():
 #     channel = grpc.insecure_channel(
 #         'localhost:' + str(spawn_port),
 #         options=[('grpc.max_message_length', 24499183 * 2)])
-#     worker = fault_sc.protobufs.WorkerStub(channel)
+#     worker = fault_cl.protobufs.WorkerStub(channel)
 
 #     try:
-#         worker.Shutdown(fault_sc.protobufs.Empty())
+#         worker.Shutdown(fault_cl.protobufs.Empty())
 #     except grpc.RpcError as e:
 #         status = e.code()
 #         if status == grpc.StatusCode.UNAVAILABLE:
@@ -950,20 +950,20 @@ def test_fault_tolerance(fault_sc):
                 ],
                 shell=True)
 
-    master_addr = fault_sc._master_address
+    master_addr = fault_cl._master_address
     killer_process = Process(
-        target=worker_killer_task, args=(fault_sc.config, master_addr))
+        target=worker_killer_task, args=(fault_cl.config, master_addr))
     killer_process.daemon = True
     killer_process.start()
 
-    input = NamedVideoStream(fault_sc, 'test1')
-    frame = fault_sc.io.Input([input])
-    range_frame = fault_sc.streams.Range(frame, ranges=[{'start': 0, 'end': 20}])
-    sleep_frame = fault_sc.ops.SleepFrame(ignore=range_frame)
-    output = NamedStream(fault_sc, 'test_fault')
-    output_op = fault_sc.io.Output(sleep_frame, [output])
+    input = NamedVideoStream(fault_cl, 'test1')
+    frame = fault_cl.io.Input([input])
+    range_frame = fault_cl.streams.Range(frame, ranges=[{'start': 0, 'end': 20}])
+    sleep_frame = fault_cl.ops.SleepFrame(ignore=range_frame)
+    output = NamedStream(fault_cl, 'test_fault')
+    output_op = fault_cl.io.Output(sleep_frame, [output])
 
-    fault_sc.run(
+    fault_cl.run(
         output_op,
         PerfParams.estimate(pipeline_instances_per_node=1),
         cache_mode=CacheMode.Overwrite,
@@ -1006,7 +1006,7 @@ def blacklist_sc():
             enable_watchdog=False) as sc:
         (vid1_path, vid2_path) = download_videos()
 
-        sc.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
+        cl.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
 
         yield sc
 
@@ -1028,13 +1028,13 @@ def test_job_blacklist(blacklist_sc):
 
     sc = blacklist_sc
 
-    input = NamedVideoStream(sc, 'test1')
-    frame = sc.io.Input([input])
-    range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 1}])
-    failed_output = sc.ops.TestPyFail(frame=range_frame)
-    output = NamedVideoStream(sc, 'test_py_fail')
-    output_op = sc.io.Output(failed_output, [output])
-    sc.run(
+    input = NamedVideoStream(cl, 'test1')
+    frame = cl.io.Input([input])
+    range_frame = cl.streams.Range(frame, ranges=[{'start': 0, 'end': 1}])
+    failed_output = cl.ops.TestPyFail(frame=range_frame)
+    output = NamedVideoStream(cl, 'test_py_fail')
+    output_op = cl.io.Output(failed_output, [output])
+    cl.run(
         output_op,
         PerfParams.estimate(pipeline_instances_per_node=1),
         cache_mode=CacheMode.Overwrite,
@@ -1058,7 +1058,7 @@ def timeout_sc():
             enable_watchdog=False) as sc:
         (vid1_path, vid2_path) = download_videos()
 
-        sc.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
+        cl.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
 
         yield sc
 
@@ -1067,7 +1067,7 @@ def timeout_sc():
             worker_stub = protobufs.WorkerStub(channel)
             try:
                 worker_stub.Shutdown(
-                    protobufs.Empty(), timeout=sc._grpc_timeout)
+                    protobufs.Empty(), timeout=cl._grpc_timeout)
             except grpc.RpcError as e:
                 pass
 
@@ -1086,14 +1086,14 @@ def test_job_timeout(timeout_sc):
 
     sc = timeout_sc
 
-    input = NamedVideoStream(sc, 'test1')
-    frame = sc.io.Input([input])
-    range_frame = sc.streams.Range(frame, ranges=[{'start': 0, 'end': 1}])
-    sleep_frame = sc.ops.timeout_fn(frame=range_frame)
-    output = NamedVideoStream(sc, 'test_timeout')
-    output_op = sc.io.Output(sleep_frame, [output])
+    input = NamedVideoStream(cl, 'test1')
+    frame = cl.io.Input([input])
+    range_frame = cl.streams.Range(frame, ranges=[{'start': 0, 'end': 1}])
+    sleep_frame = cl.ops.timeout_fn(frame=range_frame)
+    output = NamedVideoStream(cl, 'test_timeout')
+    output_op = cl.io.Output(sleep_frame, [output])
 
-    sc.run(
+    cl.run(
         output_op,
         PerfParams.estimate(pipeline_instances_per_node=1),
         task_timeout=0.1,
@@ -1109,30 +1109,33 @@ def cache_test(config, n: Any) -> Any:
     return n + 1
 
 
-def test_cache_mode(sc):
-    n = sc.io.Input([PythonStream([0])])
-    out = sc.ops.CacheTest(n=n)
-    output = NamedStream(sc, 'test_cache')
-    output_op = sc.io.Output(out, [output])
-    sc.run(output_op, PerfParams.estimate())
+def test_cache_mode(cl):
+    cl.new_table('test_cache_input', ['column'], [[pickle.dumps(0)]])
+    cl.new_table('test_cache_input2', ['column'], [[pickle.dumps(1)]])
+
+    n = cl.io.Input([NamedStream(cl, 'test_cache_input')])
+    out = cl.ops.CacheTest(n=n)
+    output = NamedStream(cl, 'test_cache')
+    output_op = cl.io.Output(out, [output])
+    cl.run(output_op, PerfParams.estimate())
 
     assert next(output.load()) == 1
 
     exc = False
     try:
-        sc.run(output_op, PerfParams.estimate())
+        cl.run(output_op, PerfParams.estimate())
     except ScannerException:
         exc = True
     assert exc
 
-    n = sc.io.Input([PythonStream([1])])
-    out = sc.ops.CacheTest(n=n)
-    output_op = sc.io.Output(out, [output])
+    n = cl.io.Input([NamedStream(cl, 'test_cache_input2')])
+    out = cl.ops.CacheTest(n=n)
+    output_op = cl.io.Output(out, [output])
 
-    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Ignore)
+    cl.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Ignore)
     assert next(output.load()) == 1
 
-    sc.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite)
+    cl.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite)
     assert next(output.load()) == 2
 
 
