@@ -23,7 +23,8 @@ fi
 test_docker() {
     INSTALL_SCANNERTOOLS="pushd /tmp && \
       git clone https://github.com/scanner-research/scannertools -b api-redesign && \
-      cd scannertools/scannertools && pip3 install . && popd"
+      cd scannertools/scannertools_infra && pip3 install . && \
+      cd ../scannertools && pip3 install . && popd"
 
     if [[ "$TEST_TYPE" = "cpp" ]]; then
         TEST_COMMAND="cd /opt/scanner/build && CTEST_OUTPUT_ON_FAILURE=1 make test ARGS='-V -E PythonTests'"
