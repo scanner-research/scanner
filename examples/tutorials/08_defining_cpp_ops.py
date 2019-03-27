@@ -1,4 +1,4 @@
-import scannerpy as asp
+import scannerpy as sp
 
 import sys
 import os.path

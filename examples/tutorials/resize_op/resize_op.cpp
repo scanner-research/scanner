@@ -68,7 +68,7 @@ class MyResizeKernel : public scanner::Kernel, public scanner::VideoKernel {
 // These functions run statically when the shared library is loaded to tell the
 // Scanner runtime about your custom op.
 
-REGISTER_OP(MyResize).frame_input("frame").frame_output("frame").protobuf_name("ResizeArgs");
+REGISTER_OP(MyResize).frame_input("frame").frame_output("frame").protobuf_name("MyResizeArgs");
 
 REGISTER_KERNEL(MyResize, MyResizeKernel)
     .device(scanner::DeviceType::CPU)
