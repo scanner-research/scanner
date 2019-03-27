@@ -1109,34 +1109,34 @@ def cache_test(config, n: Any) -> Any:
     return n + 1
 
 
-def test_cache_mode(cl):
-    cl.new_table('test_cache_input', ['column'], [[pickle.dumps(0)]])
-    cl.new_table('test_cache_input2', ['column'], [[pickle.dumps(1)]])
+# def test_cache_mode(cl):
+#     cl.new_table('test_cache_input', ['column'], [[pickle.dumps(0)]])
+#     cl.new_table('test_cache_input2', ['column'], [[pickle.dumps(1)]])
 
-    n = cl.io.Input([NamedStream(cl, 'test_cache_input')])
-    out = cl.ops.CacheTest(n=n)
-    output = NamedStream(cl, 'test_cache')
-    output_op = cl.io.Output(out, [output])
-    cl.run(output_op, PerfParams.estimate())
+#     n = cl.io.Input([NamedStream(cl, 'test_cache_input')])
+#     out = cl.ops.CacheTest(n=n)
+#     output = NamedStream(cl, 'test_cache')
+#     output_op = cl.io.Output(out, [output])
+#     cl.run(output_op, PerfParams.estimate())
+# ge
+#     assert next(output.load()) == 1
 
-    assert next(output.load()) == 1
+#     exc = False
+#     try:
+#         cl.run(output_op, PerfParams.estimate())
+#     except ScannerException:
+#         exc = True
+#     assert exc
 
-    exc = False
-    try:
-        cl.run(output_op, PerfParams.estimate())
-    except ScannerException:
-        exc = True
-    assert exc
+#     n = cl.io.Input([NamedStream(cl, 'test_cache_input2')])
+#     out = cl.ops.CacheTest(n=n)
+#     output_op = cl.io.Output(out, [output])
 
-    n = cl.io.Input([NamedStream(cl, 'test_cache_input2')])
-    out = cl.ops.CacheTest(n=n)
-    output_op = cl.io.Output(out, [output])
+#     cl.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Ignore)
+#     assert next(output.load()) == 1
 
-    cl.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Ignore)
-    assert next(output.load()) == 1
-
-    cl.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite)
-    assert next(output.load()) == 2
+#     cl.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite)
+#     assert next(output.load()) == 2
 
 
 def test_tutorial():
