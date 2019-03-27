@@ -1,6 +1,6 @@
 from scannertools.storage.files import FilesStream
 from typing import Sequence
-
+import scannertools.imgproc
 import scannerpy as sp
 import cv2
 
@@ -41,7 +41,7 @@ def main():
     # ImageDecoder
     frames = cl.ops.ImageDecoder(img=compressed_images)
 
-    resized_frames = cl.ops.Resize(frame=frames, width=640, height=360)
+    resized_frames = cl.ops.Resize(frame=frames, width=[640], height=[360])
 
     # Rencode the image to jpg
     encoded_frames = cl.ops.ImageEncoder(frame=resized_frames, format='jpg')
