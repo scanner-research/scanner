@@ -1,4 +1,4 @@
-import scannerpy as asp
+import scannerpy as sp
 import scannertools.imgproc
 
 import sys
@@ -36,7 +36,7 @@ def main():
 
     stream = sp.NamedVideoStream(cl, 'output_table_name')
     output = cl.io.Output(blurred_frame, [stream])
-    cl.run(output)
+    cl.run(output, sp.PerfParams.estimate())
 
     stream.delete(cl)
 
