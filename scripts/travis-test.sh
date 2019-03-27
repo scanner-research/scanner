@@ -21,6 +21,10 @@ if [[ "$TRAVIS_BRANCH" = "master" ]]; then
 fi
 
 test_docker() {
+    INSTALL_SCANNERTOOLS="pushd /opt && \
+      git clone https://github.com/scanner-research/scannertools -b redesign && \
+      cd scannertools/scannertools && pip3 install . && popd"
+
     if [[ "$TEST_TYPE" = "cpp" ]]; then
         TEST_COMMAND="cd /opt/scanner/build && CTEST_OUTPUT_ON_FAILURE=1 make test ARGS='-V -E PythonTests'"
     elif [[ "$TEST_TYPE" = "tutorials" ]]; then
@@ -31,7 +35,7 @@ test_docker() {
     # We add -local to make sure it doesn't run the remote image if the build fails.
     docker pull $DOCKER_TEST_REPO:$1-$TRAVIS_BUILD_NUMBER
     docker run $DOCKER_TEST_REPO:$1-$TRAVIS_BUILD_NUMBER /bin/bash \
-           -c "adduser --disabled-password --gecos \"\" user && (yes | pip3 uninstall grpcio protobuf) && chmod -R 777 /opt/scanner && su -c \"cd /opt/scanner/dist && (yes | pip3 install --user *) && $TEST_COMMAND\" user"
+           -c "adduser --disabled-password --gecos \"\" user && (yes | pip3 uninstall grpcio protobuf) && chmod -R 777 /opt/scanner && su -c \"cd /opt/scanner/dist && (yes | pip3 install --user *) && $INSTALL_SCANNERTOOLS && $TEST_COMMAND\" user"
     docker rm $(docker ps -a -f status=exited -q)
     docker rmi -f $DOCKER_REPO:$1-$TRAVIS_BUILD_NUMBER
 }
