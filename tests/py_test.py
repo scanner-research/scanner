@@ -444,15 +444,6 @@ class DeviceTestBench:
         self.run(sc, DeviceType.GPU)
 
 
-@scannerpy.register_python_op()
-def Histogram(config, frame: FrameType) -> types.Histogram:
-    return [cv2.calcHist([frame], [i], None, [16], [0,256]) for i in range(3)]
-
-
-@scannerpy.register_python_op(stencil=[0, 1])
-def OpticalFlow(config, frame: Sequence[FrameType]) -> FrameType:
-    return frame[0] # TODO
-
 class TestInplace(DeviceTestBench):
     def run(self, sc, device):
         input = NamedVideoStream(sc, 'test1_inplace')
@@ -809,6 +800,10 @@ def fault_sc():
             debug=True) as sc:
         (vid1_path, vid2_path) = download_videos()
 
+        sc.load_op(
+            os.path.abspath(os.path.join(cwd, '..', 'build/tests/libscanner_tests.so')),
+            os.path.abspath(os.path.join(cwd, '..', 'build/tests/test_ops_pb2.py')))
+
         sc.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
 
         yield sc
@@ -961,7 +956,7 @@ def test_fault_tolerance(fault_sc):
     killer_process.daemon = True
     killer_process.start()
 
-    input = NamedVideoStream(sc, 'test1')
+    input = NamedVideoStream(fault_sc, 'test1')
     frame = fault_sc.io.Input([input])
     range_frame = fault_sc.streams.Range(frame, ranges=[{'start': 0, 'end': 20}])
     sleep_frame = fault_sc.ops.SleepFrame(ignore=range_frame)
