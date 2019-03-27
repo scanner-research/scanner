@@ -21,7 +21,7 @@ if [[ "$TRAVIS_BRANCH" = "master" ]]; then
 fi
 
 test_docker() {
-    INSTALL_SCANNERTOOLS="pushd /opt && \
+    INSTALL_SCANNERTOOLS="pushd /tmp && \
       git clone https://github.com/scanner-research/scannertools -b redesign && \
       cd scannertools/scannertools && pip3 install . && popd"
 
