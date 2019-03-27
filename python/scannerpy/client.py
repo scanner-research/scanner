@@ -1202,7 +1202,7 @@ class Client(object):
                     total_tasks = job_status.total_tasks
                     # Lower smoothing provides more accurate ETAs over long jobs.
                     # See: https://tqdm.github.io/docs/tqdm/
-                    pbar = tqdm(total=total_tasks, smoothing=0.01)
+                    pbar = tqdm(total=total_tasks, smoothing=0.05)
             except grpc.RpcError as e:
                 raise ScannerException(e)
             if job_status.finished:

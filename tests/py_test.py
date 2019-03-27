@@ -436,11 +436,11 @@ def test_unbounded_state(cl):
 
 
 class DeviceTestBench:
-    def test_cpu(self, sc):
+    def test_cpu(self, cl):
         self.run(cl, DeviceType.CPU)
 
     @gpu
-    def test_gpu(self, sc):
+    def test_gpu(self, cl):
         self.run(cl, DeviceType.GPU)
 
 
@@ -747,18 +747,18 @@ def test_save_mp4(cl):
 
 
 @pytest.fixture()
-def no_workers_sc():
+def no_workers_cl():
     # Create new config
     (cfg_path, cfg) = make_config(master_port='5020', worker_port='5021')
 
     # Setup and ingest video
     with Client(workers=[], config_path=cfg_path, enable_watchdog=False,
-                  debug=True) as sc:
+                  debug=True) as cl:
         (vid1_path, vid2_path) = download_videos()
 
         cl.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
 
-        yield sc
+        yield cl
 
         # Tear down
         run([
@@ -767,8 +767,8 @@ def no_workers_sc():
         ])
 
 
-def test_no_workers(no_workers_sc):
-    sc = no_workers_sc
+def test_no_workers(no_workers_cl):
+    cl = no_workers_cl
 
     input = NamedVideoStream(cl, 'test1')
     frame = cl.io.Input([input])
@@ -785,7 +785,7 @@ def test_no_workers(no_workers_sc):
 
 
 @pytest.fixture()
-def fault_sc():
+def fault_cl():
     # Create new config
     (cfg_path, cfg) = make_config(
         master_port='5010', worker_port='5011', path='/tmp/config_test')
@@ -797,7 +797,7 @@ def fault_sc():
             config_path=cfg_path,
             no_workers_timeout=120,
             enable_watchdog=False,
-            debug=True) as sc:
+            debug=True) as cl:
         (vid1_path, vid2_path) = download_videos()
 
         cl.load_op(
@@ -806,7 +806,7 @@ def fault_sc():
 
         cl.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
 
-        yield sc
+        yield cl
 
         # Tear down
         run([
@@ -815,7 +815,7 @@ def fault_sc():
         ])
 
 
-# def test_clean_worker_shutdown(fault_sc):
+# def test_clean_worker_shutdown(fault_cl):
 #     spawn_port = 5010
 #     def worker_shutdown_task(config, master_address, worker_address):
 #         from scannerpy import ProtobufGenerator, Config, start_worker
@@ -901,7 +901,7 @@ def fault_sc():
 #     shutdown_process.join()
 
 
-def test_fault_tolerance(fault_sc):
+def test_fault_tolerance(fault_cl):
     force_kill_spawn_port = 5012
     normal_spawn_port = 5013
 
@@ -991,7 +991,7 @@ def test_fault_tolerance(fault_sc):
 
 
 @pytest.fixture()
-def blacklist_sc():
+def blacklist_cl():
     # Create new config
     (cfg_path, cfg) = make_config(master_port='5055', worker_port='5060')
 
@@ -1003,12 +1003,12 @@ def blacklist_sc():
             no_workers_timeout=120,
             master=master,
             workers=workers,
-            enable_watchdog=False) as sc:
+            enable_watchdog=False) as cl:
         (vid1_path, vid2_path) = download_videos()
 
         cl.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
 
-        yield sc
+        yield cl
 
         # Tear down
         run([
@@ -1017,7 +1017,7 @@ def blacklist_sc():
         ])
 
 
-def test_job_blacklist(blacklist_sc):
+def test_job_blacklist(blacklist_cl):
     # NOTE(wcrichto): this class must NOT be at the top level. If it is, then pytest injects
     # some of its dependencies, and sending this class to an external Scanner process will fail
     # with a missing "py_test" import..
@@ -1026,7 +1026,7 @@ def test_job_blacklist(blacklist_sc):
         def execute(self, frame: FrameType) -> bytes:
             raise ScannerException('Test')
 
-    sc = blacklist_sc
+    cl = blacklist_cl
 
     input = NamedVideoStream(cl, 'test1')
     frame = cl.io.Input([input])
@@ -1043,7 +1043,7 @@ def test_job_blacklist(blacklist_sc):
 
 
 @pytest.fixture()
-def timeout_sc():
+def timeout_cl():
     # Create new config
     (cfg_path, cfg) = make_config(master_port='5155', worker_port='5160')
 
@@ -1055,12 +1055,12 @@ def timeout_sc():
             no_workers_timeout=120,
             master=master,
             workers=workers,
-            enable_watchdog=False) as sc:
+            enable_watchdog=False) as cl:
         (vid1_path, vid2_path) = download_videos()
 
         cl.ingest_videos([('test1', vid1_path), ('test2', vid2_path)])
 
-        yield sc
+        yield cl
 
         for worker in workers:
             channel = grpc.insecure_channel(worker)
@@ -1078,13 +1078,13 @@ def timeout_sc():
         ])
 
 
-def test_job_timeout(timeout_sc):
+def test_job_timeout(timeout_cl):
     @scannerpy.register_python_op()
     def timeout_fn(self, frame: FrameType) -> bytes:
         time.sleep(5)
         return bytes('what', 'utf-8')
 
-    sc = timeout_sc
+    cl = timeout_cl
 
     input = NamedVideoStream(cl, 'test1')
     frame = cl.io.Input([input])
