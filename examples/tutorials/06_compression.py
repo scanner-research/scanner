@@ -57,7 +57,7 @@ def main():
     lossless_stream = sp.NamedVideoStream(cl, 'lossless_video')
     output = cl.io.Output(lossless_frame, [lossless_stream])
 
-    cl.run(output)
+    cl.run(output, sp.PerfParams.estimate())
 
     # Any sequence of frames which are saved as a compressed `NamedVideoStream` can
     # be exported as an mp4 file by calling save_mp4 on the stream. This will output
