@@ -1399,10 +1399,9 @@ class Client(object):
                          "neither should exist.").format(
                             next(iter(diff)), output_ops_list[i]._name, output_ops_list[j]._name))
 
-        to_cache = []
+        to_cache = set()
         for output_idx, per_output_to_delete in enumerate(to_delete):
             if len(per_output_to_delete) == 0:
-                to_cache.append([])
                 continue
 
             op = output_ops_list[output_idx]
@@ -1414,10 +1413,10 @@ class Client(object):
                 stored_stream_instance_name = stream.name()
                 raise ScannerException(
                     ("Running this job would overwrite the {:s} `{}`. You can "
-                     "change this behavior using cl.run(cache_mode=CacheMode.Ignore) to "
-                     "ignore outputs that already exist, or CacheMode.Overwrite to "
-                     "overwrite them.").format(stored_stream_type_name,
-                                               stored_stream_instance_name))
+                     "change this behavior using cl.run(cache_mode=sp.CacheMode.Ignore) to "
+                     "not run for outputs that already exist, or sp.CacheMode.Overwrite to "
+                     "run anyway and overwrite them.").format(
+                         stored_stream_type_name, stored_stream_instance_name))
 
             elif cache_mode == CacheMode.Overwrite:
                 td = per_output_to_delete
@@ -1426,7 +1425,7 @@ class Client(object):
                 storage.delete(self, [streams[i] for i in td])
 
             elif cache_mode == CacheMode.Ignore:
-                to_cache.append(per_output_to_delete)
+                to_cache |= per_output_to_delete
 
         # Struct of arrays to array of structs conversion
         jobs = []
