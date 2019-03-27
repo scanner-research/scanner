@@ -91,7 +91,7 @@ def main():
     cl.run(output, sp.PerfParams.estimate())
 
     stream.save_mp4('04_masked')
-    stream.delete()
+    stream.delete(cl)
 
     videos = []
     videos.append('04_masked.mp4')
