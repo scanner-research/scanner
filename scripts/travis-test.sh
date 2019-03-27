@@ -22,7 +22,7 @@ fi
 
 test_docker() {
     INSTALL_SCANNERTOOLS="pushd /tmp && \
-      git clone https://github.com/scanner-research/scannertools -b redesign && \
+      git clone https://github.com/scanner-research/scannertools -b api-redesign && \
       cd scannertools/scannertools && pip3 install . && popd"
 
     if [[ "$TEST_TYPE" = "cpp" ]]; then
