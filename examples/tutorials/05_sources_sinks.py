@@ -1,4 +1,4 @@
-from scannertools.storage.files_strage import FilesStream
+from scannertools.storage.files import FilesStream
 from typing import Sequence
 
 import scannerpy as sp
