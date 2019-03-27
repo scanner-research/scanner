@@ -1389,15 +1389,16 @@ class Client(object):
             to_delete.append(set([i for i, s in enumerate(streams) if s.exists()]))
 
         # Check that all outputs have matching existing stored streams
-        for i, s in enumerate(to_delete):
-            for j, t in enumerate(to_delete):
-                if i == j: continue
-                diff = s - t
-                if len(diff) > 0 :
-                    raise Exception(
-                        ("Output for stream {} exists in {} but does not exist in {}. Either both or"
-                         "neither should exist.").format(
-                            next(iter(diff)), output_ops_list[i]._name, output_ops_list[j]._name))
+        if cache_mode == CacheMode.Ignore:
+            for i, s in enumerate(to_delete):
+                for j, t in enumerate(to_delete):
+                    if i == j: continue
+                    diff = s - t
+                    if len(diff) > 0 :
+                        raise Exception(
+                            ("Output for stream {} exists in {} but does not exist in {}. Either both or "
+                             "neither should exist.").format(
+                                 next(iter(diff)), output_ops_list[i]._name, output_ops_list[j]._name))
 
         to_cache = set()
         for output_idx, per_output_to_delete in enumerate(to_delete):

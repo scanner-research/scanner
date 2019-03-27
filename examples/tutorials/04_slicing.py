@@ -15,7 +15,7 @@ import util
 ################################################################################
 
 def main():
-    cl = Client()
+    cl = sp.Client()
 
     example_video_path = util.download_video()
     video_stream = sp.NamedVideoStream(cl, 'example', path=example_video_path)
