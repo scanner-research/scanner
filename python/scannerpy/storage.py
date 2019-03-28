@@ -331,14 +331,39 @@ class NamedVideoStream(NamedStream):
         self._name = name
         self._path = path
         self._inplace = inplace
+        self._ingested = False
+
+    def _ingest(self):
+        if not self._ingested and self._path is not None:
+            self._ingested = True
+            self.storage().ingest(self._sc, [self])
+
+    def committed(self):
+        self._ingest()
+        return self._sc.sequence(self._name)._table.committed()
+
+    def exists(self):
+        self._ingest()
+        return self._sc.sequence(self._name)._table.exists()
+
+    def len(self):
+        self._ingest()
+        return self._sc.sequence(self._name)._table.num_rows()
+
+    def load_bytes(self, rows=None):
+        self._ingest()
+        seq = self._sc.sequence(self._name)
+        yield from seq.load(fn=lambda x: x, workers=16, rows=rows)
 
     def estimate_size(self):
+        self._ingest()
         col = self._sc.sequence(self._name)
         col._load_meta()
         vmeta = col._video_descriptor
         return vmeta.width * vmeta.height * vmeta.channels
 
     def save_mp4(self, output_name, fps=None, scale=None):
+        self._ingest()
         return self._sc.sequence(self._name).save_mp4(output_name, fps=fps, scale=scale)
 
     def as_hwang(self):
