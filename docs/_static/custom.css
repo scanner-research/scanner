@@ -4,6 +4,10 @@
     {
         display: none;
     }
+
+    .banner h2 {
+        font-size: 24px;
+    }
 }
 
 pre {
@@ -27,6 +31,96 @@ div.sphinxsidebarwrapper {
     left: 0;
     top: 15px;
 }
+
+pre.hljs {
+    margin: 0;
+    padding: 0;
+}
+
+
+/* First level of nav */
+.bs-sidenav {
+  margin-top: 10px;
+  padding-top:    10px;
+  padding-bottom: 10px;
+  text-shadow: 0 1px 0 #fff;
+  background-color: #f7f5fa;
+  border-radius: 5px;
+  font-size: 14px;
+}
+
+.bs-sidenav ul {
+    padding-left: 0;
+    margin-bottom: 0;
+    list-style: none;
+}
+
+/* All levels of nav */
+.bs-sidenav ul > li > a {
+  display: block;
+  color: #716b7a;
+  padding: 5px 20px;
+}
+.bs-sidenav ul > li > a:hover,
+.bs-sidenav ul > li > a:focus {
+  text-decoration: none;
+  background-color: #e5e3e9;
+  border-right: 1px solid #dbd8e0;
+}
+.bs-sidenav ul > .active > a,
+.bs-sidenav ul > .active:hover > a,
+.bs-sidenav ul > .active:focus > a {
+  font-weight: bold;
+  color: #563d7c;
+  background-color: transparent;
+  border-right: 1px solid #563d7c;
+}
+
+.bs-sidenav ul ul > li > a {
+  padding-top:    3px;
+  padding-bottom: 3px;
+  padding-left: 30px;
+  font-size: 90%;
+}
+
+.bs-sidenav ul ul ul > li > a {
+  padding-top:    3px;
+  padding-bottom: 3px;
+  padding-left: 40px;
+  font-size: 90%;
+}
+
+.bs-sidenav ul ul ul ul > li > a {
+  padding-top:    3px;
+  padding-bottom: 3px;
+  padding-left: 50px;
+  font-size: 90%;
+}
+
+/* .guidetoc-container { */
+/*     position: absolute; */
+/*     margin: 0; */
+/*     left: 20px; */
+/*     top: 30px; */
+/*     height: 100%; */
+/*     width: 250px; */
+/*     font-size: 14px; */
+/* } */
+
+/* .guidetoc { */
+/*     position: sticky; */
+/*     left: 0; */
+/*     top: 30px; */
+/* } */
+
+/* .guidetoc h2 { */
+/*     font-size: 18px; */
+/*     text-align: center; */
+/* } */
+
+/* .guidetoc ul { */
+/*     padding-left: 20px; */
+/* } */
 
 div.related {
     display: none;
@@ -258,8 +352,23 @@ div.body code.xref:hover  {
     margin-top: 10px;
 }
 
+.banner {
+    margin: 10px 0 30px;
+}
+
 .banner h2 {
-    font-weight: 290;
+    font-weight: normal;
+    font-size: 51px;
+    margin-bottom: 10px;
+}
+
+/* text: 62 31 91 */
+/* blue: 121 237 250 */
+/* red: 237 71 57 */
+
+.index h3 {
+    border-bottom: 2px solid rgb(237, 71, 57);
+    padding: 3px 0;
 }
 
 /* code formatting */
@@ -283,20 +392,20 @@ pre code {
     letter-spacing: 1px;
     text-transform: uppercase;
 }
- 
+
 .btn:focus, .btn:active:focus, .btn.active:focus {
     outline: 0 none;
 }
- 
+
 .btn-primary {
     background: #0099cc;
     color: #ffffff;
 }
- 
+
 .btn-primary:hover, .btn-primary:focus, .btn-primary:active, .btn-primary.active, .open > .dropdown-toggle.btn-primary {
-    background: #33a6cc;
+    background: #33a6cc !important;
 }
- 
+
 .btn-primary:active, .btn-primary.active {
     background: #007299;
     box-shadow: none;
@@ -312,11 +421,20 @@ pre code {
 }
 
 .btn-primary.outline:hover, .btn-primary.outline:focus, .btn-primary.outline:active, .btn-primary.outline.active, .open > .dropdown-toggle.btn-primary {
-	color: #33a6cc;
+	color: white;
 	border-color: #33a6cc;
 }
 .btn-primary.outline:active, .btn-primary.outline.active {
 	border-color: #007299;
 	color: #007299;
 	box-shadow: none;
+}
+
+
+#navbar {
+    margin-top: 10px;
+}
+
+#navbar .btn-group {
+    margin-top: 15px;
 }

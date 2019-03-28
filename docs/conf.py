@@ -19,7 +19,6 @@
 #
 import os
 import sys
-import sphinx_bootstrap_theme
 
 
 # -- General configuration ------------------------------------------------
@@ -94,7 +93,7 @@ todo_include_todos = True
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'bootstrap'
+html_theme = 'basic'
 html_logo = 'scanner_logo.png'
 
 # Theme options are theme-specific and customize the look and feel of a theme
@@ -102,28 +101,21 @@ html_logo = 'scanner_logo.png'
 # documentation.
 #
 html_theme_options = {
-    'navbar_title': " ",
-    'theme_navbar_title': " ",
-    'navbar_links': False,
-    'navbar_fixed_top': False,
-    'navbar_pagenav': False,
-    'navbar_links': [
-        #("Overview", "overview"),
-        ("Guide", "guide"),
-        #("Scannertools", "scannertools"),
-        ("API", "api"),
-        ("Github", "https://github.com/scanner-research/scanner"),
-        ("About", "about"),
-    ],
-    'globaltoc_includehidden': "true",
-    'globaltoc_depth': 2,
-    'source_link_position': '',
+    # 'navbar_title': " ",
+    # 'theme_navbar_title': " ",
+    # 'navbar_links': False,
+    # 'navbar_fixed_top': False,
+    # 'navbar_pagenav': False,
+    # 'globaltoc_includehidden': "true",
+    # 'globaltoc_depth': 2,
+    # 'source_link_position': '',
     'sidebar_pages': [''],
 }
 
 html_sidebars = {
     'guide': ['guidetoc.html'],
-    'guide/**': ['guidetoc.html']
+    'guide/**': ['guidetoc.html'],
+    '*': []
 }
 
 # Add any paths that contain custom static files (such as style sheets) here,
@@ -141,6 +133,14 @@ html_context = {
     'github_count': 'true',
     'travis_button': True,
     'codecov_button': False,
+    'navbar_links': [
+        #("Overview", "overview"),
+        ("Guide", "guide"),
+        #("Scannertools", "scannertools"),
+        ("API", "api"),
+        ("Github", "https://github.com/scanner-research/scanner"),
+        ("Publications", "publications"),
+    ],
 }
 
 # -- Options for HTMLHelp output ------------------------------------------

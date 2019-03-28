@@ -1,7 +1,7 @@
 Guide
 =====
 
-The guide is designed to get you quickly started using Scanner for your application, and then gradually expose you to more of the advanced concepts in Scanner. 
+The guide is designed to get you quickly started using Scanner for your application, and then gradually expose you to more of the advanced concepts in Scanner.
 
 The guide is organized into the following sections:
 
