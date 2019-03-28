@@ -144,7 +144,7 @@ def main():
 
     setup(
         name='scannerpy',
-        version='0.2.22',
+        version='0.3.0',
         description='Efficient video analysis at scale',
         long_description='',
         url='https://github.com/scanner-research/scanner',
