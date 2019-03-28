@@ -3,7 +3,10 @@
 #include "scanner/engine/op_registry.h"
 #include "scanner/engine/dag_analysis.h"
 #include "scanner/util/cuda.h"
+
+#ifdef HAVE_HWANG
 #include "hwang/common.h"
+#endif
 
 #include <google/protobuf/io/coded_stream.h>
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
@@ -12,11 +15,26 @@
 namespace scanner {
 namespace internal {
 namespace {
+
 const std::string DECODER_SETUP_LABEL = "Decoder Setup";
 const std::string DECODE_LABEL = "Decode Frames";
 const std::string FEED_LABEL = "Feed Input";
 const std::string YIELD_LABEL = "Produce Output";
 const std::string PIPELINE_SETUP_LABEL= "Setup Operations Pipeline";
+
+void hwang_not_supported(Result& result) {
+  std::string message =
+      "Scanner was not built with support for decoding inplace "
+      "video, "
+      "but pipeline attempted to read a compressed video data source "
+      "that is inplace. Please recompile Scanner with support for "
+      "Hwang.";
+  LOG(ERROR) << message;
+  result.set_msg(message);
+  result.set_success(false);
+  THREAD_RETURN_SUCCESS();
+}
+
 }
 
 PreEvaluateWorker::PreEvaluateWorker(const PreEvaluateWorkerArgs& args)
@@ -116,6 +134,7 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
         }
 
         if (work_entry.inplace_video[c]) {
+#ifdef HAVE_HWANG
           hwang::DeviceHandle hd;
           switch (device_handle_.type) {
             case DeviceType::CPU:
@@ -145,6 +164,9 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
               new hwang::DecoderAutomata(hd, num_devices, vd));
           //decoders_.back()->set_profiler(&profiler_);
           decoders_.emplace_back(nullptr);
+#else
+          hwang_not_supported(result_);
+#endif  // HAVE_HWANG
         } else {
           DecoderAutomata* decoder = DecoderAutomata::make_instance(
               device_handle_, num_devices, decoder_type);
@@ -159,7 +181,9 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
           }
           decoders_.emplace_back(decoder);
           decoders_.back()->set_profiler(&profiler_);
+#ifdef HAVE_HWANG
           inplace_decoders_.emplace_back(nullptr);
+#endif
         }
         media_col_idx++;
       }
@@ -201,6 +225,7 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
             << "Decoder is not allocated. Likely mixed inplace/non-inplace in the same bulk job launch.";
           decoders_[media_col_idx]->initialize(args);
         } else {
+#ifdef HAVE_HWANG
           // Translate into encoded data
           std::vector<hwang::DecoderAutomata::EncodedData> encoded_data;
           for (auto& da : args) {
@@ -239,6 +264,9 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
               THREAD_RETURN_SUCCESS();
             }
           }
+#else
+          hwang_not_supported(result_);
+#endif
         }
       }
       media_col_idx++;
@@ -296,6 +324,7 @@ bool PreEvaluateWorker::yield(i32 item_size,
           if (!work_entry.inplace_video[c]) {
             decoders_[media_col_idx]->get_frames(buffer, num_rows);
           } else {
+#ifdef HAVE_HWANG
             hwang::Result result =
                 inplace_decoders_[media_col_idx]->get_frames(buffer, num_rows);
             if (!result.ok) {
@@ -305,6 +334,9 @@ bool PreEvaluateWorker::yield(i32 item_size,
                          << result.message;
               THREAD_RETURN_SUCCESS();
             }
+#else
+            hwang_not_supported(result_);
+#endif  // HAVE_HWANG
           }
           for (i64 n = 0; n < num_rows; ++n) {
             insert_frame(entry.columns[c],

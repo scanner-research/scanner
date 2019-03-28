@@ -25,11 +25,13 @@
 
 #include "storehouse/storage_backend.h"
 
-#include "hwang/video_index.h"
-#include "hwang/mp4_index_creator.h"
-
 #include <glog/logging.h>
 #include <thread>
+
+#ifdef HAVE_HWANG
+#include "hwang/video_index.h"
+#include "hwang/mp4_index_creator.h"
+#endif
 
 #ifdef HAVE_FFMPEG
 
@@ -380,6 +382,7 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
 bool parse_video_inplace(storehouse::StorageBackend* storage,
                          const std::string& table_name, i32 table_id,
                          const std::string& path, std::string& error_message) {
+#ifdef HAVE_HWANG
   proto::TableDescriptor table_desc;
   table_desc.set_id(table_id);
   table_desc.set_name(table_name);
@@ -523,6 +526,12 @@ bool parse_video_inplace(storehouse::StorageBackend* storage,
   sync();
 
   return true;
+#else
+  error_message =
+      "Scanner was not built with support for Hwang, so can not ingest video "
+      "inplace.";
+  return false;
+#endif
 }
 
 // void ingest_images(storehouse::StorageBackend* storage,
@@ -854,13 +863,20 @@ Result ingest_videos(storehouse::StorageConfig* storage_config,
 #ifdef HAVE_FFMPEG
   av_register_all();
 #else
+#ifdef HAVE_HWANG
   if (!inplace) {
     RESULT_ERROR(&result,
                  "Only inplace ingest is supported when Scanner is compiled "
                  "without ffmpeg support.");
     return result;
   }
-#endif
+#else
+  RESULT_ERROR(&result,
+               "Video ingest is not supported because Scanner was not built "
+               "with ffmpeg or Hwang support.");
+  return result;
+#endif  // HAVE_HWANG
+#endif  // HAVE_FFMPEG
 
   std::unique_ptr<storehouse::StorageBackend> storage{
       storehouse::StorageBackend::make_from_config(storage_config)};
