@@ -30,7 +30,6 @@ void gen_random(char* s, const int len) {
 PythonKernel::PythonKernel(const KernelConfig &config,
                            const std::string &op_name,
                            const std::string &kernel_code,
-                           const std::string &pickled_config,
                            const bool can_batch,
                            const bool can_stencil)
     : StenciledBatchedKernel(config), config_(config),
@@ -72,7 +71,6 @@ PythonKernel::PythonKernel(const KernelConfig &config,
     // mode on MacOS fails....
     main.attr(kernel_ns_name_.c_str()) = py::dict(
         "kernel_code"_a=py::bytes(kernel_code),
-        "user_config_str"_a=py::bytes(pickled_config),
         "config"_a=cloudpickle.attr("dumps")(config));
 
     std::string pycode = tfm::format(R"(
@@ -126,6 +124,41 @@ msg_type = 'reset'
   } catch (py::error_already_set &e) {
     LOG(FATAL) << e.what();
   }
+}
+
+void PythonKernel::fetch_resources(proto::Result* result) {
+  py::gil_scoped_acquire acquire;
+  try {
+    py::module main = py::module::import("__main__");
+    std::string pycode = tfm::format(R"(
+import cloudpickle
+msg_type = 'fetch_resources'
+%s.send_bytes(cloudpickle.dumps([msg_type, None]))
+%s.recv_bytes()
+)", send_pipe_name_, recv_pipe_name_);
+    py::exec(pycode.c_str(), main.attr("__dict__"));
+  } catch (py::error_already_set &e) {
+    LOG(FATAL) << e.what();
+  }
+
+  result->set_success(true);
+}
+
+void PythonKernel::setup_with_resources(proto::Result* result) {
+  py::gil_scoped_acquire acquire;
+  try {
+    py::module main = py::module::import("__main__");
+    std::string pycode = tfm::format(R"(
+import cloudpickle
+msg_type = 'setup_with_resources'
+%s.send_bytes(cloudpickle.dumps([msg_type, None]))
+)", send_pipe_name_);
+    py::exec(pycode.c_str(), main.attr("__dict__"));
+  } catch (py::error_already_set &e) {
+    LOG(FATAL) << e.what();
+  }
+
+  result->set_success(true);
 }
 
 void PythonKernel::new_stream(const std::vector<u8> &args) {
@@ -278,7 +311,6 @@ void PythonKernel::execute(const StenciledBatchedElements &input_columns,
       send_pipe.attr("send_bytes")(pickled_data);
       py::object recv_data = recv_pipe.attr("recv_bytes")();
       py::tuple out_cols = cloudpickle.attr("loads")(recv_data).cast<py::tuple>();
-
 
       for (i32 j = 0; j < out_cols.size(); ++j) {
         batched_out_cols.push_back(out_cols[j].cast<std::vector<py::object>>());

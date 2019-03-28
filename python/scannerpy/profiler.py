@@ -6,7 +6,7 @@ import tarfile
 import os
 
 from scannerpy.common import *
-
+from scannerpy.protobufs import protobufs
 
 def read_advance(fmt, buf, offset):
     new_offset = offset + struct.calcsize(fmt)
@@ -24,14 +24,14 @@ def unpack_string(buf, offset):
     return s, offset
 
 
-class Profiler:
+class Profile:
     """
     Contains profiling information about Scanner jobs.
     """
 
-    def __init__(self, db, job_id, load_threads=8, subsample=None):
-        self._storage = db._storage
-        job = db._load_descriptor(db.protobufs.BulkJobDescriptor,
+    def __init__(self, sc, job_id, load_threads=8, subsample=None):
+        self._storage = sc._storage
+        job = sc._load_descriptor(protobufs.BulkJobDescriptor,
                                   'jobs/{}/descriptor.bin'.format(job_id))
 
         def get_prof(path, worker=True):
@@ -48,10 +48,10 @@ class Profiler:
 
         with ThreadPoolExecutor(max_workers=load_threads) as executor:
             profilers = executor.map(
-                get_prof, ['{}/jobs/{}/profile_{}.bin'.format(db._db_path, job_id, n) for n in nodes])
+                get_prof, ['{}/jobs/{}/profile_{}.bin'.format(sc._db_path, job_id, n) for n in nodes])
         self._worker_profilers = {n: prof for n, prof in enumerate(profilers) if prof is not None}
 
-        path = '{}/jobs/{}/profile_master.bin'.format(db._db_path, job_id)
+        path = '{}/jobs/{}/profile_master.bin'.format(sc._db_path, job_id)
         self._master_profiler = get_prof(path, worker=False)
 
     def write_trace(self, path: str):
@@ -68,7 +68,10 @@ class Profiler:
         """
 
         # https://github.com/catapult-project/catapult/blob/master/tracing/tracing/base/color_scheme.html
-        colors = {'idle': 'grey'}
+        colors = {
+            'Wait on Input Queue': 'grey',
+            'Wait on Output Queue': 'grey',
+        }
         traces = []
         next_tid = 0
 
@@ -90,23 +93,36 @@ class Profiler:
 
         if self._master_profiler is not None:
             traces.append({
+                'name': 'process_name',
+                'ph': 'M',
+                'pid': -1,
+                'args': {'name': 'Master'}
+            })
+            traces.append({
                 'name': 'thread_name',
                 'ph': 'M',
                 'pid': -1,
                 'tid': 0,
-                'args': {'name': 'master'}
+                'args': {'name': 'EventLoop'}
             })
 
             for interval in self._master_profiler[1]['intervals']:
                 traces.append(make_trace_from_interval(interval, 'master', -1, 0))
 
         for proc, (_, worker_profiler_groups) in self._worker_profilers.items():
+            traces.append({
+                'name': 'process_name',
+                'ph': 'M',
+                'pid': proc,
+                'args': {'name': 'Worker {:d}'.format(proc)}
+            })
+            num_load_workers = len(worker_profiler_groups['load'])
+            num_eval_workers = sum([len(profs) for profs in worker_profiler_groups['eval']])
+            num_stages_per_pipeline = len(worker_profiler_groups['eval'][0]) if num_eval_workers > 0 else 0
             for worker_type, profs in [('process_job',
                                         worker_profiler_groups['process_job']),
                                        ('load',
                                         worker_profiler_groups['load']),
-                                       ('decode',
-                                        worker_profiler_groups['decode']),
                                        ('eval',
                                         worker_profiler_groups['eval']),
                                        ('save',
@@ -114,19 +130,48 @@ class Profiler:
                 for i, prof in enumerate(profs):
                     tid = next_tid
                     next_tid += 1
-                    worker_num = prof['worker_num']
+                    pipeline_num = prof['worker_num']
                     tag = prof['worker_tag']
+
+                    display_info = {
+                        ('process_job', ''):  {'name': 'EventLoop',
+                                               'index': lambda x: 0},
+                        ('eval', 'pre'):  {'name': 'Pipeline[{:d}]:DecodeVideo',
+                                           'index':
+                                           lambda x: 1 + num_load_workers + x * num_stages_per_pipeline + 0},
+                        ('eval', 'eval'):  {'name': 'Pipeline[{:d}]:Ops[{:d}]',
+                                            'index':
+                                            lambda x: 1 + num_load_workers + x * num_stages_per_pipeline + 1},
+                        ('eval', 'post'):  {'name': 'Pipeline[{:d}]:EncodeVideo',
+                                            'index':
+                                            lambda x: 1 + num_load_workers + x * num_stages_per_pipeline + 2},
+                        ('load', ''):  {'name': 'Reader[{:d}]',
+                                        'index':
+                                        lambda x: 1 + x},
+                        ('save', ''):  {'name': 'Writer[{:d}]',
+                                        'index':
+                                        lambda x: 1 +  num_load_workers + num_eval_workers + x},
+                    }
+                    info = display_info[(worker_type, tag)]
+                    name = info['name']
+                    if tag == 'eval':
+                        name = name.format(pipeline_num, prof['kernel_group'])
+                    elif worker_type != 'process_job':
+                        name = name.format(pipeline_num)
                     traces.append({
                         'name': 'thread_name',
                         'ph': 'M',
                         'pid': proc,
                         'tid': tid,
-                        'args': {
-                            'name':
-                            '{}_{:02d}_{:02d}'.format(worker_type, proc,
-                                                      worker_num) +
-                            ("_" + str(tag) if tag else "")
-                        }
+                        'args': {'name': name}
+                    })
+                    sort_index = info['index'](tid)
+                    traces.append({
+                        'name': 'thread_sort_index',
+                        'ph': 'M',
+                        'pid': proc,
+                        'tid': tid,
+                        'args': {'sort_index': sort_index}
                     })
                     for interval in prof['intervals']:
                         traces.append(make_trace_from_interval(interval, worker_type, proc, tid))
@@ -279,6 +324,8 @@ class Profiler:
                 for fg in range(groups_per_chain):
                     prof, offset = self._parse_profiler_output(
                         bytes_buffer, offset)
+                    if fg > 0 and fg < groups_per_chain - 1:
+                        prof['kernel_group'] = fg - 1
                     profilers[prof['worker_type']].append(prof)
             # Save worker profilers
             t, offset = read_advance('B', bytes_buffer, offset)

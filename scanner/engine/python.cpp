@@ -143,7 +143,7 @@ namespace scanner {
       .value("CPU", DeviceType::CPU);
 
     py::enum_<proto::ColumnType>(m, "ColumnType")
-      .value("Other", ColumnType::Other)
+      .value("Bytes", ColumnType::Bytes)
       .value("Video", ColumnType::Video)
       .value("Image", ColumnType::Image);
 

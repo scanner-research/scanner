@@ -93,6 +93,7 @@ class PreEvaluateWorker {
 struct OpArgGroup {
   std::vector<std::string> op_names;
   std::vector<bool> is_source;
+  std::vector<bool> is_sink;
   /// For sampling ops
   // Op -> Job -> slice
   std::map<i64, std::vector<std::vector<proto::SamplingArgs>>> sampling_args;
@@ -130,6 +131,10 @@ struct EvaluateWorkerArgs {
   std::mutex& startup_lock;
   std::condition_variable& startup_cv;
   i32& startup_count;
+  int& resources_fetched_count;
+  std::mutex& resources_fetched_lock;
+  std::condition_variable& resources_fetched_cv;
+  int num_kernel_groups;
 
   // Per worker arguments
   i32 ki;

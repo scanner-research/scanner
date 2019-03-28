@@ -18,7 +18,8 @@ set(SOURCE_FILES
   profiler.cpp
   fs.cpp
   bbox.cpp
-  glog.cpp)
+  glog.cpp
+  image_encoder.cpp)
 
 if (NO_FFMPEG STREQUAL "false")
   list(APPEND SOURCE_FILES

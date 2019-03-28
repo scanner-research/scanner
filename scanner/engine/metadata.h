@@ -209,10 +209,6 @@ class BulkJobMetadata : public Metadata<proto::BulkJobDescriptor> {
 
   i32 column_id(const std::string& column_name) const;
 
-  const std::vector<std::string>& table_names() const;
-
-  bool has_table(const std::string& name) const;
-
   // i64 rows_in_table(const std::string& name) const;
 
   // i64 total_rows() const;

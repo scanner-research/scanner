@@ -1,59 +1,48 @@
-<script>document.getElementsByTagName("title")[0].innerHTML = "Scanner - Efficient Video Analysis at Scale"</script>
+<div class="index">
+<div class="banner text-center">
+  <h2 class="subtitle">
+    Scanner is a distributed system for building <b>efficient</b> video processing applications that <b>scale.</b>
+  </h2>
+  <a href="/guide.html" class="btn btn-primary outline btn-lg">
+    Get started
+  </a>
+  <!-- <a href="/overview.html" class="btn btn-primary outline btn-lg">
+       Explain it to me
+       </a> -->
+</div>
 
+<h3>
+  Standard library of video processing functions
+</h3>
 <div class="row">
-  <div class="col-lg-8 col-lg-offset-2
-              col-xs-12">
-    <div class="banner text-center">
-      <h1> Scanner: efficient video analysis at scale </h2>
-      <h2 class=subtitle>
-        Scanner is a distributed system for authoring <b>efficient</b> video processing applications that <b>scale.</b>
-      </h2>
-      <a href="/guide.html" class="btn btn-primary outline btn-lg">
-         Get started
-      </a>
-      <!-- <a href="/overview.html" class="btn btn-primary outline btn-lg">
-         Explain it to me
-      </a> -->
-    </div>
+  <div class="col-md-4 col-sm-12">
+    <h4>Face Detection</h4>
+    <a href="/api/scannertools.html#face-detection">
+      <img src="_static/face_detection.jpg" class="round-border-img float-left img-fluid" alt="...">
+    </a>
+  </div>
+  <div class="col-md-4 col-sm-12">
+    <h4>Pose Detection</h4>
+    <a href="/api/scannertools.html#pose-detection">
+      <img src="_static/pose_detection.jpg" class="round-border-img float-left img-fluid" alt="...">
+    </a>
+  </div>
+  <div class="col-md-4 col-sm-12">
+    <h4>Object Detection</h4>
+    <a href="/api/scannertools.html#object-detection">
+      <img src="_static/object_detection.jpg" class="round-border-img float-left img-fluid" alt="...">
+    </a>
   </div>
 </div>
 
-<div class="row">
-  <div class="col-md-6 col-xs-12">
-    <h2>
-      Why Scanner?
-    </h2>
-  </div>
+<div style="margin-top: 10px; margin-bottom: 20px;">
+  <a href="/api.html#scannertools-the-scanner-standard-library" class="btn btn-primary outline btn-sm">
+    And more, with scannertools
+  </a>
 </div>
 
 <div class="row">
-  <div class="col-xs-12">
-    <h3>
-      Standard library of DNN modules
-    </h3>
-    <div class="row">
-      <div class="col-sm-4 col-xs-12">
-        <h4>Face Detection</h4>
-        <img src="_static/face_detection.jpg" class="round-border-img float-left img-fluid" alt="...">
-      </div>
-
-      <div class="col-sm-4 col-xs-12">
-        <h4>Pose Detection</h4>
-        <img src="_static/pose_detection.jpg" class="round-border-img float-left img-fluid" alt="...">
-      </div>
-      <div class="col-sm-4 col-xs-12">
-        <h4>Object Detection</h4>
-        <img src="_static/object_detection.jpg" class="round-border-img float-left img-fluid" alt="...">
-      </div>
-    </div>
-    <div style="margin-top: 10px;">
-      <a href="https://github.com/scanner-research/scannertools" class="btn btn-primary outline btn-sm">
-        And more, with scannertools
-      </a>
-    </div>
-  </div>
-
-  <div class="col-md-6 col-xs-12">
+  <div class="col-md-6 col-sm-12">
     <h3>
       Simple Python API
     </h3>
@@ -62,19 +51,22 @@
         <tbody>
           <tr>
             <td>
-              <pre><code class="jljs python">from scannertools import face_detection, vis, sample_video
-import scannerpy
+              <pre class="hljs"><code class="python">import scannerpy as sp
+import scannertools.face_detection
 
 def main():
-    with sample_video() as video: # get an example video
-        db = scannerpy.Database() # start up Scanner
-        frames = list(range(50))  # select the first 50 frames
-        bboxes = face_detection.detect_faces(
-            db, videos=[video], frames=[frames])
-        vis.draw_bboxes(
-            db, videos=[video], frames=[frames],
-            bboxes=bboxes, paths=['sample_faces.mp4'])
-        # output video is saved to 'sample_faces.mp4'
+  # get an example video
+  with sp.utils.sample_video() as video_path:
+    cl = sp.Client() # start up Scanner
+    video = sp.NamedVideoStream(cl, 'example', path=video_path)
+    frames = cl.io.Input([video])
+    faces = cl.io.MTCNNFaceDetect(frame=frames)
+    drawn_faces = cl.io.DrawBboxes(frame=frames, bboxes=faces)
+    output_video = sp.NamedVideoStream(cl, 'example_faces')
+    output_op = cl.io.Output([output_video])
+    cl.run(output_op, sp.PerfParams.estimate())
+    output_video.save_mp4('example_faces')
+    # output video is saved to 'example_faces.mp4'
 
 if __name__ == "__main__":
     main()</code></pre>
@@ -83,12 +75,9 @@ if __name__ == "__main__":
         </tbody>
       </table>
     </div>
-    <a href="https://github.com/scanner-research/scannertools" class="btn btn-primary outline btn-sm">
-      Check out this example and more
-    </a>
   </div>
 
-  <div class="col-md-6 col-xs-12">
+  <div class="col-md-6 col-sm-12">
     <h3>
       Designed for Performance
     </h3>
@@ -111,34 +100,35 @@ if __name__ == "__main__":
     <div>
       <h4>
         3. Cloud & cluster ready
-      </h4> 
+      </h4>
       <p>
         Scanner is integrated with Kubernetes, Google Cloud Platform, and AWS to make it easy to spin up machines to get your results back faster.
       </p>
     </div>
   </div>
-
 </div>
 
-<div class="row">
-  <div class="col-xs-12">
-    <h3>
-    Scanner in Production
-    </h3>
-  </div>
+
+<div style="margin-bottom: 20px;">
+  <a href="/guide.html" class="btn btn-primary outline btn-sm">
+    Check out this example and more
+  </a>
 </div>
+
+
+<h3>
+  Scanner in Production
+</h3>
 
 <div class="row">
   <div class="col-md-6 col-xs-12">
     <h4>
-     Analyzing decades worth of Hollywood Films
+     Analyzing 200,000 hours of TV news
     </h4>
     <p>
-      Scanner makes it much easier to analyze large video datasets to extract trends and statistics that rely on the content of the videos, instead of just the metadata. For example, we have been able to use Scanner to analyze over 600 feature-length films to determine how director's taste in cinematography and casting demographics has changed over the years. Check out <a href="https://scanner-research.github.io/scannertools/">scannertools</a> for an easy to use toolkit that includes most of these tools to get started on your own analysis.
+      Scanner makes it much easier to analyze large video datasets to extract trends and statistics that rely on the content of the videos, instead of just the metadata. For example, we have been able to use Scanner to analyze every cable TV news show aired for a decade to understand representation in the media.
     </p>
-    <div class="homepage-video">
-      <iframe style="position: absolute; top: 0; left: 0;" width="100%" height="100%" src="https://www.youtube.com/embed/IQsb_nbPf9M" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
-    </div>
+    <img src="_static/tvnews_host_narcissism.jpg" />
   </div>
 
   <div class="col-md-6 col-xs-12">
@@ -152,4 +142,5 @@ if __name__ == "__main__":
       <iframe style="position: absolute; top: 0; left: 0;" src="https://www.facebook.com/plugins/video.php?href=https%3A%2F%2Fwww.facebook.com%2FFacebook360%2Fvideos%2F370097893531240%2F%3Ft%3D0&&show_text=false" width="100%" height="100%" style="border:none;overflow:hidden" scrolling="no" frameborder="0" allowTransparency="true" allow="encrypted-media" allowFullScreen="true"></iframe>
     </div>
   </div>
+</div>
 </div>

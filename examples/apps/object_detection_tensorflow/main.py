@@ -1,4 +1,5 @@
-from scannerpy import Database, Job, ColumnType, DeviceType
+from scannerpy import Client, DeviceType
+from scannerpy.storage import NamedVideoStream, PythonStream
 import os
 import sys
 import math
@@ -11,7 +12,7 @@ import kernels
 # What model to download.
 MODEL_TEMPLATE_URL = 'http://download.tensorflow.org/models/object_detection/{:s}.tar.gz'
 
-if __name__ == '__main__':
+def main():
     if len(sys.argv) <= 1:
         print('Usage: {:s} path/to/your/video/file.mp4'.format(sys.argv[0]))
         sys.exit(1)
@@ -20,45 +21,29 @@ if __name__ == '__main__':
     print('Detecting objects in movie {}'.format(movie_path))
     movie_name = os.path.splitext(os.path.basename(movie_path))[0]
 
-    db = Database()
-
-    [input_table], failed = db.ingest_videos([('example', movie_path)], force=True)
+    sc = Client()
 
     stride = 1
-
-    frame = db.sources.FrameColumn()
-    strided_frame = db.streams.Stride(frame, stride)
+    input_stream = NamedVideoStream(sc, movie_name, path=movie_path)
+    frame = sc.io.Input([input_stream])
+    strided_frame = sc.streams.Stride(frame, [stride])
 
     model_name = 'ssd_mobilenet_v1_coco_2017_11_17'
     model_url = MODEL_TEMPLATE_URL.format(model_name)
-
-    # Call the newly created object detect op
-    objdet_frame = db.ops.ObjDetect(
+    objdet_frame = sc.ops.ObjDetect(
         frame=strided_frame,
         dnn_url=model_url,
-        device=DeviceType.GPU if db.has_gpu() else DeviceType.CPU,
+        device=DeviceType.GPU if sc.has_gpu() else DeviceType.CPU,
         batch=2)
 
-    output_op = db.sinks.Column(columns={'bundled_data': objdet_frame})
-    job = Job(
-        op_args={
-            frame: db.table('example').column('frame'),
-            output_op: 'example_obj_detect',
-        })
-
-    [out_table] = db.run(output=output_op, jobs=[job], force=True,
-                         pipeline_instances_per_node=1)
-
-    out_table.profiler().write_trace('obj.trace')
+    detect_stream = NamedVideoStream(sc, movie_name + '_detect')
+    output_op = sc.io.Output(objdet_frame, [detect_stream])
+    sc.run(output_op)
 
     print('Extracting data from Scanner output...')
-
     # bundled_data_list is a list of bundled_data
     # bundled data format: [box position(x1 y1 x2 y2), box class, box score]
-    bundled_data_list = [
-        np.fromstring(box, dtype=np.float32)
-        for box in tqdm(out_table.column('bundled_data').load())
-    ]
+    bundled_data_list = list(tqdm(detect_stream.load()))
     print('Successfully extracted data from Scanner output!')
 
     # run non-maximum suppression
@@ -67,23 +52,26 @@ if __name__ == '__main__':
 
     print('Writing frames to {:s}_obj_detect.mp4'.format(movie_name))
 
-    frame = db.sources.FrameColumn()
-    bundled_data = db.sources.Python()
-    strided_frame = db.streams.Stride(frame, stride)
-    drawn_frame = db.ops.TFDrawBoxes(frame=strided_frame,
+    frame = sc.io.Input([input_stream])
+    bundled_data = sc.io.Input([PythonStream(bundled_np_list)])
+    strided_frame = sc.streams.Stride(frame, [stride])
+    drawn_frame = sc.ops.TFDrawBoxes(frame=strided_frame,
                                      bundled_data=bundled_data,
                                      min_score_thresh=0.5)
-    output_op = db.sinks.Column(columns={'frame': drawn_frame})
-    job = Job(
-        op_args={
-            frame: db.table('example').column('frame'),
-            bundled_data: {'data': pickle.dumps(bundled_np_list)},
-            output_op: 'example_drawn_frames',
-        })
+    drawn_stream = NamedVideoStream(sc, movie_name + '_drawn_frames')
+    output_op = sc.io.Output(drawn_frame, [drawn_stream])
+    sc.run(output_op)
 
-    [out_table] = db.run(output=output_op, jobs=[job], force=True,
-                         pipeline_instances_per_node=1)
+    drawn_stream.save_mp4(movie_name + '_obj_detect')
 
-    out_table.column('frame').save_mp4(movie_name + '_obj_detect')
+    input_stream.delete(sc)
+    detect_stream.delete(sc)
+    drawn_stream.delete(sc)
 
     print('Successfully generated {:s}_obj_detect.mp4'.format(movie_name))
+
+
+if __name__ == '__main__':
+    main()
+
+

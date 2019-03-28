@@ -19,6 +19,7 @@
 #include <unistd.h>
 #include <cassert>
 #include <mutex>
+#include <cmath>
 
 #ifdef __linux
 #include <sys/syscall.h>
@@ -411,43 +412,51 @@ class BlockAllocator {
     }
   }
 
-  bool buffers_in_same_block(std::vector<u8*> buffers) {
+  std::vector<int> buffers_in_same_block(std::vector<u8*> buffers) {
     assert(buffers.size() > 0);
 
     {
       std::lock_guard<std::mutex> guard(map_lock_);
       auto it = allocation_map_.find(buffers[0]);
       if (it != allocation_map_.end()) {
-        u8* base_buffer = it->second->buffer;
+        u8* prev_buffer = it->second->buffer;
 
+        std::vector<int> block_sizes;
+        int block_size = 1;
         for (i32 i = 1; i < buffers.size(); ++i) {
           auto it2 = allocation_map_.find(buffers[i]);
-          if (it2 == allocation_map_.end() || it2->second->buffer != base_buffer) {
-            return false;
+          if (it2 == allocation_map_.end() || it2->second->buffer != prev_buffer) {
+            block_sizes.push_back(block_size);
+            block_size = 1;
+            prev_buffer = it2->second->buffer;
+          } else {
+            block_size += 1;
           }
         }
 
-        return true;
+        return block_sizes;
       }
     }
 
     {
       std::lock_guard<std::mutex> guard(vec_lock_);
-      i32 base_index;
-      bool found = find_buffer(buffers[0], base_index);
-      if (!found) {
-        return false;
-      }
 
-      for (i32 i = 1; i < buffers.size(); ++i) {
-        i32 index;
-        found = find_buffer(buffers[i], index);
+      i32 base_index = -1;
+      std::vector<int> block_sizes;
+      int block_size = 1;
+      for (i32 i = 0; i < buffers.size(); ++i) {
+        i32 index = -1;
+        bool found = find_buffer(buffers[i], index);
         if (!found || base_index != index) {
-          return false;
+          block_sizes.push_back(block_size);
+          block_size = 1;
+          base_index = index;
+        } else {
+          block_size += 1;
         }
       }
 
-      return true;
+      return block_sizes;
     }
   }
 
@@ -607,25 +616,25 @@ class LinkedAllocator {
     }
   }
 
-  bool buffers_in_same_block(DeviceHandle device, std::vector<u8*> buffers) {
+  std::vector<int> buffers_in_same_block(DeviceHandle device, std::vector<u8*> buffers) {
     assert(buffers.size() > 0);
 
     std::lock_guard<std::mutex> guard(lock_);
     i32 base_index;
     bool found = find_buffer(device, buffers[0], base_index);
     if (!found) {
-      return false;
+      return {};
     }
 
     for (i32 i = 1; i < buffers.size(); ++i) {
       i32 index;
       found = find_buffer(device, buffers[i], index);
       if (!found || base_index != index) {
-        return false;
+        return {};
       }
     }
 
-    return true;
+    return {};
   }
 
   bool buffer_in_block(DeviceHandle device, u8* buffer) {
@@ -902,16 +911,18 @@ void memcpy_vec(std::vector<u8*>& dest_buffers, DeviceHandle dest_device,
     total_size += size;
   }
 
-  // In the case where the dest and src vectors are each respectively drawn
+  // In the case where buffers in the dest and src vectors are each respectively drawn
   // from a single block, we do a single memcpy from one block to the other.
-  bool from_same_block = false;
+  std::vector<int> src_from_same_block;
+  std::vector<int> dest_from_same_block;
 #ifdef USE_LINKED_ALLOCATOR
-  from_same_block =
-      linked_allocator->buffers_in_same_block(dest_device, dest_buffers) &&
+  dest_from_same_block =
+      linked_allocator->buffers_in_same_block(dest_device, dest_buffers);
+  src_from_same_block =
       linked_allocator->buffers_in_same_block(src_device, src_buffers);
 #else
-  from_same_block = dest_allocator->buffers_in_same_block(dest_buffers) &&
-                    src_allocator->buffers_in_same_block(src_buffers);
+  dest_from_same_block = dest_allocator->buffers_in_same_block(dest_buffers);
+  src_from_same_block = src_allocator->buffers_in_same_block(src_buffers);
 #endif
 
   if (dest_device.type == DeviceType::GPU ||
@@ -925,26 +936,66 @@ void memcpy_vec(std::vector<u8*>& dest_buffers, DeviceHandle dest_device,
       }
     }
 
-    if (from_same_block) {
-      memcpy_buffer(dest_buffers[0], dest_device, src_buffers[0], src_device,
-                    total_size);
-    } else {
-      i32 n = dest_buffers.size();
-
-      for (i32 i = 0; i < n; ++i) {
-        memcpy_buffer(dest_buffers[i], dest_device, src_buffers[i], src_device,
-                      sizes[i]);
+    // Attempts to copy elements from one block in the source to one block in
+    // the dest
+    i64 src_block = 0;
+    i64 src_elements_used = 0;
+    i64 src_block_offset = 0;
+    i64 dest_block = 0;
+    i64 dest_elements_used = 0;
+    i64 dest_block_offset = 0;
+    while (src_block < src_from_same_block.size() &&
+           dest_block < dest_from_same_block.size()) {
+      i64 src_elements = src_from_same_block[src_block];
+      i64 src_elements_left = src_elements - src_elements_used;
+      i64 dest_elements = dest_from_same_block[dest_block];
+      i64 dest_elements_left = dest_elements - dest_elements_used;
+      i64 elements_to_copy = std::min(dest_elements_left, src_elements_left);
+      memcpy_buffer(dest_buffers[dest_block_offset], dest_device,
+                    src_buffers[src_block_offset], src_device, total_size);
+      src_elements_used += elements_to_copy;
+      if (src_elements_used == src_elements) {
+        src_block += 1;
+        src_elements_used = 0;
+        src_block_offset += src_elements;
+      }
+      dest_elements_used += elements_to_copy;
+      if (dest_elements_used == dest_elements) {
+        dest_block += 1;
+        dest_elements_used = 0;
+        dest_block_offset += dest_elements;
       }
     }
 #else
     LOG(FATAL) << "Cuda not installed";
 #endif
   } else {
-    if (from_same_block) {
-      memcpy(dest_buffers[0], src_buffers[0], total_size);
-    } else {
-      for (i32 i = 0; i < dest_buffers.size(); ++i) {
-        memcpy(dest_buffers[i], src_buffers[i], sizes[i]);
+    i64 src_block = 0;
+    i64 src_elements_used = 0;
+    i64 src_block_offset = 0;
+    i64 dest_block = 0;
+    i64 dest_elements_used = 0;
+    i64 dest_block_offset = 0;
+    while (src_block < src_from_same_block.size() &&
+           dest_block < dest_from_same_block.size()) {
+      i64 src_elements = src_from_same_block[src_block];
+      i64 src_elements_left = src_elements - src_elements_used;
+      i64 dest_elements = dest_from_same_block[dest_block];
+      i64 dest_elements_left = dest_elements - dest_elements_used;
+      i64 elements_to_copy = std::min(dest_elements_left, src_elements_left);
+      memcpy(dest_buffers[dest_block_offset], src_buffers[src_block_offset],
+             total_size);
+      src_elements_used += elements_to_copy;
+      if (src_elements_used == src_elements) {
+        src_block += 1;
+        src_elements_used = 0;
+        src_block_offset += src_elements;
+      }
+      dest_elements_used += elements_to_copy;
+      if (dest_elements_used == dest_elements) {
+        dest_block += 1;
+        dest_elements_used = 0;
+        dest_block_offset += dest_elements;
       }
     }
   }
@@ -974,12 +1025,7 @@ void copy_or_ref_buffers(std::vector<u8*>& dest_buffers,
       dest_allocator->add_refs(buf, 1);
     }
   } else {
-    size_t total_size = 0;
-    for (auto size : sizes) {
-      total_size += size;
-    }
-
-    u8* dest_buff = dest_allocator->allocate(total_size, sizes.size());
+    u8* dest_buff = dest_allocator->allocate_sizes(sizes);
     for (size_t size : sizes) {
       dest_buffers.push_back(dest_buff);
       dest_buff += size;

@@ -51,7 +51,7 @@ class OpBuilder {
   }
 
   OpBuilder& input(const std::string& name,
-                   ColumnType type = ColumnType::Other) {
+                   ColumnType type = ColumnType::Bytes) {
     if (variadic_inputs_) {
       LOG(FATAL) << "Op " << name_ << " cannot have both fixed and variadic "
                  << "inputs";
@@ -65,8 +65,9 @@ class OpBuilder {
   }
 
   OpBuilder& output(const std::string& name,
-                    ColumnType type = ColumnType::Other) {
-    output_columns_.push_back(std::make_tuple(name, type));
+                    ColumnType type = ColumnType::Bytes,
+                    std::string type_name = "") {
+    output_columns_.push_back(std::make_tuple(name, type, type_name));
     return *this;
   }
 
@@ -106,17 +107,23 @@ class OpBuilder {
     return *this;
   }
 
+  OpBuilder& stream_protobuf_name(std::string protobuf_name) {
+    stream_protobuf_name_ = protobuf_name;
+    return *this;
+  }
+
  private:
   std::string name_;
   bool variadic_inputs_;
   std::vector<std::tuple<std::string, ColumnType>> input_columns_;
-  std::vector<std::tuple<std::string, ColumnType>> output_columns_;
+  std::vector<std::tuple<std::string, ColumnType, std::string>> output_columns_;
   bool can_stencil_;
   std::vector<int> preferred_stencil_ = {0};
   bool has_bounded_state_;
   i32 warmup_;
   bool has_unbounded_state_;
   std::string protobuf_name_;
+  std::string stream_protobuf_name_;
 };
 }
 

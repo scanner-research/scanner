@@ -37,8 +37,9 @@ ssh-add
 rm -fr ~/.ssh/known_hosts
 ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
 
-pip3 install doxypypy twine
-pip3 install Sphinx sphinx_readable_theme sphinx_bootstrap_theme sphinx-autodoc-typehints
+pip3 install twine
+pip3 install Sphinx sphinx-autodoc-typehints
+apt-get update && apt-get install -y doxygen
 
 rm -rf ${HTML_PATH}
 mkdir -p ${HTML_PATH}
@@ -51,6 +52,12 @@ cd -
 
 cd docs
 make html
+cd -
+
+cd build
+cmake -D BUILD_DOCS=ON ..
+make doxygen
+cp -r doxygen/html ${HTML_PATH}/cpp
 cd -
 
 cd ${HTML_PATH}

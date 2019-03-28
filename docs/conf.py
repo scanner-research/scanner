@@ -19,7 +19,6 @@
 #
 import os
 import sys
-import sphinx_bootstrap_theme
 
 
 # -- General configuration ------------------------------------------------
@@ -89,35 +88,34 @@ pygments_style = 'sphinx'
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True
 
-
 # -- Options for HTML output ----------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'bootstrap'
+html_theme = 'basic'
 html_logo = 'scanner_logo.png'
-
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
 html_theme_options = {
-    'navbar_title': " ",
-    'theme_navbar_title': " ",
-    'navbar_links': False,
-    'navbar_fixed_top': False,
-    'navbar_pagenav': False,
-    'navbar_links': [
-        #("Overview", "overview"),
-        ("Guide", "guide"),
-        ("API", "api"),
-        ("Github", "https://github.com/scanner-research/scanner"),
-    ],
-    'globaltoc_includehidden': "true",
-    'globaltoc_depth': 0,
-    'source_link_position': '',
+    # 'navbar_title': " ",
+    # 'theme_navbar_title': " ",
+    # 'navbar_links': False,
+    # 'navbar_fixed_top': False,
+    # 'navbar_pagenav': False,
+    # 'globaltoc_includehidden': "true",
+    # 'globaltoc_depth': 2,
+    # 'source_link_position': '',
+    'sidebar_pages': [''],
+}
+
+html_sidebars = {
+    'guide': ['guidetoc.html'],
+    'guide/**': ['guidetoc.html'],
+    '*': []
 }
 
 # Add any paths that contain custom static files (such as style sheets) here,
@@ -135,6 +133,14 @@ html_context = {
     'github_count': 'true',
     'travis_button': True,
     'codecov_button': False,
+    'navbar_links': [
+        #("Overview", "overview"),
+        ("Guide", "guide"),
+        #("Scannertools", "scannertools"),
+        ("API", "api"),
+        ("Github", "https://github.com/scanner-research/scanner"),
+        ("Publications", "publications"),
+    ],
 }
 
 # -- Options for HTMLHelp output ------------------------------------------
@@ -196,6 +202,12 @@ texinfo_documents = [
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {'https://docs.python.org/': None}
+
+
+# Ensure __init__ is included in documentation
+# https://stackoverflow.com/questions/5599254/how-to-use-sphinxs-autodoc-to-document-a-classs-init-self-method
+autoclass_content = 'both'
+
 
 def setup(app):
     app.add_stylesheet('custom.css')

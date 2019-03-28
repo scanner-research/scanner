@@ -188,7 +188,7 @@ bool parse_and_write_video(storehouse::StorageBackend* storage,
     Column* index_col = table_desc.add_columns();
     index_col->set_name(index_column_name());
     index_col->set_id(0);
-    index_col->set_type(ColumnType::Other);
+    index_col->set_type(ColumnType::Bytes);
 
     Column* frame_col = table_desc.add_columns();
     frame_col->set_name(frame_column_name());
@@ -395,7 +395,7 @@ bool parse_video_inplace(storehouse::StorageBackend* storage,
     Column* index_col = table_desc.add_columns();
     index_col->set_name(index_column_name());
     index_col->set_id(0);
-    index_col->set_type(ColumnType::Other);
+    index_col->set_type(ColumnType::Bytes);
 
     Column* frame_col = table_desc.add_columns();
     frame_col->set_name(frame_column_name());

@@ -41,14 +41,21 @@ const std::vector<std::string> BUILTIN_OP_NAMES = {
 bool is_builtin_op(const std::string& name);
 
 struct DAGAnalysisInfo {
-  bool is_table_output;
+  bool has_table_output{false};
 
   std::vector<i32> op_slice_level;
   std::map<i64, i64> source_ops;
+  std::map<i64, i64> sink_ops;
   std::map<i64, i64> slice_ops;
   std::map<i64, i64> unslice_ops;
   std::map<i64, i64> sampling_ops;
   std::map<i64, std::vector<i64>> op_children;
+  std::set<i64> column_sink_ops;
+
+  // job -> op -> table
+  // We need to remember the column sink table names because
+  // they are used by the master to pre-create the tables
+  std::vector<std::map<i64, std::string>> column_sink_table_names;
 
   // Input rows to slice Ops per Job
   std::vector<std::map<i64, i64>> slice_input_rows;
@@ -71,6 +78,8 @@ struct DAGAnalysisInfo {
 
   // Filled in by remap_input_op_edges
   std::map<i64, i64> input_ops_to_first_op_columns;
+  // Filled in by remap_sink_op_edges
+  std::map<i64, i64> sink_ops_to_last_op_columns;
 
   // Op -> Elements
   std::vector<std::vector<std::tuple<i32, std::string>>> live_columns;
@@ -101,13 +110,18 @@ Result derive_slice_final_output_rows(
     DAGAnalysisInfo& info,
     std::vector<i64>& slice_output_partition);
 
-void populate_analysis_info(const std::vector<proto::Op>& ops,
-                            DAGAnalysisInfo& info);
+void populate_analysis_info(
+    const std::vector<proto::Job>& jobs, const std::vector<proto::Op>& ops,
+    DAGAnalysisInfo& info);
 
 // Change all edges from input Ops to instead come from the first Op.
 // We currently only implement IO at the start and end of a pipeline.
 void remap_input_op_edges(std::vector<proto::Op>& ops,
                           DAGAnalysisInfo& info);
+
+// Change all edges to sink Ops to instead go to the last sink Op.
+// We currently only implement IO at the start and end of a pipeline.
+void remap_sink_op_edges(std::vector<proto::Op>& ops, DAGAnalysisInfo& info);
 
 void perform_liveness_analysis(const std::vector<proto::Op>& ops,
                                DAGAnalysisInfo& info);
@@ -117,7 +131,7 @@ Result derive_stencil_requirements(
     const proto::Job& job, const std::vector<proto::Op>& ops,
     const DAGAnalysisInfo& analysis_results,
     proto::BulkJobParameters::BoundaryCondition boundary_condition,
-    i64 table_id, i64 job_idx, i64 task_idx,
+    i64 job_idx, i64 task_idx,
     const std::vector<i64>& output_rows, LoadWorkEntry& output_entry,
     std::deque<TaskStream>& task_streams, storehouse::StorageConfig* storage_config);
 

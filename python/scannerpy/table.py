@@ -4,6 +4,7 @@ import struct
 from timeit import default_timer as now
 
 from scannerpy.common import *
+from scannerpy.protobufs import protobufs
 from scannerpy.column import Column
 
 
@@ -14,8 +15,8 @@ class Table:
     Can be part of many Collection objects.
     """
 
-    def __init__(self, db, name, id):
-        self._db = db
+    def __init__(self, sc, name, id):
+        self._sc = sc
         # We pass name and id to avoid having to read the descriptor
         self._name = name
         self._id = id
@@ -30,7 +31,7 @@ class Table:
 
     def _need_descriptor(self):
         if self._descriptor is None:
-            self._descriptor = self._db._load_table_metadata([self._name])[0]
+            self._descriptor = self._sc._load_table_metadata([self._name])[0]
 
     def _load_column(self, name):
         if not self.committed():
@@ -40,9 +41,9 @@ class Table:
             self._video_descriptors = []
             for c in self._descriptor.columns:
                 video_descriptor = None
-                if c.type == self._db.protobufs.Video:
-                    video_descriptor = self._db._load_descriptor(
-                        self._db.protobufs.VideoDescriptor,
+                if c.type == protobufs.Video:
+                    video_descriptor = self._sc._load_descriptor(
+                        protobufs.VideoDescriptor,
                         'tables/{:d}/{:d}_0_video_metadata.bin'.format(
                             self._id, c.id))
                 self._video_descriptors.append(video_descriptor)
@@ -55,8 +56,8 @@ class Table:
     def _load_job(self):
         self._need_descriptor()
         if self._descriptor.job_id != -1:
-            self._job = self._db._load_descriptor(
-                self._db.protobufs.JobDescriptor,
+            self._job = self._sc._load_descriptor(
+                protobufs.JobDescriptor,
                 'jobs/{}/descriptor.bin'.format(self._descriptor.job_id))
             self._task = None
             for task in self._job.tasks:
@@ -83,11 +84,14 @@ class Table:
         else:
             return 0
 
-    def _parse_index(self, bufs, db):
+    def _parse_index(self, bufs, sc):
         return struct.unpack("=Q", bufs[0])[0]
 
     def committed(self):
-        return self._db._table_committed[self._id]
+        return self.exists() and self._sc._table_committed[self._id]
+
+    def exists(self):
+        return self._id in self._sc._table_committed
 
     def parent_rows(self):
         self._need_descriptor()
@@ -102,7 +106,7 @@ class Table:
             raise ScannerException('Table has not committed yet.')
         self._need_descriptor()
         if self._descriptor.job_id != -1:
-            return self._db.profiler(self._descriptor.job_id)
+            return self._sc.profiler(self._descriptor.job_id)
         else:
             raise ScannerException('Ingested videos do not have profile data')
 
@@ -112,6 +116,6 @@ class Table:
         cols = [self.column(c).load(rows=rows) for c in columns]
         for tup in zip(*cols):
             if fn is not None:
-                yield fn(tup, self._db)
+                yield fn(tup, self._sc)
             else:
                 yield tup

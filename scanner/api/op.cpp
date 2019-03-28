@@ -39,6 +39,7 @@ OpRegistration::OpRegistration(const OpBuilder& builder) {
     col.set_id(i++);
     col.set_name(std::get<0>(name_type));
     col.set_type(std::get<1>(name_type));
+    col.set_type_name((std::get<2>(name_type)));
     output_columns.push_back(col);
   }
   bool can_stencil = builder.can_stencil_;
@@ -47,10 +48,11 @@ OpRegistration::OpRegistration(const OpBuilder& builder) {
   i32 warmup = builder.warmup_;
   bool has_unbounded_state = builder.has_unbounded_state_;
   const std::string& pbn = builder.protobuf_name_;
+  const std::string& stream_pbn = builder.stream_protobuf_name_;
   OpInfo* info = new OpInfo(name, variadic_inputs, input_columns,
                             output_columns, can_stencil, stencil,
                             has_bounded_state, warmup, has_unbounded_state,
-                            pbn);
+                            pbn, stream_pbn);
   OpRegistry* registry = get_op_registry();
   Result result = registry->add_op(name, info);
   if (!result.success()) {

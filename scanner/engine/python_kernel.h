@@ -10,7 +10,6 @@ class PythonKernel : public StenciledBatchedKernel {
   PythonKernel(const KernelConfig& config,
                const std::string& op_name,
                const std::string& kernel_code,
-               const std::string& pickled_config,
                const bool can_batch,
                const bool con_stencil);
 
@@ -22,6 +21,10 @@ class PythonKernel : public StenciledBatchedKernel {
                BatchedElements& output_columns) override;
 
   void reset() override;
+
+  void fetch_resources(proto::Result* result) override;
+
+  void setup_with_resources(proto::Result* result) override;
 
  private:
   KernelConfig config_;

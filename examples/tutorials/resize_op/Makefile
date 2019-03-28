@@ -1,7 +1,7 @@
 # Scanner outputs build flags that add Scanner to your library and include paths
 # as well as cover common flags for building a shared library.
-SCANNER_CFLAGS = `python -c "import scannerpy.stdlib.build_flags as b; b.print_compile_flags()"`
-SCANNER_LD_FLAGS = `python -c "import scannerpy.stdlib.build_flags as b; b.print_link_flags()"`
+SCANNER_CFLAGS = `python3 -c "import scannerpy.build_flags as b; b.print_compile_flags()"`
+SCANNER_LD_FLAGS = `python3 -c "import scannerpy.build_flags as b; b.print_link_flags()"`
 
 # Change this to wherever you installed deps.sh to
 INSTALL_DIR=../../../thirdparty/install
@@ -17,8 +17,8 @@ build/resize.pb.cc: resize.proto
 
 # g++ builds the op library
 build/libresize_op.so: build/resize.pb.cc resize_op.cpp
-	g++ $^ -o $@ ${SCANNER_CFLAGS} ${SCANNER_LD_FLAGS} \
-		-I ${INSTALL_DIR}/include -L ${INSTALL_DIR}/lib -lopencv_core -lopencv_imgproc \
-		-I build
+	g++ -shared -fPIC $^ -o $@ ${SCANNER_CFLAGS} ${SCANNER_LD_FLAGS} \
+		-I ${INSTALL_DIR}/include -I build \
+		-L ${INSTALL_DIR}/lib -lprotobuf -lglog -lopencv_core -lopencv_imgproc
 
 .PHONY: clean
