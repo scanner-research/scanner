@@ -4,7 +4,7 @@ API Reference
 Scanner has three main components to its API:
 
 * The :ref:`Scanner Python API <scannerpy-docs>`, for defining/executing computation graphs and Python kernels
-* The `Scanner C++ API <TODO>`_, for defining C++ kernels
+* The `Scanner C++ API </cpp/>`_, for defining C++ kernels
 * The :ref:`Scannertools API <scannertools-docs>`, a standard library of premade kernels
 
 .. _scannerpy-docs:
