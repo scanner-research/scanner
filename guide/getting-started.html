@@ -1,11 +1,9 @@
 
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!DOCTYPE html>
 
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
-    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta charset="utf-8" />
 
 <title>Installation - Scanner</title>
 
@@ -131,9 +129,9 @@
 <span id="getting-started"></span><h1>Installation<a class="headerlink" href="#installation" title="Permalink to this headline">¶</a></h1>
 <p>There are several options for installing Scanner:</p>
 <ul class="simple">
-<li><a class="reference internal" href="#docker"><span class="std std-ref">Docker</span></a>: The easiest way to get started with Scanner is using our pre-built <a class="reference internal" href="#docker"><span class="std std-ref">Docker</span></a> images.</li>
-<li><a class="reference internal" href="#homebrew"><span class="std std-ref">Homebrew</span></a>: On MacOS, you can install using the unofficial package manager Homebrew.</li>
-<li><a class="reference internal" href="#source"><span class="std std-ref">From Source</span></a>: Scanner has out-of-the-box compatibility with frameworks like OpenCV and Caffe, but the flip side is that installing all of the dependencies can take a long time, which is why we recommend Docker for users just getting started.</li>
+<li><p><a class="reference internal" href="#docker"><span class="std std-ref">Docker</span></a>: The easiest way to get started with Scanner is using our pre-built <a class="reference internal" href="#docker"><span class="std std-ref">Docker</span></a> images.</p></li>
+<li><p><a class="reference internal" href="#homebrew"><span class="std std-ref">Homebrew</span></a>: On MacOS, you can install using the unofficial package manager Homebrew.</p></li>
+<li><p><a class="reference internal" href="#source"><span class="std std-ref">From Source</span></a>: Scanner has out-of-the-box compatibility with frameworks like OpenCV and Caffe, but the flip side is that installing all of the dependencies can take a long time, which is why we recommend Docker for users just getting started.</p></li>
 </ul>
 <div class="section" id="docker">
 <span id="id1"></span><h2>Docker<a class="headerlink" href="#docker" title="Permalink to this headline">¶</a></h2>
@@ -148,15 +146,15 @@ docker-compose run --service-ports cpu /bin/bash
 <p>This installs the <a class="reference external" href="https://docs.docker.com/compose/overview/">docker-compose</a> utility which helps manage Docker containers. It uses the <code class="code docutils literal notranslate"><span class="pre">docker-compose.yml</span></code> configuration file to create an instance of the Scanner docker image.</p>
 <p>The full set of docker configurations we provide are:</p>
 <ul class="simple">
-<li><code class="code docutils literal notranslate"><span class="pre">scannerresearch/scannertools:cpu-VERSION</span></code> - CPU-only build</li>
-<li><code class="code docutils literal notranslate"><span class="pre">scannerresearch/scannertools:gpu-9.1-cudnn7-VERSION</span></code> - CUDA 9.1, CUDNN 7</li>
-<li><code class="code docutils literal notranslate"><span class="pre">scannerresearch/scannertools:gpu-9.0-cudnn7-VERSION</span></code> - CUDA 9.0, CUDNN 7</li>
-<li><code class="code docutils literal notranslate"><span class="pre">scannerresearch/scannertools:gpu-8.0-cudnn6-VERSION</span></code> - CUDA 8.0, CUDNN 6</li>
+<li><p><code class="code docutils literal notranslate"><span class="pre">scannerresearch/scannertools:cpu-VERSION</span></code> - CPU-only build</p></li>
+<li><p><code class="code docutils literal notranslate"><span class="pre">scannerresearch/scannertools:gpu-9.1-cudnn7-VERSION</span></code> - CUDA 9.1, CUDNN 7</p></li>
+<li><p><code class="code docutils literal notranslate"><span class="pre">scannerresearch/scannertools:gpu-9.0-cudnn7-VERSION</span></code> - CUDA 9.0, CUDNN 7</p></li>
+<li><p><code class="code docutils literal notranslate"><span class="pre">scannerresearch/scannertools:gpu-8.0-cudnn6-VERSION</span></code> - CUDA 8.0, CUDNN 6</p></li>
 </ul>
 <p>where <code class="code docutils literal notranslate"><span class="pre">VERSION</span></code> is one of:</p>
 <ul class="simple">
-<li><code class="code docutils literal notranslate"><span class="pre">latest</span></code> - The most recent build of the master branch</li>
-<li><code class="code docutils literal notranslate"><span class="pre">vX.X.X</span></code> - A git tag (where X is an integer)</li>
+<li><p><code class="code docutils literal notranslate"><span class="pre">latest</span></code> - The most recent build of the master branch</p></li>
+<li><p><code class="code docutils literal notranslate"><span class="pre">vX.X.X</span></code> - A git tag (where X is an integer)</p></li>
 </ul>
 </div>
 <div class="section" id="homebrew">

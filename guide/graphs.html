@@ -1,11 +1,9 @@
 
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!DOCTYPE html>
 
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
-    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta charset="utf-8" />
 
 <title>Computation Graphs - Scanner</title>
 
@@ -133,10 +131,10 @@
 <h2>Overview<a class="headerlink" href="#overview" title="Permalink to this headline">¶</a></h2>
 <p>Scanner represents applications as <em>computation graphs</em>. The nodes in computation graphs are Scanner operations (check out the <span class="xref std std-ref">operations</span> guide for more information) and the edges between operations represent streams of data consumed and produced by operations. Nodes in a computation graph are one of four types:</p>
 <ul class="simple">
-<li><strong>Input nodes</strong> (<code class="code docutils literal notranslate"><span class="pre">cl.io.Input</span></code>): read data from stored streams (<a class="reference internal" href="stored-streams.html#stored-streams"><span class="std std-ref">Stored Streams</span></a>), such as from videos or previously generated metadata.</li>
-<li><strong>Operation nodes</strong> (<code class="code docutils literal notranslate"><span class="pre">cl.ops.XXX</span></code>): represent functions that transform their inputs into new outputs, such as performing a resize of a frame.</li>
-<li><strong>Stream operation nodes</strong> (<code class="code docutils literal notranslate"><span class="pre">cl.streams.XXX</span></code>):</li>
-<li><strong>Output nodes</strong> (<code class="code docutils literal notranslate"><span class="pre">cl.io.Output</span></code>): write data to empty stored streams.</li>
+<li><p><strong>Input nodes</strong> (<code class="code docutils literal notranslate"><span class="pre">cl.io.Input</span></code>): read data from stored streams (<a class="reference internal" href="stored-streams.html#stored-streams"><span class="std std-ref">Stored Streams</span></a>), such as from videos or previously generated metadata.</p></li>
+<li><p><strong>Operation nodes</strong> (<code class="code docutils literal notranslate"><span class="pre">cl.ops.XXX</span></code>): represent functions that transform their inputs into new outputs, such as performing a resize of a frame.</p></li>
+<li><p><strong>Stream operation nodes</strong> (<code class="code docutils literal notranslate"><span class="pre">cl.streams.XXX</span></code>):</p></li>
+<li><p><strong>Output nodes</strong> (<code class="code docutils literal notranslate"><span class="pre">cl.io.Output</span></code>): write data to empty stored streams.</p></li>
 </ul>
 <p>For example, let’s look at a computation graph with an operation that resizes frames:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">scannerpy</span> <span class="kn">as</span> <span class="nn">sp</span>

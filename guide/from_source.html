@@ -1,11 +1,9 @@
 
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!DOCTYPE html>
 
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
-    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta charset="utf-8" />
 
 <title>Building Scanner from source - Scanner</title>
 
@@ -132,9 +130,9 @@
 <span id="from-source"></span><h1>Building Scanner from source<a class="headerlink" href="#building-scanner-from-source" title="Permalink to this headline">¶</a></h1>
 <p>Building Scanner from source is a three step process:</p>
 <ol class="arabic simple">
-<li>Install system-wide packages (e.g. via apt-get or homebrew)</li>
-<li>Run our dependency script <cite>deps.sh</cite> to find or install dependencies not provided by common package managers.</li>
-<li>Build and install the scanner python package using the <cite>build.sh</cite> script.</li>
+<li><p>Install system-wide packages (e.g. via apt-get or homebrew)</p></li>
+<li><p>Run our dependency script <cite>deps.sh</cite> to find or install dependencies not provided by common package managers.</p></li>
+<li><p>Build and install the scanner python package using the <cite>build.sh</cite> script.</p></li>
 </ol>
 <div class="section" id="install-system-level-packages">
 <h2>Install system-level packages<a class="headerlink" href="#install-system-level-packages" title="Permalink to this headline">¶</a></h2>
@@ -180,30 +178,30 @@ dependencies has a set of required system-level packages.</p>
 available via system package managers on all platforms:</p>
 <blockquote>
 <div><ul class="simple">
-<li>pybind &gt;= 1.58.0</li>
-<li>opencv &gt;= 3.4.0</li>
-<li>protobuf == 3.4.0</li>
-<li>grpc == 1.7.2</li>
-<li>storehouse</li>
+<li><p>pybind &gt;= 1.58.0</p></li>
+<li><p>opencv &gt;= 3.4.0</p></li>
+<li><p>protobuf == 3.4.0</p></li>
+<li><p>grpc == 1.7.2</p></li>
+<li><p>storehouse</p></li>
 </ul>
 </div></blockquote>
 <p>Scanner also has several optional dependencies which add additional functionality
 to the system:</p>
 <blockquote>
 <div><ul class="simple">
-<li>ffmpeg &gt;= 3.3.1</li>
-<li>caffe &gt;= rc5 OR intel-caffe &gt;= 1.0.6</li>
-<li>openpose (enables pose detection)</li>
-<li>hwang (enables in-place processing of videos, instead of copying them)</li>
-<li>halide (enables high-performance image processing operations)</li>
-<li>libpqxx (enables reading and writing data to Postgress SQL databases)</li>
+<li><p>ffmpeg &gt;= 3.3.1</p></li>
+<li><p>caffe &gt;= rc5 OR intel-caffe &gt;= 1.0.6</p></li>
+<li><p>openpose (enables pose detection)</p></li>
+<li><p>hwang (enables in-place processing of videos, instead of copying them)</p></li>
+<li><p>halide (enables high-performance image processing operations)</p></li>
+<li><p>libpqxx (enables reading and writing data to Postgress SQL databases)</p></li>
 </ul>
 </div></blockquote>
 <p>Additionally, to compile with CUDA support, Scanner requires:</p>
 <blockquote>
 <div><ul class="simple">
-<li><a class="reference external" href="https://developer.nvidia.com/cuda-downloads">CUDA</a> 8.0 or above</li>
-<li><a class="reference external" href="https://developer.nvidia.com/cudnn">cuDNN</a> v6.x or above</li>
+<li><p><a class="reference external" href="https://developer.nvidia.com/cuda-downloads">CUDA</a> 8.0 or above</p></li>
+<li><p><a class="reference external" href="https://developer.nvidia.com/cudnn">cuDNN</a> v6.x or above</p></li>
 </ul>
 </div></blockquote>
 <p>To install or specify where your major dependencies are, from the top-level directory run:</p>
@@ -212,8 +210,8 @@ to the system:</p>
 </div>
 <p>This script will query you for each major dependency and install those that are not already installed. By default, it will install the dependencies to a local directory inside the scanner repo (it will not install system-wide).</p>
 <div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">Make sure to follow the directions after <code class="code docutils literal notranslate"><span class="pre">deps.sh</span></code> finishes that tell you to
+<p class="admonition-title">Note</p>
+<p>Make sure to follow the directions after <code class="code docutils literal notranslate"><span class="pre">deps.sh</span></code> finishes that tell you to
 add entries to your PATH, LD_LIBRARY_PATH, and PYTHONPATH</p>
 </div>
 </div>

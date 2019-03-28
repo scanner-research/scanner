@@ -1,11 +1,9 @@
 
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!DOCTYPE html>
 
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
-    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta charset="utf-8" />
 
 <title>Operations - Scanner</title>
 
@@ -100,8 +98,6 @@
     <form class="search" action="../search.html" method="get">
       <input type="text" name="q" />
       <input type="submit" value="Go" />
-      <input type="hidden" name="check_keywords" value="yes" />
-      <input type="hidden" name="area" value="default" />
     </form>
     </div>
 </div>
@@ -124,18 +120,17 @@
 <dd><p>Detect human poses in an image.
 Registered with <code class="code docutils literal notranslate"><span class="pre">import</span> <span class="pre">scannertools.face_detection</span></code>.</p>
 <p>Stream parameters:</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>frame</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType"><em>scannerpy.types.FrameType</em></a>) – The frames to detect poses in.</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">A list of bounding boxes.</td>
-</tr>
-<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference internal" href="scannerpy.html#scannerpy.types.BboxList" title="scannerpy.types.BboxList">scannerpy.types.BboxList</a></td>
-</tr>
-</tbody>
-</table>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>frame</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType"><em>scannerpy.types.FrameType</em></a>) – The frames to detect poses in.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>A list of bounding boxes.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p><a class="reference internal" href="scannerpy.html#scannerpy.types.BboxList" title="scannerpy.types.BboxList">scannerpy.types.BboxList</a></p>
+</dd>
+</dl>
 </dd></dl>
 
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">scannerpy</span> <span class="kn">as</span> <span class="nn">sp</span>
@@ -168,24 +163,20 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 <dd><p>Compute a face embeddings vector for each bounding box in the image.
 Registered with <code class="code docutils literal notranslate"><span class="pre">import</span> <span class="pre">scannertools.face_embedding</span></code>.</p>
 <p>Stream parameters:</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
-<li><strong>frame</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType"><em>scannerpy.types.FrameType</em></a>) – The frames to detect poses in.</li>
-<li><strong>bboxes</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.BboxList" title="scannerpy.types.BboxList"><em>scannerpy.types.BboxList</em></a>) – Bounding boxes to compute face embeddings on.</li>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>frame</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType"><em>scannerpy.types.FrameType</em></a>) – The frames to detect poses in.</p></li>
+<li><p><strong>bboxes</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.BboxList" title="scannerpy.types.BboxList"><em>scannerpy.types.BboxList</em></a>) – Bounding boxes to compute face embeddings on.</p></li>
 </ul>
-</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">Serialized face embeddings.</p>
-</td>
-</tr>
-<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.7)">bytes</a></p>
-</td>
-</tr>
-</tbody>
-</table>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Serialized face embeddings.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.7)">bytes</a></p>
+</dd>
+</dl>
 </dd></dl>
 
 </div>
@@ -197,24 +188,20 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 <dd><p>Detect the gender of people in an image.
 Registered with <code class="code docutils literal notranslate"><span class="pre">import</span> <span class="pre">scannertools.gender_detection</span></code>.</p>
 <p>Stream parameters:</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
-<li><strong>frame</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType"><em>scannerpy.types.FrameType</em></a>) – The frames to detect gender in.</li>
-<li><strong>bboxes</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.BboxList" title="scannerpy.types.BboxList"><em>scannerpy.types.BboxList</em></a>) – Bounding boxes to indicate where to estimate gender.</li>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>frame</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType"><em>scannerpy.types.FrameType</em></a>) – The frames to detect gender in.</p></li>
+<li><p><strong>bboxes</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.BboxList" title="scannerpy.types.BboxList"><em>scannerpy.types.BboxList</em></a>) – Bounding boxes to indicate where to estimate gender.</p></li>
 </ul>
-</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">The detected genders.</p>
-</td>
-</tr>
-<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">Any</p>
-</td>
-</tr>
-</tbody>
-</table>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>The detected genders.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>Any</p>
+</dd>
+</dl>
 </dd></dl>
 
 </div>
@@ -226,18 +213,17 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 <dd><p>Detect objects in an image.
 Registered with <code class="code docutils literal notranslate"><span class="pre">import</span> <span class="pre">scannertools.object_detection</span></code>.</p>
 <p>Stream parameters:</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>frame</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType"><em>scannerpy.types.FrameType</em></a>) – The frames to detect objects in.</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">A list of bounding boxes for the detected objects.</td>
-</tr>
-<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference internal" href="scannerpy.html#scannerpy.types.BboxList" title="scannerpy.types.BboxList">scannerpy.types.BboxList</a></td>
-</tr>
-</tbody>
-</table>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>frame</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType"><em>scannerpy.types.FrameType</em></a>) – The frames to detect objects in.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>A list of bounding boxes for the detected objects.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p><a class="reference internal" href="scannerpy.html#scannerpy.types.BboxList" title="scannerpy.types.BboxList">scannerpy.types.BboxList</a></p>
+</dd>
+</dl>
 </dd></dl>
 
 </div>
@@ -249,36 +235,31 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 <dd><p>Detect human poses in an image.
 Registered with <code class="code docutils literal notranslate"><span class="pre">import</span> <span class="pre">scannertools_caffe</span></code>.</p>
 <p>Init parameters:</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>model_directory</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.7)"><em>str</em></a>) – A path to the directory with the OpenPose model files.</li>
-<li><strong>pose_num_scales</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a>) – The number of scales to evaluate the pose network on.</li>
-<li><strong>pose_scales_gap</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a>) – The scaling factor between scales for the pose network.</li>
-<li><strong>compute_hands</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a>) – Flag to enable computing hand keypoints.</li>
-<li><strong>hand_num_scales</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a>) – The number of scales to evaluate the hand network on.</li>
-<li><strong>hand_scale_gap</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a>) – The scaling factor between scales for the hand network.</li>
-<li><strong>compute_face</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a>) – Flag to enable computing face keypoints.</li>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>model_directory</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.7)"><em>str</em></a>) – A path to the directory with the OpenPose model files.</p></li>
+<li><p><strong>pose_num_scales</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a>) – The number of scales to evaluate the pose network on.</p></li>
+<li><p><strong>pose_scales_gap</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a>) – The scaling factor between scales for the pose network.</p></li>
+<li><p><strong>compute_hands</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a>) – Flag to enable computing hand keypoints.</p></li>
+<li><p><strong>hand_num_scales</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a>) – The number of scales to evaluate the hand network on.</p></li>
+<li><p><strong>hand_scale_gap</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a>) – The scaling factor between scales for the hand network.</p></li>
+<li><p><strong>compute_face</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a>) – Flag to enable computing face keypoints.</p></li>
 </ul>
-</td>
-</tr>
-</tbody>
-</table>
+</dd>
+</dl>
 <p>Stream parameters:</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>frame</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType"><em>scannerpy.types.FrameType</em></a>) – The frames to detect poses in.</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">A list of detected poses.</td>
-</tr>
-<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">scannertools_caffe.pose_detection.PoseList</td>
-</tr>
-</tbody>
-</table>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>frame</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType"><em>scannerpy.types.FrameType</em></a>) – The frames to detect poses in.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>A list of detected poses.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>scannertools_caffe.pose_detection.PoseList</p>
+</dd>
+</dl>
 </dd></dl>
 
 </div>
@@ -291,18 +272,17 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 <dd><p>Detect shot boundaries using color histograms of frames.
 Registered with <code class="code docutils literal notranslate"><span class="pre">import</span> <span class="pre">scannertools.shot_detection</span></code>.</p>
 <p>Stream parameters:</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>histograms</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.Histogram" title="scannerpy.types.Histogram"><em>scannerpy.types.Histogram</em></a>) – The color histograms of frames from a video.</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">The indices of the shot boundaries.</td>
-</tr>
-<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">Sequence[<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)">int</a>]</td>
-</tr>
-</tbody>
-</table>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>histograms</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.Histogram" title="scannerpy.types.Histogram"><em>scannerpy.types.Histogram</em></a>) – The color histograms of frames from a video.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>The indices of the shot boundaries.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>Sequence[<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)">int</a>]</p>
+</dd>
+</dl>
 </dd></dl>
 
 </div>
@@ -314,34 +294,29 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 <dd><p>Resize images to a fixed size.
 Registered with <code class="code docutils literal notranslate"><span class="pre">import</span> <span class="pre">scannertools.imgproc</span></code>.</p>
 <p>Stream config parameters:</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>width</strong> (<em>Sequence</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a><em>]</em>) – The target width of the frame.</li>
-<li><strong>height</strong> (<em>Sequence</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a><em>]</em>) – The target height of the frame.</li>
-<li><strong>min</strong> (<em>Sequence</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>]</em>) – If true, resizes frames to <code class="code docutils literal notranslate"><span class="pre">width</span></code> and <code class="code docutils literal notranslate"><span class="pre">height</span></code> only if the input frames width and height if both are less than <code class="code docutils literal notranslate"><span class="pre">width</span></code> and <code class="code docutils literal notranslate"><span class="pre">height</span></code>.</li>
-<li><strong>preserve_aspect</strong> (<em>Sequence</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>]</em>) – If true, sets <code class="code docutils literal notranslate"><span class="pre">width</span></code> to preserve the aspect ratio of the input frame if <code class="code docutils literal notranslate"><span class="pre">height</span></code> is non-zero. Likewise if <code class="code docutils literal notranslate"><span class="pre">width</span></code> is non-zero.</li>
-<li><strong>interpolation</strong> (<em>Sequence</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.7)"><em>str</em></a><em>]</em>) – The type of interpolation to use.</li>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>width</strong> (<em>Sequence</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a><em>]</em>) – The target width of the frame.</p></li>
+<li><p><strong>height</strong> (<em>Sequence</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a><em>]</em>) – The target height of the frame.</p></li>
+<li><p><strong>min</strong> (<em>Sequence</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>]</em>) – If true, resizes frames to <code class="code docutils literal notranslate"><span class="pre">width</span></code> and <code class="code docutils literal notranslate"><span class="pre">height</span></code> only if the input frames width and height if both are less than <code class="code docutils literal notranslate"><span class="pre">width</span></code> and <code class="code docutils literal notranslate"><span class="pre">height</span></code>.</p></li>
+<li><p><strong>preserve_aspect</strong> (<em>Sequence</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>]</em>) – If true, sets <code class="code docutils literal notranslate"><span class="pre">width</span></code> to preserve the aspect ratio of the input frame if <code class="code docutils literal notranslate"><span class="pre">height</span></code> is non-zero. Likewise if <code class="code docutils literal notranslate"><span class="pre">width</span></code> is non-zero.</p></li>
+<li><p><strong>interpolation</strong> (<em>Sequence</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.7)"><em>str</em></a><em>]</em>) – The type of interpolation to use.</p></li>
 </ul>
-</td>
-</tr>
-</tbody>
-</table>
+</dd>
+</dl>
 <p>Stream parameters:</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>frame</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType"><em>scannerpy.types.FrameType</em></a>) – The frame to resize.</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">The resized frame.</td>
-</tr>
-<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference internal" href="scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType">scannerpy.types.FrameType</a></td>
-</tr>
-</tbody>
-</table>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>frame</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType"><em>scannerpy.types.FrameType</em></a>) – The frame to resize.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>The resized frame.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p><a class="reference internal" href="scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType">scannerpy.types.FrameType</a></p>
+</dd>
+</dl>
 </dd></dl>
 
 </div>
@@ -353,18 +328,17 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 <dd><p>Computes optical flow from one frame to the next.
 Registered with <code class="code docutils literal notranslate"><span class="pre">import</span> <span class="pre">scannertools.imgproc</span></code>.</p>
 <p>Stream parameters:</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>frame</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType"><em>scannerpy.types.FrameType</em></a>) – The frame to compute flow on.</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">The flow field.</td>
-</tr>
-<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference internal" href="scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType">scannerpy.types.FrameType</a></td>
-</tr>
-</tbody>
-</table>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>frame</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType"><em>scannerpy.types.FrameType</em></a>) – The frame to compute flow on.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>The flow field.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p><a class="reference internal" href="scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType">scannerpy.types.FrameType</a></p>
+</dd>
+</dl>
 </dd></dl>
 
 </div>
@@ -376,18 +350,17 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 <dd><p>Computes a color histogram of the frame.
 Registered with <code class="code docutils literal notranslate"><span class="pre">import</span> <span class="pre">scannertools.imgproc</span></code>.</p>
 <p>Stream parameters:</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>frame</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType"><em>scannerpy.types.FrameType</em></a>) – The frame to process.</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">The color histogram.</td>
-</tr>
-<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference internal" href="scannerpy.html#scannerpy.types.Histogram" title="scannerpy.types.Histogram">scannerpy.types.Histogram</a></td>
-</tr>
-</tbody>
-</table>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>frame</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType"><em>scannerpy.types.FrameType</em></a>) – The frame to process.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>The color histogram.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p><a class="reference internal" href="scannerpy.html#scannerpy.types.Histogram" title="scannerpy.types.Histogram">scannerpy.types.Histogram</a></p>
+</dd>
+</dl>
 </dd></dl>
 
 </div>

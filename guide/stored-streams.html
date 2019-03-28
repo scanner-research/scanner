@@ -1,11 +1,9 @@
 
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!DOCTYPE html>
 
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
-    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta charset="utf-8" />
 
 <title>Stored Streams - Scanner</title>
 
@@ -133,10 +131,10 @@
 <h2>Overview<a class="headerlink" href="#overview" title="Permalink to this headline">¶</a></h2>
 <p>Scanner represents input and output data as sequences of data items called <a class="reference internal" href="../api/scannerpy.html#scannerpy.storage.StoredStream" title="scannerpy.storage.StoredStream"><code class="xref py py-class docutils literal notranslate"><span class="pre">StoredStream</span></code></a>. Stored streams are Python objects that describe to Scanner how to read data to be processed and how to write data after it has been processed by a Scanner application. Stored streams can represent data stored in a variety of locations or formats:</p>
 <ul class="simple">
-<li>Video files (mp4, mkv, etc).</li>
-<li>Collections of files (images, text, etc)</li>
-<li>Packed binary files (custom RAW formats).</li>
-<li>SQL tables (image metadata)</li>
+<li><p>Video files (mp4, mkv, etc).</p></li>
+<li><p>Collections of files (images, text, etc)</p></li>
+<li><p>Packed binary files (custom RAW formats).</p></li>
+<li><p>SQL tables (image metadata)</p></li>
 </ul>
 <p>For example, the following code creates a stored stream for a video file named <code class="code docutils literal notranslate"><span class="pre">example.mp4</span></code>:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">scannerpy</span> <span class="kn">as</span> <span class="nn">sp</span>
