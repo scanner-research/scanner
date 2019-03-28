@@ -22,7 +22,7 @@ help:
 serve: autobuild notifywait
 
 autobuild:
-	sphinx-autobuild "$(SOURCEDIR)" $(BUILDDIR)/html -b html $(SPHINXOPTS) $(O) -p 4567 -H 0.0.0.0
+	sphinx-autobuild "$(SOURCEDIR)" $(BUILDDIR)/html -b html $(SPHINXOPTS) $(O) -j `nproc` -p 4567 -H 0.0.0.0
 
 notifywait:
 	inotifywait -e close_write,moved_to,create -mr . --format '%f' | while read FILE; do echo $${FILE}; done

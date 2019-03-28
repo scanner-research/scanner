@@ -1,4 +1,4 @@
-About
+Publications
 =====
 
 Scanner is an active research project, part of a collaboration between Carnegie
@@ -9,7 +9,7 @@ Mellon and Stanford University. Please contact
 
 Paper citation
 --------------
-Scanner will appear in the proceedings of SIGGRAPH 2018 as `"Scanner: Efficient Video Analysis at Scale <http://graphics.stanford.edu/papers/scanner/scanner_sig18.pdf>`__ by Poms, Crichton, Hanrahan, and Fatahalian. If you use Scanner in your research, we'd appreciate it if you cite the paper.
+Scanner was published at SIGGRAPH 2018 as `"Scanner: Efficient Video Analysis at Scale <http://graphics.stanford.edu/papers/scanner/scanner_sig18.pdf>`__ by Poms, Crichton, Hanrahan, and Fatahalian. If you use Scanner in your research, we'd appreciate it if you cite the paper.
 
 .. code-block:: bibtex
 
@@ -31,4 +31,4 @@ Scanner will appear in the proceedings of SIGGRAPH 2018 as `"Scanner: Efficient 
     acmid = {3201394},
     publisher = {ACM},
     address = {New York, NY, USA},
-   } 
+   }

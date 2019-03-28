@@ -1,4 +1,5 @@
-scannertools
+.. raw:: html
+         <h1>scannertools API</h1>
 ============
 
 Operations
@@ -104,10 +105,9 @@ Storage
 -------
 
 scannertools\.storage.files_storage module
------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. automodule:: scannertools.storage.files_storage
     :members:
     :undoc-members:
     :show-inheritance:
-
