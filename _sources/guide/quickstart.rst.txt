@@ -15,9 +15,9 @@ This will install docker-compose (a utility for managing docker containers), pul
 
 .. code-block:: bash
 
-   cd examples/apps/quickstart
+   cd /opt/scanner/examples/apps/walkthrough
    wget https://storage.googleapis.com/scanner-data/public/sample-clip.mp4
-   python3 main.py
+   python3 grayscale_conversion.py
 
 For more information about installation options, check out :ref:`getting-started`.
 

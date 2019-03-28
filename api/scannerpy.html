@@ -151,7 +151,7 @@ invoking python code, enabling easy gdb-based debugging.</li>
 </td>
 </tr>
 <tr class="field-odd field"><th class="field-name">Variables:</th><td class="field-body"><ul class="first last simple">
-<li><a class="reference internal" href="#module-scannerpy.config" title="scannerpy.config"><strong>config</strong></a> (<a class="reference internal" href="#scannerpy.config.Config" title="scannerpy.config.Config"><em>Config</em></a>) – The Config object used to initialize this Client.</li>
+<li><a class="reference internal" href="#scannerpy.kube.Cluster.config" title="scannerpy.kube.Cluster.config"><strong>config</strong></a> (<a class="reference internal" href="#scannerpy.config.Config" title="scannerpy.config.Config"><em>Config</em></a>) – The Config object used to initialize this Client.</li>
 <li><strong>ops</strong> (<a class="reference internal" href="#scannerpy.op.OpGenerator" title="scannerpy.op.OpGenerator"><em>OpGenerator</em></a>) – <p>Represents the set of available Ops. Ops can be created like so:</p>
 <p><code class="code docutils literal notranslate"><span class="pre">output</span> <span class="pre">=</span> <span class="pre">cl.ops.ExampleOp(arg='example')</span></code></p>
 <p>For a more detailed description, see <a class="reference internal" href="#scannerpy.op.OpGenerator" title="scannerpy.op.OpGenerator"><code class="xref py py-class docutils literal notranslate"><span class="pre">OpGenerator</span></code></a></p>
@@ -1980,10 +1980,45 @@ created from the video at the given path.</li>
 <dd></dd></dl>
 
 <dl class="method">
+<dt id="scannerpy.storage.NamedVideoStream.committed">
+<code class="descname">committed</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/storage.html#NamedVideoStream.committed"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.storage.NamedVideoStream.committed" title="Permalink to this definition">¶</a></dt>
+<dd><p>Check if a stream is completely materialized in storage.</p>
+<p>A stream may exist, but not be committed if a Scanner job was run that was supposed to
+output the stream, but the job failed for any reason.</p>
+</dd></dl>
+
+<dl class="method">
 <dt id="scannerpy.storage.NamedVideoStream.estimate_size">
 <code class="descname">estimate_size</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/storage.html#NamedVideoStream.estimate_size"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.storage.NamedVideoStream.estimate_size" title="Permalink to this definition">¶</a></dt>
 <dd><p>Estimates the size in bytes of elements in the stream. Not guaranteed to be accurate,
 just used for heuristics.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.storage.NamedVideoStream.exists">
+<code class="descname">exists</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/storage.html#NamedVideoStream.exists"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.storage.NamedVideoStream.exists" title="Permalink to this definition">¶</a></dt>
+<dd><p>Check if any part of a stream exists in storage.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.storage.NamedVideoStream.len">
+<code class="descname">len</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/storage.html#NamedVideoStream.len"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.storage.NamedVideoStream.len" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the number of elements in this stream.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="scannerpy.storage.NamedVideoStream.load_bytes">
+<code class="descname">load_bytes</code><span class="sig-paren">(</span><em>rows=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/storage.html#NamedVideoStream.load_bytes"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.storage.NamedVideoStream.load_bytes" title="Permalink to this definition">¶</a></dt>
+<dd><p>A generator that incrementally loads raw bytes from the stored stream.</p>
+<p>This function is not intended to be called directly by the user. See <code class="xref py py-func docutils literal notranslate"><span class="pre">load()</span></code>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>rows</strong> (<em>List</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a><em>]</em>) – List of indices in the stream to load. Default is all elements.</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="method">
@@ -2376,7 +2411,7 @@ will be used by default.</li>
 
 <dl class="class">
 <dt id="scannerpy.kube.ClusterConfig">
-<em class="property">class </em><code class="descclassname">scannerpy.kube.</code><code class="descname">ClusterConfig</code><span class="sig-paren">(</span><em>id</em>, <em>num_workers</em>, <em>master</em>, <em>worker</em>, <em>zone='us-east1-b'</em>, <em>kube_version='latest'</em>, <em>num_load_workers=8</em>, <em>num_save_workers=8</em>, <em>autoscale=True</em>, <em>no_workers_timeout=600</em>, <em>scopes=frozenset({'https://www.googleapis.com/auth/devstorage.read_write'</em>, <em>'https://www.googleapis.com/auth/service.management.readonly'</em>, <em>'https://www.googleapis.com/auth/monitoring'</em>, <em>'https://www.googleapis.com/auth/logging.write'</em>, <em>'https://www.googleapis.com/auth/compute'</em>, <em>'https://www.googleapis.com/auth/pubsub'</em>, <em>'https://www.googleapis.com/auth/trace.append'</em>, <em>'https://www.googleapis.com/auth/servicecontrol'})</em>, <em>scanner_config='/root/.scanner/config.toml'</em>, <em>pipelines=frozenset()</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/kube.html#ClusterConfig"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.kube.ClusterConfig" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">scannerpy.kube.</code><code class="descname">ClusterConfig</code><span class="sig-paren">(</span><em>id</em>, <em>num_workers</em>, <em>master</em>, <em>worker</em>, <em>zone='us-east1-b'</em>, <em>kube_version='latest'</em>, <em>num_load_workers=8</em>, <em>num_save_workers=8</em>, <em>autoscale=True</em>, <em>no_workers_timeout=600</em>, <em>scopes=frozenset({'https://www.googleapis.com/auth/trace.append'</em>, <em>'https://www.googleapis.com/auth/pubsub'</em>, <em>'https://www.googleapis.com/auth/monitoring'</em>, <em>'https://www.googleapis.com/auth/service.management.readonly'</em>, <em>'https://www.googleapis.com/auth/servicecontrol'</em>, <em>'https://www.googleapis.com/auth/devstorage.read_write'</em>, <em>'https://www.googleapis.com/auth/compute'</em>, <em>'https://www.googleapis.com/auth/logging.write'})</em>, <em>scanner_config='/root/.scanner/config.toml'</em>, <em>pipelines=frozenset()</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/kube.html#ClusterConfig"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.kube.ClusterConfig" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.7)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
 <dl class="method">
 <dt id="scannerpy.kube.ClusterConfig.price">

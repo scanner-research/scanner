@@ -83,7 +83,6 @@
 <li class="toctree-l1"><a class="reference internal" href="walkthrough.html">Walkthroughs</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="walkthrough.html#converting-a-video-to-grayscale">Converting a video to grayscale</a></li>
 <li class="toctree-l2"><a class="reference internal" href="walkthrough.html#walking-through-a-more-advanced-jupyter-based-app">Walking through a more advanced Jupyter-based app</a></li>
-<li class="toctree-l2"><a class="reference internal" href="walkthrough.html#extended-tutorials">Extended Tutorials</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="graphs.html">Computation Graphs</a><ul>
@@ -138,7 +137,7 @@
 </ul>
 <div class="section" id="docker">
 <span id="id1"></span><h2>Docker<a class="headerlink" href="#docker" title="Permalink to this headline">¶</a></h2>
-<p><a class="reference external" href="https://docs.docker.com">Docker</a> is a service for managing containers, which you can think of as lightweight virtual machines. If you want to run Scanner in a distributed setting (e.g. on a cloud platform), Docker is essential for providing a consistent runtime environment on your worker machines, but it’s also useful for testing locally to avoid having to install all of Scanner’s dependencies. We provide prebuilt Docker images containing Scanner and all its dependencies (e.g. OpenCV, Caffe) at <a class="reference external" href="https://hub.docker.com/r/scannerresearch/scanner/">scannerresearch/scanner</a>.</p>
+<p><a class="reference external" href="https://docs.docker.com">Docker</a> is a service for managing containers, which you can think of as lightweight virtual machines. If you want to run Scanner in a distributed setting (e.g. on a cloud platform), Docker is essential for providing a consistent runtime environment on your worker machines, but it’s also useful for testing locally to avoid having to install all of Scanner’s dependencies. We provide prebuilt Docker images containing Scanner and all its dependencies (e.g. OpenCV) at <a class="reference external" href="https://hub.docker.com/r/scannerresearch/scanner/">scannerresearch/scanner</a>. We also provide Docker images containing Scanner along with all the standard library kernels in Scannertools at  <a class="reference external" href="https://hub.docker.com/r/scannerresearch/scannertools/">scannerresearch/scannertools</a>.</p>
 <p>To start using Scanner with Docker, first install <a class="reference external" href="https://docs.docker.com/install/">Docker</a>. If you have a GPU and you’re running on Linux, you can install <a class="reference external" href="https://github.com/NVIDIA/nvidia-docker">nvidia-docker</a> (which provides GPU support inside Docker containers). Then run:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip3 install --upgrade docker-compose
 wget https://raw.githubusercontent.com/scanner-research/scanner/master/docker/docker-compose.yml
@@ -149,10 +148,10 @@ docker-compose run --service-ports cpu /bin/bash
 <p>This installs the <a class="reference external" href="https://docs.docker.com/compose/overview/">docker-compose</a> utility which helps manage Docker containers. It uses the <code class="code docutils literal notranslate"><span class="pre">docker-compose.yml</span></code> configuration file to create an instance of the Scanner docker image.</p>
 <p>The full set of docker configurations we provide are:</p>
 <ul class="simple">
-<li><code class="code docutils literal notranslate"><span class="pre">scannerresearch/scanner:cpu-VERSION</span></code> - CPU-only build</li>
-<li><code class="code docutils literal notranslate"><span class="pre">scannerresearch/scanner:gpu-9.1-cudnn7-VERSION</span></code> - CUDA 9.1, CUDNN 7</li>
-<li><code class="code docutils literal notranslate"><span class="pre">scannerresearch/scanner:gpu-8.0-cudnn7-VERSION</span></code> - CUDA 8.0, CUDNN 7</li>
-<li><code class="code docutils literal notranslate"><span class="pre">scannerresearch/scanner:gpu-8.0-cudnn6-VERSION</span></code> - CUDA 8.0, CUDNN 6</li>
+<li><code class="code docutils literal notranslate"><span class="pre">scannerresearch/scannertools:cpu-VERSION</span></code> - CPU-only build</li>
+<li><code class="code docutils literal notranslate"><span class="pre">scannerresearch/scannertools:gpu-9.1-cudnn7-VERSION</span></code> - CUDA 9.1, CUDNN 7</li>
+<li><code class="code docutils literal notranslate"><span class="pre">scannerresearch/scannertools:gpu-9.0-cudnn7-VERSION</span></code> - CUDA 9.0, CUDNN 7</li>
+<li><code class="code docutils literal notranslate"><span class="pre">scannerresearch/scannertools:gpu-8.0-cudnn6-VERSION</span></code> - CUDA 8.0, CUDNN 6</li>
 </ul>
 <p>where <code class="code docutils literal notranslate"><span class="pre">VERSION</span></code> is one of:</p>
 <ul class="simple">
@@ -162,12 +161,7 @@ docker-compose run --service-ports cpu /bin/bash
 </div>
 <div class="section" id="homebrew">
 <span id="id2"></span><h2>Homebrew<a class="headerlink" href="#homebrew" title="Permalink to this headline">¶</a></h2>
-<p>On MacOS, you can install Scanner using homebrew with the following commands:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>brew tap scanner-research/homebrew-scanner
-brew install scanner
-pip3 install scannerpy
-</pre></div>
-</div>
+<p>Homebrew installation for Scanner is coming soon. Check back in a couple weeks!</p>
 </div>
 <div class="section" id="from-source">
 <span id="source"></span><h2>From Source<a class="headerlink" href="#from-source" title="Permalink to this headline">¶</a></h2>

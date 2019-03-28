@@ -83,7 +83,6 @@
 <li class="toctree-l1"><a class="reference internal" href="walkthrough.html">Walkthroughs</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="walkthrough.html#converting-a-video-to-grayscale">Converting a video to grayscale</a></li>
 <li class="toctree-l2"><a class="reference internal" href="walkthrough.html#walking-through-a-more-advanced-jupyter-based-app">Walking through a more advanced Jupyter-based app</a></li>
-<li class="toctree-l2"><a class="reference internal" href="walkthrough.html#extended-tutorials">Extended Tutorials</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="graphs.html">Computation Graphs</a><ul>
@@ -137,9 +136,9 @@ docker-compose run --service-ports cpu /bin/bash
 </pre></div>
 </div>
 <p>This will install docker-compose (a utility for managing docker containers), pull down the docker compose file for Scanner, and then attempt to start a container with Scanner installed. <strong>NOTE:</strong> The first time you run this code, it may require downloading a ~5GB Docker container for Scanner. Now you can run any of the example applications on your video:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> examples/apps/quickstart
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> /opt/scanner/examples/apps/walkthrough
 wget https://storage.googleapis.com/scanner-data/public/sample-clip.mp4
-python3 main.py
+python3 grayscale_conversion.py
 </pre></div>
 </div>
 <p>For more information about installation options, check out <a class="reference internal" href="getting-started.html#getting-started"><span class="std std-ref">Installation</span></a>.</p>

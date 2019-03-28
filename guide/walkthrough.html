@@ -83,7 +83,6 @@
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Walkthroughs</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#converting-a-video-to-grayscale">Converting a video to grayscale</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#walking-through-a-more-advanced-jupyter-based-app">Walking through a more advanced Jupyter-based app</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#extended-tutorials">Extended Tutorials</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="graphs.html">Computation Graphs</a><ul>
@@ -133,15 +132,15 @@
 <p>This article explains how to use Scanner by walking through a simple application: converting a video to grayscale.</p>
 <div class="section" id="converting-a-video-to-grayscale">
 <h2>Converting a video to grayscale<a class="headerlink" href="#converting-a-video-to-grayscale" title="Permalink to this headline">¶</a></h2>
-<p>Let’s walk through a simple example that takes every third frame from a video, downsamples it, converts from color to grayscale, and then generates a new video from the transformed frames. The resulting application will look like the following sequence of operations:</p>
-<p>TODO: insert figure describing the graph this walkthrough builds up to</p>
+<p>Let’s walk through a simple example that takes every other frame from a video, downsamples it, converts from color to grayscale, and then generates a new video from the transformed frames. The resulting application will look like the following sequence of operations:</p>
+<a class="reference internal image-reference" href="../_images/grayscale_conversion.jpg"><img alt="../_images/grayscale_conversion.jpg" src="../_images/grayscale_conversion.jpg" style="width: 343.86px; height: 467.94px;" /></a>
 <p>To run the code for this example, first install Scanner (<a class="reference internal" href="getting-started.html#getting-started"><span class="std std-ref">Installation</span></a>). Then from the top-level Scanner directory, run:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> examples/apps/walkthroughs
 wget https://storage.googleapis.com/scanner-data/public/sample-clip.mp4
 python3 grayscale_conversion.py
 </pre></div>
 </div>
-<p>After <code class="code docutils literal notranslate"><span class="pre">grayscale_conversion.py</span></code> exits, you should have a grayscale version of <code class="code docutils literal notranslate"><span class="pre">sample-clip.mp4</span></code> named <code class="code docutils literal notranslate"><span class="pre">sample-clip-grayscale.mp4</span></code> in the current directory. Let’s see how that happened by looking inside <code class="code docutils literal notranslate"><span class="pre">main.py</span></code>.</p>
+<p>After <code class="code docutils literal notranslate"><span class="pre">grayscale_conversion.py</span></code> exits, you should have a grayscale version of <code class="code docutils literal notranslate"><span class="pre">sample-clip.mp4</span></code> named <code class="code docutils literal notranslate"><span class="pre">sample-grayscale.mp4</span></code> in the current directory. Let’s see how that happened by looking inside <code class="code docutils literal notranslate"><span class="pre">main.py</span></code>.</p>
 <div class="section" id="starting-up-scanner">
 <h3>Starting up Scanner<a class="headerlink" href="#starting-up-scanner" title="Permalink to this headline">¶</a></h3>
 <p>The first step in any Scanner program is to create a <a class="reference internal" href="../api/scannerpy.html#scannerpy.client.Client" title="scannerpy.client.Client"><code class="xref py py-class docutils literal notranslate"><span class="pre">Client</span></code></a> object. The <a class="reference internal" href="../api/scannerpy.html#scannerpy.client.Client" title="scannerpy.client.Client"><code class="xref py py-class docutils literal notranslate"><span class="pre">Client</span></code></a> object manages your connection to the Scanner runtime and provides the API to execute new video processing jobs. By default, creating a client will first start an instance of Scanner on the local machine and then establish a connection to it:</p>
@@ -165,10 +164,10 @@ python3 grayscale_conversion.py
 </pre></div>
 </div>
 <p>The <code class="code docutils literal notranslate"><span class="pre">frame</span></code> object returned by the input operation represents the stream of frames in our video, and we’ll use it as the input to the next operation:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">sampled_frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">streams</span><span class="o">.</span><span class="n">Stride</span><span class="p">(</span><span class="n">frames</span><span class="p">,</span> <span class="p">[</span><span class="mi">3</span><span class="p">])</span> <span class="c1"># Select every third frame</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">sampled_frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">streams</span><span class="o">.</span><span class="n">Stride</span><span class="p">(</span><span class="n">frames</span><span class="p">,</span> <span class="p">[</span><span class="mi">2</span><span class="p">])</span> <span class="c1"># Select every other frame</span>
 </pre></div>
 </div>
-<p>This <a class="reference internal" href="../api/scannerpy.html#scannerpy.streams.StreamsGenerator.Stride" title="scannerpy.streams.StreamsGenerator.Stride"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Stride()</span></code></a> operation selects only every third frame from the stream of frames we read from the video. (<code class="code docutils literal notranslate"><span class="pre">Stride</span></code> comes from a special class of operations, called <em>stream</em> operations, that can subsample elements in stream. See <a class="reference internal" href="graphs.html#stream-operations"><span class="std std-ref">Stream Operations</span></a>.)</p>
+<p>This <a class="reference internal" href="../api/scannerpy.html#scannerpy.streams.StreamsGenerator.Stride" title="scannerpy.streams.StreamsGenerator.Stride"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Stride()</span></code></a> operation selects only every other frame from the stream of frames we read from the video. (<code class="code docutils literal notranslate"><span class="pre">Stride</span></code> comes from a special class of operations, called <em>stream</em> operations, that can subsample elements in stream. See <a class="reference internal" href="graphs.html#stream-operations"><span class="std std-ref">Stream Operations</span></a>.)</p>
 <p>Next, we’ll resize the sampled frames by instantiating a <code class="code docutils literal notranslate"><span class="pre">Resize</span></code> operation that will resize the frames in the <code class="code docutils literal notranslate"><span class="pre">sampled_frame</span></code> stream to 640 x 480:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">scannertools.imgproc</span>
 
@@ -187,26 +186,26 @@ python3 grayscale_conversion.py
 <span class="n">grayscale3_frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">CloneChannels</span><span class="p">(</span><span class="n">frame</span><span class="o">=</span><span class="n">grayscale_frames</span><span class="p">,</span> <span class="n">replications</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>You can learn more about the syntax for defining new operations like <code class="code docutils literal notranslate"><span class="pre">CloneChannels</span></code> by checking out the <a class="reference internal" href="ops.html#ops"><span class="std std-ref">Operations</span></a> guide. Finally, we write the frames to a new output stream called <code class="code docutils literal notranslate"><span class="pre">sampled-clip-resized</span></code> by passing them into an output operation:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">output_stream</span> <span class="o">=</span> <span class="n">NamedVideoStream</span><span class="p">(</span><span class="n">cl</span><span class="p">,</span> <span class="s1">&#39;sample-clip-resized&#39;</span><span class="p">)</span>
+<p>You can learn more about the syntax for defining new operations like <code class="code docutils literal notranslate"><span class="pre">CloneChannels</span></code> by checking out the <a class="reference internal" href="ops.html#ops"><span class="std std-ref">Operations</span></a> guide. Finally, we write the frames to a new output stream called <code class="code docutils literal notranslate"><span class="pre">sample-grayscale</span></code> by passing them into an output operation:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">output_stream</span> <span class="o">=</span> <span class="n">NamedVideoStream</span><span class="p">(</span><span class="n">cl</span><span class="p">,</span> <span class="s1">&#39;sample-grayscale&#39;</span><span class="p">)</span>
 <span class="n">output</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">Output</span><span class="p">(</span><span class="n">resized</span><span class="p">,</span> <span class="p">[</span><span class="n">output_stream</span><span class="p">])</span>
 </pre></div>
 </div>
 <p>Putting it all together, we have:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">input_stream</span> <span class="o">=</span> <span class="n">NamedVideoStream</span><span class="p">(</span><span class="n">cl</span><span class="p">,</span> <span class="s1">&#39;sample-clip&#39;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s1">&#39;sample-clip.mp4&#39;</span><span class="p">)</span>
 <span class="n">frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">Input</span><span class="p">([</span><span class="n">input_stream</span><span class="p">])</span>
-<span class="n">sampled_frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">streams</span><span class="o">.</span><span class="n">Stride</span><span class="p">(</span><span class="n">frames</span><span class="p">,</span> <span class="p">[</span><span class="mi">3</span><span class="p">])</span> <span class="c1"># Select every third frame</span>
+<span class="n">sampled_frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">streams</span><span class="o">.</span><span class="n">Stride</span><span class="p">(</span><span class="n">frames</span><span class="p">,</span> <span class="p">[</span><span class="mi">2</span><span class="p">])</span> <span class="c1"># Select every other frame</span>
 <span class="n">resized_frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Resize</span><span class="p">(</span><span class="n">frame</span><span class="o">=</span><span class="n">sampled_frames</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="p">[</span><span class="mi">640</span><span class="p">],</span> <span class="n">height</span><span class="o">=</span><span class="p">[</span><span class="mi">480</span><span class="p">])</span> <span class="c1"># Resize input frame</span>
 <span class="n">grayscale_frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">ConvertColor</span><span class="p">(</span><span class="n">frame</span><span class="o">=</span><span class="n">resized_frames</span><span class="p">,</span> <span class="n">conversion</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;COLOR_RGB2GRAY&#39;</span><span class="p">])</span>
-<span class="n">grayscale3_frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">CloneChannels</span><span class="p">(</span><span class="n">frame</span><span class="o">=</span><span class="n">grayscale3_frames</span><span class="p">,</span> <span class="n">replications</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
-<span class="n">output_stream</span> <span class="o">=</span> <span class="n">NamedVideoStream</span><span class="p">(</span><span class="n">cl</span><span class="p">,</span> <span class="s1">&#39;sample-clip-resized&#39;</span><span class="p">)</span>
+<span class="n">grayscale3_frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">CloneChannels</span><span class="p">(</span><span class="n">frame</span><span class="o">=</span><span class="n">grayscale_frames</span><span class="p">,</span> <span class="n">replications</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+<span class="n">output_stream</span> <span class="o">=</span> <span class="n">NamedVideoStream</span><span class="p">(</span><span class="n">cl</span><span class="p">,</span> <span class="s1">&#39;sample-grayscale&#39;</span><span class="p">)</span>
 <span class="n">output</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">Output</span><span class="p">(</span><span class="n">grayscale3_frames</span><span class="p">,</span> <span class="p">[</span><span class="n">output_stream</span><span class="p">])</span>
 </pre></div>
 </div>
 <p>At this point, we have defined a graph that describes the computation to run, but we haven’t yet told Scanner to execute the graph.</p>
 </div>
-<div class="section" id="executing-a-computation-graph">
-<span id="defining-a-job"></span><h3>Executing a computation graph<a class="headerlink" href="#executing-a-computation-graph" title="Permalink to this headline">¶</a></h3>
+<div class="section" id="executing-the-computation-graph">
+<span id="defining-a-job"></span><h3>Executing the computation graph<a class="headerlink" href="#executing-the-computation-graph" title="Permalink to this headline">¶</a></h3>
 <p>Executing a graph is done by calling <code class="code docutils literal notranslate"><span class="pre">run</span></code> on the client object, specifying the outputs we want to produce:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">cl</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">PerfParams</span><span class="o">.</span><span class="n">estimate</span><span class="p">())</span>
 </pre></div>
@@ -219,10 +218,13 @@ python3 grayscale_conversion.py
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">output_stream</span><span class="o">.</span><span class="n">save_mp4</span><span class="p">(</span><span class="s1">&#39;resized-video&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>After this call returns, an mp4 video should be saved to the current working directory called <code class="code docutils literal notranslate"><span class="pre">sample-clip-grayscale.mp4</span></code> that consists of the grayscale frames that we generated.</p>
-<p>That’s the complete Scanner application! If you’d like to learn about process multiple jobs, keep reading! Otherwise, to learn more about the features of Scanner, checkout the following:</p>
+<p>After this call returns, an mp4 video should be saved to the current working directory called <code class="code docutils literal notranslate"><span class="pre">sample-grayscale.mp4</span></code> that consists of the grayscale frames that we generated. That’s the complete Scanner application!</p>
+</div>
+<div class="section" id="next-steps">
+<h3>Next Steps<a class="headerlink" href="#next-steps" title="Permalink to this headline">¶</a></h3>
+<p>To learn more about the features of Scanner, checkout the following:</p>
 <ul class="simple">
-<li><a class="reference internal" href="tutorial.html#tutorial"><span class="std std-ref">Tutorials</span></a>: introduces each of Scanner’s features with code examples.</li>
+<li><a class="reference external" href="https://github.com/scanner-research/scanner/tree/master/examples/tutorials">Tutorials</a>: introduces each of Scanner’s features with code examples.</li>
 <li><a class="reference internal" href="graphs.html#graphs"><span class="std std-ref">Computation Graphs</span></a>: describes how computation graphs are constructed and configured.</li>
 <li><a class="reference internal" href="ops.html#ops"><span class="std std-ref">Operations</span></a>: describes the capabilities of Scanner’s ops and how they work inside computation  graphs.</li>
 <li><a class="reference internal" href="stored-streams.html#stored-streams"><span class="std std-ref">Stored Streams</span></a>: describes the stored stream interface.</li>
@@ -248,12 +250,6 @@ jupyter notebook --ip<span class="o">=</span><span class="m">0</span>.0.0.0 --po
 </div>
 <p>Then visit port 8888 on your server/localhost, click through to
 <code class="code docutils literal notranslate"><span class="pre">examples/Walkthrough.ipynb</span></code>, and follow the directions in the notebook.</p>
-</div>
-<div class="section" id="extended-tutorials">
-<h2>Extended Tutorials<a class="headerlink" href="#extended-tutorials" title="Permalink to this headline">¶</a></h2>
-<p>Scanner provides a set of tutorials that provide step-by-step examples of many
-of the basic features provided by Scanner. These tutorials can be found
-<a class="reference external" href="https://github.com/scanner-research/scanner/tree/master/examples/tutorials">here</a>.</p>
 </div>
 </div>
 

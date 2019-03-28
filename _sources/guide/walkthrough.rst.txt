@@ -6,9 +6,10 @@ This article explains how to use Scanner by walking through a simple application
 
 Converting a video to grayscale
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Let's walk through a simple example that takes every third frame from a video, downsamples it, converts from color to grayscale, and then generates a new video from the transformed frames. The resulting application will look like the following sequence of operations:
+Let's walk through a simple example that takes every other frame from a video, downsamples it, converts from color to grayscale, and then generates a new video from the transformed frames. The resulting application will look like the following sequence of operations:
 
-TODO: insert figure describing the graph this walkthrough builds up to
+.. image:: /_static/grayscale_conversion.jpg
+   :scale: 33%
 
 To run the code for this example, first install Scanner (:ref:`getting-started`). Then from the top-level Scanner directory, run:
 
@@ -18,7 +19,7 @@ To run the code for this example, first install Scanner (:ref:`getting-started`)
    wget https://storage.googleapis.com/scanner-data/public/sample-clip.mp4
    python3 grayscale_conversion.py
 
-After :code:`grayscale_conversion.py` exits, you should have a grayscale version of :code:`sample-clip.mp4` named :code:`sample-clip-grayscale.mp4` in the current directory. Let's see how that happened by looking inside :code:`main.py`.
+After :code:`grayscale_conversion.py` exits, you should have a grayscale version of :code:`sample-clip.mp4` named :code:`sample-grayscale.mp4` in the current directory. Let's see how that happened by looking inside :code:`main.py`.
 
 Starting up Scanner
 -------------------
@@ -53,9 +54,9 @@ The :code:`frame` object returned by the input operation represents the stream o
 
 .. code-block:: python
 
-   sampled_frames = cl.streams.Stride(frames, [3]) # Select every third frame
+   sampled_frames = cl.streams.Stride(frames, [2]) # Select every other frame
 
-This :py:meth:`~scannerpy.streams.StreamsGenerator.Stride` operation selects only every third frame from the stream of frames we read from the video. (:code:`Stride` comes from a special class of operations, called *stream* operations, that can subsample elements in stream. See :ref:`stream-operations`.)
+This :py:meth:`~scannerpy.streams.StreamsGenerator.Stride` operation selects only every other frame from the stream of frames we read from the video. (:code:`Stride` comes from a special class of operations, called *stream* operations, that can subsample elements in stream. See :ref:`stream-operations`.)
 
 Next, we'll resize the sampled frames by instantiating a :code:`Resize` operation that will resize the frames in the :code:`sampled_frame` stream to 640 x 480:
 
@@ -81,11 +82,11 @@ To write a new video containing these grayscale frames, we are going to use Scan
 
    grayscale3_frames = cl.ops.CloneChannels(frame=grayscale_frames, replications=3) 
 
-You can learn more about the syntax for defining new operations like :code:`CloneChannels` by checking out the :ref:`ops` guide. Finally, we write the frames to a new output stream called :code:`sampled-clip-resized` by passing them into an output operation:
+You can learn more about the syntax for defining new operations like :code:`CloneChannels` by checking out the :ref:`ops` guide. Finally, we write the frames to a new output stream called :code:`sample-grayscale` by passing them into an output operation:
 
 .. code-block:: python
 
-   output_stream = NamedVideoStream(cl, 'sample-clip-resized')
+   output_stream = NamedVideoStream(cl, 'sample-grayscale')
    output = cl.io.Output(resized, [output_stream])
 
 Putting it all together, we have:
@@ -94,18 +95,18 @@ Putting it all together, we have:
 
    input_stream = NamedVideoStream(cl, 'sample-clip', path='sample-clip.mp4')
    frames = cl.io.Input([input_stream])
-   sampled_frames = cl.streams.Stride(frames, [3]) # Select every third frame
+   sampled_frames = cl.streams.Stride(frames, [2]) # Select every other frame
    resized_frames = cl.ops.Resize(frame=sampled_frames, width=[640], height=[480]) # Resize input frame
    grayscale_frames = cl.ops.ConvertColor(frame=resized_frames, conversion=['COLOR_RGB2GRAY']) 
-   grayscale3_frames = cl.ops.CloneChannels(frame=grayscale3_frames, replications=3) 
-   output_stream = NamedVideoStream(cl, 'sample-clip-resized')
+   grayscale3_frames = cl.ops.CloneChannels(frame=grayscale_frames, replications=3) 
+   output_stream = NamedVideoStream(cl, 'sample-grayscale')
    output = cl.io.Output(grayscale3_frames, [output_stream])
 
 At this point, we have defined a graph that describes the computation to run, but we haven't yet told Scanner to execute the graph.
 
 .. _defining_a_job:
 
-Executing a computation graph
+Executing the computation graph
 -----------------------------
 Executing a graph is done by calling :code:`run` on the client object, specifying the outputs we want to produce:
 
@@ -123,11 +124,13 @@ Last, we can directly save our output stream as an  mp4 file by calling :code:`s
 
    output_stream.save_mp4('resized-video')
 
-After this call returns, an mp4 video should be saved to the current working directory called :code:`sample-clip-grayscale.mp4` that consists of the grayscale frames that we generated.
+After this call returns, an mp4 video should be saved to the current working directory called :code:`sample-grayscale.mp4` that consists of the grayscale frames that we generated. That's the complete Scanner application! 
 
-That's the complete Scanner application! If you'd like to learn about process multiple jobs, keep reading! Otherwise, to learn more about the features of Scanner, checkout the following:
+Next Steps
+----------
+To learn more about the features of Scanner, checkout the following:
 
-- :ref:`tutorial`: introduces each of Scanner's features with code examples.
+- `Tutorials <https://github.com/scanner-research/scanner/tree/master/examples/tutorials>`__: introduces each of Scanner's features with code examples.
 - :ref:`graphs`: describes how computation graphs are constructed and configured.
 - :ref:`ops`: describes the capabilities of Scanner's ops and how they work inside computation  graphs.
 - :ref:`stored-streams`: describes the stored stream interface.
@@ -156,9 +159,3 @@ If you installed Scanner yourself, then run:
 
 Then visit port 8888 on your server/localhost, click through to
 :code:`examples/Walkthrough.ipynb`, and follow the directions in the notebook.
-
-Extended Tutorials
-~~~~~~~~~~~~~~~~~~
-Scanner provides a set of tutorials that provide step-by-step examples of many
-of the basic features provided by Scanner. These tutorials can be found
-`here <https://github.com/scanner-research/scanner/tree/master/examples/tutorials>`__.
