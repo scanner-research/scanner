@@ -57,8 +57,8 @@ cd -
 cd build
 cmake -D BUILD_DOCS=ON ..
 make doxygen
-cp -r doxygen/html ${HTML_PATH}/cpp
 cd -
+cp -r build/doxygen/html ${HTML_PATH}/cpp
 
 cd ${HTML_PATH}
 cp /tmp/CNAME .
