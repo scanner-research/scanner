@@ -46,6 +46,12 @@ if (NO_FFMPEG STREQUAL "false")
   add_definitions(-DHAVE_FFMPEG)
 endif()
 
+if (NO_HWANG STREQUAL "false")
+  find_package(Hwang REQUIRED)
+  include_directories("${HWANG_INCLUDE_DIRS}")
+  add_definitions(-DHAVE_HWANG)
+endif()
+
 ###### Required Dependencies #######
 find_package(SaneProtobuf REQUIRED)
 find_package(GRPC REQUIRED)
@@ -63,7 +69,6 @@ find_package(Iconv REQUIRED)
 find_package(Storehouse REQUIRED CONFIG
   PATHS "${CMAKE_SOURCE_DIR}/thirdparty/install"
   "${STOREHOUSE_DIR}")
-find_package(Hwang REQUIRED)
 find_package(TinyToml REQUIRED)
 find_package(OpenCV COMPONENTS ${OPENCV_DESIRED_COMPONENTS})
 
@@ -102,7 +107,6 @@ set(SCANNER_LIBRARIES
 include_directories(
   "."
   "${CMAKE_CURRENT_BINARY_DIR}" # for protobuf generated files
-  "${HWANG_INCLUDE_DIRS}"
   "${PROTOBUF_INCLUDE_DIRS}"
   "${GRPC_INCLUDE_DIRS}"
   "${TINYTOML_INCLUDE_DIR}"
