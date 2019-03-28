@@ -1,0 +1,251 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+<title>Computation Graphs - Scanner</title>
+
+
+    <link rel="stylesheet" href="../_static/basic.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/language_data.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Operations" href="ops.html" />
+    <link rel="prev" title="Walkthroughs" href="walkthrough.html" />
+<meta charset='utf-8'>
+<meta http-equiv='X-UA-Compatible' content='IE=edge,chrome=1'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1'>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" />
+<link rel="stylesheet"
+      href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/styles/default.min.css">
+
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="ops.html" title="Operations"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="walkthrough.html" title="Walkthroughs"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">Scanner 0.2.22 documentation</a> &#187;</li> 
+      </ul>
+    </div>
+<div class="container">
+  <div id="navbar" class="navbar-default">
+    <div class="row">
+      <div class="col-md-4 col-sm-12">
+        <a class="navbar-brand" href="../index.html"><span><img src="../_static/scanner_logo.png"></span>
+        </a>
+      </div>
+      <div class="col-md-4 offset-md-4 col-sm-12">
+        <div class="btn-group">
+          <a href="../guide.html"><button type="button" class="btn btn-light">Guide</button></a>
+          <a href="../api.html"><button type="button" class="btn btn-light">API</button></a>
+          <a href="https://github.com/scanner-research/scanner"><button type="button" class="btn btn-light">Github</button></a>
+          <a href="../publications.html"><button type="button" class="btn btn-light">Publications</button></a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-3">
+      <div class="bs-sidenav"><div class="guidetoc-container">
+  <div class="guidetoc"
+       role="navigation">
+    <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting-started.html">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="getting-started.html#docker">Docker</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting-started.html#homebrew">Homebrew</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting-started.html#from-source">From Source</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="walkthrough.html">Walkthroughs</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="walkthrough.html#converting-a-video-to-grayscale">Converting a video to grayscale</a></li>
+<li class="toctree-l2"><a class="reference internal" href="walkthrough.html#walking-through-a-more-advanced-jupyter-based-app">Walking through a more advanced Jupyter-based app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="walkthrough.html#extended-tutorials">Extended Tutorials</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Computation Graphs</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#multiple-inputs-and-outputs">Multiple inputs and outputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#batch-processing-of-stored-streams">Batch processing of stored streams</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#stream-operations">Stream Operations</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="ops.html">Operations</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="ops.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ops.html#defining-an-operation-in-python">Defining an Operation in Python</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ops.html#declaring-parameters">Declaring Parameters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ops.html#fetching-resources">Fetching Resources</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ops.html#operation-properties">Operation Properties</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ops.html#defining-an-operation-in-c">Defining an Operation in C++</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="stored-streams.html">Stored Streams</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="stored-streams.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stored-streams.html#storage-backends">Storage Backends</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stored-streams.html#i-o-operations">I/O Operations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stored-streams.html#reading-data-locally">Reading Data Locally</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stored-streams.html#deleting-stored-streams">Deleting Stored Streams</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stored-streams.html#inplace-video-indexing">Inplace video indexing</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="profiling.html">Performance Profiling</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="profiling.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="profiling.html#trace-visualization">Trace Visualization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="profiling.html#scanner-s-execution-model">Scanner’s Execution Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="profiling.html#tunable-parameters">Tunable Parameters</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="kubernetes.html">Kubernetes Integration</a></li>
+</ul>
+
+  </div>
+</div>
+      </div>
+    </div>
+    <div class="col-md-9">
+      <div class="content">
+        
+  <div class="section" id="computation-graphs">
+<span id="graphs"></span><h1>Computation Graphs<a class="headerlink" href="#computation-graphs" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Permalink to this headline">¶</a></h2>
+<p>Scanner represents applications as <em>computation graphs</em>. The nodes in computation graphs are Scanner operations (check out the <span class="xref std std-ref">operations</span> guide for more information) and the edges between operations represent streams of data consumed and produced by operations. Nodes in a computation graph are one of four types:</p>
+<ul class="simple">
+<li><strong>Input nodes</strong> (<code class="code docutils literal notranslate"><span class="pre">cl.io.Input</span></code>): read data from stored streams (<a class="reference internal" href="stored-streams.html#stored-streams"><span class="std std-ref">Stored Streams</span></a>), such as from videos or previously generated metadata.</li>
+<li><strong>Operation nodes</strong> (<code class="code docutils literal notranslate"><span class="pre">cl.ops.XXX</span></code>): represent functions that transform their inputs into new outputs, such as performing a resize of a frame.</li>
+<li><strong>Stream operation nodes</strong> (<code class="code docutils literal notranslate"><span class="pre">cl.streams.XXX</span></code>):</li>
+<li><strong>Output nodes</strong> (<code class="code docutils literal notranslate"><span class="pre">cl.io.Output</span></code>): write data to empty stored streams.</li>
+</ul>
+<p>For example, let’s look at a computation graph with an operation that resizes frames:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">scannerpy</span> <span class="kn">as</span> <span class="nn">sp</span>
+<span class="kn">import</span> <span class="nn">scannertools.imgproc</span>
+
+<span class="n">cl</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">Client</span><span class="p">()</span>
+<span class="n">video_stream</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">NamedVideoStream</span><span class="p">(</span><span class="n">cl</span><span class="p">,</span> <span class="s1">&#39;example&#39;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s1">&#39;example.mp4&#39;</span><span class="p">)</span>
+<span class="n">input_frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">Input</span><span class="p">([</span><span class="n">video_stream</span><span class="p">])</span>
+<span class="n">resized_frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Resize</span><span class="p">(</span><span class="n">frame</span><span class="o">=</span><span class="n">input_frames</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="p">[</span><span class="mi">640</span><span class="p">],</span> <span class="n">height</span><span class="o">=</span><span class="p">[</span><span class="mi">480</span><span class="p">])</span>
+<span class="n">output_stream</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">NamedVideoStream</span><span class="p">(</span><span class="n">cl</span><span class="p">,</span> <span class="s1">&#39;example-output&#39;</span><span class="p">)</span>
+<span class="n">output</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">Output</span><span class="p">(</span><span class="n">resized_frames</span><span class="p">,</span> <span class="p">[</span><span class="n">output_stream</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>Here, the <code class="code docutils literal notranslate"><span class="pre">cl.io.Input</span></code>, <code class="code docutils literal notranslate"><span class="pre">cl.ops.Resize</span></code>, and <code class="code docutils literal notranslate"><span class="pre">cl.io.Output</span></code> operations are nodes in a three node graph. <code class="code docutils literal notranslate"><span class="pre">cl.ops.Resize</span></code> is connected to <code class="code docutils literal notranslate"><span class="pre">cl.io.Input</span></code> through passing its output, <code class="code docutils literal notranslate"><span class="pre">input_frames</span></code>, to the resize operation, <code class="code docutils literal notranslate"><span class="pre">frame=input_frames</span></code>. Likewise for <code class="code docutils literal notranslate"><span class="pre">cl.io.Output</span></code> and <code class="code docutils literal notranslate"><span class="pre">cl.ops.Resize</span></code>, but <a class="reference internal" href="../api/scannerpy.html#scannerpy.io.IOGenerator.Output" title="scannerpy.io.IOGenerator.Output"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Output()</span></code></a> operations also bind an edge from a computation graph to an empty stored stream (<code class="code docutils literal notranslate"><span class="pre">output_stream</span></code> here) to be filled in with the sequence of elements produce from that edge. Importantly, note that we have not processed any data at this point: we have only defined a computation graph that we can tell Scanner to execute. Let’s do that now:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">cl</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This operation will kick-off a Scanner job that will read all the elements in the input <code class="code docutils literal notranslate"><span class="pre">video_stream</span></code> and write outputs to <code class="code docutils literal notranslate"><span class="pre">output_stream</span></code>.</p>
+<p>The rest of this guide goes into further detail on the capabilities of computation graphs.</p>
+</div>
+<div class="section" id="multiple-inputs-and-outputs">
+<h2>Multiple inputs and outputs<a class="headerlink" href="#multiple-inputs-and-outputs" title="Permalink to this headline">¶</a></h2>
+<p>Computation graphs can have any number of inputs and outputs. Here’s an example graph with one input and two outputs:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">video_stream</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">NamedVideoStream</span><span class="p">(</span><span class="n">cl</span><span class="p">,</span> <span class="s1">&#39;example&#39;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s1">&#39;example.mp4&#39;</span><span class="p">)</span>
+<span class="n">input_frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">Input</span><span class="p">([</span><span class="n">video_stream</span><span class="p">])</span>
+
+<span class="n">large_frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Resize</span><span class="p">(</span><span class="n">frame</span><span class="o">=</span><span class="n">input_frames</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="p">[</span><span class="mi">1280</span><span class="p">],</span> <span class="n">height</span><span class="o">=</span><span class="p">[</span><span class="mi">720</span><span class="p">])</span>
+<span class="n">small_frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Resize</span><span class="p">(</span><span class="n">frame</span><span class="o">=</span><span class="n">input_frames</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="p">[</span><span class="mi">640</span><span class="p">],</span> <span class="n">height</span><span class="o">=</span><span class="p">[</span><span class="mi">480</span><span class="p">])</span>
+
+<span class="n">large_stream</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">NamedVideoStream</span><span class="p">(</span><span class="n">cl</span><span class="p">,</span> <span class="s1">&#39;large-output&#39;</span><span class="p">)</span>
+<span class="n">large_output</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">Output</span><span class="p">(</span><span class="n">large_frames</span><span class="p">,</span> <span class="p">[</span><span class="n">large_stream</span><span class="p">])</span>
+
+<span class="n">small_stream</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">NamedVideoStream</span><span class="p">(</span><span class="n">cl</span><span class="p">,</span> <span class="s1">&#39;small-output&#39;</span><span class="p">)</span>
+<span class="n">small_output</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">Output</span><span class="p">(</span><span class="n">small_frames</span><span class="p">,</span> <span class="p">[</span><span class="n">small_stream</span><span class="p">])</span>
+
+<span class="n">cl</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="n">large_output</span><span class="p">,</span> <span class="n">small_output</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>Notice how we pass both outputs to the <a class="reference internal" href="../api/scannerpy.html#scannerpy.client.Client.run" title="scannerpy.client.Client.run"><code class="xref py py-meth docutils literal notranslate"><span class="pre">run()</span></code></a> method. Scanner only runs the portions of the graph needed to produce the streams for the outputs passed to <code class="code docutils literal notranslate"><span class="pre">run</span></code>.</p>
+</div>
+<div class="section" id="batch-processing-of-stored-streams">
+<span id="batch-processing"></span><h2>Batch processing of stored streams<a class="headerlink" href="#batch-processing-of-stored-streams" title="Permalink to this headline">¶</a></h2>
+<p>Often, one has a large collection of videos that they want to run the same computation graph over. Scanner supports this via batch processing of input and output streams. To process a batch of streams, create a list of <a class="reference internal" href="stored-streams.html#stored-streams"><span class="std std-ref">Stored Streams</span></a> representing the input videos and then pass that list to the input operation:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">input_streams</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">NamedVideoStream</span><span class="p">(</span><span class="n">cl</span><span class="p">,</span> <span class="s1">&#39;example1&#39;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s1">&#39;example1.mp4&#39;</span><span class="p">),</span>
+    <span class="n">NamedVideoStream</span><span class="p">(</span><span class="n">cl</span><span class="p">,</span> <span class="s1">&#39;example2&#39;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s1">&#39;example2.mp4&#39;</span><span class="p">),</span>
+    <span class="o">...</span>
+    <span class="n">NamedVideoStream</span><span class="p">(</span><span class="n">cl</span><span class="p">,</span> <span class="s1">&#39;example100&#39;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s1">&#39;example100.mp4&#39;</span><span class="p">)]</span>
+<span class="n">input_frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">Input</span><span class="p">(</span><span class="n">input_streams</span><span class="p">)</span>
+<span class="n">resized_frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Resize</span><span class="p">(</span><span class="n">frame</span><span class="o">=</span><span class="n">input_frames</span><span class="p">,</span>
+                               <span class="n">width</span><span class="o">=</span><span class="p">[</span><span class="mi">640</span><span class="p">,</span> <span class="mi">1280</span><span class="p">,</span> <span class="o">...</span><span class="p">,</span> <span class="mi">480</span><span class="p">],</span>
+                               <span class="n">height</span><span class="o">=</span><span class="p">[</span><span class="mi">480</span><span class="p">,</span> <span class="mi">720</span><span class="p">,</span> <span class="o">...</span><span class="p">,</span> <span class="mi">360</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>Note that this is different from having multiple inputs or outputs to a computation graph. This graph still has only  one input because each video in the batch is processed independently. Conceptually, you can think of batch processing as executing a separate instance of the graph for each input stream in a batch. Notice the other change that we made to this graph: the <code class="code docutils literal notranslate"><span class="pre">width</span></code> and <code class="code docutils literal notranslate"><span class="pre">height</span></code> arguments to <code class="code docutils literal notranslate"><span class="pre">Resize</span></code> are now lists of the same length as <code class="code docutils literal notranslate"><span class="pre">input_streams</span></code>. This is because <code class="code docutils literal notranslate"><span class="pre">height</span></code> and <code class="code docutils literal notranslate"><span class="pre">width</span></code> are <em>stream config parameters</em> to <code class="code docutils literal notranslate"><span class="pre">Resize</span></code>: each input stream gets its own set of parameters. Check out the <a class="reference internal" href="ops.html#stream-config-parameters"><span class="std std-ref">Stream Config Parameters</span></a> section to learn more about how stream config parameters work.</p>
+<p>We also need a corresponding output stream for each of our input streams:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">output_streams</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">NamedVideoStream</span><span class="p">(</span><span class="n">cl</span><span class="p">,</span> <span class="s1">&#39;example1-resized&#39;</span><span class="p">),</span>
+    <span class="n">NamedVideoStream</span><span class="p">(</span><span class="n">cl</span><span class="p">,</span> <span class="s1">&#39;example2-resized&#39;</span><span class="p">),</span>
+    <span class="o">...</span>
+    <span class="n">NamedVideoStream</span><span class="p">(</span><span class="n">cl</span><span class="p">,</span> <span class="s1">&#39;example100-resized&#39;</span><span class="p">)]</span>
+<span class="n">output</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">Output</span><span class="p">(</span><span class="n">resized_frames</span><span class="p">,</span> <span class="n">output_streams</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>When executing this graph, Scanner will read and process each input stream independently to produce the output streams. If Scanner is running on a multi-core machine, multi-GPU machine, or on a cluster of machines, the videos will be processed in parallel across any of those configurations.</p>
+</div>
+<div class="section" id="stream-operations">
+<span id="id1"></span><h2>Stream Operations<a class="headerlink" href="#stream-operations" title="Permalink to this headline">¶</a></h2>
+<p>Most operations are restricted to produce a single output element for each input element they receive. However, sometimes an application only needs to process a subset of all of the input elements from a stored stream. Scanner supports this using <em>stream operations</em>. For example, if an application only requires every third frame from a video, we can use a <code class="xref py py-meth docutils literal notranslate"><span class="pre">Stride()</span></code> operation:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">input_frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">Input</span><span class="p">([</span><span class="n">video_stream</span><span class="p">])</span>
+<span class="n">resized_frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Resize</span><span class="p">(</span><span class="n">frame</span><span class="o">=</span><span class="n">input_frames</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="p">[</span><span class="mi">640</span><span class="p">],</span> <span class="n">height</span><span class="o">=</span><span class="p">[</span><span class="mi">480</span><span class="p">])</span>
+<span class="n">sampled_frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">streams</span><span class="o">.</span><span class="n">Stride</span><span class="p">(</span><span class="n">resized_frames</span><span class="p">,</span> <span class="p">[</span><span class="mi">3</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>If <code class="code docutils literal notranslate"><span class="pre">video_stream</span></code> is of length 30, then <code class="code docutils literal notranslate"><span class="pre">sampled_frame</span></code> will be a sequence of length 10 with the frames at indices [0, 3, 6, 9, … 27]. Scanner also supports other types of stream operations, such as <code class="xref py py-meth docutils literal notranslate"><span class="pre">Gather()</span></code>, which selects frames given a list of indices:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">sampled_frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">streams</span><span class="o">.</span><span class="n">Gather</span><span class="p">(</span><span class="n">resized_frames</span><span class="p">,</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">29</span><span class="p">]])</span>
+</pre></div>
+</div>
+<p>To see the full list of stream operations, check out the methods of <code class="xref py py-class docutils literal notranslate"><span class="pre">StreamsGeneator</span></code>.</p>
+</div>
+</div>
+
+
+      </div>
+    </div>
+  </div>
+</div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="ops.html" title="Operations"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="walkthrough.html" title="Walkthroughs"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">Scanner 0.2.22 documentation</a> &#187;</li> 
+      </ul>
+    </div>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/languages/python.min.js"></script>
+<script>hljs.initHighlightingOnLoad();</script>
+  </body>
+</html>

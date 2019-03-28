@@ -1,11 +1,16 @@
-<!DOCTYPE html>
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    <title>scannerpy.streams &#8212; Scanner 0.2.22 documentation</title>
-    <link rel="stylesheet" href="../../_static/bootstrap-sphinx.css" type="text/css" />
+
+<title>scannerpy.streams - Scanner</title>
+
+
+    <link rel="stylesheet" href="../../_static/basic.css" type="text/css" />
     <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
     <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
@@ -13,112 +18,94 @@
     <script type="text/javascript" src="../../_static/underscore.js"></script>
     <script type="text/javascript" src="../../_static/doctools.js"></script>
     <script type="text/javascript" src="../../_static/language_data.js"></script>
-    <script type="text/javascript" src="../../_static/js/jquery-1.11.0.min.js"></script>
-    <script type="text/javascript" src="../../_static/js/jquery-fix.js"></script>
-    <script type="text/javascript" src="../../_static/bootstrap-3.3.7/js/bootstrap.min.js"></script>
-    <script type="text/javascript" src="../../_static/bootstrap-sphinx.js"></script>
-    <link rel="author" title="About these documents" href="../../about.html" />
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
 <meta charset='utf-8'>
 <meta http-equiv='X-UA-Compatible' content='IE=edge,chrome=1'>
 <meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1'>
 <meta name="apple-mobile-web-app-capable" content="yes">
-
-<!-- Global site tag (gtag.js) - Google Analytics -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-133298183-1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'UA-133298183-1');
-</script>
-
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" />
 <link rel="stylesheet"
-      href="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.13.1/build/styles/atelier-cave-light.min.css">
-<script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@9.13.1/build/highlight.min.js"></script>
-<script>hljs.initHighlightingOnLoad();</script>
+      href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/styles/default.min.css">
 
   </head><body>
-<a href="https://github.com/scanner-research/scanner" class="github-corner" aria-label="View source on GitHub"><svg width="80" height="80" viewBox="0 0 250 250" style="fill:#70B7FD; color:#fff; position: absolute; top: 0; border: 0; right: 0; z-index: 1;" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
-<style>.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}@media (max-width:500px){.github-corner:hover .octo-arm{animation:none}.github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}}</style>
-
-
- <div id="navbar" class="navbar navbar-scanner ">
-    <div class="container navbar-container">
-      <div class="navbar-header">
-        <!-- .btn-navbar is used as the toggle for collapsed navbar content -->
-        <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".nav-collapse">
-          <span class="icon-bar"></span>
-          <span class="icon-bar"></span>
-          <span class="icon-bar"></span>
-        </button>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Scanner 0.2.22 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>
+<div class="container">
+  <div id="navbar" class="navbar-default">
+    <div class="row">
+      <div class="col-md-4 col-sm-12">
         <a class="navbar-brand" href="../../index.html"><span><img src="../../_static/scanner_logo.png"></span>
-           </a>
+        </a>
       </div>
-
-        <div class="collapse navbar-collapse nav-collapse">
-          <ul class="nav navbar-nav">
-            
-                <li><a href="../../guide.html" class="navbar-link">Guide</a></li>
-                <li><a href="../../api.html" class="navbar-link">API</a></li>
-                <li><a href="https://github.com/scanner-research/scanner" class="navbar-link">Github</a></li>
-            
-            
-              <li class="dropdown globaltoc-container">
-  <a role="button"
-     id="dLabelGlobalToc"
-     data-toggle="dropdown"
-     data-target="#"
-     href="../../index.html">Site <b class="caret"></b></a>
-  <ul class="dropdown-menu globaltoc"
-      role="menu"
-      aria-labelledby="dLabelGlobalToc"></ul>
-</li>
-              
-            
-            
-              
-                
-              
-            
-            
-            
-            
-          </ul>
+      <div class="col-md-4 offset-md-4 col-sm-12">
+        <div class="btn-group">
+          <a href="../../guide.html"><button type="button" class="btn btn-light">Guide</button></a>
+          <a href="../../api.html"><button type="button" class="btn btn-light">API</button></a>
+          <a href="https://github.com/scanner-research/scanner"><button type="button" class="btn btn-light">Github</button></a>
+          <a href="../../publications.html"><button type="button" class="btn btn-light">Publications</button></a>
         </div>
+      </div>
     </div>
   </div>
 
-<div class="container">
   <div class="row">
-    <div class="col-md-12 content">
-      
+    <div class="col-md-3">
+      <div class="bs-sidenav">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+      </div>
+    </div>
+    <div class="col-md-9">
+      <div class="content">
+        
   <h1>Source code for scannerpy.streams</h1><div class="highlight"><pre>
 <span></span><span class="kn">import</span> <span class="nn">scannerpy.op</span>
 
 <span class="kn">from</span> <span class="nn">scannerpy.common</span> <span class="k">import</span> <span class="o">*</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="k">import</span> <span class="n">Sequence</span><span class="p">,</span> <span class="n">Union</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Optional</span>
+<span class="kn">from</span> <span class="nn">scannerpy.protobufs</span> <span class="k">import</span> <span class="n">protobufs</span>
+<span class="kn">from</span> <span class="nn">scannerpy.op</span> <span class="k">import</span> <span class="n">SliceList</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="k">import</span> <span class="n">Sequence</span><span class="p">,</span> <span class="n">Union</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">List</span>
 
 <div class="viewcode-block" id="StreamsGenerator"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.streams.StreamsGenerator">[docs]</a><span class="k">class</span> <span class="nc">StreamsGenerator</span><span class="p">:</span>
     <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Provides Ops for sampling elements from streams.</span>
 
 <span class="sd">    The methods of this class construct Scanner Ops that enable selecting</span>
-<span class="sd">    subsets of the elements in a stream to produce new streams. </span>
+<span class="sd">    subsets of the elements in a stream to produce new streams.</span>
 
 <span class="sd">    This class should not be constructed directly, but accessed via a Database</span>
 <span class="sd">    object like:</span>
 
-<span class="sd">      db.streams.Range(input)</span>
+<span class="sd">      sc.streams.Range(input)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">db</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_db</span> <span class="o">=</span> <span class="n">db</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sc</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sc</span> <span class="o">=</span> <span class="n">sc</span>
 
 <div class="viewcode-block" id="StreamsGenerator.Slice"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.streams.StreamsGenerator.Slice">[docs]</a>    <span class="k">def</span> <span class="nf">Slice</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
               <span class="nb">input</span><span class="p">:</span> <span class="n">scannerpy</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">OpColumn</span><span class="p">,</span>
-              <span class="n">partitioner</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">scannerpy</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">OpColumn</span><span class="p">:</span>
+              <span class="n">partitions</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">scannerpy</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">OpColumn</span><span class="p">:</span>
         <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Partitions a stream into independent substreams.</span>
 
 <span class="sd">        Parameters</span>
@@ -135,13 +122,13 @@
 <span class="sd">        scannerpy.op.OpColumn</span>
 <span class="sd">          A new stream which represents multiple substreams.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">def</span> <span class="nf">arg_builder</span><span class="p">(</span><span class="n">partitioner</span><span class="o">=</span><span class="n">partitioner</span><span class="p">):</span>
+        <span class="k">def</span> <span class="nf">arg_builder</span><span class="p">(</span><span class="n">partitioner</span><span class="p">):</span>
             <span class="k">return</span> <span class="n">partitioner</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Slice</span><span class="p">(</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sc</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Slice</span><span class="p">(</span>
             <span class="n">col</span><span class="o">=</span><span class="nb">input</span><span class="p">,</span>
             <span class="n">extra</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;Slice&#39;</span><span class="p">,</span>
                    <span class="s1">&#39;arg_builder&#39;</span><span class="p">:</span> <span class="n">arg_builder</span><span class="p">,</span>
-                   <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="n">partitioner</span><span class="p">})</span></div>
+                   <span class="s1">&#39;job_args&#39;</span><span class="p">:</span> <span class="n">partitions</span><span class="p">})</span></div>
 
 <div class="viewcode-block" id="StreamsGenerator.Unslice"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.streams.StreamsGenerator.Unslice">[docs]</a>    <span class="k">def</span> <span class="nf">Unslice</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">input</span><span class="p">:</span> <span class="n">scannerpy</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">OpColumn</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">scannerpy</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">OpColumn</span><span class="p">:</span>
         <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Joins substreams back together.</span>
@@ -156,7 +143,7 @@
 <span class="sd">        scannerpy.op.OpColumn</span>
 <span class="sd">          A new stream which is the concatentation of the input substreams.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Unslice</span><span class="p">(</span><span class="n">col</span><span class="o">=</span><span class="nb">input</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sc</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Unslice</span><span class="p">(</span><span class="n">col</span><span class="o">=</span><span class="nb">input</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="StreamsGenerator.All"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.streams.StreamsGenerator.All">[docs]</a>    <span class="k">def</span> <span class="nf">All</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">input</span><span class="p">:</span> <span class="n">scannerpy</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">OpColumn</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">scannerpy</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">OpColumn</span><span class="p">:</span>
         <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Samples all elements from the stream.</span>
@@ -174,10 +161,10 @@
 <span class="sd">          The sampled stream.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">def</span> <span class="nf">arg_builder</span><span class="p">():</span>
-            <span class="n">sampling_args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">protobufs</span><span class="o">.</span><span class="n">SamplingArgs</span><span class="p">()</span>
+            <span class="n">sampling_args</span> <span class="o">=</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">SamplingArgs</span><span class="p">()</span>
             <span class="n">sampling_args</span><span class="o">.</span><span class="n">sampling_function</span> <span class="o">=</span> <span class="s2">&quot;All&quot;</span>
             <span class="k">return</span> <span class="n">sampling_args</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Sample</span><span class="p">(</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sc</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Sample</span><span class="p">(</span>
             <span class="n">col</span><span class="o">=</span><span class="nb">input</span><span class="p">,</span>
             <span class="n">extra</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;All&#39;</span><span class="p">,</span>
                    <span class="s1">&#39;arg_builder&#39;</span><span class="p">:</span> <span class="n">arg_builder</span><span class="p">,</span>
@@ -185,7 +172,7 @@
 
 <div class="viewcode-block" id="StreamsGenerator.Stride"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.streams.StreamsGenerator.Stride">[docs]</a>    <span class="k">def</span> <span class="nf">Stride</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
                <span class="nb">input</span><span class="p">:</span> <span class="n">scannerpy</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">OpColumn</span><span class="p">,</span>
-               <span class="n">stride</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">scannerpy</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">OpColumn</span><span class="p">:</span>
+               <span class="n">strides</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">scannerpy</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">OpColumn</span><span class="p">:</span>
         <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Samples every n&#39;th element from the stream, where n is the stride.</span>
 
 <span class="sd">        Parameters</span>
@@ -193,32 +180,31 @@
 <span class="sd">        input</span>
 <span class="sd">          The stream to sample.</span>
 
-<span class="sd">        stride</span>
-<span class="sd">          The default value to stride by for all jobs.</span>
+<span class="sd">        strides</span>
+<span class="sd">          The list of strides for each input stream.</span>
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
 <span class="sd">        scannerpy.op.OpColumn</span>
 <span class="sd">          The sampled stream.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">def</span> <span class="nf">arg_builder</span><span class="p">(</span><span class="n">stride</span><span class="o">=</span><span class="n">stride</span><span class="p">):</span>
-            <span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">protobufs</span><span class="o">.</span><span class="n">StridedSamplerArgs</span><span class="p">()</span>
+        <span class="k">def</span> <span class="nf">arg_builder</span><span class="p">(</span><span class="n">stride</span><span class="p">):</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">StridedSamplerArgs</span><span class="p">()</span>
             <span class="n">args</span><span class="o">.</span><span class="n">stride</span> <span class="o">=</span> <span class="n">stride</span>
-            <span class="n">sampling_args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">protobufs</span><span class="o">.</span><span class="n">SamplingArgs</span><span class="p">()</span>
+            <span class="n">sampling_args</span> <span class="o">=</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">SamplingArgs</span><span class="p">()</span>
             <span class="n">sampling_args</span><span class="o">.</span><span class="n">sampling_function</span> <span class="o">=</span> <span class="s2">&quot;Strided&quot;</span>
             <span class="n">sampling_args</span><span class="o">.</span><span class="n">sampling_args</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">SerializeToString</span><span class="p">()</span>
             <span class="k">return</span> <span class="n">sampling_args</span>
 
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Sample</span><span class="p">(</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sc</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Sample</span><span class="p">(</span>
             <span class="n">col</span><span class="o">=</span><span class="nb">input</span><span class="p">,</span>
             <span class="n">extra</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;Stride&#39;</span><span class="p">,</span>
                    <span class="s1">&#39;arg_builder&#39;</span><span class="p">:</span> <span class="n">arg_builder</span><span class="p">,</span>
-                   <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="n">stride</span><span class="p">})</span></div>
+                   <span class="s1">&#39;job_args&#39;</span><span class="p">:</span> <span class="n">strides</span><span class="p">})</span></div>
 
 <div class="viewcode-block" id="StreamsGenerator.Range"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.streams.StreamsGenerator.Range">[docs]</a>    <span class="k">def</span> <span class="nf">Range</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
               <span class="nb">input</span><span class="p">:</span> <span class="n">scannerpy</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">OpColumn</span><span class="p">,</span>
-              <span class="n">start</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-              <span class="n">end</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">scannerpy</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">OpColumn</span><span class="p">:</span>
+              <span class="n">ranges</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">]])</span> <span class="o">-&gt;</span> <span class="n">scannerpy</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">OpColumn</span><span class="p">:</span>
         <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Samples a range of elements from the input stream.</span>
 
 <span class="sd">        Parameters</span>
@@ -226,38 +212,40 @@
 <span class="sd">        input</span>
 <span class="sd">          The stream to sample.</span>
 
-<span class="sd">        start</span>
-<span class="sd">          The default index to start sampling from.</span>
-
-<span class="sd">        end</span>
-<span class="sd">          The default index to end sampling at.</span>
+<span class="sd">        ranges</span>
+<span class="sd">          Pairs of (start, end) for each stream being processed.</span>
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
 <span class="sd">        scannerpy.op.OpColumn</span>
 <span class="sd">          The sampled stream.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        --------</span>
+<span class="sd">        For example, to select frames 0-10 for one stream, you would write:</span>
+
+<span class="sd">        sc.streams.Ranges(input=input, ranges=[(0, 11)])</span>
+
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">def</span> <span class="nf">arg_builder</span><span class="p">(</span><span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="n">end</span><span class="p">):</span>
-            <span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">protobufs</span><span class="o">.</span><span class="n">StridedRangeSamplerArgs</span><span class="p">()</span>
+        <span class="k">def</span> <span class="nf">arg_builder</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">):</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">StridedRangeSamplerArgs</span><span class="p">()</span>
             <span class="n">args</span><span class="o">.</span><span class="n">stride</span> <span class="o">=</span> <span class="mi">1</span>
             <span class="n">args</span><span class="o">.</span><span class="n">starts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">start</span><span class="p">)</span>
             <span class="n">args</span><span class="o">.</span><span class="n">ends</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">end</span><span class="p">)</span>
-            <span class="n">sampling_args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">protobufs</span><span class="o">.</span><span class="n">SamplingArgs</span><span class="p">()</span>
+            <span class="n">sampling_args</span> <span class="o">=</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">SamplingArgs</span><span class="p">()</span>
             <span class="n">sampling_args</span><span class="o">.</span><span class="n">sampling_function</span> <span class="o">=</span> <span class="s2">&quot;StridedRanges&quot;</span>
             <span class="n">sampling_args</span><span class="o">.</span><span class="n">sampling_args</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">SerializeToString</span><span class="p">()</span>
             <span class="k">return</span> <span class="n">sampling_args</span>
 
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Sample</span><span class="p">(</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sc</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Sample</span><span class="p">(</span>
             <span class="n">col</span><span class="o">=</span><span class="nb">input</span><span class="p">,</span>
             <span class="n">extra</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;Range&#39;</span><span class="p">,</span>
                    <span class="s1">&#39;arg_builder&#39;</span><span class="p">:</span> <span class="n">arg_builder</span><span class="p">,</span>
-                   <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">)</span> <span class="k">if</span> <span class="p">(</span><span class="n">start</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span>
-                                               <span class="n">end</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span><span class="p">})</span></div>
-
+                   <span class="s1">&#39;job_args&#39;</span><span class="p">:</span> <span class="n">ranges</span><span class="p">})</span></div>
 
 <div class="viewcode-block" id="StreamsGenerator.Ranges"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.streams.StreamsGenerator.Ranges">[docs]</a>    <span class="k">def</span> <span class="nf">Ranges</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
                <span class="nb">input</span><span class="p">:</span> <span class="n">scannerpy</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">OpColumn</span><span class="p">,</span>
-               <span class="n">intervals</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">scannerpy</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">OpColumn</span><span class="p">:</span>
+               <span class="n">intervals</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]])</span> <span class="o">-&gt;</span> <span class="n">scannerpy</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">OpColumn</span><span class="p">:</span>
         <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Samples multiple ranges of elements from the input stream.</span>
 
 <span class="sd">        Parameters</span>
@@ -266,7 +254,7 @@
 <span class="sd">          The stream to sample.</span>
 
 <span class="sd">        intervals</span>
-<span class="sd">          The default intervals to sample from. This should be a list</span>
+<span class="sd">          The intervals to sample from. This should be a list</span>
 <span class="sd">          of tuples representing start and end ranges.</span>
 
 <span class="sd">        Returns</span>
@@ -276,32 +264,30 @@
 
 <span class="sd">        Examples</span>
 <span class="sd">        --------</span>
-<span class="sd">        For example, to select frames 0-10 and 100-200, you would write:</span>
+<span class="sd">        For example, to select frames 0-10 and 100-200 for one stream, you would write:</span>
 
-<span class="sd">        db.streams.Ranges(input=input, intervals=[(0, 11), (100, 201)])</span>
+<span class="sd">        sc.streams.Ranges(input=input, intervals=[[(0, 11), (100, 201)]])</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">def</span> <span class="nf">arg_builder</span><span class="p">(</span><span class="n">intervals</span><span class="o">=</span><span class="n">intervals</span><span class="p">):</span>
-            <span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">protobufs</span><span class="o">.</span><span class="n">StridedRangeSamplerArgs</span><span class="p">()</span>
+        <span class="k">def</span> <span class="nf">arg_builder</span><span class="p">(</span><span class="n">intervals</span><span class="p">):</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">StridedRangeSamplerArgs</span><span class="p">()</span>
             <span class="n">args</span><span class="o">.</span><span class="n">stride</span> <span class="o">=</span> <span class="mi">1</span>
             <span class="k">for</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span> <span class="ow">in</span> <span class="n">intervals</span><span class="p">:</span>
                 <span class="n">args</span><span class="o">.</span><span class="n">starts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">start</span><span class="p">)</span>
                 <span class="n">args</span><span class="o">.</span><span class="n">ends</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">end</span><span class="p">)</span>
-            <span class="n">sampling_args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">protobufs</span><span class="o">.</span><span class="n">SamplingArgs</span><span class="p">()</span>
+            <span class="n">sampling_args</span> <span class="o">=</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">SamplingArgs</span><span class="p">()</span>
             <span class="n">sampling_args</span><span class="o">.</span><span class="n">sampling_function</span> <span class="o">=</span> <span class="s2">&quot;StridedRanges&quot;</span>
             <span class="n">sampling_args</span><span class="o">.</span><span class="n">sampling_args</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">SerializeToString</span><span class="p">()</span>
             <span class="k">return</span> <span class="n">sampling_args</span>
 
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Sample</span><span class="p">(</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sc</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Sample</span><span class="p">(</span>
             <span class="n">col</span><span class="o">=</span><span class="nb">input</span><span class="p">,</span>
             <span class="n">extra</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;Ranges&#39;</span><span class="p">,</span>
                    <span class="s1">&#39;arg_builder&#39;</span><span class="p">:</span> <span class="n">arg_builder</span><span class="p">,</span>
-                   <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="n">intervals</span> <span class="k">if</span> <span class="n">intervals</span> <span class="k">else</span> <span class="kc">None</span><span class="p">})</span></div>
+                   <span class="s1">&#39;job_args&#39;</span><span class="p">:</span> <span class="n">intervals</span><span class="p">})</span></div>
 
 <div class="viewcode-block" id="StreamsGenerator.StridedRange"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.streams.StreamsGenerator.StridedRange">[docs]</a>    <span class="k">def</span> <span class="nf">StridedRange</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
                      <span class="nb">input</span><span class="p">:</span> <span class="n">scannerpy</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">OpColumn</span><span class="p">,</span>
-                     <span class="n">start</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-                     <span class="n">end</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-                     <span class="n">stride</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">scannerpy</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">OpColumn</span><span class="p">:</span>
+                     <span class="n">ranges</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">scannerpy</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">OpColumn</span><span class="p">:</span>
         <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Samples a strided range of elements from the input stream.</span>
 
 <span class="sd">        Parameters</span>
@@ -323,23 +309,21 @@
 <span class="sd">        scannerpy.op.OpColumn</span>
 <span class="sd">          The sampled stream.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">def</span> <span class="nf">arg_builder</span><span class="p">(</span><span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="n">end</span><span class="p">,</span> <span class="n">stride</span><span class="o">=</span><span class="n">stride</span><span class="p">):</span>
-            <span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">protobufs</span><span class="o">.</span><span class="n">StridedRangeSamplerArgs</span><span class="p">()</span>
+        <span class="k">def</span> <span class="nf">arg_builder</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">stride</span><span class="p">):</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">StridedRangeSamplerArgs</span><span class="p">()</span>
             <span class="n">args</span><span class="o">.</span><span class="n">stride</span> <span class="o">=</span> <span class="n">stride</span>
             <span class="n">args</span><span class="o">.</span><span class="n">starts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">start</span><span class="p">)</span>
             <span class="n">args</span><span class="o">.</span><span class="n">ends</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">end</span><span class="p">)</span>
-            <span class="n">sampling_args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">protobufs</span><span class="o">.</span><span class="n">SamplingArgs</span><span class="p">()</span>
+            <span class="n">sampling_args</span> <span class="o">=</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">SamplingArgs</span><span class="p">()</span>
             <span class="n">sampling_args</span><span class="o">.</span><span class="n">sampling_function</span> <span class="o">=</span> <span class="s2">&quot;StridedRanges&quot;</span>
             <span class="n">sampling_args</span><span class="o">.</span><span class="n">sampling_args</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">SerializeToString</span><span class="p">()</span>
             <span class="k">return</span> <span class="n">sampling_args</span>
 
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Sample</span><span class="p">(</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sc</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Sample</span><span class="p">(</span>
             <span class="n">col</span><span class="o">=</span><span class="nb">input</span><span class="p">,</span>
             <span class="n">extra</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;StridedRange&#39;</span><span class="p">,</span>
                    <span class="s1">&#39;arg_builder&#39;</span><span class="p">:</span> <span class="n">arg_builder</span><span class="p">,</span>
-                   <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">stride</span><span class="p">)</span> <span class="k">if</span> <span class="p">(</span><span class="n">start</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span>
-                                                       <span class="n">end</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span>
-                                                       <span class="n">stride</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span><span class="p">})</span></div>
+                   <span class="s1">&#39;job_args&#39;</span><span class="p">:</span> <span class="n">ranges</span><span class="p">})</span></div>
 
 
 <div class="viewcode-block" id="StreamsGenerator.StridedRanges"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.streams.StreamsGenerator.StridedRanges">[docs]</a>    <span class="k">def</span> <span class="nf">StridedRanges</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
@@ -366,17 +350,17 @@
 <span class="sd">          The sampled stream.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">def</span> <span class="nf">arg_builder</span><span class="p">(</span><span class="n">intervals</span><span class="o">=</span><span class="n">intervals</span><span class="p">,</span> <span class="n">stride</span><span class="o">=</span><span class="n">stride</span><span class="p">):</span>
-            <span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">protobufs</span><span class="o">.</span><span class="n">StridedRangeSamplerArgs</span><span class="p">()</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">StridedRangeSamplerArgs</span><span class="p">()</span>
             <span class="n">args</span><span class="o">.</span><span class="n">stride</span> <span class="o">=</span> <span class="n">stride</span>
             <span class="k">for</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span> <span class="ow">in</span> <span class="n">intervals</span><span class="p">:</span>
                 <span class="n">args</span><span class="o">.</span><span class="n">starts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">start</span><span class="p">)</span>
                 <span class="n">args</span><span class="o">.</span><span class="n">ends</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">end</span><span class="p">)</span>
-            <span class="n">sampling_args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">protobufs</span><span class="o">.</span><span class="n">SamplingArgs</span><span class="p">()</span>
+            <span class="n">sampling_args</span> <span class="o">=</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">SamplingArgs</span><span class="p">()</span>
             <span class="n">sampling_args</span><span class="o">.</span><span class="n">sampling_function</span> <span class="o">=</span> <span class="s2">&quot;StridedRanges&quot;</span>
             <span class="n">sampling_args</span><span class="o">.</span><span class="n">sampling_args</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">SerializeToString</span><span class="p">()</span>
             <span class="k">return</span> <span class="n">sampling_args</span>
 
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Sample</span><span class="p">(</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sc</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Sample</span><span class="p">(</span>
             <span class="n">col</span><span class="o">=</span><span class="nb">input</span><span class="p">,</span>
             <span class="n">extra</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;StridedRanges&#39;</span><span class="p">,</span>
                    <span class="s1">&#39;arg_builder&#39;</span><span class="p">:</span> <span class="n">arg_builder</span><span class="p">,</span>
@@ -385,7 +369,7 @@
 
 <div class="viewcode-block" id="StreamsGenerator.Gather"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.streams.StreamsGenerator.Gather">[docs]</a>    <span class="k">def</span> <span class="nf">Gather</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
                <span class="nb">input</span><span class="p">:</span> <span class="n">scannerpy</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">OpColumn</span><span class="p">,</span>
-               <span class="n">rows</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">scannerpy</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">OpColumn</span><span class="p">:</span>
+               <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]])</span> <span class="o">-&gt;</span> <span class="n">scannerpy</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">OpColumn</span><span class="p">:</span>
         <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Samples a list of elements from the input stream.</span>
 
 <span class="sd">        Parameters</span>
@@ -401,23 +385,24 @@
 <span class="sd">        scannerpy.op.OpColumn</span>
 <span class="sd">          The sampled stream.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">def</span> <span class="nf">arg_builder</span><span class="p">(</span><span class="n">rows</span><span class="o">=</span><span class="n">rows</span><span class="p">):</span>
-            <span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">protobufs</span><span class="o">.</span><span class="n">GatherSamplerArgs</span><span class="p">()</span>
+        <span class="k">def</span> <span class="nf">arg_builder</span><span class="p">(</span><span class="n">rows</span><span class="p">):</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">GatherSamplerArgs</span><span class="p">()</span>
             <span class="n">args</span><span class="o">.</span><span class="n">rows</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">rows</span>
-            <span class="n">sampling_args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">protobufs</span><span class="o">.</span><span class="n">SamplingArgs</span><span class="p">()</span>
+            <span class="n">sampling_args</span> <span class="o">=</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">SamplingArgs</span><span class="p">()</span>
             <span class="n">sampling_args</span><span class="o">.</span><span class="n">sampling_function</span> <span class="o">=</span> <span class="s1">&#39;Gather&#39;</span>
             <span class="n">sampling_args</span><span class="o">.</span><span class="n">sampling_args</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">SerializeToString</span><span class="p">()</span>
             <span class="k">return</span> <span class="n">sampling_args</span>
 
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Sample</span><span class="p">(</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sc</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Sample</span><span class="p">(</span>
             <span class="n">col</span><span class="o">=</span><span class="nb">input</span><span class="p">,</span>
             <span class="n">extra</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;Gather&#39;</span><span class="p">,</span>
                    <span class="s1">&#39;arg_builder&#39;</span><span class="p">:</span> <span class="n">arg_builder</span><span class="p">,</span>
-                   <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;rows&#39;</span><span class="p">:</span> <span class="n">rows</span><span class="p">}})</span></div>
+                   <span class="s1">&#39;job_args&#39;</span><span class="p">:</span> <span class="n">indices</span><span class="p">})</span></div>
+
 
 <div class="viewcode-block" id="StreamsGenerator.RepeatNull"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.streams.StreamsGenerator.RepeatNull">[docs]</a>    <span class="k">def</span> <span class="nf">RepeatNull</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
                    <span class="nb">input</span><span class="p">:</span> <span class="n">scannerpy</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">OpColumn</span><span class="p">,</span>
-                   <span class="n">spacing</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">scannerpy</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">OpColumn</span><span class="p">:</span>
+                   <span class="n">spacings</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">scannerpy</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">OpColumn</span><span class="p">:</span>
         <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Expands a sequence by inserting nulls.</span>
 
 <span class="sd">        Parameters</span>
@@ -432,23 +417,23 @@
 <span class="sd">        scannerpy.op.OpColumn</span>
 <span class="sd">          The sampled stream.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">def</span> <span class="nf">arg_builder</span><span class="p">(</span><span class="n">spacing</span><span class="o">=</span><span class="n">spacing</span><span class="p">):</span>
-            <span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">protobufs</span><span class="o">.</span><span class="n">SpaceNullSamplerArgs</span><span class="p">()</span>
+        <span class="k">def</span> <span class="nf">arg_builder</span><span class="p">(</span><span class="n">spacing</span><span class="p">):</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">SpaceNullSamplerArgs</span><span class="p">()</span>
             <span class="n">args</span><span class="o">.</span><span class="n">spacing</span> <span class="o">=</span> <span class="n">spacing</span>
-            <span class="n">sampling_args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">protobufs</span><span class="o">.</span><span class="n">SamplingArgs</span><span class="p">()</span>
+            <span class="n">sampling_args</span> <span class="o">=</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">SamplingArgs</span><span class="p">()</span>
             <span class="n">sampling_args</span><span class="o">.</span><span class="n">sampling_function</span> <span class="o">=</span> <span class="s2">&quot;SpaceNull&quot;</span>
             <span class="n">sampling_args</span><span class="o">.</span><span class="n">sampling_args</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">SerializeToString</span><span class="p">()</span>
             <span class="k">return</span> <span class="n">sampling_args</span>
 
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Space</span><span class="p">(</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sc</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Space</span><span class="p">(</span>
             <span class="n">col</span><span class="o">=</span><span class="nb">input</span><span class="p">,</span>
             <span class="n">extra</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;RepeatNull&#39;</span><span class="p">,</span>
                    <span class="s1">&#39;arg_builder&#39;</span><span class="p">:</span> <span class="n">arg_builder</span><span class="p">,</span>
-                   <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="n">spacing</span><span class="p">})</span></div>
+                   <span class="s1">&#39;job_args&#39;</span><span class="p">:</span> <span class="n">spacings</span><span class="p">})</span></div>
 
 <div class="viewcode-block" id="StreamsGenerator.Repeat"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.streams.StreamsGenerator.Repeat">[docs]</a>    <span class="k">def</span> <span class="nf">Repeat</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
                <span class="nb">input</span><span class="p">:</span> <span class="n">scannerpy</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">OpColumn</span><span class="p">,</span>
-               <span class="n">spacing</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">scannerpy</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">OpColumn</span><span class="p">:</span>
+               <span class="n">spacings</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">scannerpy</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">OpColumn</span><span class="p">:</span>
         <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Expands a sequence by repeating elements.</span>
 
 <span class="sd">        Parameters</span>
@@ -463,36 +448,41 @@
 <span class="sd">        scannerpy.op.OpColumn</span>
 <span class="sd">          The sampled stream.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">def</span> <span class="nf">arg_builder</span><span class="p">(</span><span class="n">spacing</span><span class="o">=</span><span class="n">spacing</span><span class="p">):</span>
-            <span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">protobufs</span><span class="o">.</span><span class="n">SpaceRepeatSamplerArgs</span><span class="p">()</span>
+        <span class="k">def</span> <span class="nf">arg_builder</span><span class="p">(</span><span class="n">spacing</span><span class="p">):</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">SpaceRepeatSamplerArgs</span><span class="p">()</span>
             <span class="n">args</span><span class="o">.</span><span class="n">spacing</span> <span class="o">=</span> <span class="n">spacing</span>
-            <span class="n">sampling_args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">protobufs</span><span class="o">.</span><span class="n">SamplingArgs</span><span class="p">()</span>
+            <span class="n">sampling_args</span> <span class="o">=</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">SamplingArgs</span><span class="p">()</span>
             <span class="n">sampling_args</span><span class="o">.</span><span class="n">sampling_function</span> <span class="o">=</span> <span class="s2">&quot;SpaceRepeat&quot;</span>
             <span class="n">sampling_args</span><span class="o">.</span><span class="n">sampling_args</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">SerializeToString</span><span class="p">()</span>
             <span class="k">return</span> <span class="n">sampling_args</span>
 
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_db</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Space</span><span class="p">(</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sc</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Space</span><span class="p">(</span>
             <span class="n">col</span><span class="o">=</span><span class="nb">input</span><span class="p">,</span>
             <span class="n">extra</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;Repeat&#39;</span><span class="p">,</span>
                    <span class="s1">&#39;arg_builder&#39;</span><span class="p">:</span> <span class="n">arg_builder</span><span class="p">,</span>
-                   <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="n">spacing</span><span class="p">})</span></div></div>
+                   <span class="s1">&#39;job_args&#39;</span><span class="p">:</span> <span class="n">spacings</span><span class="p">})</span></div></div>
 </pre></div>
 
+      </div>
     </div>
-      
   </div>
 </div>
-<footer class="footer">
-  <div class="container">
-    <p class="pull-right">
-      <a href="#">Back to top</a>
-      
-    </p>
-    <p>
-        &copy; Copyright 2018, Alex Poms, Will Crichton.<br/>
-      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.5.<br/>
-    </p>
-  </div>
-</footer>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Scanner 0.2.22 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/languages/python.min.js"></script>
+<script>hljs.initHighlightingOnLoad();</script>
   </body>
 </html>

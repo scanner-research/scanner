@@ -1,0 +1,288 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+<title>Walkthroughs - Scanner</title>
+
+
+    <link rel="stylesheet" href="../_static/basic.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/language_data.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Computation Graphs" href="graphs.html" />
+    <link rel="prev" title="Building Scanner from source" href="from_source.html" />
+<meta charset='utf-8'>
+<meta http-equiv='X-UA-Compatible' content='IE=edge,chrome=1'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1'>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" />
+<link rel="stylesheet"
+      href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/styles/default.min.css">
+
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="graphs.html" title="Computation Graphs"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="from_source.html" title="Building Scanner from source"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">Scanner 0.2.22 documentation</a> &#187;</li> 
+      </ul>
+    </div>
+<div class="container">
+  <div id="navbar" class="navbar-default">
+    <div class="row">
+      <div class="col-md-4 col-sm-12">
+        <a class="navbar-brand" href="../index.html"><span><img src="../_static/scanner_logo.png"></span>
+        </a>
+      </div>
+      <div class="col-md-4 offset-md-4 col-sm-12">
+        <div class="btn-group">
+          <a href="../guide.html"><button type="button" class="btn btn-light">Guide</button></a>
+          <a href="../api.html"><button type="button" class="btn btn-light">API</button></a>
+          <a href="https://github.com/scanner-research/scanner"><button type="button" class="btn btn-light">Github</button></a>
+          <a href="../publications.html"><button type="button" class="btn btn-light">Publications</button></a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-3">
+      <div class="bs-sidenav"><div class="guidetoc-container">
+  <div class="guidetoc"
+       role="navigation">
+    <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting-started.html">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="getting-started.html#docker">Docker</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting-started.html#homebrew">Homebrew</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting-started.html#from-source">From Source</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Walkthroughs</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#converting-a-video-to-grayscale">Converting a video to grayscale</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#walking-through-a-more-advanced-jupyter-based-app">Walking through a more advanced Jupyter-based app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#extended-tutorials">Extended Tutorials</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="graphs.html">Computation Graphs</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="graphs.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="graphs.html#multiple-inputs-and-outputs">Multiple inputs and outputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="graphs.html#batch-processing-of-stored-streams">Batch processing of stored streams</a></li>
+<li class="toctree-l2"><a class="reference internal" href="graphs.html#stream-operations">Stream Operations</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="ops.html">Operations</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="ops.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ops.html#defining-an-operation-in-python">Defining an Operation in Python</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ops.html#declaring-parameters">Declaring Parameters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ops.html#fetching-resources">Fetching Resources</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ops.html#operation-properties">Operation Properties</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ops.html#defining-an-operation-in-c">Defining an Operation in C++</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="stored-streams.html">Stored Streams</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="stored-streams.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stored-streams.html#storage-backends">Storage Backends</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stored-streams.html#i-o-operations">I/O Operations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stored-streams.html#reading-data-locally">Reading Data Locally</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stored-streams.html#deleting-stored-streams">Deleting Stored Streams</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stored-streams.html#inplace-video-indexing">Inplace video indexing</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="profiling.html">Performance Profiling</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="profiling.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="profiling.html#trace-visualization">Trace Visualization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="profiling.html#scanner-s-execution-model">Scanner’s Execution Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="profiling.html#tunable-parameters">Tunable Parameters</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="kubernetes.html">Kubernetes Integration</a></li>
+</ul>
+
+  </div>
+</div>
+      </div>
+    </div>
+    <div class="col-md-9">
+      <div class="content">
+        
+  <div class="section" id="walkthroughs">
+<span id="walkthrough"></span><h1>Walkthroughs<a class="headerlink" href="#walkthroughs" title="Permalink to this headline">¶</a></h1>
+<p>This article explains how to use Scanner by walking through a simple application: converting a video to grayscale.</p>
+<div class="section" id="converting-a-video-to-grayscale">
+<h2>Converting a video to grayscale<a class="headerlink" href="#converting-a-video-to-grayscale" title="Permalink to this headline">¶</a></h2>
+<p>Let’s walk through a simple example that takes every third frame from a video, downsamples it, converts from color to grayscale, and then generates a new video from the transformed frames. The resulting application will look like the following sequence of operations:</p>
+<p>TODO: insert figure describing the graph this walkthrough builds up to</p>
+<p>To run the code for this example, first install Scanner (<a class="reference internal" href="getting-started.html#getting-started"><span class="std std-ref">Installation</span></a>). Then from the top-level Scanner directory, run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> examples/apps/walkthroughs
+wget https://storage.googleapis.com/scanner-data/public/sample-clip.mp4
+python3 grayscale_conversion.py
+</pre></div>
+</div>
+<p>After <code class="code docutils literal notranslate"><span class="pre">grayscale_conversion.py</span></code> exits, you should have a grayscale version of <code class="code docutils literal notranslate"><span class="pre">sample-clip.mp4</span></code> named <code class="code docutils literal notranslate"><span class="pre">sample-clip-grayscale.mp4</span></code> in the current directory. Let’s see how that happened by looking inside <code class="code docutils literal notranslate"><span class="pre">main.py</span></code>.</p>
+<div class="section" id="starting-up-scanner">
+<h3>Starting up Scanner<a class="headerlink" href="#starting-up-scanner" title="Permalink to this headline">¶</a></h3>
+<p>The first step in any Scanner program is to create a <a class="reference internal" href="../api/scannerpy.html#scannerpy.client.Client" title="scannerpy.client.Client"><code class="xref py py-class docutils literal notranslate"><span class="pre">Client</span></code></a> object. The <a class="reference internal" href="../api/scannerpy.html#scannerpy.client.Client" title="scannerpy.client.Client"><code class="xref py py-class docutils literal notranslate"><span class="pre">Client</span></code></a> object manages your connection to the Scanner runtime and provides the API to execute new video processing jobs. By default, creating a client will first start an instance of Scanner on the local machine and then establish a connection to it:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">scannerpy</span> <span class="kn">as</span> <span class="nn">sp</span>
+<span class="kn">import</span> <span class="nn">scannertools</span>
+
+<span class="n">cl</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">Client</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="defining-the-computation-graph">
+<h3>Defining the Computation Graph<a class="headerlink" href="#defining-the-computation-graph" title="Permalink to this headline">¶</a></h3>
+<p>Scanner represents applications as <em>computation graphs</em> (<a class="reference internal" href="graphs.html#graphs"><span class="std std-ref">Computation Graphs</span></a>), with nodes that are Scanner operations (<span class="xref std std-ref">operations</span>) and edges that represent streams of data. Scanner has built-in support for reading and writing videos, audio, lists of binary data, sequences of files, and SQL databases into and out of computation graphs. For example, let’s create a stream representing our video:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">input_stream</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">NamedVideoStream</span><span class="p">(</span><span class="n">cl</span><span class="p">,</span> <span class="s1">&#39;sample-clip&#39;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s1">&#39;sample-clip.mp4&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><a class="reference internal" href="../api/scannerpy.html#scannerpy.storage.NamedVideoStream" title="scannerpy.storage.NamedVideoStream"><code class="xref py py-class docutils literal notranslate"><span class="pre">NamedVideoStream</span></code></a> is a stream that stores data in Scanner’s internal database format
+(see <a class="reference internal" href="stored-streams.html#stored-streams"><span class="std std-ref">Stored Streams</span></a> for more detail). In this case, we stored the data under the name <code class="code docutils literal notranslate"><span class="pre">sample-clip</span></code> for the video file <code class="code docutils literal notranslate"><span class="pre">sample-clip.mp4</span></code>.</p>
+<p>Now we can tell Scanner how to grayscale-ify this video by constructing a computation graph that processes this video stream. First, we’ll create an input operation that reads from our video:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">Input</span><span class="p">([</span><span class="n">input_stream</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>The <code class="code docutils literal notranslate"><span class="pre">frame</span></code> object returned by the input operation represents the stream of frames in our video, and we’ll use it as the input to the next operation:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">sampled_frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">streams</span><span class="o">.</span><span class="n">Stride</span><span class="p">(</span><span class="n">frames</span><span class="p">,</span> <span class="p">[</span><span class="mi">3</span><span class="p">])</span> <span class="c1"># Select every third frame</span>
+</pre></div>
+</div>
+<p>This <a class="reference internal" href="../api/scannerpy.html#scannerpy.streams.StreamsGenerator.Stride" title="scannerpy.streams.StreamsGenerator.Stride"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Stride()</span></code></a> operation selects only every third frame from the stream of frames we read from the video. (<code class="code docutils literal notranslate"><span class="pre">Stride</span></code> comes from a special class of operations, called <em>stream</em> operations, that can subsample elements in stream. See <a class="reference internal" href="graphs.html#stream-operations"><span class="std std-ref">Stream Operations</span></a>.)</p>
+<p>Next, we’ll resize the sampled frames by instantiating a <code class="code docutils literal notranslate"><span class="pre">Resize</span></code> operation that will resize the frames in the <code class="code docutils literal notranslate"><span class="pre">sampled_frame</span></code> stream to 640 x 480:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">scannertools.imgproc</span>
+
+<span class="n">resized_frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Resize</span><span class="p">(</span><span class="n">frame</span><span class="o">=</span><span class="n">sampled_frames</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="p">[</span><span class="mi">640</span><span class="p">],</span> <span class="n">height</span><span class="o">=</span><span class="p">[</span><span class="mi">480</span><span class="p">])</span>
+</pre></div>
+</div>
+<p><code class="code docutils literal notranslate"><span class="pre">Resize</span></code> returns a new stream of frames, which we call <code class="code docutils literal notranslate"><span class="pre">resized_frames</span></code>. <code class="code docutils literal notranslate"><span class="pre">Resize</span></code> is one of the collection of built-in operations in the <span class="xref std std-ref">standard_library</span>. The built-in image processing operations, like <code class="code docutils literal notranslate"><span class="pre">Resize</span></code>, live in the <code class="code docutils literal notranslate"><span class="pre">scannertools.imgproc</span></code> module. (You can learn how to write your own operations by following the <a class="reference internal" href="tutorial.html#tutorial"><span class="std std-ref">Tutorials</span></a>.) Next, we will use another operation from the <code class="code docutils literal notranslate"><span class="pre">scannertools.imgproc</span></code> module to convert the image to grayscale:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">grayscale_frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">ConvertColor</span><span class="p">(</span><span class="n">frame</span><span class="o">=</span><span class="n">resized_frames</span><span class="p">,</span> <span class="n">conversion</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;COLOR_RGB2GRAY&#39;</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>To write a new video containing these grayscale frames, we are going to use Scanner’s builtin video compression functionality. However, video compression formats (such as h264) require three channels for each frame but our grayscale frames only have one channel. To rectify this, we’re going to define a new operation called <code class="code docutils literal notranslate"><span class="pre">CloneChannels</span></code> that will allow us to produce a three channel frame by replicating our single channel grayscale image:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@sp.register_python_op</span><span class="p">()</span>
+<span class="k">def</span> <span class="nf">CloneChannels</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">frame</span><span class="p">:</span> <span class="n">sp</span><span class="o">.</span><span class="n">FrameType</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">sp</span><span class="o">.</span><span class="n">FrameType</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">dstack</span><span class="p">([</span><span class="n">frame</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="s1">&#39;replications&#39;</span><span class="p">])])</span>
+
+<span class="n">grayscale3_frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">CloneChannels</span><span class="p">(</span><span class="n">frame</span><span class="o">=</span><span class="n">grayscale_frames</span><span class="p">,</span> <span class="n">replications</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>You can learn more about the syntax for defining new operations like <code class="code docutils literal notranslate"><span class="pre">CloneChannels</span></code> by checking out the <a class="reference internal" href="ops.html#ops"><span class="std std-ref">Operations</span></a> guide. Finally, we write the frames to a new output stream called <code class="code docutils literal notranslate"><span class="pre">sampled-clip-resized</span></code> by passing them into an output operation:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">output_stream</span> <span class="o">=</span> <span class="n">NamedVideoStream</span><span class="p">(</span><span class="n">cl</span><span class="p">,</span> <span class="s1">&#39;sample-clip-resized&#39;</span><span class="p">)</span>
+<span class="n">output</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">Output</span><span class="p">(</span><span class="n">resized</span><span class="p">,</span> <span class="p">[</span><span class="n">output_stream</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>Putting it all together, we have:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">input_stream</span> <span class="o">=</span> <span class="n">NamedVideoStream</span><span class="p">(</span><span class="n">cl</span><span class="p">,</span> <span class="s1">&#39;sample-clip&#39;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s1">&#39;sample-clip.mp4&#39;</span><span class="p">)</span>
+<span class="n">frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">Input</span><span class="p">([</span><span class="n">input_stream</span><span class="p">])</span>
+<span class="n">sampled_frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">streams</span><span class="o">.</span><span class="n">Stride</span><span class="p">(</span><span class="n">frames</span><span class="p">,</span> <span class="p">[</span><span class="mi">3</span><span class="p">])</span> <span class="c1"># Select every third frame</span>
+<span class="n">resized_frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Resize</span><span class="p">(</span><span class="n">frame</span><span class="o">=</span><span class="n">sampled_frames</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="p">[</span><span class="mi">640</span><span class="p">],</span> <span class="n">height</span><span class="o">=</span><span class="p">[</span><span class="mi">480</span><span class="p">])</span> <span class="c1"># Resize input frame</span>
+<span class="n">grayscale_frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">ConvertColor</span><span class="p">(</span><span class="n">frame</span><span class="o">=</span><span class="n">resized_frames</span><span class="p">,</span> <span class="n">conversion</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;COLOR_RGB2GRAY&#39;</span><span class="p">])</span>
+<span class="n">grayscale3_frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">CloneChannels</span><span class="p">(</span><span class="n">frame</span><span class="o">=</span><span class="n">grayscale3_frames</span><span class="p">,</span> <span class="n">replications</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+<span class="n">output_stream</span> <span class="o">=</span> <span class="n">NamedVideoStream</span><span class="p">(</span><span class="n">cl</span><span class="p">,</span> <span class="s1">&#39;sample-clip-resized&#39;</span><span class="p">)</span>
+<span class="n">output</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">Output</span><span class="p">(</span><span class="n">grayscale3_frames</span><span class="p">,</span> <span class="p">[</span><span class="n">output_stream</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>At this point, we have defined a graph that describes the computation to run, but we haven’t yet told Scanner to execute the graph.</p>
+</div>
+<div class="section" id="executing-a-computation-graph">
+<span id="defining-a-job"></span><h3>Executing a computation graph<a class="headerlink" href="#executing-a-computation-graph" title="Permalink to this headline">¶</a></h3>
+<p>Executing a graph is done by calling <code class="code docutils literal notranslate"><span class="pre">run</span></code> on the client object, specifying the outputs we want to produce:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">cl</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">PerfParams</span><span class="o">.</span><span class="n">estimate</span><span class="p">())</span>
+</pre></div>
+</div>
+<p>This call will block until Scanner has finished processing the job. You should see a progress bar while Scanner is executing the computation graph. The <a class="reference internal" href="profiling.html#scannerpy.common.PerfParams" title="scannerpy.common.PerfParams"><code class="xref py py-class docutils literal notranslate"><span class="pre">PerfParams</span></code></a> are parameters used to tune the performance of graph execution, e.g. the number of video frames that should be in memory at any one time. By default, the <a class="reference internal" href="../api/scannerpy.html#scannerpy.common.PerfParams.estimate" title="scannerpy.common.PerfParams.estimate"><code class="xref py py-meth docutils literal notranslate"><span class="pre">estimate()</span></code></a> guesses an appropriate value of all parameters for your graph.</p>
+</div>
+<div class="section" id="exporting-to-mp4">
+<h3>Exporting to mp4<a class="headerlink" href="#exporting-to-mp4" title="Permalink to this headline">¶</a></h3>
+<p>Last, we can directly save our output stream as an  mp4 file by calling <code class="code docutils literal notranslate"><span class="pre">save_mp4</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">output_stream</span><span class="o">.</span><span class="n">save_mp4</span><span class="p">(</span><span class="s1">&#39;resized-video&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>After this call returns, an mp4 video should be saved to the current working directory called <code class="code docutils literal notranslate"><span class="pre">sample-clip-grayscale.mp4</span></code> that consists of the grayscale frames that we generated.</p>
+<p>That’s the complete Scanner application! If you’d like to learn about process multiple jobs, keep reading! Otherwise, to learn more about the features of Scanner, checkout the following:</p>
+<ul class="simple">
+<li><a class="reference internal" href="tutorial.html#tutorial"><span class="std std-ref">Tutorials</span></a>: introduces each of Scanner’s features with code examples.</li>
+<li><a class="reference internal" href="graphs.html#graphs"><span class="std std-ref">Computation Graphs</span></a>: describes how computation graphs are constructed and configured.</li>
+<li><a class="reference internal" href="ops.html#ops"><span class="std std-ref">Operations</span></a>: describes the capabilities of Scanner’s ops and how they work inside computation  graphs.</li>
+<li><a class="reference internal" href="stored-streams.html#stored-streams"><span class="std std-ref">Stored Streams</span></a>: describes the stored stream interface.</li>
+<li><a class="reference internal" href="profiling.html#profiling"><span class="std std-ref">Performance Profiling</span></a>: describes how to profile Scanner applications and improve their performance.</li>
+</ul>
+</div>
+</div>
+<div class="section" id="walking-through-a-more-advanced-jupyter-based-app">
+<h2>Walking through a more advanced Jupyter-based app<a class="headerlink" href="#walking-through-a-more-advanced-jupyter-based-app" title="Permalink to this headline">¶</a></h2>
+<p>To get a more detailed understanding of how Scanner can be used in a real
+application, we recommend trying the Jupyter notebook tutorial. To start the
+notebook, if you’re using Docker:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip3 install --upgrade docker-compose
+wget https://raw.githubusercontent.com/scanner-research/scanner/master/docker/docker-compose.yml
+docker-compose up cpu
+</pre></div>
+</div>
+<p>If you installed Scanner yourself, then run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip3 install jupyter requests matplotlib
+<span class="nb">cd</span> path/to/scanner
+jupyter notebook --ip<span class="o">=</span><span class="m">0</span>.0.0.0 --port<span class="o">=</span><span class="m">8888</span>
+</pre></div>
+</div>
+<p>Then visit port 8888 on your server/localhost, click through to
+<code class="code docutils literal notranslate"><span class="pre">examples/Walkthrough.ipynb</span></code>, and follow the directions in the notebook.</p>
+</div>
+<div class="section" id="extended-tutorials">
+<h2>Extended Tutorials<a class="headerlink" href="#extended-tutorials" title="Permalink to this headline">¶</a></h2>
+<p>Scanner provides a set of tutorials that provide step-by-step examples of many
+of the basic features provided by Scanner. These tutorials can be found
+<a class="reference external" href="https://github.com/scanner-research/scanner/tree/master/examples/tutorials">here</a>.</p>
+</div>
+</div>
+
+
+      </div>
+    </div>
+  </div>
+</div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="graphs.html" title="Computation Graphs"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="from_source.html" title="Building Scanner from source"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">Scanner 0.2.22 documentation</a> &#187;</li> 
+      </ul>
+    </div>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/languages/python.min.js"></script>
+<script>hljs.initHighlightingOnLoad();</script>
+  </body>
+</html>

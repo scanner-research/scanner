@@ -1,0 +1,256 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+<title>Performance Profiling - Scanner</title>
+
+
+    <link rel="stylesheet" href="../_static/basic.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/language_data.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Kubernetes Integration" href="kubernetes.html" />
+    <link rel="prev" title="Stored Streams" href="stored-streams.html" />
+<meta charset='utf-8'>
+<meta http-equiv='X-UA-Compatible' content='IE=edge,chrome=1'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1'>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" />
+<link rel="stylesheet"
+      href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/styles/default.min.css">
+
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="kubernetes.html" title="Kubernetes Integration"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="stored-streams.html" title="Stored Streams"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">Scanner 0.2.22 documentation</a> &#187;</li> 
+      </ul>
+    </div>
+<div class="container">
+  <div id="navbar" class="navbar-default">
+    <div class="row">
+      <div class="col-md-4 col-sm-12">
+        <a class="navbar-brand" href="../index.html"><span><img src="../_static/scanner_logo.png"></span>
+        </a>
+      </div>
+      <div class="col-md-4 offset-md-4 col-sm-12">
+        <div class="btn-group">
+          <a href="../guide.html"><button type="button" class="btn btn-light">Guide</button></a>
+          <a href="../api.html"><button type="button" class="btn btn-light">API</button></a>
+          <a href="https://github.com/scanner-research/scanner"><button type="button" class="btn btn-light">Github</button></a>
+          <a href="../publications.html"><button type="button" class="btn btn-light">Publications</button></a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-3">
+      <div class="bs-sidenav"><div class="guidetoc-container">
+  <div class="guidetoc"
+       role="navigation">
+    <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting-started.html">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="getting-started.html#docker">Docker</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting-started.html#homebrew">Homebrew</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting-started.html#from-source">From Source</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="walkthrough.html">Walkthroughs</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="walkthrough.html#converting-a-video-to-grayscale">Converting a video to grayscale</a></li>
+<li class="toctree-l2"><a class="reference internal" href="walkthrough.html#walking-through-a-more-advanced-jupyter-based-app">Walking through a more advanced Jupyter-based app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="walkthrough.html#extended-tutorials">Extended Tutorials</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="graphs.html">Computation Graphs</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="graphs.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="graphs.html#multiple-inputs-and-outputs">Multiple inputs and outputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="graphs.html#batch-processing-of-stored-streams">Batch processing of stored streams</a></li>
+<li class="toctree-l2"><a class="reference internal" href="graphs.html#stream-operations">Stream Operations</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="ops.html">Operations</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="ops.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ops.html#defining-an-operation-in-python">Defining an Operation in Python</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ops.html#declaring-parameters">Declaring Parameters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ops.html#fetching-resources">Fetching Resources</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ops.html#operation-properties">Operation Properties</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ops.html#defining-an-operation-in-c">Defining an Operation in C++</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="stored-streams.html">Stored Streams</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="stored-streams.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stored-streams.html#storage-backends">Storage Backends</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stored-streams.html#i-o-operations">I/O Operations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stored-streams.html#reading-data-locally">Reading Data Locally</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stored-streams.html#deleting-stored-streams">Deleting Stored Streams</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stored-streams.html#inplace-video-indexing">Inplace video indexing</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Performance Profiling</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#trace-visualization">Trace Visualization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#scanner-s-execution-model">Scanner’s Execution Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#tunable-parameters">Tunable Parameters</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="kubernetes.html">Kubernetes Integration</a></li>
+</ul>
+
+  </div>
+</div>
+      </div>
+    </div>
+    <div class="col-md-9">
+      <div class="content">
+        
+  <div class="section" id="performance-profiling">
+<span id="profiling"></span><h1>Performance Profiling<a class="headerlink" href="#performance-profiling" title="Permalink to this headline">¶</a></h1>
+<p>The goal of this guide is to enable the reader to understand the performance of Scanner graph execution and how performance can be improved by tuning execution parameters.</p>
+<div class="section" id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Permalink to this headline">¶</a></h2>
+<p>While executing a graph, Scanner keeps a record of how long various tasks take to complete: loading data, moving data between CPU and GPU, executing operations, saving data, etc. We call this information the <em>profile</em> of a computation graph. Getting the profile for the execution of the computation graph works as follows:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">scannerpy</span> <span class="kn">as</span> <span class="nn">sp</span>
+<span class="kn">import</span> <span class="nn">scannertools.imgproc</span>
+
+<span class="c1"># Set up the client</span>
+<span class="n">cl</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">Client</span><span class="p">()</span>
+
+<span class="c1"># Define a computation graph</span>
+<span class="n">video_stream</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">NamedVideoStream</span><span class="p">(</span><span class="n">cl</span><span class="p">,</span> <span class="s1">&#39;example&#39;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s1">&#39;example.mp4&#39;</span><span class="p">)</span>
+<span class="n">input_frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">Input</span><span class="p">([</span><span class="n">video_stream</span><span class="p">])</span>
+<span class="n">resized_frames</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">Resize</span><span class="p">(</span><span class="n">frame</span><span class="o">=</span><span class="n">input_frames</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="p">[</span><span class="mi">640</span><span class="p">],</span> <span class="n">height</span><span class="o">=</span><span class="p">[</span><span class="mi">480</span><span class="p">])</span>
+<span class="n">output_stream</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">NamedVideoStream</span><span class="p">(</span><span class="n">cl</span><span class="p">,</span> <span class="s1">&#39;example-output&#39;</span><span class="p">)</span>
+<span class="n">output</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">Output</span><span class="p">(</span><span class="n">resized_frames</span><span class="p">,</span> <span class="p">[</span><span class="n">output_stream</span><span class="p">])</span>
+
+<span class="c1"># Run the computation graph</span>
+<span class="n">job_id</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">sp</span><span class="o">.</span><span class="n">PerfParams</span><span class="o">.</span><span class="n">estimate</span><span class="p">())</span>
+
+<span class="c1"># Get the profile</span>
+<span class="n">profile</span> <span class="o">=</span> <span class="n">cl</span><span class="o">.</span><span class="n">get_profile</span><span class="p">(</span><span class="n">job_id</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The <a class="reference internal" href="../api/scannerpy.html#scannerpy.profiler.Profile" title="scannerpy.profiler.Profile"><code class="xref py py-class docutils literal notranslate"><span class="pre">Profile</span></code></a> class contains information about how long the various parts of the execution graph took and on what processors or workers (when running Scanner with multiple machines) those parts were executed. We can visualize the profile on a timeline by writing out a trace file:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">profile</span><span class="o">.</span><span class="n">write_trace</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="s1">&#39;resize-graph.trace&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>You can view this file by going to <code class="code docutils literal notranslate"><span class="pre">chrome://tracing</span></code> in the Chrome browser, clicking “load” in the top left, and selecting <code class="code docutils literal notranslate"><span class="pre">resize-graph.trace</span></code>.</p>
+</div>
+<div class="section" id="trace-visualization">
+<h2>Trace Visualization<a class="headerlink" href="#trace-visualization" title="Permalink to this headline">¶</a></h2>
+<p>Scanner leverages the Chrome browser’s <a class="reference external" href="https://www.chromium.org/developers/how-tos/trace-event-profiling-tool">trace profiler tool</a> to visualize the execution of a computation graph. Below is a screenshot from viewing the  trace file generated with the above code:</p>
+<img alt="../_images/trace_viz.jpg" src="../_images/trace_viz.jpg" />
+<p>Let’s walkthrough how Scanner’s execution of a graph is visualized in this interface. But first, we need to explain how Scanner actually executes a graphs.</p>
+</div>
+<div class="section" id="scanner-s-execution-model">
+<h2>Scanner’s Execution Model<a class="headerlink" href="#scanner-s-execution-model" title="Permalink to this headline">¶</a></h2>
+<p>Scanner operates under a master-worker model: a centralized coordinator process (the <em>master</em>) listens for commands from a client (<a class="reference internal" href="../api/scannerpy.html#scannerpy.client.Client" title="scannerpy.client.Client"><code class="xref py py-class docutils literal notranslate"><span class="pre">scannerpy.client.Client</span></code></a>) and issues processing tasks to worker processes that are running on potentially hundreds of machines  (the <em>workers</em>). Naturally, the trace visualization groups together processing events by the process they occur in:</p>
+<img alt="../_images/trace_processes.jpg" src="../_images/trace_processes.jpg" />
+<p>Here, you can see the master process and a sole worker (there is only one worker for this trace because we ran Scanner locally only on a single machine). The events for the master process mainly deal with distributing work among the workers and tracking job progress. Since these events are usually not performance critical, we won’t go into them here. On the other hand, the recorded events for a worker process reflect the execution of the computation graph that was submitted to Scanner and so are useful for understanding the performance of a Scanner graph. Let’s look at the worker process’ timeline of events:</p>
+<img alt="../_images/trace_worker.jpg" src="../_images/trace_worker.jpg" />
+<p>Within a single worker process, Scanner implements a <em>replicated pipeline execution model</em> to achieve parallelism across CPUs and GPUs. At a high level, pipeline execution breaks up the computation graph into distinct <em>pipeline stages</em>, which are each responsible for executing a subset of the graph, and these stages are hooked together using queues. For example, in the above trace screenshot the rows correspond to distinct pipeline stages: <code class="code docutils literal notranslate"><span class="pre">Reader[X]</span></code>, <code class="code docutils literal notranslate"><span class="pre">Pipeline[X]:DecodeVideo</span></code>, <code class="code docutils literal notranslate"><span class="pre">Pipeline[X]:Ops[Y]</span></code>, etc. Each row contains the trace events for the labeled pipeline stage. The number inside the square brackets, <code class="code docutils literal notranslate"><span class="pre">[X]</span></code>, represents a replica of that pipeline stage. Each replica of a pipeline stage can process data in the graph independently, and thus the number of replicas controls the amount of parallelism for a pipeline stage.</p>
+<p>Here’s a list of all the pipeline stages in a Scanner graph that will show up in the profile event trace:</p>
+<ul class="simple">
+<li><code class="code docutils literal notranslate"><span class="pre">Reader[X]</span></code>: responsible for reading data from the input stored streams to the graph.</li>
+<li><code class="code docutils literal notranslate"><span class="pre">Pipeline[X]:DecodeVideo</span></code>: responsible for decoding compressed video streams from readers.</li>
+<li><code class="code docutils literal notranslate"><span class="pre">Pipeline[X]:Ops[Y]</span></code>: handles executing a portion of the computation graph. If a computation graph has operations that use different devices (CPU or GPU), then Scanner will group operations together based on device type and place them in a separate pipeline stage. These separate stages are indicated by the <code class="code docutils literal notranslate"><span class="pre">Y</span></code> index in <code class="code docutils literal notranslate"><span class="pre">Ops[Y]</span></code>.</li>
+<li><code class="code docutils literal notranslate"><span class="pre">Pipeline[X]:EncodeVideo</span></code>: responsible for compressing streams of video frames destined for an output operation.</li>
+<li><code class="code docutils literal notranslate"><span class="pre">Writer[X]</span></code>: responsible for writing data from the outputs of the graph to the output stored streams.</li>
+</ul>
+<p>Let’s expand the three <code class="code docutils literal notranslate"><span class="pre">Pipeline[0]</span></code> stages to get a handle on where the most time is being spent in this graph:</p>
+<img alt="../_images/trace_worker_expand.jpg" src="../_images/trace_worker_expand.jpg" />
+<p>Notice how the timeline for <code class="code docutils literal notranslate"><span class="pre">Pipeline[0]:DecodeVideo</span></code> is constantly occupied by processing events, while <code class="code docutils literal notranslate"><span class="pre">Pipeline[0]:Ops[0]</span></code> has a large amount of idle time (indicated by the gray “Wait on Input Queue” events). This immediately tells us is that this computation graph is <em>decode-bound</em>: the throughput of the computation graph is limited by how fast we can decode frames from the input video.</p>
+</div>
+<div class="section" id="tunable-parameters">
+<h2>Tunable Parameters<a class="headerlink" href="#tunable-parameters" title="Permalink to this headline">¶</a></h2>
+<p>Scanner provides a collection of tunable parameters that affect the performance of executing a computation graph. Setting these parameters optimally depends on the computational properties of the graph, such as the I/O versus compute balance, usage of GPUs or CPUs, intermediate data element size, size of available memory, and latency to data storage. The tunable parameters are captured in the <code class="code docutils literal notranslate"><span class="pre">PerfParams</span></code> class:</p>
+<dl class="class">
+<dt id="scannerpy.common.PerfParams">
+<em class="property">class </em><code class="descclassname">scannerpy.common.</code><code class="descname">PerfParams</code><span class="sig-paren">(</span><em>work_packet_size</em>, <em>io_packet_size</em>, <em>cpu_pool=None</em>, <em>gpu_pool=None</em>, <em>pipeline_instances_per_node=None</em>, <em>load_sparsity_threshold=8</em>, <em>queue_size_per_pipeline=4</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/common.html#PerfParams"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.common.PerfParams" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>work_packet_size</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>) – The size of the packets of intermediate elements to pass between
+operations. This parameter only affects performance and should not
+affect the output.</li>
+<li><strong>io_packet_size</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>) – The size of the packets of elements to read and write from Sources and
+sinks. This parameter only affects performance and should not
+affect the output. When reading and writing to high latency storage
+(such as the cloud), it is helpful to increase this value.</li>
+<li><strong>cpu_pool</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.7)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.7)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>]) – A string describing the size of the CPU memory pool to initialize.
+If none, no memory pool is used.</li>
+<li><strong>gpu_pool</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.7)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.7)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>]) – A string describing the size of the GPU memory pool to initialize.
+If none, no memory pool is used.</li>
+<li><strong>pipeline_instances_per_node</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.7)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>]) – The number of concurrent instances of the computation graph to
+execute. If set to None, it will be automatically inferred based on
+computation graph and the available machine resources.</li>
+<li><strong>load_sparsity_threshold</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>) – </li>
+<li><strong>queue_size_per_pipeline</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>) – The max number of tasks that a worker will request from the master
+for each pipeline instance. This influences the amount of data that
+can will be resident in memory at once.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<p>For new users to Scanner, we recommend using the <a class="reference internal" href="../api/scannerpy.html#scannerpy.common.PerfParams.estimate" title="scannerpy.common.PerfParams.estimate"><code class="xref py py-meth docutils literal notranslate"><span class="pre">scannerpy.common.PerfParams.estimate()</span></code></a> method to have Scanner automatically set these parameters based upon inferred properties of your computation graph. More advanced users that understand how these parameters influence performance can make use of <a class="reference internal" href="../api/scannerpy.html#scannerpy.common.PerfParams.manual" title="scannerpy.common.PerfParams.manual"><code class="xref py py-meth docutils literal notranslate"><span class="pre">scannerpy.common.PerfParams.manual()</span></code></a> to tune the parameters themselves.</p>
+</div>
+</div>
+
+
+      </div>
+    </div>
+  </div>
+</div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="kubernetes.html" title="Kubernetes Integration"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="stored-streams.html" title="Stored Streams"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">Scanner 0.2.22 documentation</a> &#187;</li> 
+      </ul>
+    </div>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/languages/python.min.js"></script>
+<script>hljs.initHighlightingOnLoad();</script>
+  </body>
+</html>
