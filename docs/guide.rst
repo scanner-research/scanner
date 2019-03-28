@@ -1,21 +1,23 @@
 Guide
 =====
 
-To understand how to use Scanner, check out the :ref:`quickstart`, which talks through the components of the system with a simple example.
+The guide is designed to get you quickly started using Scanner for your application, and then gradually expose you to more of the advanced concepts in Scanner.
 
-Once you have a handle on the basics, you can checkout :ref:`walkthrough`, which provides a more full fledged walkthrough of using Scanner in a real application. Or you can take a look at the numerous Scanner `tutorials <https://github.com/scanner-research/scanner/blob/master/examples/tutorials/>`__ available on github which provide examples of using key features of the Scanner API.
+The guide is organized into the following sections:
 
-.. toctree::
-   :maxdepth: 1
+- :ref:`quickstart`: run a simple Scanner program in as few steps as possible.
+- :ref:`getting-started`: get Scanner set up on your machine and ready for writing your own applications.
+- :ref:`walkthrough`: step-by-step walkthrough of a Scanner application.
+- :ref:`graphs`: describes computation graphs, which are how applications are represented in Scanner.
+- :ref:`ops`: describes the properties of ops (operations). Ops are the nodes in computation graphs that process data.
+- :ref:`stored-streams`: describes stored streams, which represent streams of data that Scanner can read and write to.
+- :ref:`profiling`: describes how to profile Scanner jobs and tweak parameters to improve performance.
+- :ref:`kubernetes`: run Scanner in the cloud with Kubernetes.
 
-   handbook/quickstart
-   installation
-   walkthrough
-   tutorial
-   handbook/kubernetes
+Support
+-------
+If you're having trouble using Scanner, the best way to get help is to join the Scanner Research slack channel. Send  an email to scanner@cs.stanford.edu with the subject line "Slack Access" to join our Slack channel.
 
-.. handbook/concepts
-   handbook/distributed
-   handbook/custom-ops
-   handbook/custom-source
-   handbook/custom-sink
+If you'd like to talk with the core team directly, contact Alex Poms (https://www.cs.cmu.edu/~apoms/) or Will Crichton (http://willcrichton.net/).
+
+If you want to request a new feature or file a bug report, please do so using the `GitHub page <https://github.com/scanner-research/scanner/issues>`__.

@@ -69,6 +69,19 @@ inline bool operator!=(const MemoryPoolConfig& lhs,
   return !(lhs == rhs);
 }
 
+const std::string IDLE_DRIVER_LABEL = "Wait on Input Queue";
+const std::string TASK_LABEL = "Process Packet";
+const std::string TASK_FINISHED_LABEL = "IO Packet Finished";
+const std::string PUSH_DRIVER_LABEL = "Wait on Output Queue";
+const std::string CLEANUP_SAVE_WORKER_LABEL = "Cleanup Save Worker";
+const std::string REGISTER_OPS_LABEL = "Register Ops";
+const std::string LOAD_METADATA_LABEL = "Load Database Metadata";
+const std::string DAG_ANALYSIS_LABEL = "Analyze Graph Dependencies";
+const std::string PIPELINE_SETUP_LABEL = "Setup Pipeline Arguments";
+const std::string SETUP_MEMORY_POOL_LABEL = "Setup Memory Pool";
+const std::string CREATE_PIPELINES_LABEL = "Create Pipeline Threads";
+const std::string WAIT_PIPELINES_LABEL = "Wait on Pipeline Thread Setup";
+
 void load_driver(LoadInputQueue& load_work,
                  std::vector<EvalQueue>& initial_eval_work,
                  LoadWorkerArgs args) {
@@ -83,7 +96,7 @@ void load_driver(LoadInputQueue& load_work,
     auto& task_streams = std::get<1>(entry);
     LoadWorkEntry& load_work_entry = std::get<2>(entry);
 
-    args.profiler.add_interval("idle", idle_start, now());
+    args.profiler.add_interval(IDLE_DRIVER_LABEL, idle_start, now());
 
     if (load_work_entry.job_index() == -1) {
       break;
@@ -114,7 +127,7 @@ void load_driver(LoadInputQueue& load_work,
         break;
       }
     }
-    profiler.add_interval("task", work_start, now());
+    profiler.add_interval(TASK_LABEL, work_start, now());
     VLOG(2) << "Load (N/PU: " << args.node_id << "/" << args.worker_id
             << "): finished job task (" << load_work_entry.job_index() << ", "
             << load_work_entry.task_index() << "), pushed to worker "
@@ -169,7 +182,7 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
           .push(entry);
     }
 
-    args.profiler.add_interval("idle", idle_start, now());
+    args.profiler.add_interval(IDLE_DRIVER_LABEL, idle_start, now());
 
     if (std::get<0>(active_job_task) == -1) {
       // Choose the next task to work on
@@ -239,7 +252,7 @@ void pre_evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
       active_job_task = std::make_tuple(-1, -1);
     }
 
-    profiler.add_interval("task", work_start, now());
+    profiler.add_interval(TASK_LABEL, work_start, now());
   }
 
   VLOG(1) << "Pre-evaluate (N/PU: " << args.node_id << "/" << args.worker_id
@@ -259,7 +272,7 @@ void evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
     auto& task_streams = std::get<0>(entry);
     EvalWorkEntry& work_entry = std::get<1>(entry);
 
-    args.profiler.add_interval("idle_pull", idle_pull_start, now());
+    args.profiler.add_interval(IDLE_DRIVER_LABEL, idle_pull_start, now());
 
     if (work_entry.job_index == -1) {
       break;
@@ -295,11 +308,11 @@ void evaluate_driver(EvalQueue& input_work, EvalQueue& output_work,
     (void)result;
     assert(result);
 
-    profiler.add_interval("task", work_start, now());
+    profiler.add_interval(TASK_LABEL, work_start, now());
 
     auto idle_push_start = now();
     output_work.push(std::make_tuple(task_streams, output_entry));
-    args.profiler.add_interval("idle_push", idle_push_start, now());
+    args.profiler.add_interval(PUSH_DRIVER_LABEL, idle_push_start, now());
 
   }
   VLOG(1) << "Evaluate (N/KI: " << args.node_id << "/" << args.ki
@@ -317,7 +330,7 @@ void post_evaluate_driver(EvalQueue& input_work, OutputEvalQueue& output_work,
     input_work.pop(entry);
     EvalWorkEntry& work_entry = std::get<1>(entry);
 
-    args.profiler.add_interval("idle", idle_start, now());
+    args.profiler.add_interval(IDLE_DRIVER_LABEL, idle_start, now());
 
     if (work_entry.job_index == -1) {
       break;
@@ -333,7 +346,7 @@ void post_evaluate_driver(EvalQueue& input_work, OutputEvalQueue& output_work,
     worker.feed(input_entry);
     EvalWorkEntry output_entry;
     bool result = worker.yield(output_entry);
-    profiler.add_interval("task", work_start, now());
+    profiler.add_interval(TASK_LABEL, work_start, now());
 
     if (result) {
       VLOG(1) << "Post-evaluate (N/PU: " << args.node_id << "/" << args.id
@@ -369,7 +382,7 @@ void save_coordinator(OutputEvalQueue& eval_work,
     eval_work.pop(entry);
     EvalWorkEntry& work_entry = std::get<1>(entry);
 
-    //args.profiler.add_interval("idle", idle_start, now());
+    //args.profiler.add_interval(IDLE_DRIVER_LABEL, idle_start, now());
 
     if (work_entry.job_index == -1) {
       break;
@@ -415,7 +428,7 @@ void save_driver(SaveInputQueue& save_work,
     i32 pipeline_instance = std::get<0>(entry);
     EvalWorkEntry& work_entry = std::get<1>(entry);
 
-    args.profiler.add_interval("idle", idle_start, now());
+    args.profiler.add_interval(IDLE_DRIVER_LABEL, idle_start, now());
 
     if (work_entry.job_index == -1) {
       break;
@@ -432,8 +445,7 @@ void save_driver(SaveInputQueue& save_work,
         std::make_tuple(work_entry.job_index, work_entry.task_index);
     if (workers.count(job_task_id) == 0) {
       SaveWorker* worker = new SaveWorker(args);
-      worker->new_task(work_entry.job_index, work_entry.task_index,
-                       work_entry.table_id, work_entry.column_types);
+      worker->new_task(work_entry.job_index, work_entry.task_index, work_entry.column_types);
       workers[job_task_id].reset(worker);
     }
 
@@ -446,21 +458,21 @@ void save_driver(SaveInputQueue& save_work,
             << "): finished task (" << work_entry.job_index << ", "
             << work_entry.task_index << ")";
 
-    args.profiler.add_interval("task", work_start, now());
+    args.profiler.add_interval(TASK_LABEL, work_start, now());
 
     if (work_entry.last_in_task) {
       auto finished_start = now();
       worker->finished();
-      args.profiler.add_interval("finished", finished_start, now());
+      args.profiler.add_interval(TASK_FINISHED_LABEL, finished_start, now());
 
       auto workpush_start = now();
       output_work.enqueue(std::make_tuple(
           pipeline_instance, work_entry.job_index, work_entry.task_index));
-      args.profiler.add_interval("workpush", workpush_start, now());
+      args.profiler.add_interval(PUSH_DRIVER_LABEL, workpush_start, now());
       auto save_worker_delete_start = now();
       workers.erase(job_task_id);
-      args.profiler.add_interval("save_worker_delete", save_worker_delete_start,
-                                 now());
+      args.profiler.add_interval(CLEANUP_SAVE_WORKER_LABEL,
+                                 save_worker_delete_start, now());
     }
   }
 
@@ -741,6 +753,7 @@ void WorkerImpl::register_op(const proto::OpRegistration* op_registration) {
     col.set_id(i++);
     col.set_name(c.name());
     col.set_type(c.type());
+    col.set_type_name(c.type_name());
     input_columns.push_back(col);
   }
   std::vector<Column> output_columns;
@@ -750,6 +763,7 @@ void WorkerImpl::register_op(const proto::OpRegistration* op_registration) {
     col.set_id(i++);
     col.set_name(c.name());
     col.set_type(c.type());
+    col.set_type_name(c.type_name());
     output_columns.push_back(col);
   }
   bool can_stencil = op_registration->can_stencil();
@@ -761,9 +775,9 @@ void WorkerImpl::register_op(const proto::OpRegistration* op_registration) {
   bool has_bounded_state = op_registration->has_bounded_state();
   i32 warmup = op_registration->warmup();
   bool has_unbounded_state = op_registration->has_unbounded_state();
-  OpInfo* info = new OpInfo(name, variadic_inputs, input_columns,
-                            output_columns, can_stencil, stencil,
-                            has_bounded_state, warmup, has_unbounded_state, "");
+  OpInfo* info = new OpInfo(
+      name, variadic_inputs, input_columns, output_columns, can_stencil,
+      stencil, has_bounded_state, warmup, has_unbounded_state, "", "");
   OpRegistry* registry = get_op_registry();
   registry->add_op(name, info);
   LOG(INFO) << "Worker " << node_id_ << " registering Op: " << name;
@@ -773,7 +787,6 @@ void WorkerImpl::register_python_kernel(const proto::PythonKernelRegistration* p
   const std::string& op_name = python_kernel->op_name();
   DeviceType device_type = python_kernel->device_type();
   const std::string& kernel_code = python_kernel->kernel_code();
-  const std::string& pickled_config = python_kernel->pickled_config();
   const int batch_size = python_kernel->batch_size();
 
   // Set all input and output columns to be CPU
@@ -798,9 +811,9 @@ void WorkerImpl::register_python_kernel(const proto::PythonKernelRegistration* p
   }
 
   // Create a kernel builder function
-  auto constructor = [op_name, kernel_code, pickled_config,
+  auto constructor = [op_name, kernel_code,
                       can_batch, can_stencil](const KernelConfig& config) {
-      return new PythonKernel(config, op_name, kernel_code, pickled_config,
+      return new PythonKernel(config, op_name, kernel_code,
                               can_batch, can_stencil);
   };
 
@@ -922,7 +935,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       }
     }
   }
-  profiler.add_interval("process_job:ops_setup", setup_ops_start, now());
+  profiler.add_interval(REGISTER_OPS_LABEL, setup_ops_start, now());
 
   auto finished_fn = [&]() {
     if (!trigger_shutdown_.raised()) {
@@ -979,7 +992,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   // Setup table metadata cache for use in other operations
   DatabaseMetadata meta(job_params->db_meta());
   TableMetaCache table_meta(storage_, meta);
-  profiler.add_interval("process_job:cache_table_metadata", meta_cache_start, now());
+  profiler.add_interval(LOAD_METADATA_LABEL, meta_cache_start, now());
   // Perform analysis on the graph to determine:
   //
   // - populate_analysis_info: Analayze the graph to build lookup structures to
@@ -994,13 +1007,18 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   //
   // - remap_input_op_edges: Remap multiple inputs to a single input op
   //
+  // - remap_sink_op_edges: Remap multiple sinks to a single sink op
+  //
   // - perform_liveness_analysis: When to retire elements (liveness analysis)
   auto dag_analysis_start = now();
   DAGAnalysisInfo analysis_results;
-  populate_analysis_info(ops, analysis_results);
+  populate_analysis_info(jobs, ops, analysis_results);
+  // NOTE(apoms): must occur before determine_input_rows_to_slices because that
+  // function expects a single output op
   // Need slice input rows to know which slice we are in
   determine_input_rows_to_slices(meta, table_meta, jobs, ops, analysis_results, db_params_.storage_config);
   remap_input_op_edges(ops, analysis_results);
+  remap_sink_op_edges(ops, analysis_results);
   // Analyze op DAG to determine what inputs need to be pipped along
   // and when intermediates can be retired -- essentially liveness analysis
   perform_liveness_analysis(ops, analysis_results);
@@ -1034,7 +1052,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     final_compression_options.push_back(o);
   }
   assert(final_output_columns.size() == final_compression_options.size());
-  profiler.add_interval("process_job:dag_analysis", dag_analysis_start, now());
+  profiler.add_interval(DAG_ANALYSIS_LABEL, dag_analysis_start, now());
 
   // Setup kernel factories and the kernel configs that will be used
   // to instantiate instances of the op pipeline
@@ -1137,7 +1155,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       kernel_config.input_columns.push_back(input.column());
       if (input_columns.size() == 0) {
         // We ccan have 0 columns in op info if variadic arguments
-        kernel_config.input_column_types.push_back(ColumnType::Other);
+        kernel_config.input_column_types.push_back(ColumnType::Bytes);
       } else {
         kernel_config.input_column_types.push_back(input_columns[i].type());
       }
@@ -1150,8 +1168,11 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   // stencil
   // Op -> job -> slice -> rows
   std::vector<std::vector<std::vector<i64>>> op_input_domain_size(ops.size());
-  for (size_t i = 0; i < ops.size(); ++i) {
+  for (size_t i = 0; i < ops.size() - 1; ++i) {
     // Grab one of the inputs to this op to figure out this ops input domain
+    if (ops.at(i).inputs_size() == 0) {
+      continue;
+    }
     i64 input_op_idx = i;
     if (!ops.at(i).is_source()) {
       input_op_idx = ops.at(i).inputs(0).op_index();
@@ -1166,6 +1187,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   std::vector<OpArgGroup> groups;
   if (!kernel_factories.empty()) {
     auto source_registry = get_source_registry();
+    auto sink_registry = get_sink_registry();
 
     bool first_op = true;
     DeviceType last_device_type;
@@ -1186,6 +1208,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       }
       auto& op_group = groups.back().op_names;
       auto& op_source = groups.back().is_source;
+      auto& op_sink = groups.back().is_sink;
       auto& op_sampling = groups.back().sampling_args;
       auto& group = groups.back().kernel_factories;
       auto& op_input = groups.back().op_input_domain_size;
@@ -1202,6 +1225,11 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
         op_source.push_back(true);
       } else {
         op_source.push_back(false);
+      }
+      if (sink_registry->has_sink(op_name)) {
+        op_sink.push_back(true);
+      } else {
+        op_sink.push_back(false);
       }
       if (analysis_results.slice_ops.count(i) > 0) {
         i64 local_op_idx = group.size();
@@ -1353,28 +1381,37 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   // to instantiate save worker instances
   std::vector<SinkFactory*> sink_factories;
   std::vector<SinkConfig> sink_configs;
+  std::vector<i32> sink_op_idxs;
   {
+    auto sink_remapping = analysis_results.sink_ops_to_last_op_columns;
+    size_t num_sinks = sink_remapping.size();
     auto registry = get_sink_registry();
-    sink_factories.resize(1);
-    sink_configs.resize(1);
+    sink_factories.resize(num_sinks);
+    sink_configs.resize(num_sinks);
+    sink_op_idxs.resize(num_sinks);
 
-    auto& output_op = ops.back();
-    auto sink_factory = registry->get_sink(output_op.name());
-    sink_factories[0] = sink_factory;
+    for (auto& kv : sink_remapping) {
+      i64 sink_op_idx = kv.first;
+      i64 sink_column_idx = kv.second;
 
-    auto& in_cols = sink_factory->input_columns();
-    SinkConfig config;
-    config.storage_config = db_params_.storage_config;
-    for (auto& col : in_cols) {
-      config.input_columns.push_back(col.name());
-      config.input_column_types.push_back(col.type());
+      auto& output_op = ops.at(sink_op_idx);
+      auto sink_factory = registry->get_sink(output_op.name());
+      sink_factories[sink_column_idx] = sink_factory;
+
+      auto& in_cols = sink_factory->input_columns();
+      SinkConfig config;
+      config.storage_config = db_params_.storage_config;
+      for (auto& col : in_cols) {
+        config.input_columns.push_back(col.name());
+        config.input_column_types.push_back(col.type());
+      }
+      config.args = std::vector<u8>(output_op.kernel_args().begin(),
+                                    output_op.kernel_args().end());
+      config.node_id = node_id_;
+
+      sink_configs[sink_column_idx] = config;
+      sink_op_idxs[sink_column_idx] = sink_op_idx;
     }
-    config.args =
-        std::vector<u8>(output_op.kernel_args().begin(),
-                        output_op.kernel_args().end());
-    config.node_id = node_id_;
-
-    sink_configs[0] = config;
   }
 
   // Setup sink args that will be passed to sinks when processing
@@ -1385,13 +1422,11 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     sink_args.emplace_back();
     auto& sargs = sink_args.back();
     for (auto& so : job.outputs()) {
-      // TODO(apoms): use real op_idx when we support multiple outputs
-      //sargs[so.op_index()] =
-      sargs[0] =
+      sargs[so.op_index()] =
           std::vector<u8>(so.args().begin(), so.args().end());
     }
   }
-  profiler.add_interval("process_job:pipeline_setup", pipeline_setup_start, now());
+  profiler.add_interval(PIPELINE_SETUP_LABEL, pipeline_setup_start, now());
 
   auto memory_pool_start = now();
   // Set up memory pool if different than previous memory pool
@@ -1418,7 +1453,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     cached_memory_pool_config_ = job_params->memory_pool_config();
     memory_pool_initialized_ = true;
   }
-  profiler.add_interval("process_job:create_memory_pool", memory_pool_start, now());
+  profiler.add_interval(SETUP_MEMORY_POOL_LABEL, memory_pool_start, now());
 
 
 #ifdef __linux__
@@ -1479,6 +1514,9 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   i32 next_gpu_idx = 0;
   std::mutex startup_lock;
   std::condition_variable startup_cv;
+  i32 resources_fetched_count = 0;
+  std::mutex resources_fetched_lock;
+  std::condition_variable resources_fetched_cv;
   i32 startup_count = 0;
   i32 eval_total = 0;
   for (i32 ki = 0; ki < pipeline_instances_per_node; ++ki) {
@@ -1559,6 +1597,8 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       thread_args.emplace_back(EvaluateWorkerArgs{
           // Uniform arguments
           node_id_, startup_lock, startup_cv, startup_count,
+          resources_fetched_count, resources_fetched_lock, resources_fetched_cv,
+          num_kernel_groups,
 
           // Per worker arguments
           ki, kg, groups[kg], job_params->boundary_condition(),
@@ -1651,23 +1691,33 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   for (i32 i = 0; i < num_save_workers; ++i) {
     save_thread_profilers.emplace_back(Profiler(base_time));
   }
+
+  std::vector<std::map<i32, i64>> column_sink_to_table_ids;
+  for (const std::map<i64, std::string>& sink_table_names :
+       analysis_results.column_sink_table_names) {
+    column_sink_to_table_ids.emplace_back();
+    std::map<i32, i64>& sink_table_ids = column_sink_to_table_ids.back();
+    for (const auto& kv : sink_table_names) {
+      sink_table_ids[kv.first] = meta.get_table_id(kv.second);
+    }
+  }
+
   std::vector<std::thread> save_threads;
   for (i32 i = 0; i < num_save_workers; ++i) {
-    SaveWorkerArgs args{// Uniform arguments
-                        node_id_,
-                        std::ref(sink_args),
+    SaveWorkerArgs args{
+        // Uniform arguments
+        node_id_, std::ref(sink_args), std::ref(column_sink_to_table_ids),
 
-                        // Per worker arguments
-                        i, db_params_.storage_config,
-                        sink_factories, sink_configs,
-                        std::ref(save_thread_profilers[i]),
-                        std::ref(save_results[i])};
+        // Per worker arguments
+        i, db_params_.storage_config, sink_factories, sink_configs,
+        sink_op_idxs, std::ref(save_thread_profilers[i]),
+        std::ref(save_results[i])};
 
     save_threads.emplace_back(save_driver, std::ref(save_work[i]),
                               std::ref(retired_tasks), args);
   }
 
-  profiler.add_interval("process_job:create_pipelines", pipeline_create_start, now());
+  profiler.add_interval(CREATE_PIPELINES_LABEL, pipeline_create_start, now());
 
   if (job_params->profiling()) {
     auto wait_for_others_start = now();
@@ -1676,7 +1726,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     startup_cv.wait(lk, [&] {
       return eval_total == startup_count;
     });
-    profiler.add_interval("process_job:wait_for_pipelines", wait_for_others_start, now());
+    profiler.add_interval(WAIT_PIPELINES_LABEL, wait_for_others_start, now());
   }
 
   timepoint_t start_time = now();
@@ -1814,8 +1864,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
           derive_stencil_requirements(
               meta, table_meta, jobs.at(work_packet.job_index()), ops,
               analysis_results, job_params->boundary_condition(),
-              work_packet.table_id(), work_packet.job_index(),
-              work_packet.task_index(),
+              work_packet.job_index(), work_packet.task_index(),
               std::vector<i64>(work_packet.output_rows().begin(),
                                work_packet.output_rows().end()),
               stenciled_entry, task_stream, db_params_.storage_config);
@@ -2052,7 +2101,7 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
   // Evaluate worker profilers
   u8 eval_worker_count = pipeline_instances_per_node;
   s_write(profiler_output.get(), eval_worker_count);
-  u8 profilers_per_chain = 3;
+  u8 profilers_per_chain = num_kernel_groups + 2;
   s_write(profiler_output.get(), profilers_per_chain);
   for (i32 pu = 0; pu < pipeline_instances_per_node; ++pu) {
     i32 i = pu;
@@ -2061,15 +2110,15 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
       write_profiler_to_file(profiler_output.get(), out_rank, "eval", tag, i,
                              eval_profilers[pu][0]);
     }
-    {
+    for (u8 kg = 0; kg < num_kernel_groups; ++kg) {
       std::string tag = "eval";
       write_profiler_to_file(profiler_output.get(), out_rank, "eval", tag, i,
-                             eval_profilers[pu][1]);
+                             eval_profilers[pu][1 + kg]);
     }
     {
       std::string tag = "post";
       write_profiler_to_file(profiler_output.get(), out_rank, "eval", tag, i,
-                             eval_profilers[pu][2]);
+                             eval_profilers[pu][1 + num_kernel_groups]);
     }
   }
 

@@ -5,7 +5,7 @@ from subprocess import check_output
 import errno
 
 from scannerpy.common import *
-from storehouse import StorageConfig, StorageBackend
+import storehouse as sh
 
 
 def read_line(s):
@@ -53,7 +53,7 @@ class Config(object):
             # Create connector to Storehouse
             storage_config = self._make_storage_config(config)
             self.storage_config = storage_config
-            self.storage = StorageBackend.make_from_config(storage_config)
+            self.storage = sh.StorageBackend.make_from_config(storage_config)
 
             # Configure network settings
             self.master_address = 'localhost'
@@ -76,11 +76,11 @@ class Config(object):
         storage = config['storage']
         storage_type = storage['type']
         if storage_type == 'posix':
-            storage_config = StorageConfig.make_posix_config()
+            storage_config = sh.StorageConfig.make_posix_config()
         elif storage_type == 'gcs':
-            storage_config = StorageConfig.make_gcs_config(storage['bucket'])
+            storage_config = sh.StorageConfig.make_gcs_config(storage['bucket'])
         elif storage_type == 's3':
-            storage_config = StorageConfig.make_s3_config(
+            storage_config = sh.StorageConfig.make_s3_config(
                 storage['bucket'], storage['region'], storage['endpoint'])
         else:
             raise ScannerException(
@@ -153,6 +153,6 @@ class Config(object):
 
         sc = self._make_storage_config(newstate['config'])
         newstate['storage_config'] = sc
-        newstate['storage'] = StorageBackend.make_from_config(sc)
+        newstate['storage'] = sh.StorageBackend.make_from_config(sc)
         # re-instate our __dict__ state from the pickled state
         self.__dict__.update(newstate)

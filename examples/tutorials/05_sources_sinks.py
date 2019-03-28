@@ -1,5 +1,7 @@
-import scannerpy
-from scannerpy import Database, Job, DeviceType
+from scannertools.storage.files import FilesStream
+from typing import Sequence
+import scannertools.imgproc
+import scannerpy as sp
 import cv2
 
 import sys
@@ -13,7 +15,7 @@ import util
 ################################################################################
 
 def main():
-    db = Database()
+    cl = sp.Client()
 
     # What if, instead of a video, you had a list of image files that you
     # wanted to process? Scanner provides an extensible interface for reading and
@@ -26,8 +28,10 @@ def main():
 
     # Scanner provides a built-in source to read files from the local filesystem:
 
-    compressed_images = db.sources.Files()
-    # Like with db.sources.FrameColumn, we will bind the inputs to this source when
+    image_stream = FilesStream(image_paths)
+
+    compressed_images = cl.io.Input([image_stream])
+    # Like with sc.sources.FrameColumn, we will bind the inputs to this source when
     # we define a job later on.
 
     # Let's write a pipeline that reads our images, resizes them, and writes them
@@ -35,24 +39,19 @@ def main():
 
     # Since the input images are compressed, we decompress them with the
     # ImageDecoder
-    frame = db.ops.ImageDecoder(img=compressed_images)
+    frames = cl.ops.ImageDecoder(img=compressed_images)
 
-    resized = db.ops.Resize(frame=frame, width=640, height=360)
+    resized_frames = cl.ops.Resize(frame=frames, width=[640], height=[360])
 
     # Rencode the image to jpg
-    encoded_frame = db.ops.ImageEncoder(frame=resized, format='jpg')
+    encoded_frames = cl.ops.ImageEncoder(frame=resized_frames, format='jpg')
 
     # Write the compressed images to files
-    output = db.sinks.Files(input=encoded_frame)
-
     resized_paths = ['resized-1.jpg', 'resized-2.jpg', 'resized-3.jpg']
+    resized_stream = FilesStream(resized_paths)
+    output = cl.io.Output(encoded_frames, [resized_stream])
 
-    job = Job(op_args={
-        compressed_images: {'paths': image_paths},
-        output: {'paths': resized_paths}
-    })
-
-    db.run(output=output, jobs=[job])
+    cl.run(output, sp.PerfParams.estimate(), cache_mode=sp.CacheMode.Overwrite)
 
     print('Finished! Wrote the following images: ' + ', '.join(resized_paths))
 

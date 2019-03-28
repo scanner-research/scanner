@@ -6,3 +6,14 @@
 .. raw:: html
    :file: index_h.html
 
+.. toctree::
+   :hidden:
+
+   guide/quickstart
+   guide/getting-started
+   guide/walkthrough
+   guide/graphs
+   guide/ops
+   guide/stored-streams
+   guide/profiling
+   guide/kubernetes

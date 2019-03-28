@@ -1,5 +1,4 @@
-from scannerpy import Database, Job, DeviceType, FrameType
-import scannerpy
+import scannerpy as sp
 import cv2
 import sys
 import os
@@ -18,9 +17,9 @@ import util
 # input sequence. For example:
 
 # Ops have to be registered with the Scanner runtime, which is done
-# here using the decorator @scannerpy.register_python_op()
-@scannerpy.register_python_op()
-def resize_fn(config, frame: FrameType) -> FrameType:
+# here using the decorator @sp.register_python_op()
+@sp.register_python_op()
+def resize_fn(config, frame: sp.FrameType) -> sp.FrameType:
     # Function ops first input (here, config) is always the kernel config.
     # The kernel config provides metadata about the invocation of the Op,
     # such as:
@@ -46,48 +45,47 @@ def resize_fn(config, frame: FrameType) -> FrameType:
 # If your op has state (e.g. it tracks objects over time) or if it has high
 # start-up costs (e.g. it loads a neural network model into memory), then you
 # can also use our class-based interface:
-@scannerpy.register_python_op()
-class ResizeClass(scannerpy.Kernel):
+@sp.register_python_op()
+class ResizeClass(sp.Kernel):
     # Init runs once when the class instance is initialized
-    def __init__(self, config):
-        self._width = config.args['width']
-        self._height = config.args['height']
+    def __init__(self, config, width, height):
+        self._width = width
+        self._height = height
 
     # The execute method serves the same purpose the registered op function
     # above does and has to provide the same type annotations.
-    def execute(self, frame: FrameType) -> FrameType:
+    def execute(self, frame: sp.FrameType) -> sp.FrameType:
         return cv2.resize(frame, (self._width, self._height))
 
 
 def main():
     # Now we can use these new Ops in Scanner:
-    db = Database()
+    cl = sp.Client()
 
     # Download an example video
     example_video_path = util.download_video()
 
-    # Ingest it into the database
-    [input_table], _ = db.ingest_videos([('example', example_video_path)],
-                                        force=True)
+    # Create a stream and input to read our example video
+    video_stream = sp.NamedVideoStream(cl, 'example', path=example_video_path)
+    frames = cl.io.Input([video_stream])
 
-    frame = db.sources.FrameColumn()
+    resized_fn_frames = cl.ops.resize_fn(frame=frames, width=640, height=480)
 
-    resized_frame_fn = db.ops.resize_fn(frame=frame, width=640, height=480)
+    resized_class_frames = cl.ops.ResizeClass(frame=frames, width=320, height=240)
 
-    resized_frame_class = db.ops.ResizeClass(frame=frame, width=320, height=240)
+    fn_stream = sp.NamedVideoStream(cl, 'fn_frames')
+    fn_output = cl.io.Output(resized_fn_frames, [fn_stream])
 
-    output = db.sinks.FrameColumn(columns={'frame1': resized_frame_fn,
-                                           'frame2': resized_frame_class})
+    class_stream = sp.NamedVideoStream(cl, 'class_frames')
+    class_output = cl.io.Output(resized_class_frames, [class_stream])
 
-    job = Job(op_args={
-        frame: input_table.column('frame'),
-        output: 'example_python_op'
-    })
+    cl.run([fn_output, class_output], sp.PerfParams.estimate())
 
-    [table] = db.run(output=output, jobs=[job], force=True)
+    fn_stream.save_mp4('01_resized_fn')
+    class_stream.save_mp4('01_resized_class')
 
-    table.column('frame1').save_mp4('01_resized_fn')
-    table.column('frame2').save_mp4('01_resized_class')
+    for stream in [fn_stream, class_stream]:
+        stream.delete(cl)
 
     print('Finished! Two videos were saved to the current directory: '
           '01_resized_fn.mp4, 01_resized_class.mp4')
@@ -95,6 +93,7 @@ def main():
     # If you are trying to integrate with a C++ library or you want a more efficient
     # implementation for your Ops, you can also define Ops in C++. See the
     # 08_defining_cpp_ops.py tutorial.
+
 
 
 if __name__ == "__main__":

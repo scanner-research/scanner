@@ -235,7 +235,7 @@ class MasterServerImpl final : public proto::Master::Service {
     //============================================================================
     DAGAnalysisInfo dag_info;
     // Mapping from jobs to table ids
-    std::map<i64, i64> job_to_table_id;
+    std::map<i64, std::vector<i64>> job_to_table_ids;
     // Slice input rows for each job at each slice op
     std::vector<std::map<i64, i64>> slice_input_rows_per_job;
     // Output rows for each job
@@ -295,7 +295,7 @@ class MasterServerImpl final : public proto::Master::Service {
     std::map<i32, bool> unfinished_workers;
     std::vector<i32> unstarted_workers;
     std::atomic<i64> num_failed_workers{0};
-    std::vector<i32> job_uncommitted_tables;
+    std::vector<std::vector<i32>> job_uncommitted_tables;
 
     Result job_result;
   };

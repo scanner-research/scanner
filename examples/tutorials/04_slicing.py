@@ -1,11 +1,8 @@
-import scannerpy
+import scannerpy as sp
+from typing import Sequence
 import cv2
 import numpy as np
 import subprocess
-
-from scannerpy import Database, Job, FrameType
-from scannerpy.stdlib import readers
-from typing import Sequence
 
 import sys
 import os.path
@@ -18,13 +15,12 @@ import util
 ################################################################################
 
 def main():
-    db = Database()
+    cl = sp.Client()
 
     example_video_path = util.download_video()
-    [input_table], _ = db.ingest_videos([('example', example_video_path)],
-                                        force=True)
+    video_stream = sp.NamedVideoStream(cl, 'example', path=example_video_path)
 
-    frame = db.sources.FrameColumn()
+    frame = cl.io.Input([video_stream])
 
     # When working with bounded or unbounded stateful operations, it is sometimes
     # useful to introduce boundaries between sequences of frames which restrict
@@ -34,25 +30,24 @@ def main():
 
     # Scanner provides support for limiting state propagation across frames through
     # "slicing" operations.
-    sliced_frame = db.streams.Slice(frame, db.partitioner.all(50))
+    sliced_frame = cl.streams.Slice(frame, partitions=[cl.partitioner.all(50)])
     # Here, we sliced the input frame stream into chunks of 50 elements. What this
     # means is that any ops which process 'sliced_frame' will *only* be able to
     # maintain state within each chunk of 50 elements.
 
     # For example, let's say we grab the background subtraction op from the previous
-    # tutorial (02_op_attributes) and want to run it on a static camera video which
-    # sometimes jumps forward in time:
-    @scannerpy.register_python_op(bounded_state=60)
-    class BackgroundSubtraction(scannerpy.Kernel):
-        def __init__(self, config):
+    # tutorial (02_op_attributes) and want to run it on our example video:
+    @sp.register_python_op(bounded_state=60)
+    class BackgroundSubtraction(sp.Kernel):
+        def __init__(self, config, alpha, threshold):
             self.config = config
-            self.alpha = config.args['alpha']
-            self.thresh = config.args['threshold']
+            self.alpha = alpha
+            self.thresh = threshold
 
         def reset(self):
             self.average_image = None
 
-        def execute(self, frame: FrameType) -> FrameType:
+        def execute(self, frame: sp.FrameType) -> sp.FrameType:
             if self.average_image is None:
                 self.average_image = frame
 
@@ -69,43 +64,34 @@ def main():
             return masked_image
 
 
-    # First, we download the static camera video from youtube
-    # subprocess.check_call(
-    #     'youtube-dl -f 137 \'https://youtu.be/cVHqFqNz7eM\' -o test.mp4',
-    #     shell=True)
-    # [static_table], _ = db.ingest_videos([('static_video', 'test.mp4')],
-    #                                     force=True)
-    static_table = input_table
-
-    frame = db.sources.FrameColumn()
+    frame = cl.io.Input([video_stream])
 
     # Imagine that there are scene changes at frames 1100, 1200, and 1400, To tell
     # scanner that we do not want background subtraction to cross these boundaries,
     # we can create a 'partitioner' which splits the input.
-    scene_partitions = db.partitioner.ranges([(1100, 1200), (1200, 1400)])
+    scene_partitions = cl.partitioner.ranges([(1100, 1200), (1200, 1400)])
 
     # Now we slice the input frame sequence into these two partitions using a
     # slice operation
-    sliced_frame = db.streams.Slice(frame, partitioner=scene_partitions)
+    sliced_frame = cl.streams.Slice(frame, partitions=[scene_partitions])
 
     # Then we perform background subtraction and indicate we need 60 prior
     # frames to produce correct output
-    masked_frame = db.ops.BackgroundSubtraction(frame=sliced_frame,
+    masked_frame = cl.ops.BackgroundSubtraction(frame=sliced_frame,
                                                 alpha=0.02, threshold=0.05,
                                                 bounded_state=60)
     # Since the background subtraction operation is done, we can unslice the
     # sequence to join it back into a single contiguous stream. You must unslice
     # sequences before feeding them back into sinks
-    unsliced_frame = db.streams.Unslice(masked_frame)
+    unsliced_frame = cl.streams.Unslice(masked_frame)
 
-    output = db.sinks.Column(columns={'frame': unsliced_frame})
-    job = Job(op_args={
-        frame: static_table.column('frame'),
-        output: '04_masked_video',
-    })
-    [table] = db.run(output=output, jobs=[job], force=True)
+    stream = sp.NamedVideoStream(cl, '04_masked_video')
+    output = cl.io.Output(unsliced_frame, [stream])
 
-    table.column('frame').save_mp4('04_masked')
+    cl.run(output, sp.PerfParams.estimate())
+
+    stream.save_mp4('04_masked')
+    stream.delete(cl)
 
     videos = []
     videos.append('04_masked.mp4')

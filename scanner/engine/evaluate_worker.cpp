@@ -15,6 +15,13 @@
 namespace scanner {
 namespace internal {
 namespace {
+
+const std::string DECODER_SETUP_LABEL = "Decoder Setup";
+const std::string DECODE_LABEL = "Decode Frames";
+const std::string FEED_LABEL = "Feed Input";
+const std::string YIELD_LABEL = "Produce Output";
+const std::string PIPELINE_SETUP_LABEL= "Setup Operations Pipeline";
+
 void hwang_not_supported(Result& result) {
   std::string message =
       "Scanner was not built with support for decoding inplace "
@@ -27,6 +34,7 @@ void hwang_not_supported(Result& result) {
   result.set_success(false);
   THREAD_RETURN_SUCCESS();
 }
+
 }
 
 PreEvaluateWorker::PreEvaluateWorker(const PreEvaluateWorkerArgs& args)
@@ -81,11 +89,13 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
       // the available decoders
       if (device_handle.type == DeviceType::GPU &&
           VideoDecoder::has_decoder_type(VideoDecoderType::NVIDIA)) {
+        LOG(INFO) << "Selecting GPU decoder type";
         decoder_output_handle.type = DeviceType::GPU;
         decoder_output_handle.id = device_handle.id;
         decoder_type = VideoDecoderType::NVIDIA;
         num_devices = 1;
       } else if (VideoDecoder::has_decoder_type(VideoDecoderType::SOFTWARE)) {
+        LOG(INFO) << "Selecting CPU decoder type";
         decoder_output_handle = CPU_DEVICE;
         decoder_type = VideoDecoderType::SOFTWARE;
         num_devices = decoder_cpus_;
@@ -178,7 +188,7 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
         media_col_idx++;
       }
     }
-    profiler_.add_interval("init", init_start, now());
+    profiler_.add_interval(DECODER_SETUP_LABEL, init_start, now());
   }
 
   media_col_idx = 0;
@@ -190,6 +200,7 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
     }
   }
   decode_args_.clear();
+  auto decode_start = now();
   for (size_t c = 0; c < work_entry.columns.size(); ++c) {
     if (work_entry.column_types[c] == ColumnType::Video &&
         work_entry.video_encoding_type[media_col_idx] ==
@@ -261,9 +272,13 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
       media_col_idx++;
     }
   }
+  if (media_col_idx > 0) {
+    profiler_.add_interval(DECODE_LABEL, decode_start, now());
+  }
+
   first_item_ = first;
   current_row_ = 0;
-  profiler_.add_interval("feed", feed_start, now());
+  profiler_.add_interval(FEED_LABEL, feed_start, now());
 }
 
 bool PreEvaluateWorker::yield(i32 item_size,
@@ -280,7 +295,6 @@ bool PreEvaluateWorker::yield(i32 item_size,
   bool first_item = (start_row == 0);
   i32 media_col_idx = 0;
   EvalWorkEntry entry;
-  entry.table_id = work_entry.table_id;
   entry.job_index = work_entry.job_index;
   entry.task_index = work_entry.task_index;
   entry.needs_configure = first_item ? needs_configure_ : false;
@@ -349,7 +363,7 @@ bool PreEvaluateWorker::yield(i32 item_size,
         std::vector<i64>(work_entry.row_ids[c].begin() + column_start_row,
                          work_entry.row_ids[c].begin() + column_end_row);
   }
-  profiler_.add_interval("yield", yield_start, now());
+  profiler_.add_interval(YIELD_LABEL, yield_start, now());
 
   current_row_ += item_size;
 
@@ -424,6 +438,7 @@ EvaluateWorker::EvaluateWorker(const EvaluateWorkerArgs& args)
       auto new_instance_start = now();
       auto kernel = factory->new_instance(config);
       args.profiler.add_interval("new_instance:" + op_info->name(), new_instance_start, now());
+
       {
         Result result;
         kernel->validate(&result);
@@ -435,16 +450,71 @@ EvaluateWorker::EvaluateWorker(const EvaluateWorkerArgs& args)
         LOG(ERROR) << "Kernel validate failed: " << args.result.msg();
         THREAD_RETURN_SUCCESS();
       }
+
+      // If we're on worker 0, then fetch resources for the kernel
+      //
+      // TODO: we're fetching resources serially here, which could potentially
+      // be a bottleneck. Could have a thread pool for kernel initialization is
+      // this is a problem.
+      if (worker_id_ == 0) {
+        {
+          Result result;
+          kernel->fetch_resources(&result);
+          args.result.set_msg(result.msg());
+          args.result.set_success(result.success());
+        }
+        VLOG(1) << "Kernel finished fetching resources "
+                << args.result.success();
+        if (!args.result.success()) {
+          LOG(ERROR) << "Kernel fetch_resources failed: " << args.result.msg();
+          THREAD_RETURN_SUCCESS();
+        }
+      }
+
       kernels_.emplace_back(kernel);
     }
   }
   assert(kernels_.size() > 0);
 
+  // Add profiler to kernels
   for (auto& kernel : kernels_) {
     if (kernel != nullptr) {
       kernel->set_profiler(&args.profiler);
     }
   }
+
+  // If we're on worker 0, notify that the resources have been fetched for
+  // current kernel group
+  if (worker_id_ == 0) {
+    std::unique_lock<std::mutex> lk(args.resources_fetched_lock);
+    args.resources_fetched_count += 1;
+    args.resources_fetched_cv.notify_all();
+  }
+
+  // Wait for all resources to be fetched from all kernel groups on worker 0
+  {
+    std::unique_lock<std::mutex> lk(args.resources_fetched_lock);
+    args.resources_fetched_cv.wait(lk, [&] {
+      return args.resources_fetched_count == args.num_kernel_groups;
+    });
+  }
+
+  // Now that resources are guaranteed to be fetched, call setup_with_resources
+  for (auto& kernel : kernels_) {
+    if (kernel == nullptr) {
+      continue;
+    }
+
+    Result result;
+    kernel->setup_with_resources(&result);
+    args.result.set_msg(result.msg());
+    args.result.set_success(result.success());
+    if (!args.result.success()) {
+      LOG(ERROR) << "Kernel setup_with_resources failed: " << args.result.msg();
+      THREAD_RETURN_SUCCESS();
+    }
+  }
+
   // Setup kernel cache sizes
   element_cache_row_ids_.resize(kernels_.size());
   element_cache_.resize(kernels_.size());
@@ -459,12 +529,14 @@ EvaluateWorker::EvaluateWorker(const EvaluateWorkerArgs& args)
   current_valid_input_idx_.resize(kernels_.size());
   current_valid_output_idx_.assign(kernels_.size(), 0);
 
-  args.profiler.add_interval("setup", setup_start, now());
+  args.profiler.add_interval(PIPELINE_SETUP_LABEL, setup_start, now());
 
   // Signal the main worker thread that we've finished startup
-  std::unique_lock<std::mutex> lk(args.startup_lock);
-  args.startup_count += 1;
-  args.startup_cv.notify_one();
+  {
+    std::unique_lock<std::mutex> lk(args.startup_lock);
+    args.startup_count += 1;
+    args.startup_cv.notify_all();
+  }
 }
 
 EvaluateWorker::~EvaluateWorker() {
@@ -507,7 +579,7 @@ void EvaluateWorker::new_task(i64 job_idx, i64 task_idx,
   slice_group_ = -1;
   for (size_t k = 0; k < task_streams.size(); ++k) {
     auto& ts = task_streams[k];
-    if (ts.slice_group != -1) {
+    if (!arg_group_.is_sink[k] && ts.slice_group != -1) {
       slice_group_ = ts.slice_group;
     }
     valid_input_rows_.push_back(ts.valid_input_rows);
@@ -623,6 +695,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
     auto op_start = now();
     const std::string& op_name = arg_group_.op_names.at(k);
     bool is_source = arg_group_.is_source.at(k);
+    bool is_sink = arg_group_.is_sink.at(k);
     DeviceHandle current_handle = kernel_devices_[k];
     const std::vector<DeviceHandle>& current_input_handles =
         kernel_input_devices_[k];
@@ -655,7 +728,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
     // Place all new input elements in side output columns into intermediate
     // cache. If different device, move all required values in the side output
     // columns to the proper device for this kernel
-    assert(is_source ||
+    assert(is_source || is_sink ||
            current_input_handles.size() == input_column_idx.size());
     if (kernel_cache_devices.empty()) {
       for (i32 i = 0; i < input_column_idx.size(); ++i) {
@@ -732,7 +805,9 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
 
     // Determine input op max rows for handling boundary
     i64 max_rows;
-    if (arg_group_.op_input_domain_size.at(k).at(job_idx_).size() == 1) {
+    if (is_source || is_sink) {
+      max_rows = 0;
+    } else if (arg_group_.op_input_domain_size.at(k).at(job_idx_).size() == 1) {
       // HACK(apoms): we can only do this because we guarantee that there is
       // only one slice per pipeline
       max_rows = arg_group_.op_input_domain_size.at(k).at(job_idx_).at(0);
@@ -776,11 +851,11 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
     i32 num_output_columns = 0;
     std::vector<i32> kernel_stencil;
 
-    if (is_source || is_builtin_op(op_name)) {
+    if (is_source || is_sink || is_builtin_op(op_name)) {
       producible_elements = compute_producible_elements(0, 1);
       num_output_columns = 1;
       kernel_stencil = {0};
-      if (is_source) {
+      if (is_source || is_sink) {
         num_output_columns = 0;
       }
     } else {
@@ -838,7 +913,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
     }
 
     auto full_eval_start = now();
-    if (is_source) {
+    if (is_source || is_sink) {
       // Should ignore it since we remapped inputs
     } else if (op_name == SAMPLE_OP_NAME) {
       // Filter and remap row ids
@@ -1148,7 +1223,7 @@ void EvaluateWorker::feed(EvalWorkEntry& work_entry) {
                              side_row_ids[i].end());
   }
 
-  profiler_.add_interval("feed", feed_start, now());
+  profiler_.add_interval(FEED_LABEL, feed_start, now());
 }
 
 bool EvaluateWorker::yield(i32 item_size, EvalWorkEntry& output_entry) {
@@ -1157,7 +1232,6 @@ bool EvaluateWorker::yield(i32 item_size, EvalWorkEntry& output_entry) {
   auto yield_start = now();
 
   EvalWorkEntry output_work_entry;
-  output_work_entry.table_id = work_entry.table_id;
   output_work_entry.job_index = work_entry.job_index;
   output_work_entry.task_index = work_entry.task_index;
   output_work_entry.needs_configure = work_entry.needs_configure;
@@ -1189,7 +1263,7 @@ bool EvaluateWorker::yield(i32 item_size, EvalWorkEntry& output_entry) {
 
   output_entry = output_work_entry;
 
-  profiler_.add_interval("yield", yield_start, now());
+  profiler_.add_interval(YIELD_LABEL, yield_start, now());
 
   return true;
 }
@@ -1269,19 +1343,18 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
   {
     i32 encoder_idx = 0;
     if (buffered_entry_.columns.size() == 0) {
-      buffered_entry_.table_id = work_entry.table_id;
       buffered_entry_.job_index = work_entry.job_index;
       buffered_entry_.task_index = work_entry.task_index;
       buffered_entry_.last_in_task = work_entry.last_in_task;
       buffered_entry_.columns.resize(column_mapping_.size());
       buffered_entry_.row_ids.resize(column_mapping_.size());
-      assert(work_entry.column_handles.size() == columns_.size());
       buffered_entry_.column_types.clear();
       buffered_entry_.column_handles.clear();
       buffered_entry_.frame_sizes.clear();
       buffered_entry_.compressed.clear();
       for (size_t i = 0; i < columns_.size(); ++i) {
         i32 col_idx = column_mapping_[i];
+        assert(col_idx < work_entry.column_handles.size());
         buffered_entry_.column_types.push_back(columns_[i].type());
         buffered_entry_.column_handles.push_back(CPU_DEVICE);
         buffered_entry_.compressed.push_back(compression_enabled_[i]);
@@ -1301,6 +1374,7 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
 
   // Swizzle columns correctly
   {
+    std::set<Element*> encoded_elements_to_delete;
     i32 encoder_idx = 0;
     for (size_t i = 0; i < column_mapping_.size(); ++i) {
       i32 col_idx = column_mapping_[i];
@@ -1357,7 +1431,7 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
                 << actual_size << ")";
             insert_element(buffered_entry_.columns[i], buffer, actual_size);
           }
-          delete_element(encoder_handle_, row);
+          encoded_elements_to_delete.insert(&row);
         }
         profiler_.add_interval("encode", encode_start, now());
       } else {
@@ -1386,6 +1460,11 @@ void PostEvaluateWorker::feed(EvalWorkEntry& entry) {
       for (i32 b = 0; b < work_entry.columns[i].size(); ++b) {
         delete_element(work_entry.column_handles[i], work_entry.columns[i][b]);
       }
+    }
+    // Delete elements used by encoder
+    // NOTE(apoms): we wait to delete these since multiple encoders might use the same element
+    for (auto element : encoded_elements_to_delete) {
+      delete_element(encoder_handle_, *element);
     }
   }
 
@@ -1439,7 +1518,7 @@ bool PostEvaluateWorker::yield(EvalWorkEntry& output) {
     got_result = true;
   }
 
-  profiler_.add_interval("yield", yield_start, now());
+  profiler_.add_interval(YIELD_LABEL, yield_start, now());
   return got_result;
 }
 

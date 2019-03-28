@@ -123,7 +123,7 @@ class SinkBuilder {
   }
 
   SinkBuilder& input(const std::string& name,
-                   ColumnType type = ColumnType::Other) {
+                   ColumnType type = ColumnType::Bytes) {
     if (variadic_inputs_) {
       LOG(FATAL) << "Sink " << name_ << " cannot have both fixed and variadic "
                  << "inputs";

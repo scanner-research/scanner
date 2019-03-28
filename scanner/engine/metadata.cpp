@@ -336,9 +336,6 @@ std::vector<i64> ImageFormatGroupMetadata::compressed_sizes() const {
 /// BulkJobMetadata
 BulkJobMetadata::BulkJobMetadata() {}
 BulkJobMetadata::BulkJobMetadata(const BulkJobDescriptor& job) : Metadata(job) {
-  for (auto& t : descriptor_.jobs()) {
-    table_names_.push_back(t.output_table_name());
-  }
 }
 
 std::string BulkJobMetadata::descriptor_path(i32 job_id) {
@@ -358,19 +355,6 @@ i32 BulkJobMetadata::work_packet_size() const {
 }
 
 i32 BulkJobMetadata::num_nodes() const { return descriptor_.num_nodes(); }
-
-const std::vector<std::string>& BulkJobMetadata::table_names() const {
-  return table_names_;
-}
-
-bool BulkJobMetadata::has_table(const std::string& name) const {
-  for (const std::string& n : table_names_) {
-    if (n == name) {
-      return true;
-    }
-  }
-  return false;
-}
 
 ///////////////////////////////////////////////////////////////////////////////
 /// TableMetadata

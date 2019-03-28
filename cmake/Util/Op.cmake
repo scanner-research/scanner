@@ -18,7 +18,7 @@ endif()
 
 function(build_op)
   set(options)
-  set(oneValueArgs LIB_NAME PROTO_SRC NO_FLAGS)
+  set(oneValueArgs LIB_NAME PROTO_SRC BUILD_CUDA NO_FLAGS)
   set(multiValueArgs CPP_SRCS)
   cmake_parse_arguments(args "" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
@@ -34,17 +34,19 @@ function(build_op)
       DEPENDS ${PROTO_HDRS} ${PROTO_PY})
     add_library(${args_LIB_NAME} SHARED ${args_CPP_SRCS} ${PROTO_SRCS})
     add_dependencies(${args_LIB_NAME} ${args_LIB_NAME}_proto_files)
+    install(FILES ${PROTO_HDRS} ${PROTO_PY} DESTINATION .)
   else()
     add_library(${args_LIB_NAME} SHARED ${args_CPP_SRCS})
   endif()
 
-  # NO_FLAGS is primarily for special treatment of libstdlib right now
-  if("${args_NO_FLAGS}" STREQUAL "")
+  install(TARGETS ${args_LIB_NAME} DESTINATION .)
+
+  if(("${args_NO_FLAGS}" STREQUAL ""))
     # Explictly link libscanner.so
     execute_process(
       OUTPUT_VARIABLE SCANNER_LIB_PATH
       COMMAND
-      python3 -c "import scannerpy.stdlib.build_flags as b; b.print_lib()")
+      python3 -c "import scannerpy.build_flags as b; b.print_lib()")
 
     if(APPLE)
       target_link_libraries(${args_LIB_NAME} PUBLIC
@@ -57,7 +59,7 @@ function(build_op)
     execute_process(
       OUTPUT_VARIABLE BUILD_FLAGS
       COMMAND
-      python3 -c "import scannerpy.stdlib.build_flags as b; b.print_compile_flags()")
+      python3 -c "import scannerpy.build_flags as b; b.print_compile_flags()")
     set_target_properties(
       ${args_LIB_NAME} PROPERTIES
       COMPILE_FLAGS "${BUILD_FLAGS}")
@@ -65,9 +67,19 @@ function(build_op)
     execute_process(
       OUTPUT_VARIABLE LINK_FLAGS
       COMMAND
-      python3 -c "import scannerpy.stdlib.build_flags as b; b.print_link_flags()")
+      python3 -c "import scannerpy.build_flags as b; b.print_link_flags()")
     set_target_properties(
       ${args_LIB_NAME} PROPERTIES
       LINK_FLAGS "${LINK_FLAGS}")
+
+    if("${args_BUILD_CUDA}" STREQUAL "ON")
+      find_package(CUDA REQUIRED)
+      target_compile_definitions(${args_LIB_NAME} PUBLIC -DHAVE_CUDA)
+      target_include_directories(${args_LIB_NAME} PUBLIC ${CUDA_INCLUDE_DIRS})
+
+      if(COMPILER_SUPPORTS_CXX1Y)
+        set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -std=c++11")
+      endif()
+    endif()
   endif()
 endfunction()

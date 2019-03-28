@@ -21,10 +21,15 @@ if [[ "$TRAVIS_BRANCH" = "master" ]]; then
 fi
 
 test_docker() {
+    INSTALL_SCANNERTOOLS="pushd /tmp && \
+      git clone https://github.com/scanner-research/scannertools -b api-redesign && \
+      cd scannertools/scannertools_infra && pip3 install . && \
+      cd ../scannertools && pip3 install -v -e . && popd"
+
     if [[ "$TEST_TYPE" = "cpp" ]]; then
         TEST_COMMAND="cd /opt/scanner/build && CTEST_OUTPUT_ON_FAILURE=1 make test ARGS='-V -E PythonTests'"
     elif [[ "$TEST_TYPE" = "tutorials" ]]; then
-        TEST_COMMAND="cd /opt/scanner/ && python3 setup.py test --addopts '-k test_tutorial'"
+        TEST_COMMAND="$INSTALL_SCANNERTOOLS && cd /opt/scanner/ && python3 setup.py test --addopts '-k test_tutorial'"
     elif [[ "$TEST_TYPE" = "integration" ]]; then
         TEST_COMMAND="cd /opt/scanner/ && python3 setup.py test --addopts '-k \\\"not test_tutorial\\\"'"
     fi
