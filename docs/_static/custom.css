@@ -33,6 +33,7 @@ div.sphinxsidebarwrapper {
 }
 
 pre.hljs {
+    font-size: 13px;
     margin: 0;
     padding: 0;
 }
@@ -48,6 +49,8 @@ pre.hljs {
   border-radius: 5px;
   font-size: 14px;
 }
+
+.bs-sidenav h3, .bs-sidenav div[role=note], .bs-sidenav #searchbox { display: none!important; }
 
 .bs-sidenav ul {
     padding-left: 0;
