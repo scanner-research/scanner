@@ -1327,10 +1327,13 @@ class Client(object):
         sorted_ops, op_index, source_ops, stream_ops, output_ops = (
             self._toposort(outputs))
 
+        to_ingest = defaultdict(list)
         for op in source_ops.keys():
             streams = op._outputs[0]._streams
             if isinstance(streams[0], NamedVideoStream):
-                streams[0].storage().ingest(self, streams)
+                to_ingest[streams[0].storage()] += streams
+        for storage, streams in to_ingest.items():
+            storage.ingest(self, streams)
 
         # Collect compression annotations to add to job
         output_column_names = []
