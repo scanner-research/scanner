@@ -1,3 +1,8 @@
+.. _scannerpy-docs:
+
+Scanner Python API
+==================
+
 .. toctree::
 
 scannerpy\.client module
