@@ -51,9 +51,11 @@
     {%- if render_sidebar %}
     <div class="col-md-3">
       <div class="bs-sidenav">
-        {%- for sidebartemplate in sidebars %}
-        {%- include sidebartemplate %}
-        {%- endfor %}
+        <div class="bs-sidenav-inner">
+          {%- for sidebartemplate in sidebars %}
+          {%- include sidebartemplate %}
+          {%- endfor %}
+        </div>
       </div>
     </div>
     {%- endif %}
