@@ -15,7 +15,7 @@ To run the code for this example, first install Scanner (:ref:`getting-started`)
 
 .. code-block:: bash
 
-   cd examples/apps/walkthroughs
+   cd /opt/scanner/examples/apps/walkthroughs
    wget https://storage.googleapis.com/scanner-data/public/sample-clip.mp4
    python3 grayscale_conversion.py
 
@@ -70,7 +70,7 @@ Next, we'll resize the sampled frames by instantiating a :code:`Resize` operatio
 
 .. code-block:: python
 
-   grayscale_frames = cl.ops.ConvertColor(frame=resized_frames, conversion=['COLOR_RGB2GRAY']) 
+   grayscale_frames = cl.ops.ConvertColor(frame=resized_frames, conversion=['COLOR_RGB2GRAY'])
 
 To write a new video containing these grayscale frames, we are going to use Scanner's builtin video compression functionality. However, video compression formats (such as h264) require three channels for each frame but our grayscale frames only have one channel. To rectify this, we're going to define a new operation called :code:`CloneChannels` that will allow us to produce a three channel frame by replicating our single channel grayscale image:
 
@@ -80,7 +80,7 @@ To write a new video containing these grayscale frames, we are going to use Scan
    def CloneChannels(config, frame: sp.FrameType) -> sp.FrameType:
        return np.dstack([frame for _ in range(config.args['replications'])])
 
-   grayscale3_frames = cl.ops.CloneChannels(frame=grayscale_frames, replications=3) 
+   grayscale3_frames = cl.ops.CloneChannels(frame=grayscale_frames, replications=3)
 
 You can learn more about the syntax for defining new operations like :code:`CloneChannels` by checking out the :ref:`ops` guide. Finally, we write the frames to a new output stream called :code:`sample-grayscale` by passing them into an output operation:
 
@@ -97,8 +97,8 @@ Putting it all together, we have:
    frames = cl.io.Input([input_stream])
    sampled_frames = cl.streams.Stride(frames, [2]) # Select every other frame
    resized_frames = cl.ops.Resize(frame=sampled_frames, width=[640], height=[480]) # Resize input frame
-   grayscale_frames = cl.ops.ConvertColor(frame=resized_frames, conversion=['COLOR_RGB2GRAY']) 
-   grayscale3_frames = cl.ops.CloneChannels(frame=grayscale_frames, replications=3) 
+   grayscale_frames = cl.ops.ConvertColor(frame=resized_frames, conversion=['COLOR_RGB2GRAY'])
+   grayscale3_frames = cl.ops.CloneChannels(frame=grayscale_frames, replications=3)
    output_stream = NamedVideoStream(cl, 'sample-grayscale')
    output = cl.io.Output(grayscale3_frames, [output_stream])
 
@@ -124,7 +124,7 @@ Last, we can directly save our output stream as an  mp4 file by calling :code:`s
 
    output_stream.save_mp4('resized-video')
 
-After this call returns, an mp4 video should be saved to the current working directory called :code:`sample-grayscale.mp4` that consists of the grayscale frames that we generated. That's the complete Scanner application! 
+After this call returns, an mp4 video should be saved to the current working directory called :code:`sample-grayscale.mp4` that consists of the grayscale frames that we generated. That's the complete Scanner application!
 
 Next Steps
 ----------

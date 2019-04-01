@@ -15,7 +15,7 @@ This will install docker-compose (a utility for managing docker containers), pul
 
 .. code-block:: bash
 
-   cd /opt/scanner/examples/apps/walkthrough
+   cd /opt/scanner/examples/apps/walkthroughs
    wget https://storage.googleapis.com/scanner-data/public/sample-clip.mp4
    python3 grayscale_conversion.py
 
