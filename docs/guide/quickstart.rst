@@ -9,6 +9,7 @@ If you want to try Scanner out on one of your own videos as quickly as possible,
 
    pip3 install --upgrade docker-compose
    wget https://raw.githubusercontent.com/scanner-research/scanner/master/docker/docker-compose.yml
+   docker-compose pull cpu
    docker-compose run --service-ports cpu /bin/bash
 
 This will install docker-compose (a utility for managing docker containers), pull down the docker compose file for Scanner, and then attempt to start a container with Scanner installed. **NOTE:** The first time you run this code, it may require downloading a ~5GB Docker container for Scanner. Now you can run any of the example applications on your video:
