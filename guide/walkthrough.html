@@ -77,7 +77,8 @@
 
   <div class="row">
     <div class="col-md-3">
-      <div class="bs-sidenav"><div class="guidetoc-container">
+      <div class="bs-sidenav">
+        <div class="bs-sidenav-inner"><div class="guidetoc-container">
   <div class="guidetoc"
        role="navigation">
     <ul class="current">
@@ -130,6 +131,7 @@
 
   </div>
 </div>
+        </div>
       </div>
     </div>
     <div class="col-md-9">
@@ -143,7 +145,7 @@
 <p>Let’s walk through a simple example that takes every other frame from a video, downsamples it, converts from color to grayscale, and then generates a new video from the transformed frames. The resulting application will look like the following sequence of operations:</p>
 <a class="reference internal image-reference" href="../_images/grayscale_conversion.jpg"><img alt="../_images/grayscale_conversion.jpg" src="../_images/grayscale_conversion.jpg" style="width: 343.86px; height: 467.94px;" /></a>
 <p>To run the code for this example, first install Scanner (<a class="reference internal" href="getting-started.html#getting-started"><span class="std std-ref">Installation</span></a>). Then from the top-level Scanner directory, run:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> examples/apps/walkthroughs
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> /opt/scanner/examples/apps/walkthroughs
 wget https://storage.googleapis.com/scanner-data/public/sample-clip.mp4
 python3 grayscale_conversion.py
 </pre></div>

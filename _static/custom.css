@@ -38,9 +38,14 @@ pre.hljs {
     padding: 0;
 }
 
-
 /* First level of nav */
 .bs-sidenav {
+  position: relative;
+}
+
+.bs-sidenav-inner {
+  position: sticky; /* TODO: sticky isn't working */
+  top: 0;
   margin-top: 10px;
   padding-top:    10px;
   padding-bottom: 10px;
@@ -440,4 +445,13 @@ pre code {
 
 #navbar .btn-group {
     margin-top: 15px;
+}
+
+.class > dd {
+    padding-left: 20px;
+    border-left: 1px solid #ccc;
+}
+
+.method {
+    border-bottom: 1px solid #eee;
 }

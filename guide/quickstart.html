@@ -77,7 +77,8 @@
 
   <div class="row">
     <div class="col-md-3">
-      <div class="bs-sidenav"><div class="guidetoc-container">
+      <div class="bs-sidenav">
+        <div class="bs-sidenav-inner"><div class="guidetoc-container">
   <div class="guidetoc"
        role="navigation">
     <ul class="current">
@@ -130,6 +131,7 @@
 
   </div>
 </div>
+        </div>
       </div>
     </div>
     <div class="col-md-9">
@@ -140,11 +142,12 @@
 <p>If you want to try Scanner out on one of your own videos as quickly as possible, install <a class="reference external" href="https://docs.docker.com/install/">Docker</a> (if you have a GPU and you’re running on Linux, you can also install <a class="reference external" href="https://github.com/NVIDIA/nvidia-docker">nvidia-docker</a> which provides GPU support inside Docker containers). Then run:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip3 install --upgrade docker-compose
 wget https://raw.githubusercontent.com/scanner-research/scanner/master/docker/docker-compose.yml
+docker-compose pull cpu
 docker-compose run --service-ports cpu /bin/bash
 </pre></div>
 </div>
 <p>This will install docker-compose (a utility for managing docker containers), pull down the docker compose file for Scanner, and then attempt to start a container with Scanner installed. <strong>NOTE:</strong> The first time you run this code, it may require downloading a ~5GB Docker container for Scanner. Now you can run any of the example applications on your video:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> /opt/scanner/examples/apps/walkthrough
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> /opt/scanner/examples/apps/walkthroughs
 wget https://storage.googleapis.com/scanner-data/public/sample-clip.mp4
 python3 grayscale_conversion.py
 </pre></div>

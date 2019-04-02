@@ -5,7 +5,7 @@
   <head>
     <meta charset="utf-8" />
 
-<title>scannerpy.client module - Scanner</title>
+<title>Scanner Python API - Scanner</title>
 
 
     <link rel="stylesheet" href="../_static/basic.css" type="text/css" />
@@ -70,9 +70,11 @@
   <div class="row">
     <div class="col-md-3">
       <div class="bs-sidenav">
+        <div class="bs-sidenav-inner">
   <h3><a href="../index.html">Table of Contents</a></h3>
   <ul>
-<li><a class="reference internal" href="#">scannerpy.client module</a></li>
+<li><a class="reference internal" href="#">Scanner Python API</a><ul>
+<li><a class="reference internal" href="#module-scannerpy.client">scannerpy.client module</a></li>
 <li><a class="reference internal" href="#module-scannerpy.config">scannerpy.config module</a></li>
 <li><a class="reference internal" href="#module-scannerpy.op">scannerpy.op module</a></li>
 <li><a class="reference internal" href="#scannerpy-types-module">scannerpy.types module</a></li>
@@ -90,6 +92,8 @@
 <li><a class="reference internal" href="#module-scannerpy.sampler">scannerpy.sampler module</a></li>
 <li><a class="reference internal" href="#scannerpy-storage-module">scannerpy.storage module</a></li>
 <li><a class="reference internal" href="#module-scannerpy.kube">scannerpy.kube module</a></li>
+</ul>
+</li>
 </ul>
 
   <div role="note" aria-label="source link">
@@ -109,15 +113,18 @@
     </div>
 </div>
 <script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
       </div>
     </div>
     <div class="col-md-9">
       <div class="content">
         
-  <div class="toctree-wrapper compound">
+  <div class="section" id="scanner-python-api">
+<span id="scannerpy-docs"></span><h1>Scanner Python API<a class="headerlink" href="#scanner-python-api" title="Permalink to this headline">¶</a></h1>
+<div class="toctree-wrapper compound">
 </div>
 <div class="section" id="module-scannerpy.client">
-<span id="scannerpy-client-module"></span><h1>scannerpy.client module<a class="headerlink" href="#module-scannerpy.client" title="Permalink to this headline">¶</a></h1>
+<span id="scannerpy-client-module"></span><h2>scannerpy.client module<a class="headerlink" href="#module-scannerpy.client" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="scannerpy.client.Client">
 <em class="property">class </em><code class="descclassname">scannerpy.client.</code><code class="descname">Client</code><span class="sig-paren">(</span><em>master=None</em>, <em>workers=None</em>, <em>start_cluster=True</em>, <em>config_path=None</em>, <em>config=None</em>, <em>debug=None</em>, <em>enable_watchdog=True</em>, <em>prefetch_table_metadata=True</em>, <em>no_workers_timeout=30</em>, <em>grpc_timeout=30</em>, <em>new_job_retries_limit=5</em>, <em>machine_params=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/client.html#Client"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.client.Client" title="Permalink to this definition">¶</a></dt>
@@ -544,7 +551,7 @@ PokeWatchdog is not called.</p></li>
 
 </div>
 <div class="section" id="module-scannerpy.config">
-<span id="scannerpy-config-module"></span><h1>scannerpy.config module<a class="headerlink" href="#module-scannerpy.config" title="Permalink to this headline">¶</a></h1>
+<span id="scannerpy-config-module"></span><h2>scannerpy.config module<a class="headerlink" href="#module-scannerpy.config" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="scannerpy.config.Config">
 <em class="property">class </em><code class="descclassname">scannerpy.config.</code><code class="descname">Config</code><span class="sig-paren">(</span><em>config_path=None</em>, <em>db_path=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/config.html#Config"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.config.Config" title="Permalink to this definition">¶</a></dt>
@@ -573,7 +580,7 @@ PokeWatchdog is not called.</p></li>
 
 </div>
 <div class="section" id="module-scannerpy.op">
-<span id="scannerpy-op-module"></span><h1>scannerpy.op module<a class="headerlink" href="#module-scannerpy.op" title="Permalink to this headline">¶</a></h1>
+<span id="scannerpy-op-module"></span><h2>scannerpy.op module<a class="headerlink" href="#module-scannerpy.op" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="scannerpy.op.Op">
 <em class="property">class </em><code class="descclassname">scannerpy.op.</code><code class="descname">Op</code><span class="sig-paren">(</span><em>sc, name, inputs, device, batch=-1, warmup=-1, stencil=[0], args={}, extra=None, stream_args=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/op.html#Op"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.op.Op" title="Permalink to this definition">¶</a></dt>
@@ -689,7 +696,7 @@ arguments to this Op.</p></li>
 
 </div>
 <div class="section" id="scannerpy-types-module">
-<h1>scannerpy.types module<a class="headerlink" href="#scannerpy-types-module" title="Permalink to this headline">¶</a></h1>
+<h2>scannerpy.types module<a class="headerlink" href="#scannerpy-types-module" title="Permalink to this headline">¶</a></h2>
 <span class="target" id="module-scannerpy.types"></span><dl class="class">
 <dt id="scannerpy.types.Bbox">
 <em class="property">class </em><code class="descclassname">scannerpy.types.</code><code class="descname">Bbox</code><a class="headerlink" href="#scannerpy.types.Bbox" title="Permalink to this definition">¶</a></dt>
@@ -830,7 +837,7 @@ arguments to this Op.</p></li>
 
 </div>
 <div class="section" id="module-scannerpy.io">
-<span id="scannerpy-io-module"></span><h1>scannerpy.io module<a class="headerlink" href="#module-scannerpy.io" title="Permalink to this headline">¶</a></h1>
+<span id="scannerpy-io-module"></span><h2>scannerpy.io module<a class="headerlink" href="#module-scannerpy.io" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="scannerpy.io.IOGenerator">
 <em class="property">class </em><code class="descclassname">scannerpy.io.</code><code class="descname">IOGenerator</code><span class="sig-paren">(</span><em>sc</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/io.html#IOGenerator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.io.IOGenerator" title="Permalink to this definition">¶</a></dt>
@@ -849,7 +856,7 @@ arguments to this Op.</p></li>
 
 </div>
 <div class="section" id="module-scannerpy.streams">
-<span id="scannerpy-streams-module"></span><h1>scannerpy.streams module<a class="headerlink" href="#module-scannerpy.streams" title="Permalink to this headline">¶</a></h1>
+<span id="scannerpy-streams-module"></span><h2>scannerpy.streams module<a class="headerlink" href="#module-scannerpy.streams" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="scannerpy.streams.StreamsGenerator">
 <em class="property">class </em><code class="descclassname">scannerpy.streams.</code><code class="descname">StreamsGenerator</code><span class="sig-paren">(</span><em>sc</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/streams.html#StreamsGenerator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.streams.StreamsGenerator" title="Permalink to this definition">¶</a></dt>
@@ -1093,7 +1100,7 @@ of tuples representing start and end ranges.</p></li>
 
 </div>
 <div class="section" id="module-scannerpy.source">
-<span id="scannerpy-source-module"></span><h1>scannerpy.source module<a class="headerlink" href="#module-scannerpy.source" title="Permalink to this headline">¶</a></h1>
+<span id="scannerpy-source-module"></span><h2>scannerpy.source module<a class="headerlink" href="#module-scannerpy.source" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="scannerpy.source.Source">
 <em class="property">class </em><code class="descclassname">scannerpy.source.</code><code class="descname">Source</code><span class="sig-paren">(</span><em>sc</em>, <em>name</em>, <em>enumerator_args</em>, <em>source_args={}</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/source.html#Source"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.source.Source" title="Permalink to this definition">¶</a></dt>
@@ -1122,7 +1129,7 @@ Source in the servers registry.</p>
 
 </div>
 <div class="section" id="module-scannerpy.sink">
-<span id="scannerpy-sink-module"></span><h1>scannerpy.sink module<a class="headerlink" href="#module-scannerpy.sink" title="Permalink to this headline">¶</a></h1>
+<span id="scannerpy-sink-module"></span><h2>scannerpy.sink module<a class="headerlink" href="#module-scannerpy.sink" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="scannerpy.sink.Sink">
 <em class="property">class </em><code class="descclassname">scannerpy.sink.</code><code class="descname">Sink</code><span class="sig-paren">(</span><em>sc</em>, <em>name</em>, <em>inputs</em>, <em>job_args</em>, <em>sink_args={}</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/sink.html#Sink"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.sink.Sink" title="Permalink to this definition">¶</a></dt>
@@ -1151,7 +1158,7 @@ Sink in the servers registry.</p>
 
 </div>
 <div class="section" id="module-scannerpy.job">
-<span id="scannerpy-job-module"></span><h1>scannerpy.job module<a class="headerlink" href="#module-scannerpy.job" title="Permalink to this headline">¶</a></h1>
+<span id="scannerpy-job-module"></span><h2>scannerpy.job module<a class="headerlink" href="#module-scannerpy.job" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="scannerpy.job.Job">
 <em class="property">class </em><code class="descclassname">scannerpy.job.</code><code class="descname">Job</code><span class="sig-paren">(</span><em>op_args</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/job.html#Job"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.job.Job" title="Permalink to this definition">¶</a></dt>
@@ -1166,7 +1173,7 @@ Sink in the servers registry.</p>
 
 </div>
 <div class="section" id="module-scannerpy.column">
-<span id="scannerpy-column-module"></span><h1>scannerpy.column module<a class="headerlink" href="#module-scannerpy.column" title="Permalink to this headline">¶</a></h1>
+<span id="scannerpy-column-module"></span><h2>scannerpy.column module<a class="headerlink" href="#module-scannerpy.column" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="scannerpy.column.Column">
 <em class="property">class </em><code class="descclassname">scannerpy.column.</code><code class="descname">Column</code><span class="sig-paren">(</span><em>table</em>, <em>name</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/column.html#Column"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.column.Column" title="Permalink to this definition">¶</a></dt>
@@ -1221,7 +1228,7 @@ a binary blob for non-frame columns (optionally processed by the
 
 </div>
 <div class="section" id="module-scannerpy.common">
-<span id="scannerpy-common-module"></span><h1>scannerpy.common module<a class="headerlink" href="#module-scannerpy.common" title="Permalink to this headline">¶</a></h1>
+<span id="scannerpy-common-module"></span><h2>scannerpy.common module<a class="headerlink" href="#module-scannerpy.common" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="scannerpy.common.CacheMode">
 <em class="property">class </em><code class="descclassname">scannerpy.common.</code><code class="descname">CacheMode</code><a class="reference internal" href="../_modules/scannerpy/common.html#CacheMode"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.common.CacheMode" title="Permalink to this definition">¶</a></dt>
@@ -1394,7 +1401,7 @@ is provided.</p></li>
 
 </div>
 <div class="section" id="module-scannerpy.kernel">
-<span id="scannerpy-kernel-module"></span><h1>scannerpy.kernel module<a class="headerlink" href="#module-scannerpy.kernel" title="Permalink to this headline">¶</a></h1>
+<span id="scannerpy-kernel-module"></span><h2>scannerpy.kernel module<a class="headerlink" href="#module-scannerpy.kernel" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="scannerpy.kernel.Kernel">
 <em class="property">class </em><code class="descclassname">scannerpy.kernel.</code><code class="descname">Kernel</code><span class="sig-paren">(</span><em>config</em>, <em>init_parameter=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/kernel.html#Kernel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.kernel.Kernel" title="Permalink to this definition">¶</a></dt>
@@ -1477,7 +1484,7 @@ See <a class="reference internal" href="../guide/ops.html#stream-parameters"><sp
 
 </div>
 <div class="section" id="module-scannerpy.partitioner">
-<span id="scannerpy-partitioner-module"></span><h1>scannerpy.partitioner module<a class="headerlink" href="#module-scannerpy.partitioner" title="Permalink to this headline">¶</a></h1>
+<span id="scannerpy-partitioner-module"></span><h2>scannerpy.partitioner module<a class="headerlink" href="#module-scannerpy.partitioner" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="scannerpy.partitioner.TaskPartitioner">
 <em class="property">class </em><code class="descclassname">scannerpy.partitioner.</code><code class="descname">TaskPartitioner</code><span class="sig-paren">(</span><em>sc</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/partitioner.html#TaskPartitioner"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.partitioner.TaskPartitioner" title="Permalink to this definition">¶</a></dt>
@@ -1523,7 +1530,7 @@ tasks.</p>
 
 </div>
 <div class="section" id="module-scannerpy.profiler">
-<span id="scannerpy-profiler-module"></span><h1>scannerpy.profiler module<a class="headerlink" href="#module-scannerpy.profiler" title="Permalink to this headline">¶</a></h1>
+<span id="scannerpy-profiler-module"></span><h2>scannerpy.profiler module<a class="headerlink" href="#module-scannerpy.profiler" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="scannerpy.profiler.Profile">
 <em class="property">class </em><code class="descclassname">scannerpy.profiler.</code><code class="descname">Profile</code><span class="sig-paren">(</span><em>sc</em>, <em>job_id</em>, <em>load_threads=8</em>, <em>subsample=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/profiler.html#Profile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.profiler.Profile" title="Permalink to this definition">¶</a></dt>
@@ -1566,10 +1573,10 @@ click “Load” in the top left to load the trace.</p>
 
 </div>
 <div class="section" id="scannerpy-protobuf-generator-module">
-<h1>scannerpy.protobuf_generator module<a class="headerlink" href="#scannerpy-protobuf-generator-module" title="Permalink to this headline">¶</a></h1>
+<h2>scannerpy.protobuf_generator module<a class="headerlink" href="#scannerpy-protobuf-generator-module" title="Permalink to this headline">¶</a></h2>
 </div>
 <div class="section" id="module-scannerpy.sampler">
-<span id="scannerpy-sampler-module"></span><h1>scannerpy.sampler module<a class="headerlink" href="#module-scannerpy.sampler" title="Permalink to this headline">¶</a></h1>
+<span id="scannerpy-sampler-module"></span><h2>scannerpy.sampler module<a class="headerlink" href="#module-scannerpy.sampler" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="scannerpy.sampler.Sampler">
 <em class="property">class </em><code class="descclassname">scannerpy.sampler.</code><code class="descname">Sampler</code><span class="sig-paren">(</span><em>sc</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/sampler.html#Sampler"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.sampler.Sampler" title="Permalink to this definition">¶</a></dt>
@@ -1625,7 +1632,7 @@ to run a computation over.</p>
 
 </div>
 <div class="section" id="scannerpy-storage-module">
-<h1>scannerpy.storage module<a class="headerlink" href="#scannerpy-storage-module" title="Permalink to this headline">¶</a></h1>
+<h2>scannerpy.storage module<a class="headerlink" href="#scannerpy-storage-module" title="Permalink to this headline">¶</a></h2>
 <span class="target" id="module-scannerpy.storage"></span><dl class="class">
 <dt id="scannerpy.storage.NamedStorage">
 <em class="property">class </em><code class="descclassname">scannerpy.storage.</code><code class="descname">NamedStorage</code><span class="sig-paren">(</span><em>storage_config=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/storage.html#NamedStorage"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.storage.NamedStorage" title="Permalink to this definition">¶</a></dt>
@@ -2087,7 +2094,7 @@ will be used by default.</p></li>
 
 </div>
 <div class="section" id="module-scannerpy.kube">
-<span id="scannerpy-kube-module"></span><h1>scannerpy.kube module<a class="headerlink" href="#module-scannerpy.kube" title="Permalink to this headline">¶</a></h1>
+<span id="scannerpy-kube-module"></span><h2>scannerpy.kube module<a class="headerlink" href="#module-scannerpy.kube" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="scannerpy.kube.CloudConfig">
 <em class="property">class </em><code class="descclassname">scannerpy.kube.</code><code class="descname">CloudConfig</code><span class="sig-paren">(</span><em>project</em>, <em>service_key=NOTHING</em>, <em>storage_key_id=NOTHING</em>, <em>storage_key_secret=NOTHING</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/kube.html#CloudConfig"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.kube.CloudConfig" title="Permalink to this definition">¶</a></dt>
@@ -2315,6 +2322,7 @@ will be used by default.</p></li>
 <code class="descclassname">scannerpy.kube.</code><code class="descname">worker</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/kube.html#worker"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.kube.worker" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
+</div>
 </div>
 
 

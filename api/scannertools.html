@@ -5,7 +5,7 @@
   <head>
     <meta charset="utf-8" />
 
-<title>Operations - Scanner</title>
+<title>Scannertools API - Scanner</title>
 
 
     <link rel="stylesheet" href="../_static/basic.css" type="text/css" />
@@ -70,9 +70,11 @@
   <div class="row">
     <div class="col-md-3">
       <div class="bs-sidenav">
+        <div class="bs-sidenav-inner">
   <h3><a href="../index.html">Table of Contents</a></h3>
   <ul>
-<li><a class="reference internal" href="#">Operations</a><ul>
+<li><a class="reference internal" href="#">Scannertools API</a><ul>
+<li><a class="reference internal" href="#operations">Operations</a><ul>
 <li><a class="reference internal" href="#face-detection">Face Detection</a></li>
 <li><a class="reference internal" href="#face-embedding">Face Embedding</a></li>
 <li><a class="reference internal" href="#gender-detection">Gender Detection</a></li>
@@ -94,6 +96,8 @@
 <li><a class="reference internal" href="#storage">Storage</a></li>
 <li><a class="reference internal" href="#scannertools-caffe">scannertools_caffe</a></li>
 </ul>
+</li>
+</ul>
 
   <div role="note" aria-label="source link">
     <h3>This Page</h3>
@@ -112,18 +116,21 @@
     </div>
 </div>
 <script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
       </div>
     </div>
     <div class="col-md-9">
       <div class="content">
         
-  <hr class="docutils" />
+  <div class="section" id="scannertools-api">
+<span id="scannertools-docs"></span><h1>Scannertools API<a class="headerlink" href="#scannertools-api" title="Permalink to this headline">¶</a></h1>
+<hr class="docutils" />
 <div class="toctree-wrapper compound">
 </div>
 <div class="section" id="operations">
-<h1>Operations<a class="headerlink" href="#operations" title="Permalink to this headline">¶</a></h1>
+<h2>Operations<a class="headerlink" href="#operations" title="Permalink to this headline">¶</a></h2>
 <div class="section" id="face-detection">
-<h2>Face Detection<a class="headerlink" href="#face-detection" title="Permalink to this headline">¶</a></h2>
+<h3>Face Detection<a class="headerlink" href="#face-detection" title="Permalink to this headline">¶</a></h3>
 <iframe width="560" height="315" src="https://www.youtube.com/embed/IQsb_nbPf9M" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe><dl class="function">
 <dt id="ops.MTCNNDetectFaces">
 <code class="descclassname">ops.</code><code class="descname">MTCNNDetectFaces</code><span class="sig-paren">(</span><em>frame</em><span class="sig-paren">)</span><a class="headerlink" href="#ops.MTCNNDetectFaces" title="Permalink to this definition">¶</a></dt>
@@ -166,7 +173,7 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 </div>
 </div>
 <div class="section" id="face-embedding">
-<h2>Face Embedding<a class="headerlink" href="#face-embedding" title="Permalink to this headline">¶</a></h2>
+<h3>Face Embedding<a class="headerlink" href="#face-embedding" title="Permalink to this headline">¶</a></h3>
 <dl class="function">
 <dt id="ops.EmbedFaces">
 <code class="descclassname">ops.</code><code class="descname">EmbedFaces</code><span class="sig-paren">(</span><em>frame</em>, <em>bboxes</em><span class="sig-paren">)</span><a class="headerlink" href="#ops.EmbedFaces" title="Permalink to this definition">¶</a></dt>
@@ -191,7 +198,7 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 
 </div>
 <div class="section" id="gender-detection">
-<h2>Gender Detection<a class="headerlink" href="#gender-detection" title="Permalink to this headline">¶</a></h2>
+<h3>Gender Detection<a class="headerlink" href="#gender-detection" title="Permalink to this headline">¶</a></h3>
 <dl class="function">
 <dt id="ops.DetectGender">
 <code class="descclassname">ops.</code><code class="descname">DetectGender</code><span class="sig-paren">(</span><em>frame</em>, <em>bboxes</em><span class="sig-paren">)</span><a class="headerlink" href="#ops.DetectGender" title="Permalink to this definition">¶</a></dt>
@@ -216,7 +223,7 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 
 </div>
 <div class="section" id="object-detection">
-<h2>Object Detection<a class="headerlink" href="#object-detection" title="Permalink to this headline">¶</a></h2>
+<h3>Object Detection<a class="headerlink" href="#object-detection" title="Permalink to this headline">¶</a></h3>
 <iframe width="560" height="315" src="https://www.youtube.com/embed/6xt-YVFCC9I" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe><dl class="function">
 <dt id="ops.DetectObjects">
 <code class="descclassname">ops.</code><code class="descname">DetectObjects</code><span class="sig-paren">(</span><em>frame</em>, <em>bboxes</em><span class="sig-paren">)</span><a class="headerlink" href="#ops.DetectObjects" title="Permalink to this definition">¶</a></dt>
@@ -238,7 +245,7 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 
 </div>
 <div class="section" id="pose-detection">
-<h2>Pose Detection<a class="headerlink" href="#pose-detection" title="Permalink to this headline">¶</a></h2>
+<h3>Pose Detection<a class="headerlink" href="#pose-detection" title="Permalink to this headline">¶</a></h3>
 <iframe width="560" height="315" src="https://www.youtube.com/embed/N1bT1yjnvMY" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe><dl class="function">
 <dt id="ops.OpenPose">
 <code class="descclassname">ops.</code><code class="descname">OpenPose</code><span class="sig-paren">(</span><em>model_directory</em>, <em>pose_num_scales</em>, <em>pose_scale_gap</em>, <em>compute_hands</em>, <em>hand_num_scales</em>, <em>hand_scale_gap</em>, <em>compute_face</em>, <em>frame</em><span class="sig-paren">)</span><a class="headerlink" href="#ops.OpenPose" title="Permalink to this definition">¶</a></dt>
@@ -274,7 +281,7 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 
 </div>
 <div class="section" id="shot-detection">
-<h2>Shot Detection<a class="headerlink" href="#shot-detection" title="Permalink to this headline">¶</a></h2>
+<h3>Shot Detection<a class="headerlink" href="#shot-detection" title="Permalink to this headline">¶</a></h3>
 <a class="reference external image-reference" href="https://storage.googleapis.com/scanner-data/public/sample-shots.jpg"><img alt="https://storage.googleapis.com/scanner-data/public/sample-shots-small.jpg" src="https://storage.googleapis.com/scanner-data/public/sample-shots-small.jpg" /></a>
 <dl class="function">
 <dt id="ops.ShotBoundaries">
@@ -297,7 +304,7 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 
 </div>
 <div class="section" id="resize">
-<h2>Resize<a class="headerlink" href="#resize" title="Permalink to this headline">¶</a></h2>
+<h3>Resize<a class="headerlink" href="#resize" title="Permalink to this headline">¶</a></h3>
 <dl class="function">
 <dt id="ops.Resize">
 <code class="descclassname">ops.</code><code class="descname">Resize</code><span class="sig-paren">(</span><em>width</em>, <em>height</em>, <em>min</em>, <em>preserve_aspect</em>, <em>interpolation</em>, <em>frame</em><span class="sig-paren">)</span><a class="headerlink" href="#ops.Resize" title="Permalink to this definition">¶</a></dt>
@@ -331,7 +338,7 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 
 </div>
 <div class="section" id="optical-flow">
-<h2>Optical Flow<a class="headerlink" href="#optical-flow" title="Permalink to this headline">¶</a></h2>
+<h3>Optical Flow<a class="headerlink" href="#optical-flow" title="Permalink to this headline">¶</a></h3>
 <dl class="function">
 <dt id="ops.OpticalFlow">
 <code class="descclassname">ops.</code><code class="descname">OpticalFlow</code><span class="sig-paren">(</span><em>frame</em><span class="sig-paren">)</span><a class="headerlink" href="#ops.OpticalFlow" title="Permalink to this definition">¶</a></dt>
@@ -353,7 +360,7 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 
 </div>
 <div class="section" id="histogram">
-<h2>Histogram<a class="headerlink" href="#histogram" title="Permalink to this headline">¶</a></h2>
+<h3>Histogram<a class="headerlink" href="#histogram" title="Permalink to this headline">¶</a></h3>
 <dl class="function">
 <dt id="ops.Histogram">
 <code class="descclassname">ops.</code><code class="descname">Histogram</code><span class="sig-paren">(</span><em>frame</em><span class="sig-paren">)</span><a class="headerlink" href="#ops.Histogram" title="Permalink to this definition">¶</a></dt>
@@ -375,26 +382,27 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 
 </div>
 <div class="section" id="tracker">
-<h2>Tracker<a class="headerlink" href="#tracker" title="Permalink to this headline">¶</a></h2>
+<h3>Tracker<a class="headerlink" href="#tracker" title="Permalink to this headline">¶</a></h3>
 </div>
 </div>
 <div class="section" id="utilities-for-writing-operations">
-<h1>Utilities for writing Operations<a class="headerlink" href="#utilities-for-writing-operations" title="Permalink to this headline">¶</a></h1>
+<h2>Utilities for writing Operations<a class="headerlink" href="#utilities-for-writing-operations" title="Permalink to this headline">¶</a></h2>
 <div class="section" id="caffe2">
-<h2>Caffe2<a class="headerlink" href="#caffe2" title="Permalink to this headline">¶</a></h2>
+<h3>Caffe2<a class="headerlink" href="#caffe2" title="Permalink to this headline">¶</a></h3>
 </div>
 <div class="section" id="pytorch">
-<h2>Pytorch<a class="headerlink" href="#pytorch" title="Permalink to this headline">¶</a></h2>
+<h3>Pytorch<a class="headerlink" href="#pytorch" title="Permalink to this headline">¶</a></h3>
 </div>
 <div class="section" id="tensorflow">
-<h2>TensorFlow<a class="headerlink" href="#tensorflow" title="Permalink to this headline">¶</a></h2>
+<h3>TensorFlow<a class="headerlink" href="#tensorflow" title="Permalink to this headline">¶</a></h3>
 </div>
 </div>
 <div class="section" id="storage">
-<h1>Storage<a class="headerlink" href="#storage" title="Permalink to this headline">¶</a></h1>
+<h2>Storage<a class="headerlink" href="#storage" title="Permalink to this headline">¶</a></h2>
 </div>
 <div class="section" id="scannertools-caffe">
-<h1>scannertools_caffe<a class="headerlink" href="#scannertools-caffe" title="Permalink to this headline">¶</a></h1>
+<h2>scannertools_caffe<a class="headerlink" href="#scannertools-caffe" title="Permalink to this headline">¶</a></h2>
+</div>
 </div>
 
 

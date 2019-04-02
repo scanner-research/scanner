@@ -1,3 +1,8 @@
+.. _scannertools-docs:
+
+Scannertools API
+================
+
 .. raw:: html
          <h1>scannertools API</h1>
 ============

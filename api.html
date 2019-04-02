@@ -75,12 +75,12 @@
 <h1>API Reference<a class="headerlink" href="#api-reference" title="Permalink to this headline">¶</a></h1>
 <p>Scanner has three main components to its API:</p>
 <ul class="simple">
-<li><p>The <a class="reference internal" href="#scannerpy-docs"><span class="std std-ref">Scanner Python API</span></a>, for defining/executing computation graphs and Python kernels</p></li>
+<li><p>The <a class="reference internal" href="api/scannerpy.html#scannerpy-docs"><span class="std std-ref">Scanner Python API</span></a>, for defining/executing computation graphs and Python kernels</p></li>
+<li><p>The <a class="reference internal" href="api/scannertools.html#scannertools-docs"><span class="std std-ref">Scannertools API</span></a>, a standard library of pre-made kernels</p></li>
 <li><p>The <a class="reference external" href="/cpp/">Scanner C++ API</a>, for defining C++ kernels</p></li>
-<li><p>The <a class="reference internal" href="#scannertools-docs"><span class="std std-ref">Scannertools API</span></a>, a standard library of premade kernels</p></li>
 </ul>
 <div class="section" id="scannerpy-the-main-scanner-api">
-<span id="scannerpy-docs"></span><h2>scannerpy - the main scanner API<a class="headerlink" href="#scannerpy-the-main-scanner-api" title="Permalink to this headline">¶</a></h2>
+<h2>scannerpy - the main scanner API<a class="headerlink" href="#scannerpy-the-main-scanner-api" title="Permalink to this headline">¶</a></h2>
 <ul class="simple">
 <li><p><a class="reference internal" href="api/scannerpy.html#module-scannerpy.client" title="scannerpy.client"><code class="xref any py py-mod docutils literal notranslate"><span class="pre">scannerpy.client</span></code></a>: entrypoint for running computation graphs, similar to TensorFlow Session</p></li>
 <li><p><a class="reference internal" href="api/scannerpy.html#module-scannerpy.kernel" title="scannerpy.kernel"><code class="xref any py py-mod docutils literal notranslate"><span class="pre">scannerpy.kernel</span></code></a>: defining custom Python kernels</p></li>
@@ -90,30 +90,33 @@
 </ul>
 </div>
 <div class="section" id="scannertools-the-scanner-standard-library">
-<span id="scannertools-docs"></span><h2>scannertools - the Scanner standard library<a class="headerlink" href="#scannertools-the-scanner-standard-library" title="Permalink to this headline">¶</a></h2>
+<h2>scannertools - the Scanner standard library<a class="headerlink" href="#scannertools-the-scanner-standard-library" title="Permalink to this headline">¶</a></h2>
 <div class="toctree-wrapper compound">
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="api/scannertools.html">Operations</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="api/scannertools.html#face-detection">Face Detection</a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/scannertools.html#face-embedding">Face Embedding</a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/scannertools.html#gender-detection">Gender Detection</a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/scannertools.html#object-detection">Object Detection</a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/scannertools.html#pose-detection">Pose Detection</a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/scannertools.html#shot-detection">Shot Detection</a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/scannertools.html#resize">Resize</a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/scannertools.html#optical-flow">Optical Flow</a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/scannertools.html#histogram">Histogram</a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/scannertools.html#tracker">Tracker</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api/scannertools.html">Scannertools API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/scannertools.html#operations">Operations</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api/scannertools.html#face-detection">Face Detection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/scannertools.html#face-embedding">Face Embedding</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/scannertools.html#gender-detection">Gender Detection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/scannertools.html#object-detection">Object Detection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/scannertools.html#pose-detection">Pose Detection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/scannertools.html#shot-detection">Shot Detection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/scannertools.html#resize">Resize</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/scannertools.html#optical-flow">Optical Flow</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/scannertools.html#histogram">Histogram</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/scannertools.html#tracker">Tracker</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="api/scannertools.html#utilities-for-writing-operations">Utilities for writing Operations</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="api/scannertools.html#caffe2">Caffe2</a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/scannertools.html#pytorch">Pytorch</a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/scannertools.html#tensorflow">TensorFlow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/scannertools.html#utilities-for-writing-operations">Utilities for writing Operations</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api/scannertools.html#caffe2">Caffe2</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/scannertools.html#pytorch">Pytorch</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/scannertools.html#tensorflow">TensorFlow</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="api/scannertools.html#storage">Storage</a></li>
-<li class="toctree-l1"><a class="reference internal" href="api/scannertools.html#scannertools-caffe">scannertools_caffe</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/scannertools.html#storage">Storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/scannertools.html#scannertools-caffe">scannertools_caffe</a></li>
+</ul>
+</li>
 </ul>
 </div>
 </div>
