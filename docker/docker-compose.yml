@@ -2,7 +2,7 @@ version: "2.3"
 services:
   gpu:
     image: scannerresearch/scannertools:gpu-9.1-cudnn7-latest
-    command: jupyter notebook --allow-root --ip=0.0.0.0 --port=8888
+    command: bash -c "cd /opt/scanner && jupyter notebook --allow-root --ip=0.0.0.0 --port=8888"
     ports:
       - "8888:8888"
     volumes:
@@ -10,7 +10,7 @@ services:
     runtime: nvidia
   cpu:
     image: scannerresearch/scannertools:cpu-latest
-    command: jupyter notebook --allow-root --ip=0.0.0.0 --port=8888
+    command: bash -c "cd /opt/scanner && jupyter notebook --allow-root --ip=0.0.0.0 --port=8888"
     ports:
       - "8888:8888"
     volumes:
