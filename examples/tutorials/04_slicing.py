@@ -15,12 +15,12 @@ import util
 ################################################################################
 
 def main():
-    cl = sp.Client()
+    sc = sp.Client()
 
     example_video_path = util.download_video()
-    video_stream = sp.NamedVideoStream(cl, 'example', path=example_video_path)
+    video_stream = sp.NamedVideoStream(sc, 'example', path=example_video_path)
 
-    frame = cl.io.Input([video_stream])
+    frame = sc.io.Input([video_stream])
 
     # When working with bounded or unbounded stateful operations, it is sometimes
     # useful to introduce boundaries between sequences of frames which restrict
@@ -30,7 +30,7 @@ def main():
 
     # Scanner provides support for limiting state propagation across frames through
     # "slicing" operations.
-    sliced_frame = cl.streams.Slice(frame, partitions=[cl.partitioner.all(50)])
+    sliced_frame = sc.streams.Slice(frame, partitions=[sc.partitioner.all(50)])
     # Here, we sliced the input frame stream into chunks of 50 elements. What this
     # means is that any ops which process 'sliced_frame' will *only* be able to
     # maintain state within each chunk of 50 elements.
@@ -64,34 +64,34 @@ def main():
             return masked_image
 
 
-    frame = cl.io.Input([video_stream])
+    frame = sc.io.Input([video_stream])
 
     # Imagine that there are scene changes at frames 1100, 1200, and 1400, To tell
     # scanner that we do not want background subtraction to cross these boundaries,
     # we can create a 'partitioner' which splits the input.
-    scene_partitions = cl.partitioner.ranges([(1100, 1200), (1200, 1400)])
+    scene_partitions = sc.partitioner.ranges([(1100, 1200), (1200, 1400)])
 
     # Now we slice the input frame sequence into these two partitions using a
     # slice operation
-    sliced_frame = cl.streams.Slice(frame, partitions=[scene_partitions])
+    sliced_frame = sc.streams.Slice(frame, partitions=[scene_partitions])
 
     # Then we perform background subtraction and indicate we need 60 prior
     # frames to produce correct output
-    masked_frame = cl.ops.BackgroundSubtraction(frame=sliced_frame,
+    masked_frame = sc.ops.BackgroundSubtraction(frame=sliced_frame,
                                                 alpha=0.02, threshold=0.05,
                                                 bounded_state=60)
     # Since the background subtraction operation is done, we can unslice the
     # sequence to join it back into a single contiguous stream. You must unslice
     # sequences before feeding them back into sinks
-    unsliced_frame = cl.streams.Unslice(masked_frame)
+    unsliced_frame = sc.streams.Unslice(masked_frame)
 
-    stream = sp.NamedVideoStream(cl, '04_masked_video')
-    output = cl.io.Output(unsliced_frame, [stream])
+    stream = sp.NamedVideoStream(sc, '04_masked_video')
+    output = sc.io.Output(unsliced_frame, [stream])
 
-    cl.run(output, sp.PerfParams.estimate())
+    sc.run(output, sp.PerfParams.estimate())
 
     stream.save_mp4('04_masked')
-    stream.delete(cl)
+    stream.delete(sc)
 
     videos = []
     videos.append('04_masked.mp4')

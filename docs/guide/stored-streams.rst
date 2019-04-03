@@ -17,8 +17,8 @@ For example, the following code creates a stored stream for a video file named :
 .. code-block:: python
 
    import scannerpy as sp
-   cl = sp.Client()
-   video_stream = sp.NamedVideoStream(cl, 'example', path='example.mp4')
+   sc = sp.Client()
+   video_stream = sp.NamedVideoStream(sc, 'example', path='example.mp4')
 
 :py:class:`~scannerpy.storage.NamedVideoStream` is a special type of stored stream which represents data stored inside Scanner's internal datastore. Since Scanner was built specifically for processing video, it has specialized support for fast access to frames in videos, even under random access patterns. In order to efficiently read frames from a video, Scanner needs to build an index over the compressed video. By specifying :code:`path = 'example.mp4`, we've told Scanner to initialize a stream named :code:`example` from the :code:`example.mp4` video.
 
@@ -28,7 +28,7 @@ Another example of a stored stream is the :py:class:`~scannerpy.storage.FilesStr
 
    from scannertools.storage.files import FilesStream
    image_paths = ['image1.jpg', 'image2.jpg', 'image3.jpg']
-   file_stream = FilesStream(cl, paths=image_paths)
+   file_stream = FilesStream(sc, paths=image_paths)
 
 By default, :py:class:`~scannertools.storage.files.FilesStream` reads from the local filesystem. However, like all stored streams, the storage location and configuration options can be specified with a :py:class:`~scannerpy.storage.StorageBackend`.
 
@@ -45,7 +45,7 @@ Storage Backends
    file_storage = FileStorage(storage_type='s3',
                               bucket='example-bucket',
                               region='us-west-1')
-   file_stream = FilesStream(cl, paths=image_paths, storage=file_storage)
+   file_stream = FilesStream(sc, paths=image_paths, storage=file_storage)
 
 I/O Operations
 --------------
@@ -95,7 +95,7 @@ By default, Scanner copies the video data for a :py:class:`~scannerpy.storage.Na
 
 .. code-block:: python
 
-   input_stream = NamedVideoStream(cl, 'sample-clip', path='sample-clip.mp4',
+   input_stream = NamedVideoStream(sc, 'sample-clip', path='sample-clip.mp4',
                                    inplace=True)
 
 This still builds the index for accessing the video but avoids copying the files. When Scanner accesses the video data, it will read it directly from the path provided to the named video stream.
