@@ -60,32 +60,32 @@ class ResizeClass(sp.Kernel):
 
 def main():
     # Now we can use these new Ops in Scanner:
-    cl = sp.Client()
+    sc = sp.Client()
 
     # Download an example video
     example_video_path = util.download_video()
 
     # Create a stream and input to read our example video
-    video_stream = sp.NamedVideoStream(cl, 'example', path=example_video_path)
-    frames = cl.io.Input([video_stream])
+    video_stream = sp.NamedVideoStream(sc, 'example', path=example_video_path)
+    frames = sc.io.Input([video_stream])
 
-    resized_fn_frames = cl.ops.resize_fn(frame=frames, width=640, height=480)
+    resized_fn_frames = sc.ops.resize_fn(frame=frames, width=640, height=480)
 
-    resized_class_frames = cl.ops.ResizeClass(frame=frames, width=320, height=240)
+    resized_class_frames = sc.ops.ResizeClass(frame=frames, width=320, height=240)
 
-    fn_stream = sp.NamedVideoStream(cl, 'fn_frames')
-    fn_output = cl.io.Output(resized_fn_frames, [fn_stream])
+    fn_stream = sp.NamedVideoStream(sc, 'fn_frames')
+    fn_output = sc.io.Output(resized_fn_frames, [fn_stream])
 
-    class_stream = sp.NamedVideoStream(cl, 'class_frames')
-    class_output = cl.io.Output(resized_class_frames, [class_stream])
+    class_stream = sp.NamedVideoStream(sc, 'class_frames')
+    class_output = sc.io.Output(resized_class_frames, [class_stream])
 
-    cl.run([fn_output, class_output], sp.PerfParams.estimate())
+    sc.run([fn_output, class_output], sp.PerfParams.estimate())
 
     fn_stream.save_mp4('01_resized_fn')
     class_stream.save_mp4('01_resized_class')
 
     for stream in [fn_stream, class_stream]:
-        stream.delete(cl)
+        stream.delete(sc)
 
     print('Finished! Two videos were saved to the current directory: '
           '01_resized_fn.mp4, 01_resized_class.mp4')

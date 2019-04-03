@@ -12,9 +12,9 @@ Processing data in Scanner occurs primarily through *operations* (*ops*). Operat
    import scannerpy as sp
    import scannertools.imgproc
 
-   cl = sp.Client()
+   sc = sp.Client()
    ...
-   cl.ops.Resize(frame=input_frames, width=[640], height=[480])
+   sc.ops.Resize(frame=input_frames, width=[640], height=[480])
 
 Follow the rest of this guide to understand how to write your own operations.
 

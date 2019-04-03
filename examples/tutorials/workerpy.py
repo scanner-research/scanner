@@ -1,7 +1,7 @@
-from scannerpy import Database
-db = Database()
+from scannerpy import Client
+sc = Client()
 
-db.start_worker()
+sc.start_worker()
 
 import time
 time.sleep(1000)

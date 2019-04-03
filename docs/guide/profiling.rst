@@ -15,20 +15,20 @@ While executing a graph, Scanner keeps a record of how long various tasks take t
    import scannertools.imgproc
 
    # Set up the client
-   cl = sp.Client()
+   sc = sp.Client()
 
    # Define a computation graph
-   video_stream = sp.NamedVideoStream(cl, 'example', path='example.mp4')
-   input_frames = cl.io.Input([video_stream])
-   resized_frames = cl.ops.Resize(frame=input_frames, width=[640], height=[480])
-   output_stream = sp.NamedVideoStream(cl, 'example-output')
-   output = cl.io.Output(resized_frames, [output_stream])
+   video_stream = sp.NamedVideoStream(sc, 'example', path='example.mp4')
+   input_frames = sc.io.Input([video_stream])
+   resized_frames = sc.ops.Resize(frame=input_frames, width=[640], height=[480])
+   output_stream = sp.NamedVideoStream(sc, 'example-output')
+   output = sc.io.Output(resized_frames, [output_stream])
 
    # Run the computation graph
-   job_id = cl.run(output, sp.PerfParams.estimate())
+   job_id = sc.run(output, sp.PerfParams.estimate())
 
    # Get the profile
-   profile = cl.get_profile(job_id)
+   profile = sc.get_profile(job_id)
 
 The :py:class:`~scannerpy.profiler.Profile` class contains information about how long the various parts of the execution graph took and on what processors or workers (when running Scanner with multiple machines) those parts were executed. We can visualize the profile on a timeline by writing out a trace file:
 
