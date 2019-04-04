@@ -88,8 +88,8 @@ class OpticalFlowKernelCPU : public StenciledKernel, public VideoKernel {
 
     cv::Mat input0 = frame_to_mat(frame_col[0].as_const_frame());
     cv::Mat input1 = frame_to_mat(frame_col[1].as_const_frame());
-    cv::cvtColor(input0, grayscale_[0], CV_BGR2GRAY);
-    cv::cvtColor(input1, grayscale_[1], CV_BGR2GRAY);
+    cv::cvtColor(input0, grayscale_[0], cv::COLOR_BGR2GRAY);
+    cv::cvtColor(input1, grayscale_[1], cv::COLOR_BGR2GRAY);
     cv::Mat flow = frame_to_mat(output_frame);
     flow_finder_->calc(grayscale_[0], grayscale_[1], flow);
     insert_frame(output_columns[0], output_frame);

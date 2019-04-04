@@ -33,12 +33,12 @@ ENV deps /deps
 WORKDIR ${deps}
 
 # CMake (we use 3.7 because >3.8 has issues building OpenCV due to http_proxy)
-RUN wget "https://cmake.org/files/v3.7/cmake-3.7.0.tar.gz" && \
-    tar -xf cmake-3.7.0.tar.gz && cd ${deps}/cmake-3.7.0 && \
+RUN wget "https://cmake.org/files/v3.12/cmake-3.12.2.tar.gz" && \
+    tar -xf cmake-3.12.2.tar.gz && cd ${deps}/cmake-3.12.2 && \
     ./bootstrap --parallel=${cores} -- -DCMAKE_USE_OPENSSL=ON && \
     make -j${cores} && \
     make install && \
-    rm -rf ${deps}/cmake-3.7.0.tar.gz ${deps}/cmake-3.7.0
+    rm -rf ${deps}/cmake-3.12.2.tar.gz ${deps}/cmake-3.12.2
 
 # Python dependencies
 WORKDIR /opt/scanner-base
