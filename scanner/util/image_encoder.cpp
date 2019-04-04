@@ -32,7 +32,7 @@ class ImageEncoderKernel : public BatchedKernel, public VideoKernel {
     std::vector<i32> encode_params;
     if (image_type_ == "jpg" || image_type_ == "jpeg" || image_type_ == "JPG" ||
         image_type_ == "jpeg") {
-      encode_params.push_back(CV_IMWRITE_JPEG_QUALITY);
+      encode_params.push_back(cv::IMWRITE_JPEG_QUALITY);
       encode_params.push_back(100);
     }
 
@@ -42,7 +42,7 @@ class ImageEncoderKernel : public BatchedKernel, public VideoKernel {
       std::vector<u8> buf;
       cv::Mat recolored;
       if (img.channels() == 3) {
-        cv::cvtColor(img, recolored, CV_RGB2BGR);
+        cv::cvtColor(img, recolored, cv::COLOR_RGB2BGR);
       } else {
         recolored = img;
       }

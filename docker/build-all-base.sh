@@ -67,6 +67,7 @@ do
     build_push_gpu 8 8.0 cudnn7 &
     build_push_gpu 9 9.0 cudnn7 &
     build_push_gpu 9 9.1 cudnn7 &
+    build_push_gpu 10 10.1 cudnn7 &
 
     wait $(jobs -p)
 

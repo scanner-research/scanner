@@ -414,7 +414,7 @@ elif [[ $INSTALL_ALL == false ]]; then
         echo -n "Do you need support for Pose Detection (openpose)? [Y/n]: "
         read yn
         if [[ $yn != n ]] && [[ $yn != N ]]; then
-            echo -n "Do you have OpenPose (v1.3.0) installed? [y/N]: "
+            echo -n "Do you have OpenPose (v1.4.0) installed? [y/N]: "
             read yn
             if [[ $yn == y ]] || [[ $yn == Y ]]; then
                 INSTALL_OPENPOSE=false
@@ -427,7 +427,7 @@ elif [[ $INSTALL_ALL == false ]]; then
                 fi
             else
                 INSTALL_OPENPOSE=true
-                echo "openpose 1.3.0 will be installed at ${OPENPOSE_DIR}."
+                echo "openpose 1.4.0 will be installed at ${OPENPOSE_DIR}."
             fi
         else
             INSTALL_OPENPOSE=false
@@ -505,8 +505,8 @@ if [[ $INSTALL_OPENCV == true ]] && [[ ! -f $BUILD_DIR/opencv.done ]]; then
 
     cd $BUILD_DIR
     rm -rf opencv opencv_contrib ceres-solver
-    git clone -b 3.4.1 https://github.com/opencv/opencv --depth 1 && \
-        git clone -b 3.4.1  https://github.com/opencv/opencv_contrib \
+    git clone -b 4.0.1 https://github.com/opencv/opencv --depth 1 && \
+        git clone -b 4.0.1  https://github.com/opencv/opencv_contrib \
             --depth 1 && \
         git clone -b 1.14.0 https://github.com/ceres-solver/ceres-solver \
             --depth 1 && \
@@ -520,6 +520,8 @@ if [[ $INSTALL_OPENCV == true ]] && [[ ! -f $BUILD_DIR/opencv.done ]]; then
               -D CUDA_FAST_MATH=1 -D WITH_CUBLAS=1 -D WITH_NVCUVID=1 \
               -D BUILD_opencv_rgbd=OFF \
               -D BUILD_opencv_cnn_3dobj=OFF \
+              -D BUILD_opencv_cudacodec=OFF \
+              -D BUILD_opencv_xfeatures2d=OFF \
               -D OPENCV_EXTRA_MODULES_PATH=$BUILD_DIR/opencv_contrib/modules \
               $(echo $CMDS) -DCMAKE_PREFIX_PATH=$(echo $PY_EXTRA_CMDS) \
               .. && \
@@ -759,6 +761,7 @@ if [[ $INSTALL_CAFFE == true ]] && [[ $USE_GPU == false ]] && \
               -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX;$PY_EXTRA_CMDS" \
               -DCPU_ONLY=ON \
               -DOpenCV_DIR=$OPENCV_DIR \
+              -DUSE_OPENCV=OFF \
               -DBUILD_python=OFF \
               -Dpython_version=3 \
               -DBLAS=mkl \
@@ -817,6 +820,7 @@ if [[ $INSTALL_CAFFE == true ]] && \
               -DCUDA_ARCH_BIN="30 35 50 60 61" \
               -DCUDA_ARCH_PTX="30 35 50 60 61" \
               -DOpenCV_DIR=$INSTALL_PREFIX \
+              -DUSE_OPENCV=OFF \
               -DCMAKE_CXX_FLAGS="-std=c++11" \
               .. && \
         make -j${cores} && \
@@ -834,8 +838,10 @@ if [[ $INSTALL_OPENPOSE == true ]] && [[ ! -f $BUILD_DIR/openpose.done ]] && \
 
     cd $BUILD_DIR
     rm -rf openpose
-    git clone -b v1.3.0 https://github.com/CMU-Perceptual-Computing-Lab/openpose --depth 1 && \
-        cd openpose && mkdir build && cd build && \
+    git clone https://github.com/CMU-Perceptual-Computing-Lab/openpose && \
+        cd openpose &&  \
+        git checkout e7632893c28495f0a4af788d9c55c720be63ff2a && \
+        mkdir build && cd build && \
         cmake -D CMAKE_INSTALL_PREFIX=$INSTALL_PREFIX \
               -D CMAKE_PREFIX_PATH=$INSTALL_PREFIX \
               -D OpenCV_DIR=$INSTALL_PREFIX \
