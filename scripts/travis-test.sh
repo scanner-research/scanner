@@ -22,7 +22,7 @@ fi
 
 test_docker() {
     INSTALL_SCANNERTOOLS="pushd /tmp && \
-      git clone https://github.com/scanner-research/scannertools -b api-redesign && \
+      git clone https://github.com/scanner-research/scannertools -b master && \
       cd scannertools/scannertools_infra && pip3 install . && \
       cd ../scannertools && pip3 install -v -e . && popd"
 
