@@ -46,7 +46,7 @@ Face Detection
        faces = cl.ops.MTCNNFaceDetect(frame=frames)
        drawn_faces = cl.ops.DrawBboxes(frame=frames, bboxes=faces)
        output_video = sp.NamedVideoStream(cl, 'example_faces')
-       output_op = cl.io.Output([output_video])
+       output_op = cl.io.Output(drawn_faces, [output_video])
        cl.run(output_op, sp.PerfParams.estimate())
        output_video.save_mp4('example_faces')
        # output video is saved to 'example_faces.mp4'
