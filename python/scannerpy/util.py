@@ -3,6 +3,8 @@ import os
 import urllib.request, urllib.error, urllib.parse
 import errno
 import tarfile
+from contextlib import contextmanager
+import tempfile
 
 
 def temp_directory():
@@ -37,13 +39,8 @@ def default(d, k, v):
     return d[k]
 
 
-VID_URL = "https://storage.googleapis.com/scanner-data/public/sample-clip.mp4"
-VID_PATH = '/tmp/example.mp4'
-
-IMG_PATH = '/tmp/example.mp4'
-
-
-def download_video():
+@contextmanager
+def sample_video(delete=True):
     try:
         import requests
     except ImportError:
@@ -52,33 +49,22 @@ def download_video():
         )
         exit()
 
-    if not os.path.isfile(VID_PATH):
-        with open(VID_PATH, 'wb') as f:
-            resp = requests.get(VID_URL, stream=True)
-            assert resp.ok
-            for block in resp.iter_content(1024):
-                f.write(block)
-            f.flush()
-    return VID_PATH
+    url = "https://storage.googleapis.com/scanner-data/public/sample-clip.mp4"
 
+    if delete:
+        f = tempfile.NamedTemporaryFile(suffix='.mp4')
+    else:
+        sample_path = '/tmp/sample_video.mp4'
+        if os.path.isfile(sample_path):
+            yield sample_path
+            return
 
-def download_images():
-    try:
-        import requests
-    except ImportError:
-        print(
-            'You need to install requests to run this. Try running:\npip3 install requests'
-        )
-        exit()
+        f = open(sample_path, 'wb')
 
-    img_template = (
-        'https://storage.googleapis.com/scanner-data/public/sample-frame-{:d}.jpg')
-    output_template = 'sample-frame-{:d}.jpg'
-
-    for i in range(1, 4):
-        with open(output_template.format(i), 'wb') as f:
-            resp = requests.get(img_template.format(i), stream=True)
-            assert resp.ok
-            for block in resp.iter_content(1024):
-                f.write(block)
-            f.flush()
+    with f as f:
+        resp = requests.get(url, stream=True)
+        assert resp.ok
+        for block in resp.iter_content(1024):
+            f.write(block)
+        f.flush()
+        yield f.name
