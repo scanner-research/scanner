@@ -24,22 +24,27 @@ function(build_op)
 
   include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 
+  find_package(SaneProtobuf REQUIRED)
+
   # Build protobuf files if they exist
   if(NOT("${args_PROTO_SRC}" STREQUAL ""))
-    find_package(SaneProtobuf REQUIRED)
     set(PROTOBUF_IMPORT_DIRS "${SCANNER_PATH}")
     protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS OFF ${args_PROTO_SRC})
     protobuf_generate_python(PROTO_PY OFF ${args_PROTO_SRC})
     add_custom_target(${args_LIB_NAME}_proto_files
       DEPENDS ${PROTO_HDRS} ${PROTO_PY})
     add_library(${args_LIB_NAME} SHARED ${args_CPP_SRCS} ${PROTO_SRCS})
-    target_include_directories(${args_LIB_NAME} PUBLIC "${PROTOBUF_INCLUDE_DIRS}")
     target_link_libraries(${args_LIB_NAME} PUBLIC "${PROTOBUF_LIBRARY}")
     add_dependencies(${args_LIB_NAME} ${args_LIB_NAME}_proto_files)
     install(FILES ${PROTO_HDRS} ${PROTO_PY} DESTINATION .)
   else()
     add_library(${args_LIB_NAME} SHARED ${args_CPP_SRCS})
   endif()
+
+  # Note: this has to be done even if the library doesn't use protobuf, since when you include
+  # Scanner, if you have multiple protobuf installations on your machine, you'll get pointed to
+  # the wrong one and including Scanner's protobuf files will fail.
+  target_include_directories(${args_LIB_NAME} PUBLIC "${PROTOBUF_INCLUDE_DIRS}")
 
   install(TARGETS ${args_LIB_NAME} DESTINATION .)
 
