@@ -42,6 +42,23 @@ find_library(GPR_LIBRARY gpr
 find_package_handle_standard_args(GRPC DEFAULT_MSG
     GRPC_INCLUDE_DIR GRPC_LIBRARY)
 
+# Get GRPC version info
+set(GRPC_VERSION_PROG
+"#include <grpcpp/grpcpp.h>
+
+int main(void) {
+  std::cout << grpc::Version();
+}")
+execute_process(COMMAND "echo" "${GRPC_VERSION_PROG}" OUTPUT_FILE "/tmp/test.cpp")
+set(EX ${CMAKE_CXX_FLAGS})
+separate_arguments(EX)
+if(APPLE)
+  set(EX ${EX} "-isysroot" ${CMAKE_OSX_SYSROOT})
+endif()
+execute_process(COMMAND "${CMAKE_CXX_COMPILER}" "/tmp/test.cpp"
+  "-I${GRPC_INCLUDE_DIR}" "${GRPCPP_UNSECURE_LIBRARY}" ${EX} "-o" "/tmp/test.out")
+execute_process(COMMAND "/tmp/test.out" OUTPUT_VARIABLE GRPC_VERSION)
+
 if(GRPC_FOUND)
     set(GRPC_INCLUDE_DIRS ${GRPC_INCLUDE_DIR})
     set(GRPC_LIBRARIES ${GRPCPP_UNSECURE_LIBRARY} ${GRPC_LIBRARY} ${GPR_LIBRARY})
