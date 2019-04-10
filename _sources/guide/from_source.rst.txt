@@ -44,9 +44,9 @@ Install `homebrew <https://brew.sh/>`__ then run the following command:
    brew install coreutils cmake git wget unzip pkg-config \
                 automake fdk-aac lame libass libtool libvorbis libvpx \
                 opus sdl shtool texi2html theora x264 x265 xvid nasm \
-                eigen glog \
+                eigen glog libjpeg \
                 snappy leveldb gflags glog szip lmdb hdf5 boost boost-python3 \
-                llvm python gnutls postgresql libpq libpqxx
+                llvm python gnutls postgresql libpq libpqxx opencv ffmpeg
 
 
 Run deps.sh
@@ -58,10 +58,10 @@ dependencies has a set of required system-level packages.
 
 Scanner requires the following major dependencies which are not commonly
 available via system package managers on all platforms:
-  - pybind >= 1.58.0
+  - pybind >= 2.2.2
   - opencv >= 3.4.0
-  - protobuf == 3.4.0
-  - grpc == 1.7.2
+  - protobuf >= 3.6.1
+  - grpc == 1.16.0
   - storehouse
 
 Scanner also has several optional dependencies which add additional functionality
