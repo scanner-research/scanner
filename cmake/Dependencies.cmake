@@ -66,6 +66,7 @@ find_package(Glog REQUIRED)
 find_package(GoogleTest REQUIRED)
 find_package(CURL REQUIRED)
 find_package(Iconv REQUIRED)
+find_package(JPEG REQUIRED)
 find_package(Storehouse REQUIRED CONFIG
   PATHS "${CMAKE_SOURCE_DIR}/thirdparty/install"
   "${STOREHOUSE_DIR}")
@@ -99,7 +100,7 @@ set(SCANNER_LIBRARIES
   "${STOREHOUSE_LIBRARIES}"
   "${OPENSSL_LIBRARIES}"
   "${PYTHON_LIBRARIES}"
-  "-ljpeg"
+  "${JPEG_LIBRARY}"
   "-lz"
   "-ldl"
   )
