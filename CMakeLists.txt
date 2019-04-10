@@ -69,6 +69,22 @@ if (ENABLE_PROFILING)
   add_definitions(-DSCANNER_PROFILING)
 endif()
 
+if(APPLE)
+  set(PLATFORM_LINK_FLAGS
+    "-framework CoreFoundation"
+    "-framework CoreMedia"
+    "-framework CoreVideo"
+    "-framework Security"
+    "-framework VideoDecodeAcceleration"
+    "-framework VideoToolbox"
+    "-framework Accelerate"
+    "-undefined dynamic_lookup"
+    )
+elseif(UNIX)
+  set(PLATFORM_LINK_FLAGS "-pthread -ldl -lrt")
+endif()
+
+
 include(cmake/Dependencies.cmake)
 
 ###### Project code #######
@@ -122,21 +138,6 @@ add_library(scanner SHARED
   ${STRUCK_SOURCES}
   ${OFDIS_SOURCES})
 
-if(APPLE)
-  set(PLATFORM_LINK_FLAGS
-    "-framework CoreFoundation"
-    "-framework CoreMedia"
-    "-framework CoreVideo"
-    "-framework Security"
-    "-framework VideoDecodeAcceleration"
-    "-framework VideoToolbox"
-    "-framework Accelerate"
-    "-undefined dynamic_lookup"
-    )
-elseif(UNIX)
-  set(PLATFORM_LINK_FLAGS "-pthread -ldl -lrt")
-endif()
-
 target_link_libraries(scanner PUBLIC
   ${SCANNER_LIBRARIES}
   "${PLATFORM_LINK_FLAGS}")
@@ -162,3 +163,5 @@ if (BUILD_DOCS)
   set(DOXYGEN_PROJECT_NAME "Scanner C++ API")
   doxygen_add_docs(doxygen ${PROJECT_SOURCE_DIR}/scanner)
 endif()
+
+file(WRITE ${CMAKE_BINARY_DIR}/grpc_version.txt "${GRPC_VERSION}")

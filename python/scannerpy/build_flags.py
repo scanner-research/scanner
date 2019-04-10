@@ -3,6 +3,10 @@ import sys
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
+def get_grpc_version():
+    with open(os.path.abspath(os.path.join(SCRIPT_DIR, 'cmake', 'grpc_version.txt')), 'r') as f:
+        return f.read()
+
 def get_include():
     return os.path.abspath(os.path.join(SCRIPT_DIR, 'include'))
 
