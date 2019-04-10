@@ -3,6 +3,7 @@ import copy
 import pickle
 import types as pytypes
 import uuid
+import collections
 
 from scannerpy.common import *
 from scannerpy.protobufs import python_to_proto, protobufs, analyze_proto
@@ -401,8 +402,9 @@ def register_python_op(name: str = None,
             if can_batch:
                 # If the op can batch, then we expect the types to be
                 # Sequence[T], where T = {bytes, FrameType}
-                if (not getattr(typ, '__origin__', None)
-                        or typ.__origin__ != Sequence):
+                if (not getattr(typ, '__origin__', None) or
+                    (typ.__origin__ != Sequence and
+                     typ.__origin__ != collections.abc.Sequence)):
                     raise ScannerException(
                         ('A batched Op must specify a "Sequence" type '
                          'annotation for each input and output.'))
@@ -411,8 +413,9 @@ def register_python_op(name: str = None,
             if is_input and can_stencil:
                 # If the op can stencil, then we expect the input types to be
                 # Sequence[T], where T = {bytes, FrameType}
-                if (not getattr(typ, '__origin__', None)
-                        or typ.__origin__ != Sequence):
+                if (not getattr(typ, '__origin__', None) or
+                    (typ.__origin__ != Sequence and
+                     typ.__origin__ != collections.abc.Sequence)):
                     raise ScannerException(
                         ('A stenciled Op must specify a "Sequence" type '
                          'annotation for each input. If the Op both stencils '
@@ -468,7 +471,8 @@ def register_python_op(name: str = None,
                 ('Return annotation must be specified for "execute" method.'))
 
         return_is_tuple = True
-        if getattr(typ, '__origin__', None) == Tuple:
+        origin_type = getattr(typ, '__origin__', None)
+        if origin_type == Tuple or origin_type == tuple:
             if getattr(typ, '__tuple_params__', None):
                 # Python 3.5
                 use_ellipsis = typ.__tuple_use_ellipsis__
