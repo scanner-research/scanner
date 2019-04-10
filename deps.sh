@@ -184,6 +184,12 @@ echo "(customized by specifying (--prefix <dir>)."
 
 set -- "${POSITIONAL[@]}" # restore positional parameters
 
+if command -v brew info >/dev/null 2>&1; then
+    HAS_BREW=true
+else
+    HAS_BREW=false
+fi
+
 if command -v conda list >/dev/null 2>&1; then
     # Anaconda is installed, so add lib to prefix path for OpenCV to find
     # PythonLib
@@ -306,56 +312,75 @@ elif [[ $INSTALL_ALL == false ]]; then
 
     echo "Required dependencies: "
     if [[ -z ${WITH_OPENCV+x} ]]; then
-        echo -n "Do you have opencv>=3.4.0 with contrib installed? [y/N]: "
-        read yn
-        if [[ $yn == y ]] || [[ $yn == Y ]]; then
+        if [[ $HAS_BREW == true ]] && brew ls --versions opencv > /dev/null; then
+            # The package is installed via brew
             INSTALL_OPENCV=false
-            echo -n "Where is your opencv install? [/usr/local]: "
-            read install_location
-            if [[ $install_location == "" ]]; then
-                OPENCV_DIR=/usr/local
-            else
-                OPENCV_DIR=$install_location
-            fi
+            OPENCV_DIR=/usr/local
         else
-            INSTALL_OPENCV=true
-            echo "opencv 3.4.0 will be installed at ${OPENCV_DIR}."
+            # The package is not installed via brew
+            echo -n "Do you have opencv>=3.4.0 with contrib installed? [y/N]: "
+            read yn
+            if [[ $yn == y ]] || [[ $yn == Y ]]; then
+                INSTALL_OPENCV=false
+                echo -n "Where is your opencv install? [/usr/local]: "
+                read install_location
+                if [[ $install_location == "" ]]; then
+                    OPENCV_DIR=/usr/local
+                else
+                    OPENCV_DIR=$install_location
+                fi
+            else
+                INSTALL_OPENCV=true
+                echo "opencv 4.0.1 will be installed at ${OPENCV_DIR}."
+            fi
         fi
     fi
 
     if [[ -z ${WITH_PROTOBUF+x} ]]; then
-        echo -n "Do you have protobuf>=3.6.1 installed? [y/N]: "
-        read yn
-        if [[ $yn == y ]] || [[ $yn == Y ]]; then
+        if [[ $HAS_BREW == true ]] && brew ls --versions protobuf > /dev/null; then
+            # The package is installed via brew
             INSTALL_PROTOBUF=false
-            echo -n "Where is your protobuf install? [/usr/local]: "
-            read install_location
-            if [[ $install_location == "" ]]; then
-                PROTOBUF_DIR=/usr/local
-            else
-                PROTOBUF_DIR=$install_location
-            fi
+            PROTOBUF_DIR=/usr/local
         else
-            INSTALL_PROTOBUF=true
-            echo "protobuf 3.6.1 will be installed at ${PROTOBUF_DIR}."
+            echo -n "Do you have protobuf>=3.6.1 installed? [y/N]: "
+            read yn
+            if [[ $yn == y ]] || [[ $yn == Y ]]; then
+                INSTALL_PROTOBUF=false
+                echo -n "Where is your protobuf install? [/usr/local]: "
+                read install_location
+                if [[ $install_location == "" ]]; then
+                    PROTOBUF_DIR=/usr/local
+                else
+                    PROTOBUF_DIR=$install_location
+                fi
+            else
+                INSTALL_PROTOBUF=true
+                echo "protobuf 3.6.1 will be installed at ${PROTOBUF_DIR}."
+            fi
         fi
     fi
 
     if [[ -z ${WITH_GRPC+x} ]]; then
-        echo -n "Do you have grpc==1.16.0 installed? [y/N]: "
-        read yn
-        if [[ $yn == y ]] || [[ $yn == Y ]]; then
+        if [[ $HAS_BREW == true ]] && brew ls --versions grpc > /dev/null; then
+            # The package is installed via brew
             INSTALL_GRPC=false
-            echo -n "Where is your grpc install? [/usr/local]: "
-            read install_location
-            if [[ $install_location == "" ]]; then
-                GRPC_DIR=/usr/local
-            else
-                GRPC_DIR=$install_location
-            fi
+            GRPC_DIR=/usr/local
         else
-            INSTALL_GRPC=true
-            echo "grpc 1.16.0 will be installed at ${GRPC_DIR}."
+            echo -n "Do you have grpc==1.16.0 installed? [y/N]: "
+            read yn
+            if [[ $yn == y ]] || [[ $yn == Y ]]; then
+                INSTALL_GRPC=false
+                echo -n "Where is your grpc install? [/usr/local]: "
+                read install_location
+                if [[ $install_location == "" ]]; then
+                    GRPC_DIR=/usr/local
+                else
+                    GRPC_DIR=$install_location
+                fi
+            else
+                INSTALL_GRPC=true
+                echo "grpc 1.16.0 will be installed at ${GRPC_DIR}."
+            fi
         fi
     fi
 
@@ -364,20 +389,26 @@ elif [[ $INSTALL_ALL == false ]]; then
         echo -n "Do you need support for processing video files (e.g. mp4)? [Y/n]: "
         read yn
         if [[ $yn != n ]] && [[ $yn != N ]]; then
-            echo -n "Do you have ffmpeg>=3.3.1 installed? [y/N]: "
-            read yn
-            if [[ $yn == y ]] || [[ $yn == Y ]]; then
+            if [[ $HAS_BREW == true ]] && brew ls --versions ffmpeg > /dev/null; then
+                # The package is installed via brew
                 INSTALL_FFMPEG=false
-                echo -n "Where is your ffmpeg install? [/usr/local]: "
-                read install_location
-                if [[ $install_location == "" ]]; then
-                    FFMPEG_DIR=/usr/local
-                else
-                    FFMPEG_DIR=$install_location
-                fi
+                FFMPEG_DIR=/usr/local
             else
-                INSTALL_FFMPEG=true
-                echo "ffmpeg 3.3.1 will be installed at ${FFMPEG_DIR}."
+                echo -n "Do you have ffmpeg>=3.3.1 installed? [y/N]: "
+                read yn
+                if [[ $yn == y ]] || [[ $yn == Y ]]; then
+                    INSTALL_FFMPEG=false
+                    echo -n "Where is your ffmpeg install? [/usr/local]: "
+                    read install_location
+                    if [[ $install_location == "" ]]; then
+                        FFMPEG_DIR=/usr/local
+                    else
+                        FFMPEG_DIR=$install_location
+                    fi
+                else
+                    INSTALL_FFMPEG=true
+                    echo "ffmpeg 3.3.1 will be installed at ${FFMPEG_DIR}."
+                fi
             fi
         else
             INSTALL_FFMPEG=false
@@ -491,7 +522,7 @@ fi
 
 if [[ $INSTALL_OPENCV == true ]] && [[ ! -f $BUILD_DIR/opencv.done ]]; then
     # OpenCV 3.4.0 + OpenCV contrib
-    echo "Installing OpenCV 3.4.0..."
+    echo "Installing OpenCV 4.0.1..."
 
     # Determine command string to use
     if [[ "$OSTYPE" == "linux-gnu" ]]; then
@@ -527,7 +558,7 @@ if [[ $INSTALL_OPENCV == true ]] && [[ ! -f $BUILD_DIR/opencv.done ]]; then
               .. && \
         make install -j$cores && touch $BUILD_DIR/opencv.done \
             || { echo 'Installing OpenCV failed!' ; exit 1; }
-    echo "Done installing OpenCV 3.4.0"
+    echo "Done installing OpenCV 4.0.1"
 fi
 
 if [[ $INSTALL_PROTOBUF == true ]] && [[ ! -f $BUILD_DIR/protobuf.done ]] ; then
