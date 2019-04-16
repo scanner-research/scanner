@@ -2,6 +2,7 @@ var searchData=
 [
   ['call',['Call',['../structscanner_1_1Call.html',1,'scanner']]],
   ['call_3c_20proto_3a_3abulkjobparameters_2c_20proto_3a_3anewjobreply_20_3e',['Call&lt; proto::BulkJobParameters, proto::NewJobReply &gt;',['../structscanner_1_1Call.html',1,'scanner']]],
+  ['colortree',['ColorTree',['../structColorTree.html',1,'']]],
   ['columncompressionoptions',['ColumnCompressionOptions',['../structscanner_1_1internal_1_1ColumnCompressionOptions.html',1,'scanner::internal']]],
   ['columnenumerator',['ColumnEnumerator',['../classscanner_1_1internal_1_1ColumnEnumerator.html',1,'scanner::internal']]],
   ['columnsink',['ColumnSink',['../classscanner_1_1internal_1_1ColumnSink.html',1,'scanner::internal']]],
