@@ -184,7 +184,7 @@ echo "(customized by specifying (--prefix <dir>)."
 
 set -- "${POSITIONAL[@]}" # restore positional parameters
 
-if command -v brew info >/dev/null 2>&1; then
+if command -v brew >/dev/null 2>&1; then
     HAS_BREW=true
 else
     HAS_BREW=false
@@ -553,6 +553,9 @@ if [[ $INSTALL_OPENCV == true ]] && [[ ! -f $BUILD_DIR/opencv.done ]]; then
               -D BUILD_opencv_cnn_3dobj=OFF \
               -D BUILD_opencv_cudacodec=OFF \
               -D BUILD_opencv_xfeatures2d=OFF \
+              -D WITH_PROTOBUF=OFF \
+              -D BUILD_PROTOBUF=OFF \
+              -D BUILD_opencv_dnn=OFF \
               -D OPENCV_EXTRA_MODULES_PATH=$BUILD_DIR/opencv_contrib/modules \
               $(echo $CMDS) -DCMAKE_PREFIX_PATH=$(echo $PY_EXTRA_CMDS) \
               .. && \
@@ -641,7 +644,7 @@ if [[ $INSTALL_PYBIND == true ]] && [[ ! -f $BUILD_DIR/pybind.done ]] ; then
     echo "Installing pybind..."
     cd $BUILD_DIR
     rm -fr pybind11
-    git clone -b v2.2.2 https://github.com/pybind/pybind11 --depth 1 && \
+    git clone -b v2.2.4 https://github.com/pybind/pybind11 --depth 1 && \
         cd pybind11 && \
         mkdir build && cd build && \
         cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX -DPYBIND11_TEST=Off -DCMAKE_BUILD_TYPE=RelWithDebInfo && \

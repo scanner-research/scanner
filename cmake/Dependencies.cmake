@@ -35,11 +35,6 @@ if (BUILD_CUDA)
   add_library(scanner_halide scanner/util/halide_context.cpp)
 endif()
 
-set(OPENCV_DESIRED_COMPONENTS core highgui imgproc)
-if (BUILD_CUDA)
-  list(APPEND OPENCV_DESIRED_COMPONENTS cudaimgproc cudaarithm)
-endif()
-
 if (NO_FFMPEG STREQUAL "false")
   find_package(FFmpeg REQUIRED)
   include_directories("${FFMPEG_INCLUDE_DIR}")
@@ -71,7 +66,6 @@ find_package(Storehouse REQUIRED CONFIG
   PATHS "${CMAKE_SOURCE_DIR}/thirdparty/install"
   "${STOREHOUSE_DIR}")
 find_package(TinyToml REQUIRED)
-find_package(OpenCV COMPONENTS ${OPENCV_DESIRED_COMPONENTS})
 
 set(PYBIND11_PYTHON_VERSION 3)
 find_package(pybind11 REQUIRED)
@@ -117,12 +111,6 @@ include_directories(
   "${LIBLZMA_INCLUDE_DIRS}"
   "${PYTHON_INCLUDE_DIRS}"
   "${pybind11_INCLUDE_DIR}")
-
-if (OpenCV_FOUND)
-  list(APPEND SCANNER_LIBRARIES ${OpenCV_LIBRARIES})
-  include_directories(${OpenCV_INCLUDE_DIRS})
-  add_definitions(-DHAVE_OPENCV)
-endif()
 
 if (BUILD_TESTS)
   include_directories("${GTEST_INCLUDE_DIRS}")

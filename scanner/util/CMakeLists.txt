@@ -19,15 +19,12 @@ set(SOURCE_FILES
   fs.cpp
   bbox.cpp
   glog.cpp
+  lodepng.cpp
   image_encoder.cpp)
 
 if (NO_FFMPEG STREQUAL "false")
   list(APPEND SOURCE_FILES
     ffmpeg.cpp)
-endif()
-
-if (OpenCV_FOUND)
-  list(APPEND SOURCE_FILES opencv.cpp)
 endif()
 
 add_library(util OBJECT

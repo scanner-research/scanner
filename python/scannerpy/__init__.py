@@ -32,13 +32,13 @@ def _check_grpc():
         if has_brew and has_grpc_brew and has_grpc_python:
             data = json.loads(subprocess.check_output('brew info --json grpc', shell=True))
             brew_version = data[0]['linked_keg']
-            output = subprocess.check_output('pip3 list | grep grpcio', shell=True)
-            python_version = [x for x in output.decode('utf-8').split(' ') if len(x) > 0][1]
-            if not compatible_version(built_grpc_version, brew_version):
+            if brew_version and not compatible_version(built_grpc_version, brew_version):
                 print(('Warning: Scanner was built with GRPC version {:s}, '
                        'but the version installed via brew is {:s}. '
                        'Please reinstall Scanner to fix this issue.').format(
                            built_grpc_version, brew_version))
+            output = subprocess.check_output('pip3 list | grep grpcio', shell=True)
+            python_version = [x for x in output.decode('utf-8').split(' ') if len(x) > 0][1]
             if not compatible_version(built_grpc_version, python_version):
                 print(('Warning: Scanner was built with GRPC version {:s}, '
                        'but the version installed via python is {:s}. '

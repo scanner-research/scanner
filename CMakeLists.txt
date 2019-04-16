@@ -134,9 +134,7 @@ add_library(scanner SHARED
   $<TARGET_OBJECTS:util>
   scanner/util/halide_context.cpp
   ${PROTO_SRCS}
-  ${GRPC_PROTO_SRCS}
-  ${STRUCK_SOURCES}
-  ${OFDIS_SOURCES})
+  ${GRPC_PROTO_SRCS})
 
 target_link_libraries(scanner PUBLIC
   ${SCANNER_LIBRARIES}
@@ -158,10 +156,12 @@ endif()
 
 if (BUILD_DOCS)
   set(DOXYGEN_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/doxygen)
-  set(DOXYGEN_EXCLUDE_PATTERNS json.hpp concurrentqueue.h nvcuvid.h cuviddec.h tinyformat.h blockingconcurrentqueue.h thread_pool.h)
+  set(DOXYGEN_EXCLUDE_PATTERNS json.hpp concurrentqueue.h nvcuvid.h cuviddec.h
+    tinyformat.h blockingconcurrentqueue.h thread_pool.h)
   find_package(Doxygen REQUIRED)
   set(DOXYGEN_PROJECT_NAME "Scanner C++ API")
   doxygen_add_docs(doxygen ${PROJECT_SOURCE_DIR}/scanner)
 endif()
 
+message("${GRPC_VERSION}")
 file(WRITE ${CMAKE_BINARY_DIR}/grpc_version.txt "${GRPC_VERSION}")
