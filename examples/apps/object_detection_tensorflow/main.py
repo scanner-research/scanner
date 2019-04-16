@@ -1,5 +1,5 @@
-from scannerpy import Client, DeviceType
-from scannerpy.storage import NamedVideoStream, PythonStream
+from scannertools.storage.python import PythonStream
+import scannerpy as sp
 import os
 import sys
 import math
@@ -21,10 +21,10 @@ def main():
     print('Detecting objects in movie {}'.format(movie_path))
     movie_name = os.path.splitext(os.path.basename(movie_path))[0]
 
-    sc = Client()
+    sc = sp.Client()
 
     stride = 1
-    input_stream = NamedVideoStream(sc, movie_name, path=movie_path)
+    input_stream = sp.NamedVideoStream(sc, movie_name, path=movie_path)
     frame = sc.io.Input([input_stream])
     strided_frame = sc.streams.Stride(frame, [stride])
 
@@ -33,12 +33,14 @@ def main():
     objdet_frame = sc.ops.ObjDetect(
         frame=strided_frame,
         dnn_url=model_url,
-        device=DeviceType.GPU if sc.has_gpu() else DeviceType.CPU,
+        device=sp.DeviceType.GPU if sc.has_gpu() else sp.DeviceType.CPU,
         batch=2)
 
-    detect_stream = NamedVideoStream(sc, movie_name + '_detect')
+    detect_stream = sp.NamedVideoStream(sc, movie_name + '_detect')
     output_op = sc.io.Output(objdet_frame, [detect_stream])
-    sc.run(output_op)
+    sc.run(output_op,
+           sp.PerfParams.estimate(),
+           cache_mode=sp.CacheMode.Overwrite)
 
     print('Extracting data from Scanner output...')
     # bundled_data_list is a list of bundled_data
@@ -58,9 +60,11 @@ def main():
     drawn_frame = sc.ops.TFDrawBoxes(frame=strided_frame,
                                      bundled_data=bundled_data,
                                      min_score_thresh=0.5)
-    drawn_stream = NamedVideoStream(sc, movie_name + '_drawn_frames')
+    drawn_stream = sp.NamedVideoStream(sc, movie_name + '_drawn_frames')
     output_op = sc.io.Output(drawn_frame, [drawn_stream])
-    sc.run(output_op)
+    sc.run(output_op,
+           sp.PerfParams.estimate(),
+           cache_mode=sp.CacheMode.Overwrite)
 
     drawn_stream.save_mp4(movie_name + '_obj_detect')
 
@@ -73,5 +77,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-

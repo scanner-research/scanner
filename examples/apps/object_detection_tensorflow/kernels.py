@@ -3,14 +3,13 @@ import tensorflow as tf
 import cv2
 import os
 import scannerpy
-import scannerpy.stdlib.util
 import pickle
 import visualization_utils as vis_util
 import tarfile
 
 from scannerpy import FrameType, DeviceType
-from scannerpy.stdlib import tensorflow
 from scannerpy.types import NumpyArrayFloat32
+from scannertools import tensorflow
 from typing import Tuple, Sequence
 from tqdm import tqdm
 
@@ -24,12 +23,12 @@ categories = vis_util.parse_labelmap(PATH_TO_LABELS)
 category_index = vis_util.create_category_index(categories)
 
 def download_and_extract_model(url, local_path=None):
-    path = scannerpy.stdlib.util.download_temp_file(url, local_path)
+    path = scannerpy.util.download_temp_file(url, local_path)
     tar_file = tarfile.open(path)
     for f in tar_file.getmembers():
         file_name = os.path.basename(f.name)
         if 'frozen_inference_graph.pb' in file_name:
-            local_path = scannerpy.stdlib.util.temp_directory()
+            local_path = scannerpy.util.temp_directory()
             tar_file.extract(f, local_path)
             model_path = os.path.join(local_path, f.name)
             break
@@ -40,11 +39,13 @@ def download_and_extract_model(url, local_path=None):
                               batch=2)
 class ObjDetect(tensorflow.TensorFlowKernel):
     def __init__(self, config, dnn_url):
+        print('objdet', config)
+        print([d.id for d in config.devices])
         tensorflow.TensorFlowKernel.__init__(self, config)
         self.dnn_url = dnn_url
         self.model_name = dnn_url.rsplit('/', 1)[-1]
         self.local_model_path = os.path.join(
-            scannerpy.stdlib.util.temp_directory(),
+            scannerpy.util.temp_directory(),
             self.model_name.rsplit('.')[0],
             'frozen_inference_graph.pb')
 
