@@ -61,7 +61,7 @@ PythonKernel::PythonKernel(const KernelConfig &config,
   send_pipe_name_ = tfm::format("%s_send_pipe_%s", op_name_, rand);
   recv_pipe_name_ = tfm::format("%s_recv_pipe_%s", op_name_, rand);
   kernel_name_ = tfm::format("%s_kernel_%s", op_name_, rand);
-  std::string kernel_ns_name_ = tfm::format("ns_%s", op_name_);
+  std::string kernel_ns_name_ = tfm::format("ns_%s_%s", op_name_, rand);
 
   try {
     py::module main = py::module::import("__main__");
