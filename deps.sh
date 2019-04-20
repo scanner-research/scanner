@@ -548,7 +548,7 @@ if [[ $INSTALL_OPENCV == true ]] && [[ ! -f $BUILD_DIR/opencv.done ]]; then
         cmake -D CMAKE_BUILD_TYPE=Release \
               -D CMAKE_INSTALL_PREFIX=$INSTALL_PREFIX \
               -D BUILD_TESTS=OFF -D BUILD_PERF_TESTS=OFF -D ENABLE_FAST_MATH=1 \
-              -D CUDA_FAST_MATH=1 -D WITH_CUBLAS=1 -D WITH_NVCUVID=1 \
+              -D WITH_CUDA=ON -D CUDA_FAST_MATH=1 -D WITH_CUBLAS=1 -D WITH_NVCUVID=1 \
               -D BUILD_opencv_rgbd=OFF \
               -D BUILD_opencv_cnn_3dobj=OFF \
               -D BUILD_opencv_cudacodec=OFF \
@@ -934,15 +934,15 @@ echo "LIBPQXX_DIR=$LIBPQXX_DIR" >> $DEP_FILE
 echo "Hwang_DIR=$HWANG_DIR" >> $DEP_FILE
 echo "NO_HWANG=$NO_HWANG" >> $DEP_FILE
 
-echo "Done installing dependencies!"
-echo -n "Add $INSTALL_PREFIX/lib to your LD_LIBRARY_PATH, "
-echo -n "add $INSTALL_PREFIX/bin to your PATH, and "
-echo -n "add $INSTALL_PREFIX/lib/pkgconfig to your PKG_CONFIG_PATH so the installed "
-echo -n "dependencies can be found! "
-echo "e.g. export LD_LIBRARY_PATH=$INSTALL_PREFIX/lib:\$LD_LIBRARY_PATH"
+echo
+echo "Done installing dependencies! Add the following to your shell config:"
+echo
+echo "export LD_LIBRARY_PATH=$INSTALL_PREFIX/lib:\$LD_LIBRARY_PATH"
+echo "export PATH=$INSTALL_PREFIX/bin:\$PATH"
+echo "export PKG_CONFIG_PATH=$INSTALL_PREFIX/lib/pkgconfig:\$PKG_CONFIG_PATH"
 if [[ $INSTALL_OPENCV == true ]]; then
-    echo "Add $INSTALL_PREFIX/lib/python$PYTHON_VERSION/dist-packages to your PYTHONPATH to use OpenCV from Python"
+    echo "export PYTHONPATH=$INSTALL_PREFIX/lib/python$PYTHON_VERSION/dist-packages:\$PYTHONPATH"
 fi
 if [[ $INSTALL_CAFFE_CPU == true ]] || [[ $INSTALL_CAFFE_GPU == true ]]; then
-    echo "Add $INSTALL_PREFIX/python to your PYTHONPATH to use Caffe from Python"
+    echo "export PYTHONPATH=$INSTALL_PREFIX/python:\$PYTHONPATH"
 fi
