@@ -51,14 +51,6 @@ jobs:
     - stage: build
       script: "travis_retry ./scripts/travis-build.sh"
       env:
-        - BUILD_TYPE=gpu-8.0-cudnn6
-    - stage: build
-      script: "travis_retry ./scripts/travis-build.sh"
-      env:
-        - BUILD_TYPE=gpu-8.0-cudnn7
-    - stage: build
-      script: "travis_retry ./scripts/travis-build.sh"
-      env:
         - BUILD_TYPE=gpu-9.0-cudnn7
     - stage: build
       script: "travis_retry ./scripts/travis-build.sh"
@@ -68,4 +60,3 @@ jobs:
       script: "travis_retry ./scripts/travis-build.sh"
       env:
         - BUILD_TYPE=gpu-10.1-cudnn7
-

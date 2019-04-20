@@ -63,8 +63,6 @@ do
     build_chain cpu $base-cpu ubuntu:16.04 &
 
     # GPU
-    build_push_gpu 8 8.0 cudnn6 &
-    build_push_gpu 8 8.0 cudnn7 &
     build_push_gpu 9 9.0 cudnn7 &
     build_push_gpu 9 9.1 cudnn7 &
     build_push_gpu 10 10.1 cudnn7 &
