@@ -130,23 +130,25 @@
             <td>
               <pre class="hljs"><code class="python">import scannerpy as sp
 import scannertools.face_detection
+import scannertools.vis
 
 def main():
   # Compute face bounding boxes and draw them on a sample video
-  with sp.utils.sample_video() as video_path:
-    sc = sp.Client()
-    video = sp.NamedVideoStream(sc, 'example', path=video_path)
-    frames = sc.io.Input([video])
-    faces = sc.ops.MTCNNFaceDetect(frame=frames)
-    drawn_faces = sc.ops.DrawBboxes(frame=frames, bboxes=faces)
-    output_video = sp.NamedVideoStream(sc, 'example_faces')
-    output_op = sc.io.Output(drawn_faces, [output_video])
-    sc.run(output_op, sp.PerfParams.estimate())
+  with sp.util.sample_video() as video_path:
+    cl = sp.Client()
+    video = sp.NamedVideoStream(cl, 'example', path=video_path)
+    frames = cl.io.Input([video])
+    faces = cl.ops.MTCNNDetectFaces(frame=frames)
+    drawn_faces = cl.ops.DrawBboxes(frame=frames, bboxes=faces)
+    output_video = sp.NamedVideoStream(cl, 'example_faces')
+    output_op = cl.io.Output(drawn_faces, [output_video])
+    cl.run(output_op, sp.PerfParams.estimate())
     output_video.save_mp4('example_faces')
     # output video is saved to 'example_faces.mp4'
 
 if __name__ == "__main__":
-    main()</code></pre>
+    main()
+</code></pre>
             </td>
           </tr>
         </tbody>
