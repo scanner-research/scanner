@@ -36,7 +36,7 @@ Scanner is an active research project, part of a collaboration between Stanford 
 Scanner was developed with the support of the NSF (IIS-1539069), the Intel Corporation (through the Intel Science and Technology Center for Visual Cloud Computing and the NSF/Intel VEC program), and by Google.
 
 ### Paper citation
-Scanner was published at SIGGRAPH 2018 as "[Scanner: Efficient Video Analysis at Scale](http://graphics.stanford.edu/papers/scanner/scanner_sig18.pdf)" by Poms, Crichton, Hanrahan, and Fatahalian. If you use Scanner in your research, we'd appreciate it if you cite the paper with the following bibtex:
+Scanner was published at SIGGRAPH 2018 as "[Scanner: Efficient Video Analysis at Scale](http://graphics.stanford.edu/papers/scanner/)" by Poms, Crichton, Hanrahan, and Fatahalian. If you use Scanner in your research, we'd appreciate it if you cite the paper with the following bibtex:
 ```
 @article{Poms:2018:Scanner,
  author = {Poms, Alex and Crichton, Will and Hanrahan, Pat and Fatahalian, Kayvon},
