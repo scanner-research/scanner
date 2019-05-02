@@ -67,6 +67,8 @@ find_package(Storehouse REQUIRED CONFIG
   "${STOREHOUSE_DIR}")
 find_package(TinyToml REQUIRED)
 
+get_filename_component(JPEG_PATH "${JPEG_LIBRARIES}" DIRECTORY)
+
 set(PYBIND11_PYTHON_VERSION 3)
 find_package(pybind11 REQUIRED)
 
@@ -94,11 +96,10 @@ set(SCANNER_LIBRARIES
   "${STOREHOUSE_LIBRARIES}"
   "${OPENSSL_LIBRARIES}"
   "${PYTHON_LIBRARIES}"
-  "${JPEG_LIBRARY}"
   "-lz"
   "-ldl"
   )
-
+list(APPEND SCANNER_LIBRARIES  "${JPEG_LIBRARIES}")
 include_directories(
   "."
   "${CMAKE_CURRENT_BINARY_DIR}" # for protobuf generated files

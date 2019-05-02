@@ -20,6 +20,7 @@ project(Scanner)
 option(BUILD_CUDA "" ON)
 option(BUILD_TESTS "" ON)
 option(ENABLE_PROFILING "" OFF)
+option(BUILD_STATIC "" OFF)
 
 if (BUILD_TESTS)
   enable_testing()
@@ -126,6 +127,10 @@ endfunction()
 set(CMAKE_CXX_FLAGS_DEBUG "-DDEBUG")
 
 add_subdirectory(scanner)
+
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+set(CMAKE_SHARED_LINKER_FLAGS "-Wl,-Bsymbolic")
 
 add_library(scanner SHARED
   $<TARGET_OBJECTS:api>

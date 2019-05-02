@@ -17,6 +17,7 @@ BUILD_DIR=$LOCAL_DIR/thirdparty/build
 DEFAULT_INSTALL_DIR=$LOCAL_DIR/thirdparty/install
 FILES_DIR=$LOCAL_DIR/thirdparty/resources
 PYTHON_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
+GRPC_PATH=$LOCAL_DIR/grpc/libs/opt
 
 POSITIONAL=()
 
@@ -229,7 +230,7 @@ echo ""
 FFMPEG_DIR=$INSTALL_PREFIX
 OPENCV_DIR=$INSTALL_PREFIX
 PROTOBUF_DIR=$INSTALL_PREFIX
-GRPC_DIR=$INSTALL_PREFIX
+GRPC_DIR=$GRPC_PATH
 CAFFE_DIR=$INSTALL_PREFIX
 HALIDE_DIR=$INSTALL_PREFIX
 PYBIND_DIR=$INSTALL_PREFIX
@@ -309,6 +310,14 @@ if [[ $INSTALL_NONE == true ]]; then
 
 elif [[ $INSTALL_ALL == false ]]; then
     # Ask about each library
+
+    echo -n "Do you want to build statically? [y/N]: "
+    read yn
+    if [[ $yn == y ]] || [[ $yn == Y ]]; then
+        BUILD_STATIC=true
+    else
+        BUILD_STATIC=false
+    fi
 
     echo "Required dependencies: "
     if [[ -z ${WITH_OPENCV+x} ]]; then
@@ -581,28 +590,40 @@ if [[ $INSTALL_GRPC == true ]] && [[ ! -f $BUILD_DIR/grpc.done ]] ; then
     # gRPC 1.16.0
     echo "Installing gRPC 1.16.0..."
     cd $BUILD_DIR
-    rm -fr grpc
-    git clone -b v1.16.0 https://github.com/grpc/grpc && \
+    if [[ $BUILD_STATIC == true ]] ; then
+        rm -fr grpc
+        git clone -b v1.16.0 https://github.com/grpc/grpc &&
+        cd grpc && git submodule update --init --recursive && \
+        CPPFLAGS=-I$INSTALL_PREFIX/include LDFLAGS=-L$INSTALL_PREFIX/lib make -j$cores && \
+        CPPFLAGS=-I$INSTALL_PREFIX/include LDFLAGS=-L$INSTALL_PREFIX/lib make install prefix=$INSTALL_PREFIX
+        find . -type f -name "*.a" -exec cp '{}' $DEFAULT_INSTALL_DIR/lib/ ';'
+        touch $BUILD_DIR/grpc.done \
+            || { echo 'Installing gRPC failed!' ; exit 1; }
+    else
+        rm -fr grpc
+        git clone -b v1.16.0 https://github.com/grpc/grpc && \
         cd grpc && git submodule update --init --recursive && \
         CPPFLAGS=-I$INSTALL_PREFIX/include LDFLAGS=-L$INSTALL_PREFIX/lib make -j$cores && \
         CPPFLAGS=-I$INSTALL_PREFIX/include LDFLAGS=-L$INSTALL_PREFIX/lib make install prefix=$INSTALL_PREFIX && \
         touch $BUILD_DIR/grpc.done \
             || { echo 'Installing gRPC failed!' ; exit 1; }
-    if [[ "$OSTYPE" == "linux-gnu" ]]; then
-        # Linux
-        ldconfig -n $INSTALL_PREFIX/lib
-    elif [[ "$OSTYPE" == "darwin"* ]]; then
-        # OS X
-        install_name_tool -id "@rpath/libgrpc++_unsecure.dylib" \
-                          $INSTALL_PREFIX/lib/libgrpc++_unsecure.dylib
-        install_name_tool -id "@rpath/libgrpc.dylib" \
-                          $INSTALL_PREFIX/lib/libgrpc.dylib
-        install_name_tool -id "@rpath/libgpr.dylib" \
-                          $INSTALL_PREFIX/lib/libgpr.dylib
-        install_name_tool -change libgpr.dylib @rpath/libgpr.dylib \
-                          $INSTALL_PREFIX/lib/libgrpc++_unsecure.dylib
-        install_name_tool -change libgrpc_unsecure.dylib @rpath/libgrpc_unsecure.dylib \
-                          $INSTALL_PREFIX/lib/libgrpc++_unsecure.dylib
+
+        if [[ "$OSTYPE" == "linux-gnu" ]]; then
+            # Linux
+            ldconfig -n $INSTALL_PREFIX/lib
+        elif [[ "$OSTYPE" == "darwin"* ]]; then
+            OS X
+            install_name_tool -id "@rpath/libgrpc++_unsecure.dylib" \
+                            $INSTALL_PREFIX/lib/libgrpc++_unsecure.dylib
+            install_name_tool -id "@rpath/libgrpc.dylib" \
+                            $INSTALL_PREFIX/lib/libgrpc.dylib
+            install_name_tool -id "@rpath/libgpr.dylib" \
+                            $INSTALL_PREFIX/lib/libgpr.dylib
+            install_name_tool -change libgpr.dylib @rpath/libgpr.dylib \
+                            $INSTALL_PREFIX/lib/libgrpc++_unsecure.dylib
+            install_name_tool -change libgrpc_unsecure.dylib @rpath/libgrpc_unsecure.dylib \
+                            $INSTALL_PREFIX/lib/libgrpc++_unsecure.dylib
+        fi
     fi
     echo "Done installing gRPC 1.16.0"
 fi
@@ -615,7 +636,7 @@ if [[ $INSTALL_FFMPEG == true ]] && [[ ! -f $BUILD_DIR/ffmpeg.done ]] ; then
         # Linux
         CMDS="--extra-version=0ubuntu0.16.04.1
               --toolchain=hardened
-              --cc=cc --cxx=g++"
+              --cc=cc --cxx=g++ -std=c++17"
         # ...
     elif [[ "$OSTYPE" == "darwin"* ]]; then
         # Mac OSX
@@ -625,17 +646,38 @@ if [[ $INSTALL_FFMPEG == true ]] && [[ ! -f $BUILD_DIR/ffmpeg.done ]] ; then
     # FFMPEG
     cd $BUILD_DIR
     rm -fr ffmpeg
-    git clone -b n3.3.1 https://git.ffmpeg.org/ffmpeg.git && cd ffmpeg && \
-    ./configure --prefix=$INSTALL_PREFIX \
-                --enable-shared --disable-stripping \
-                --disable-decoder=libschroedinger \
-                --enable-avresample \
-                --enable-libx264 \
-                --enable-nonfree \
-                --enable-gpl \
-                --enable-gnutls \
-                $(echo $CMDS) && \
-    make -j${cores} && make install && touch $BUILD_DIR/ffmpeg.done \
+    if [[ $BUILD_STATIC == true ]] ; then
+        git clone -b n3.3.1 https://git.ffmpeg.org/ffmpeg.git && cd ffmpeg && \
+        ./configure --prefix=$INSTALL_PREFIX \
+                    --enable-shared --disable-stripping \
+                    --disable-decoder=libschroedinger \
+                    --enable-avresample \
+                    --enable-libx264 \
+                    --enable-nonfree \
+                    --enable-gpl \
+                    --enable-gnutls \
+                    --enable-pic \
+                    --extra-ldexeflags=-pie \
+                    $(echo $CMDS) && \
+        make -j${cores} && make install
+        find . -type f -name "*.a" -exec cp '{}' $DEFAULT_INSTALL_DIR/lib/ ';'
+    else
+        git clone -b n3.3.1 https://git.ffmpeg.org/ffmpeg.git && cd ffmpeg && \
+        ./configure --prefix=$INSTALL_PREFIX \
+                    --enable-shared --disable-stripping \
+                    --disable-decoder=libschroedinger \
+                    --enable-avresample \
+                    --enable-libx264 \
+                    --enable-nonfree \
+                    --enable-gpl \
+                    --enable-gnutls \
+                    --enable-pic \
+                    --extra-ldexeflags=-pie \
+                    $(echo $CMDS) && \
+        make -j${cores} && make install
+    fi
+
+    touch $BUILD_DIR/ffmpeg.done \
         || { echo 'Installing ffmpeg failed!' ; exit 1; }
     echo "Done installing ffmpeg 3.3.1"
 fi
