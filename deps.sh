@@ -17,7 +17,6 @@ BUILD_DIR=$LOCAL_DIR/thirdparty/build
 DEFAULT_INSTALL_DIR=$LOCAL_DIR/thirdparty/install
 FILES_DIR=$LOCAL_DIR/thirdparty/resources
 PYTHON_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
-GRPC_PATH=$LOCAL_DIR/grpc/libs/opt
 
 POSITIONAL=()
 
@@ -230,7 +229,7 @@ echo ""
 FFMPEG_DIR=$INSTALL_PREFIX
 OPENCV_DIR=$INSTALL_PREFIX
 PROTOBUF_DIR=$INSTALL_PREFIX
-GRPC_DIR=$GRPC_PATH
+GRPC_DIR=$INSTALL_PREFIX
 CAFFE_DIR=$INSTALL_PREFIX
 HALIDE_DIR=$INSTALL_PREFIX
 PYBIND_DIR=$INSTALL_PREFIX
@@ -636,7 +635,7 @@ if [[ $INSTALL_FFMPEG == true ]] && [[ ! -f $BUILD_DIR/ffmpeg.done ]] ; then
         # Linux
         CMDS="--extra-version=0ubuntu0.16.04.1
               --toolchain=hardened
-              --cc=cc --cxx=g++ -std=c++17"
+              --cc=cc --cxx=g++"
         # ...
     elif [[ "$OSTYPE" == "darwin"* ]]; then
         # Mac OSX
