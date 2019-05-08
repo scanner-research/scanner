@@ -34,15 +34,15 @@ By default, :py:class:`~scannertools.storage.files.FilesStream` reads from the l
 
 Te rest of this guide explains the additional features of stored streams.
 
-Storage Backends 
+Storage Backends
 ----------------
 :py:class:`~scannerpy.storage.StorageBackend` s represent the specific storage location or format for stored streams. For example, :py:class:`~scannertools.storage.files.FilesStream` can be configured to read files from Amazon's S3 storage service instead of the default local file system by creating the appropriate storage backend:
 
 .. code-block:: python
 
-   from scannertools.storage.files import FileStorage, FilesStream
+   from scannertools.storage.files import FilesStorage, FilesStream
    image_paths = ['image1.jpg', 'image2.jpg', 'image3.jpg']
-   file_storage = FileStorage(storage_type='s3',
+   file_storage = FilesStorage(storage_type='s3',
                               bucket='example-bucket',
                               region='us-west-1')
    file_stream = FilesStream(sc, paths=image_paths, storage=file_storage)
