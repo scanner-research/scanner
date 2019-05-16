@@ -86,20 +86,20 @@ You can learn more about the syntax for defining new operations like :code:`Clon
 
 .. code-block:: python
 
-   output_stream = NamedVideoStream(sc, 'sample-grayscale')
+   output_stream = sp.NamedVideoStream(sc, 'sample-grayscale')
    output = sc.io.Output(resized, [output_stream])
 
 Putting it all together, we have:
 
 .. code-block:: python
 
-   input_stream = NamedVideoStream(sc, 'sample-clip', path='sample-clip.mp4')
+   input_stream = sp.NamedVideoStream(sc, 'sample-clip', path='sample-clip.mp4')
    frames = sc.io.Input([input_stream])
    sampled_frames = sc.streams.Stride(frames, [2]) # Select every other frame
    resized_frames = sc.ops.Resize(frame=sampled_frames, width=[640], height=[480]) # Resize input frame
    grayscale_frames = sc.ops.ConvertColor(frame=resized_frames, conversion=['COLOR_RGB2GRAY'])
    grayscale3_frames = sc.ops.CloneChannels(frame=grayscale_frames, replications=3)
-   output_stream = NamedVideoStream(sc, 'sample-grayscale')
+   output_stream = sp.NamedVideoStream(sc, 'sample-grayscale')
    output = sc.io.Output(grayscale3_frames, [output_stream])
 
 At this point, we have defined a graph that describes the computation to run, but we haven't yet told Scanner to execute the graph.
