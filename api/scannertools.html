@@ -107,10 +107,10 @@
     </ul>
    </div>
 <div id="searchbox" style="display: none" role="search">
-  <h3>Quick search</h3>
+  <h3 id="searchlabel">Quick search</h3>
     <div class="searchformwrapper">
     <form class="search" action="../search.html" method="get">
-      <input type="text" name="q" />
+      <input type="text" name="q" aria-labelledby="searchlabel" />
       <input type="submit" value="Go" />
     </form>
     </div>
@@ -133,7 +133,7 @@
 <h3>Face Detection<a class="headerlink" href="#face-detection" title="Permalink to this headline">¶</a></h3>
 <iframe width="560" height="315" src="https://www.youtube.com/embed/IQsb_nbPf9M" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe><dl class="function">
 <dt id="ops.MTCNNDetectFaces">
-<code class="descclassname">ops.</code><code class="descname">MTCNNDetectFaces</code><span class="sig-paren">(</span><em>frame</em><span class="sig-paren">)</span><a class="headerlink" href="#ops.MTCNNDetectFaces" title="Permalink to this definition">¶</a></dt>
+<code class="sig-prename descclassname">ops.</code><code class="sig-name descname">MTCNNDetectFaces</code><span class="sig-paren">(</span><em class="sig-param">frame</em><span class="sig-paren">)</span><a class="headerlink" href="#ops.MTCNNDetectFaces" title="Permalink to this definition">¶</a></dt>
 <dd><p>Detect human poses in an image.
 Registered with <code class="code docutils literal notranslate"><span class="pre">import</span> <span class="pre">scannertools.face_detection</span></code>.</p>
 <p>Stream parameters:</p>
@@ -177,7 +177,7 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 <h3>Face Embedding<a class="headerlink" href="#face-embedding" title="Permalink to this headline">¶</a></h3>
 <dl class="function">
 <dt id="ops.EmbedFaces">
-<code class="descclassname">ops.</code><code class="descname">EmbedFaces</code><span class="sig-paren">(</span><em>frame</em>, <em>bboxes</em><span class="sig-paren">)</span><a class="headerlink" href="#ops.EmbedFaces" title="Permalink to this definition">¶</a></dt>
+<code class="sig-prename descclassname">ops.</code><code class="sig-name descname">EmbedFaces</code><span class="sig-paren">(</span><em class="sig-param">frame</em>, <em class="sig-param">bboxes</em><span class="sig-paren">)</span><a class="headerlink" href="#ops.EmbedFaces" title="Permalink to this definition">¶</a></dt>
 <dd><p>Compute a face embeddings vector for each bounding box in the image.
 Registered with <code class="code docutils literal notranslate"><span class="pre">import</span> <span class="pre">scannertools.face_embedding</span></code>.</p>
 <p>Stream parameters:</p>
@@ -202,7 +202,7 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 <h3>Gender Detection<a class="headerlink" href="#gender-detection" title="Permalink to this headline">¶</a></h3>
 <dl class="function">
 <dt id="ops.DetectGender">
-<code class="descclassname">ops.</code><code class="descname">DetectGender</code><span class="sig-paren">(</span><em>frame</em>, <em>bboxes</em><span class="sig-paren">)</span><a class="headerlink" href="#ops.DetectGender" title="Permalink to this definition">¶</a></dt>
+<code class="sig-prename descclassname">ops.</code><code class="sig-name descname">DetectGender</code><span class="sig-paren">(</span><em class="sig-param">frame</em>, <em class="sig-param">bboxes</em><span class="sig-paren">)</span><a class="headerlink" href="#ops.DetectGender" title="Permalink to this definition">¶</a></dt>
 <dd><p>Detect the gender of people in an image.
 Registered with <code class="code docutils literal notranslate"><span class="pre">import</span> <span class="pre">scannertools.gender_detection</span></code>.</p>
 <p>Stream parameters:</p>
@@ -227,7 +227,7 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 <h3>Object Detection<a class="headerlink" href="#object-detection" title="Permalink to this headline">¶</a></h3>
 <iframe width="560" height="315" src="https://www.youtube.com/embed/6xt-YVFCC9I" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe><dl class="function">
 <dt id="ops.DetectObjects">
-<code class="descclassname">ops.</code><code class="descname">DetectObjects</code><span class="sig-paren">(</span><em>frame</em>, <em>bboxes</em><span class="sig-paren">)</span><a class="headerlink" href="#ops.DetectObjects" title="Permalink to this definition">¶</a></dt>
+<code class="sig-prename descclassname">ops.</code><code class="sig-name descname">DetectObjects</code><span class="sig-paren">(</span><em class="sig-param">frame</em>, <em class="sig-param">bboxes</em><span class="sig-paren">)</span><a class="headerlink" href="#ops.DetectObjects" title="Permalink to this definition">¶</a></dt>
 <dd><p>Detect objects in an image.
 Registered with <code class="code docutils literal notranslate"><span class="pre">import</span> <span class="pre">scannertools.object_detection</span></code>.</p>
 <p>Stream parameters:</p>
@@ -249,7 +249,7 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 <h3>Pose Detection<a class="headerlink" href="#pose-detection" title="Permalink to this headline">¶</a></h3>
 <iframe width="560" height="315" src="https://www.youtube.com/embed/N1bT1yjnvMY" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe><dl class="function">
 <dt id="ops.OpenPose">
-<code class="descclassname">ops.</code><code class="descname">OpenPose</code><span class="sig-paren">(</span><em>model_directory</em>, <em>pose_num_scales</em>, <em>pose_scale_gap</em>, <em>compute_hands</em>, <em>hand_num_scales</em>, <em>hand_scale_gap</em>, <em>compute_face</em>, <em>frame</em><span class="sig-paren">)</span><a class="headerlink" href="#ops.OpenPose" title="Permalink to this definition">¶</a></dt>
+<code class="sig-prename descclassname">ops.</code><code class="sig-name descname">OpenPose</code><span class="sig-paren">(</span><em class="sig-param">model_directory</em>, <em class="sig-param">pose_num_scales</em>, <em class="sig-param">pose_scale_gap</em>, <em class="sig-param">compute_hands</em>, <em class="sig-param">hand_num_scales</em>, <em class="sig-param">hand_scale_gap</em>, <em class="sig-param">compute_face</em>, <em class="sig-param">frame</em><span class="sig-paren">)</span><a class="headerlink" href="#ops.OpenPose" title="Permalink to this definition">¶</a></dt>
 <dd><p>Detect human poses in an image.
 Registered with <code class="code docutils literal notranslate"><span class="pre">import</span> <span class="pre">scannertools_caffe</span></code>.</p>
 <p>Init parameters:</p>
@@ -286,7 +286,7 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 <a class="reference external image-reference" href="https://storage.googleapis.com/scanner-data/public/sample-shots.jpg"><img alt="https://storage.googleapis.com/scanner-data/public/sample-shots-small.jpg" src="https://storage.googleapis.com/scanner-data/public/sample-shots-small.jpg" /></a>
 <dl class="function">
 <dt id="ops.ShotBoundaries">
-<code class="descclassname">ops.</code><code class="descname">ShotBoundaries</code><span class="sig-paren">(</span><em>histograms</em><span class="sig-paren">)</span><a class="headerlink" href="#ops.ShotBoundaries" title="Permalink to this definition">¶</a></dt>
+<code class="sig-prename descclassname">ops.</code><code class="sig-name descname">ShotBoundaries</code><span class="sig-paren">(</span><em class="sig-param">histograms</em><span class="sig-paren">)</span><a class="headerlink" href="#ops.ShotBoundaries" title="Permalink to this definition">¶</a></dt>
 <dd><p>Detect shot boundaries using color histograms of frames.
 Registered with <code class="code docutils literal notranslate"><span class="pre">import</span> <span class="pre">scannertools.shot_detection</span></code>.</p>
 <p>Stream parameters:</p>
@@ -308,7 +308,7 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 <h3>Resize<a class="headerlink" href="#resize" title="Permalink to this headline">¶</a></h3>
 <dl class="function">
 <dt id="ops.Resize">
-<code class="descclassname">ops.</code><code class="descname">Resize</code><span class="sig-paren">(</span><em>width</em>, <em>height</em>, <em>min</em>, <em>preserve_aspect</em>, <em>interpolation</em>, <em>frame</em><span class="sig-paren">)</span><a class="headerlink" href="#ops.Resize" title="Permalink to this definition">¶</a></dt>
+<code class="sig-prename descclassname">ops.</code><code class="sig-name descname">Resize</code><span class="sig-paren">(</span><em class="sig-param">width</em>, <em class="sig-param">height</em>, <em class="sig-param">min</em>, <em class="sig-param">preserve_aspect</em>, <em class="sig-param">interpolation</em>, <em class="sig-param">frame</em><span class="sig-paren">)</span><a class="headerlink" href="#ops.Resize" title="Permalink to this definition">¶</a></dt>
 <dd><p>Resize images to a fixed size.
 Registered with <code class="code docutils literal notranslate"><span class="pre">import</span> <span class="pre">scannertools.imgproc</span></code>.</p>
 <p>Stream config parameters:</p>
@@ -342,7 +342,7 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 <h3>Optical Flow<a class="headerlink" href="#optical-flow" title="Permalink to this headline">¶</a></h3>
 <dl class="function">
 <dt id="ops.OpticalFlow">
-<code class="descclassname">ops.</code><code class="descname">OpticalFlow</code><span class="sig-paren">(</span><em>frame</em><span class="sig-paren">)</span><a class="headerlink" href="#ops.OpticalFlow" title="Permalink to this definition">¶</a></dt>
+<code class="sig-prename descclassname">ops.</code><code class="sig-name descname">OpticalFlow</code><span class="sig-paren">(</span><em class="sig-param">frame</em><span class="sig-paren">)</span><a class="headerlink" href="#ops.OpticalFlow" title="Permalink to this definition">¶</a></dt>
 <dd><p>Computes optical flow from one frame to the next.
 Registered with <code class="code docutils literal notranslate"><span class="pre">import</span> <span class="pre">scannertools.imgproc</span></code>.</p>
 <p>Stream parameters:</p>
@@ -364,7 +364,7 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 <h3>Histogram<a class="headerlink" href="#histogram" title="Permalink to this headline">¶</a></h3>
 <dl class="function">
 <dt id="ops.Histogram">
-<code class="descclassname">ops.</code><code class="descname">Histogram</code><span class="sig-paren">(</span><em>frame</em><span class="sig-paren">)</span><a class="headerlink" href="#ops.Histogram" title="Permalink to this definition">¶</a></dt>
+<code class="sig-prename descclassname">ops.</code><code class="sig-name descname">Histogram</code><span class="sig-paren">(</span><em class="sig-param">frame</em><span class="sig-paren">)</span><a class="headerlink" href="#ops.Histogram" title="Permalink to this definition">¶</a></dt>
 <dd><p>Computes a color histogram of the frame.
 Registered with <code class="code docutils literal notranslate"><span class="pre">import</span> <span class="pre">scannertools.imgproc</span></code>.</p>
 <p>Stream parameters:</p>
