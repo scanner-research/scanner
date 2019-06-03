@@ -83,6 +83,7 @@ function(build_op)
       find_package(CUDA REQUIRED)
       target_compile_definitions(${args_LIB_NAME} PUBLIC -DHAVE_CUDA)
       target_include_directories(${args_LIB_NAME} PUBLIC ${CUDA_INCLUDE_DIRS})
+      target_link_libraries(${args_LIB_NAME} PUBLIC ${CUDA_LIBRARIES})
 
       if(COMPILER_SUPPORTS_CXX1Y)
         set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -std=c++11")
