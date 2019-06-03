@@ -586,7 +586,7 @@ if [[ $INSTALL_OPENVINO == true ]] && [[ ! -f $BUILD_DIR/openvino.done ]] ; then
     tar xf l_openvino_toolkit*.tgz
     cd l_openvino_toolkit*
     sed -i 's/decline/accept/g' silent.cfg
-    sed -i 's/COMPONENTS=DEFAULTS/COMPONENTS=intel-openvino-ie-rt-cpu-ubuntu-xenial__x86_64/g' silent.cfg
+    sed -i 's/COMPONENTS=DEFAULTS/COMPONENTS=intel-openvino-ie-rt-cpu-ubuntu-xenial__x86_64;intel-openvino-ie-rt-gpu-ubuntu-xenial__x86_64/g' silent.cfg
     sed -i "s!PSET_INSTALL_DIR=/opt/intel!PSET_INSTALL_DIR=$INSTALL_PREFIX/intel!g" silent.cfg
     ./install.sh --silent silent.cfg || { echo 'Installing OpenVino failed!' ; exit 1; }
     cd .. && rm l_openvino_toolkit_p_2019.1.144.tgz
@@ -599,6 +599,8 @@ if [[ $INSTALL_OPENVINO == true ]] && [[ ! -f $BUILD_DIR/openvino.done ]] ; then
     export InferenceEngine_DIR=$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/share
     export IE_PLUGINS_PATH=$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/lib/intel64
     export HDDL_INSTALL_DIR=$INSTALLDIR/deployment_tools/inference_engine/external/hddl
+    HDDL_INSTALL_DIR=$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/external/hddl
+    IE_PLUGINS_PATH=$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/lib/intel64
     export LD_LIBRARY_PATH=$HDDL_INSTALL_DIR/lib:$INSTALLDIR/deployment_tools/inference_engine/external/gna/lib:$INSTALLDIR/deployment_tools/inference_engine/external/mkltiny_lnx/lib:$INSTALLDIR/deployment_tools/inference_engine/external/tbb/lib:$IE_PLUGINS_PATH:$LD_LIBRARY_PATH
 fi
 
@@ -1026,5 +1028,7 @@ if [[ $INSTALL_OPENVINO == true ]]; then
     echo "export InferenceEngine_DIR=$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/share"
     echo "export IE_PLUGINS_PATH=$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/lib/intel64"
     echo "export HDDL_INSTALL_DIR=$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/external/hddl"
+    HDDL_INSTALL_DIR=$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/external/hddl
+    IE_PLUGINS_PATH=$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/lib/intel64
     echo "export LD_LIBRARY_PATH=$HDDL_INSTALL_DIR/lib:$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/external/gna/lib:$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/external/mkltiny_lnx/lib:$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/external/tbb/lib:$IE_PLUGINS_PATH:$LD_LIBRARY_PATH"
 fi
