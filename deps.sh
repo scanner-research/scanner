@@ -399,7 +399,7 @@ elif [[ $INSTALL_ALL == false ]]; then
 
     echo "Optional dependencies: "
     if [[ -z ${WITH_OPENVINO+x} ]] && [[ ${NO_OPENVINO+x} != true ]] && [[ "$OSTYPE" == "linux-gnu" ]]; then
-        echo -n "Do you need support for OpenVino Inference Engine? [Y/n]: "
+        echo -n "Do you need support for OpenVino Inference Engine? [y/N]: "
         read yn
         if [[ $yn != n ]] && [[ $yn != N ]]; then
             echo -n "Do you have OpenVino Inference Engine 2019 R1 installed? [y/N]: "
@@ -647,7 +647,6 @@ if [[ $INSTALL_OPENCV == true ]] && [[ ! -f $BUILD_DIR/opencv.done ]]; then
               -D WITH_PROTOBUF=ON \
               -D BUILD_PROTOBUF=ON \
               -D BUILD_LIBPROTOBUF_FROM_SOURCES=OFF \
-              -D ENABLE_PRECOMPILED_HEADERS=OFF \
               $(echo $CMDS) -DCMAKE_PREFIX_PATH=$(echo $PY_EXTRA_CMDS) ..
         make install -j$cores && touch $BUILD_DIR/opencv.done \
             || { echo 'Installing OpenCV failed!' ; exit 1; }
