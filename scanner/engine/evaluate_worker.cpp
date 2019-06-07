@@ -160,8 +160,18 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
               std::abort();
           }
 
-          inplace_decoders_.emplace_back(
-              new hwang::DecoderAutomata(hd, num_devices, vd));
+          auto hwang_decoder =
+              hwang::DecoderAutomata::make_instance(hd, num_devices, vd);
+          if (hwang_decoder == nullptr) {
+            std::string message =
+                "Unable to create a hwang decoder for requested device and "
+                "decoder type.";
+            LOG(ERROR) << message;
+            result_.set_msg(message);
+            result_.set_success(false);
+            THREAD_RETURN_SUCCESS();
+          }
+          inplace_decoders_.emplace_back(hwang_decoder);
           //decoders_.back()->set_profiler(&profiler_);
           decoders_.emplace_back(nullptr);
 #else
