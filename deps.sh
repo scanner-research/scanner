@@ -42,6 +42,8 @@ NO_CAFFE=false
 INSTALL_CAFFE=true
 NO_HWANG=false
 INSTALL_HWANG=true
+NO_OPENVINO=false
+INSTALL_OPENVINO=true
 
 # Optional, and assume not installed
 NO_LIBPQXX=false
@@ -166,6 +168,11 @@ case $key in
         shift # past arg
         shift # past value
         ;;
+    --with-openvino)
+        WITH_OPENVINO="$2"
+        shift # past arg
+        shift # past value
+        ;;
 
     *)    # unknown option
     POSITIONAL+=("$1") # save it in an array for later
@@ -238,6 +245,7 @@ STOREHOUSE_DIR=$INSTALL_PREFIX
 TINYTOML_DIR=$INSTALL_PREFIX
 OPENPOSE_DIR=$INSTALL_PREFIX
 LIBPQXX_DIR=$INSTALL_PREFIX
+OPENVINO_DIR=$INSTALL_PREFIX
 
 if [[ ! -z ${WITH_FFMPEG+x} ]]; then
     INSTALL_FFMPEG=false
@@ -283,6 +291,10 @@ if [[ ! -z ${WITH_LIBPQXX+x} ]]; then
     INSTALL_LIBPQXX=false
     LIBPQXX_DIR=$WITH_LIBPQXX
 fi
+if [[ ! -z ${WITH_OPENVINO+x} ]]; then
+    INSTALL_OPENVINO=false
+    OPENVINO_DIR=$WITH_OPENVINO
+fi
 
 export C_INCLUDE_PATH=$INSTALL_PREFIX/include:$C_INCLUDE_PATH
 export LD_LIBRARY_PATH=$INSTALL_PREFIX/lib:$LD_LIBRARY_PATH
@@ -306,6 +318,7 @@ if [[ $INSTALL_NONE == true ]]; then
     INSTALL_STOREHOUSE=false
     INSTALL_PYBIND=false
     INSTALL_LIBPQXX=false
+    INSTALL_OPENVINO=false
 
 elif [[ $INSTALL_ALL == false ]]; then
     # Ask about each library
@@ -385,6 +398,38 @@ elif [[ $INSTALL_ALL == false ]]; then
     fi
 
     echo "Optional dependencies: "
+    if [[ -z ${WITH_OPENVINO+x} ]] && [[ ${NO_OPENVINO+x} != true ]] && [[ "$OSTYPE" == "linux-gnu" ]]; then
+        echo -n "Do you need support for OpenVino Inference Engine? [y/N]: "
+        read yn
+        if [[ $yn != n ]] && [[ $yn != N ]]; then
+            echo -n "Do you have OpenVino Inference Engine 2019 R1 installed? [y/N]: "
+            read yn
+            if [[ $yn == y ]] || [[ $yn == Y ]]; then
+                INSTALL_OPENVINO=false
+                echo -n "Where is your OpenVino Inference Engine install? [/usr/local]: "
+                read install_location
+                if [[ $install_location == "" ]]; then
+                    OPENVINO_DIR=/usr/local
+                else
+                    OPENVINO_DIR=$install_location
+                fi
+                INTEL_OPENVINO_DIR=$install_location/intel/openvino_2019.1.144
+                export INTEL_OPENVINO_DIR=$INTEL_OPENVINO_DIR
+                export INTEL_CVSDK_DIR=$INTEL_OPENVINO_DIR
+                export InferenceEngine_DIR=$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/share
+                export IE_PLUGINS_PATH=$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/lib/intel64
+                export HDDL_INSTALL_DIR=$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/external/hddl
+                export LD_LIBRARY_PATH=$HDDL_INSTALL_DIR/lib:$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/external/gna/lib:$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/external/mkltiny_lnx/lib:$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/external/tbb/lib:$IE_PLUGINS_PATH:$LD_LIBRARY_PATH
+            else
+                INSTALL_OPENVINO=true
+                echo "OpenVino Inference Engine R1 2019 will be installed at ${OPENVINO_DIR}."
+            fi
+        else
+            INSTALL_OPENVINO=false
+            NO_OPENVINO=true
+        fi
+    fi
+
     if [[ -z ${WITH_FFMPEG+x} ]] && [[ ${NO_FFMPEG+x} != true ]]; then
         echo -n "Do you need support for processing video files (e.g. mp4)? [Y/n]: "
         read yn
@@ -520,6 +565,45 @@ elif [[ $INSTALL_ALL == false ]]; then
     fi
 fi
 
+if [[ $INSTALL_PROTOBUF == true ]] && [[ ! -f $BUILD_DIR/protobuf.done ]] ; then
+    # protobuf 3.6.1
+    echo "Installing protobuf 3.6.1..."
+    cd $BUILD_DIR
+    rm -fr protobuf
+    git clone -b v3.6.1 https://github.com/google/protobuf.git --depth 1 && \
+        cd protobuf && bash ./autogen.sh && \
+        ./configure --prefix=$INSTALL_PREFIX && make -j$cores && \
+        make install && touch $BUILD_DIR/protobuf.done \
+            || { echo 'Installing protobuf failed!' ; exit 1; }
+    echo "Done installing protobuf 3.6.1"
+fi
+
+if [[ $INSTALL_OPENVINO == true ]] && [[ ! -f $BUILD_DIR/openvino.done ]] ; then
+    echo "Installing OpenVino Inference Engine 2019 R1"
+    cd $BUILD_DIR
+#    rm -fr openvino
+    wget -c http://registrationcenter-download.intel.com/akdlm/irc_nas/15512/l_openvino_toolkit_p_2019.1.144.tgz
+    tar xf l_openvino_toolkit*.tgz
+    cd l_openvino_toolkit*
+    sed -i 's/decline/accept/g' silent.cfg
+    sed -i 's/COMPONENTS=DEFAULTS/COMPONENTS=intel-openvino-ie-rt-cpu-ubuntu-xenial__x86_64;intel-openvino-ie-rt-gpu-ubuntu-xenial__x86_64/g' silent.cfg
+    sed -i "s!PSET_INSTALL_DIR=/opt/intel!PSET_INSTALL_DIR=$INSTALL_PREFIX/intel!g" silent.cfg
+    ./install.sh --silent silent.cfg || { echo 'Installing OpenVino failed!' ; exit 1; }
+    cd .. && rm l_openvino_toolkit_p_2019.1.144.tgz
+    touch $BUILD_DIR/openvino.done
+    echo "Done installing OpenVino Inference Engine 2019 R1"
+    #This will be needed by OpenCV
+    INTEL_OPENVINO_DIR=$INSTALL_PREFIX/intel/openvino_2019.1.144
+    export INTEL_OPENVINO_DIR=$INTEL_OPENVINO_DIR
+    export INTEL_CVSDK_DIR=$INTEL_OPENVINO_DIR
+    export InferenceEngine_DIR=$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/share
+    export IE_PLUGINS_PATH=$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/lib/intel64
+    export HDDL_INSTALL_DIR=$INSTALLDIR/deployment_tools/inference_engine/external/hddl
+    HDDL_INSTALL_DIR=$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/external/hddl
+    IE_PLUGINS_PATH=$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/lib/intel64
+    export LD_LIBRARY_PATH=$HDDL_INSTALL_DIR/lib:$INSTALLDIR/deployment_tools/inference_engine/external/gna/lib:$INSTALLDIR/deployment_tools/inference_engine/external/mkltiny_lnx/lib:$INSTALLDIR/deployment_tools/inference_engine/external/tbb/lib:$IE_PLUGINS_PATH:$LD_LIBRARY_PATH
+fi
+
 if [[ $INSTALL_OPENCV == true ]] && [[ ! -f $BUILD_DIR/opencv.done ]]; then
     # OpenCV 4.1.0 + OpenCV contrib
     echo "Installing OpenCV 4.1.0..."
@@ -555,26 +639,18 @@ if [[ $INSTALL_OPENCV == true ]] && [[ ! -f $BUILD_DIR/opencv.done ]]; then
               -D BUILD_opencv_xfeatures2d=OFF \
               -D WITH_PROTOBUF=OFF \
               -D BUILD_PROTOBUF=OFF \
-              -D BUILD_opencv_dnn=OFF \
               -D OPENCV_EXTRA_MODULES_PATH=$BUILD_DIR/opencv_contrib/modules \
-              $(echo $CMDS) -DCMAKE_PREFIX_PATH=$(echo $PY_EXTRA_CMDS) \
-              .. && \
+              -D WITH_INF_ENGINE=ON \
+              -D ENABLE_CXX11=ON \
+              -D BUILD_opencv_dnn=ON \
+              -D OPENCV_ENABLE_NONFREE=ON \
+              -D WITH_PROTOBUF=ON \
+              -D BUILD_PROTOBUF=ON \
+              -D BUILD_LIBPROTOBUF_FROM_SOURCES=OFF \
+              $(echo $CMDS) -DCMAKE_PREFIX_PATH=$(echo $PY_EXTRA_CMDS) ..
         make install -j$cores && touch $BUILD_DIR/opencv.done \
             || { echo 'Installing OpenCV failed!' ; exit 1; }
     echo "Done installing OpenCV 4.1.0"
-fi
-
-if [[ $INSTALL_PROTOBUF == true ]] && [[ ! -f $BUILD_DIR/protobuf.done ]] ; then
-    # protobuf 3.6.1
-    echo "Installing protobuf 3.6.1..."
-    cd $BUILD_DIR
-    rm -fr protobuf
-    git clone -b v3.6.1 https://github.com/google/protobuf.git --depth 1 && \
-        cd protobuf && bash ./autogen.sh && \
-        ./configure --prefix=$INSTALL_PREFIX && make -j$cores && \
-        make install && touch $BUILD_DIR/protobuf.done \
-            || { echo 'Installing protobuf failed!' ; exit 1; }
-    echo "Done installing protobuf 3.6.1"
 fi
 
 if [[ $INSTALL_GRPC == true ]] && [[ ! -f $BUILD_DIR/grpc.done ]] ; then
@@ -717,8 +793,6 @@ if [[ $INSTALL_TINYTOML == true ]] && [[ ! -f $BUILD_DIR/tinytoml.done ]]; then
             || { echo 'Installing tinytoml failed!' ; exit 1; }
     echo "Done installing tinytoml"
 fi
-
-
 
 if [[ $INSTALL_HALIDE == true ]] && [[ ! -f $BUILD_DIR/halide.done ]] ; then
     # Halide
@@ -945,4 +1019,15 @@ if [[ $INSTALL_OPENCV == true ]]; then
 fi
 if [[ $INSTALL_CAFFE_CPU == true ]] || [[ $INSTALL_CAFFE_GPU == true ]]; then
     echo "export PYTHONPATH=$INSTALL_PREFIX/python:\$PYTHONPATH"
+fi
+if [[ $INSTALL_OPENVINO == true ]]; then
+    INTEL_OPENVINO_DIR=$INSTALL_PREFIX/intel/openvino_2019.1.144
+    echo "export INTEL_OPENVINO_DIR=$INTEL_OPENVINO_DIR"
+    echo "export INTEL_CVSDK_DIR=$INTEL_OPENVINO_DIR"
+    echo "export InferenceEngine_DIR=$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/share"
+    echo "export IE_PLUGINS_PATH=$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/lib/intel64"
+    echo "export HDDL_INSTALL_DIR=$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/external/hddl"
+    HDDL_INSTALL_DIR=$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/external/hddl
+    IE_PLUGINS_PATH=$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/lib/intel64
+    echo "export LD_LIBRARY_PATH=$HDDL_INSTALL_DIR/lib:$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/external/gna/lib:$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/external/mkltiny_lnx/lib:$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/external/tbb/lib:$IE_PLUGINS_PATH:$LD_LIBRARY_PATH"
 fi
