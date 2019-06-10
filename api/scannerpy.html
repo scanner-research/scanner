@@ -486,11 +486,6 @@ existing outputs.</p></li>
 
 </dd></dl>
 
-<dl class="data">
-<dt id="scannerpy.client.SCRIPT_DIR">
-<code class="sig-prename descclassname">scannerpy.client.</code><code class="sig-name descname">SCRIPT_DIR</code><em class="property"> = '/usr/local/lib/python3.5/dist-packages/scannerpy'</em><a class="headerlink" href="#scannerpy.client.SCRIPT_DIR" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
 <dl class="function">
 <dt id="scannerpy.client.start_master">
 <code class="sig-prename descclassname">scannerpy.client.</code><code class="sig-name descname">start_master</code><span class="sig-paren">(</span><em class="sig-param">port=None</em>, <em class="sig-param">config=None</em>, <em class="sig-param">config_path=None</em>, <em class="sig-param">block=False</em>, <em class="sig-param">watchdog=True</em>, <em class="sig-param">no_workers_timeout=30</em>, <em class="sig-param">new_job_retries_limit=5</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/client.html#start_master"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.client.start_master" title="Permalink to this definition">¶</a></dt>
@@ -586,11 +581,6 @@ PokeWatchdog is not called.</p></li>
 </div>
 <div class="section" id="module-scannerpy.op">
 <span id="scannerpy-op-module"></span><h2>scannerpy.op module<a class="headerlink" href="#module-scannerpy.op" title="Permalink to this headline">¶</a></h2>
-<dl class="data">
-<dt id="scannerpy.op.MODULE_REGISTRY">
-<code class="sig-prename descclassname">scannerpy.op.</code><code class="sig-name descname">MODULE_REGISTRY</code><em class="property"> = {}</em><a class="headerlink" href="#scannerpy.op.MODULE_REGISTRY" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
 <dl class="class">
 <dt id="scannerpy.op.Op">
 <em class="property">class </em><code class="sig-prename descclassname">scannerpy.op.</code><code class="sig-name descname">Op</code><span class="sig-paren">(</span><em class="sig-param">sc, name, inputs, device, batch=-1, warmup=-1, stencil=[0], args={}, extra=None, stream_args=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/op.html#Op"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.op.Op" title="Permalink to this definition">¶</a></dt>
@@ -647,11 +637,6 @@ PokeWatchdog is not called.</p></li>
 <cite>sc.ops.Histogram</cite>, the generator does a dynamic lookup for the
 op in a C++ registry.</p>
 </dd></dl>
-
-<dl class="data">
-<dt id="scannerpy.op.PYTHON_OP_REGISTRY">
-<code class="sig-prename descclassname">scannerpy.op.</code><code class="sig-name descname">PYTHON_OP_REGISTRY</code><em class="property"> = {}</em><a class="headerlink" href="#scannerpy.op.PYTHON_OP_REGISTRY" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
 
 <dl class="class">
 <dt id="scannerpy.op.SliceList">
@@ -744,12 +729,6 @@ arguments to this Op.</p></li>
 
 </dd></dl>
 
-<dl class="attribute">
-<dt id="scannerpy.types.BlobType">
-<code class="sig-prename descclassname">scannerpy.types.</code><code class="sig-name descname">BlobType</code><a class="headerlink" href="#scannerpy.types.BlobType" title="Permalink to this definition">¶</a></dt>
-<dd><p>alias of <code class="xref py py-class docutils literal notranslate"><span class="pre">builtins.bytes</span></code></p>
-</dd></dl>
-
 <dl class="class">
 <dt id="scannerpy.types.FrameType">
 <em class="property">class </em><code class="sig-prename descclassname">scannerpy.types.</code><code class="sig-name descname">FrameType</code><a class="reference internal" href="../_modules/scannerpy/types.html#FrameType"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.types.FrameType" title="Permalink to this definition">¶</a></dt>
@@ -819,11 +798,6 @@ arguments to this Op.</p></li>
 <dd></dd></dl>
 
 </dd></dl>
-
-<dl class="data">
-<dt id="scannerpy.types.PYTHON_TYPE_REGISTRY">
-<code class="sig-prename descclassname">scannerpy.types.</code><code class="sig-name descname">PYTHON_TYPE_REGISTRY</code><em class="property"> = {&lt;class 'scannerpy.types.NumpyArrayFloat32'&gt;: ScannerTypeInfo(type=&lt;class 'scannerpy.types.NumpyArrayFloat32'&gt;, cpp_name='NumpyArrayFloat32', serialize=&lt;function NumpyArrayFloat32.serialize&gt;, deserialize=&lt;function NumpyArrayFloat32.deserialize&gt;), typing.Any: ScannerTypeInfo(type=typing.Any, cpp_name='Any', serialize=&lt;built-in function dumps&gt;, deserialize=&lt;built-in function loads&gt;), &lt;class 'scannerpy.types.Histogram'&gt;: ScannerTypeInfo(type=&lt;class 'scannerpy.types.Histogram'&gt;, cpp_name='Histogram', serialize=&lt;function UniformList.&lt;locals&gt;.serialize&gt;, deserialize=&lt;function UniformList.&lt;locals&gt;.deserialize&gt;), &lt;class 'scannerpy.types.BboxList'&gt;: ScannerTypeInfo(type=&lt;class 'scannerpy.types.BboxList'&gt;, cpp_name='BboxList', serialize=&lt;function VariableList.&lt;locals&gt;.serialize&gt;, deserialize=&lt;function VariableList.&lt;locals&gt;.deserialize&gt;), &lt;class 'bytes'&gt;: ScannerTypeInfo(type=&lt;class 'bytes'&gt;, cpp_name='Bytes', serialize=&lt;function &lt;lambda&gt;&gt;, deserialize=&lt;function &lt;lambda&gt;&gt;), &lt;class 'scannerpy.types.NumpyArrayInt32'&gt;: ScannerTypeInfo(type=&lt;class 'scannerpy.types.NumpyArrayInt32'&gt;, cpp_name='NumpyArrayInt32', serialize=&lt;function NumpyArrayInt32.serialize&gt;, deserialize=&lt;function NumpyArrayInt32.deserialize&gt;), &lt;class 'scannerpy.types.FrameType'&gt;: ScannerTypeInfo(type=&lt;class 'scannerpy.types.FrameType'&gt;, cpp_name='FrameType', serialize=&lt;function &lt;lambda&gt;&gt;, deserialize=&lt;function &lt;lambda&gt;&gt;), &lt;class 'scannerpy.types.Image'&gt;: ScannerTypeInfo(type=&lt;class 'scannerpy.types.Image'&gt;, cpp_name='Image', serialize=&lt;function Image.serialize&gt;, deserialize=&lt;function Image.deserialize&gt;), &lt;class 'scannerpy.types.Bbox'&gt;: ScannerTypeInfo(type=&lt;class 'scannerpy.types.Bbox'&gt;, cpp_name='Bbox', serialize=&lt;function ProtobufType.&lt;locals&gt;.serialize&gt;, deserialize=&lt;function ProtobufType.&lt;locals&gt;.deserialize&gt;)}</em><a class="headerlink" href="#scannerpy.types.PYTHON_TYPE_REGISTRY" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
 
 <dl class="function">
 <dt id="scannerpy.types.ProtobufType">
@@ -1252,11 +1226,6 @@ a binary blob for non-frame columns (optionally processed by the
 
 </dd></dl>
 
-<dl class="data">
-<dt id="scannerpy.column.LOAD_SPARSITY_THRESHOLD">
-<code class="sig-prename descclassname">scannerpy.column.</code><code class="sig-name descname">LOAD_SPARSITY_THRESHOLD</code><em class="property"> = 10</em><a class="headerlink" href="#scannerpy.column.LOAD_SPARSITY_THRESHOLD" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
 </div>
 <div class="section" id="module-scannerpy.common">
 <span id="scannerpy-common-module"></span><h2>scannerpy.common module<a class="headerlink" href="#module-scannerpy.common" title="Permalink to this headline">¶</a></h2>
@@ -1431,16 +1400,6 @@ is provided.</p></li>
 <dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/exceptions.html#Exception" title="(in Python v3.7)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Exception</span></code></a></p>
 </dd></dl>
 
-<dl class="data">
-<dt id="scannerpy.common.handler">
-<code class="sig-prename descclassname">scannerpy.common.</code><code class="sig-name descname">handler</code><em class="property"> = &lt;logging.StreamHandler object&gt;</em><a class="headerlink" href="#scannerpy.common.handler" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="data">
-<dt id="scannerpy.common.log">
-<code class="sig-prename descclassname">scannerpy.common.</code><code class="sig-name descname">log</code><em class="property"> = &lt;logging.Logger object&gt;</em><a class="reference internal" href="../_modules/logging.html#log"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.common.log" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
 </div>
 <div class="section" id="module-scannerpy.kernel">
 <span id="scannerpy-kernel-module"></span><h2>scannerpy.kernel module<a class="headerlink" href="#module-scannerpy.kernel" title="Permalink to this headline">¶</a></h2>
@@ -1527,11 +1486,6 @@ See <a class="reference internal" href="../guide/ops.html#stream-parameters"><sp
 </div>
 <div class="section" id="module-scannerpy.partitioner">
 <span id="scannerpy-partitioner-module"></span><h2>scannerpy.partitioner module<a class="headerlink" href="#module-scannerpy.partitioner" title="Permalink to this headline">¶</a></h2>
-<dl class="data">
-<dt id="scannerpy.partitioner.DEFAULT_GROUP_SIZE">
-<code class="sig-prename descclassname">scannerpy.partitioner.</code><code class="sig-name descname">DEFAULT_GROUP_SIZE</code><em class="property"> = 250</em><a class="headerlink" href="#scannerpy.partitioner.DEFAULT_GROUP_SIZE" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
 <dl class="class">
 <dt id="scannerpy.partitioner.TaskPartitioner">
 <em class="property">class </em><code class="sig-prename descclassname">scannerpy.partitioner.</code><code class="sig-name descname">TaskPartitioner</code><span class="sig-paren">(</span><em class="sig-param">sc</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/partitioner.html#TaskPartitioner"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.partitioner.TaskPartitioner" title="Permalink to this definition">¶</a></dt>
@@ -1624,11 +1578,6 @@ click “Load” in the top left to load the trace.</p>
 </div>
 <div class="section" id="module-scannerpy.sampler">
 <span id="scannerpy-sampler-module"></span><h2>scannerpy.sampler module<a class="headerlink" href="#module-scannerpy.sampler" title="Permalink to this headline">¶</a></h2>
-<dl class="data">
-<dt id="scannerpy.sampler.DEFAULT_TASK_SIZE">
-<code class="sig-prename descclassname">scannerpy.sampler.</code><code class="sig-name descname">DEFAULT_TASK_SIZE</code><em class="property"> = 125</em><a class="headerlink" href="#scannerpy.sampler.DEFAULT_TASK_SIZE" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
 <dl class="class">
 <dt id="scannerpy.sampler.Sampler">
 <em class="property">class </em><code class="sig-prename descclassname">scannerpy.sampler.</code><code class="sig-name descname">Sampler</code><span class="sig-paren">(</span><em class="sig-param">sc</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/sampler.html#Sampler"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.sampler.Sampler" title="Permalink to this definition">¶</a></dt>
@@ -2285,16 +2234,6 @@ will be used by default.</p></li>
 
 </dd></dl>
 
-<dl class="data">
-<dt id="scannerpy.kube.GCP_MEM_RATIOS">
-<code class="sig-prename descclassname">scannerpy.kube.</code><code class="sig-name descname">GCP_MEM_RATIOS</code><em class="property"> = {'highcpu': 0.9, 'highmem': 6.5, 'standard': 3.75}</em><a class="headerlink" href="#scannerpy.kube.GCP_MEM_RATIOS" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="data">
-<dt id="scannerpy.kube.MASTER_POOL">
-<code class="sig-prename descclassname">scannerpy.kube.</code><code class="sig-name descname">MASTER_POOL</code><em class="property"> = 'default-pool'</em><a class="headerlink" href="#scannerpy.kube.MASTER_POOL" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
 <dl class="class">
 <dt id="scannerpy.kube.MachineConfig">
 <em class="property">class </em><code class="sig-prename descclassname">scannerpy.kube.</code><code class="sig-name descname">MachineConfig</code><span class="sig-paren">(</span><em class="sig-param">image</em>, <em class="sig-param">type</em>, <em class="sig-param">disk</em>, <em class="sig-param">gpu=0</em>, <em class="sig-param">gpu_type='nvidia-tesla-p100'</em>, <em class="sig-param">preemptible=False</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/kube.html#MachineConfig"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.kube.MachineConfig" title="Permalink to this definition">¶</a></dt>
@@ -2368,11 +2307,6 @@ will be used by default.</p></li>
 <dd></dd></dl>
 
 </dd></dl>
-
-<dl class="data">
-<dt id="scannerpy.kube.WORKER_POOL">
-<code class="sig-prename descclassname">scannerpy.kube.</code><code class="sig-name descname">WORKER_POOL</code><em class="property"> = 'workers'</em><a class="headerlink" href="#scannerpy.kube.WORKER_POOL" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
 
 <dl class="function">
 <dt id="scannerpy.kube.master">
