@@ -22,6 +22,7 @@ do
         local BASE_TAG=$3
 
         docker build \
+               --pull \
                --build-arg cores=$CORES \
                --build-arg base_tag=$BASE_TAG \
                --no-cache=$NO_CACHE \
