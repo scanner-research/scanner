@@ -34,27 +34,27 @@ PATHS ${_FFMPEG_AVCODEC_INCLUDE_DIRS} /usr/include /usr/local/include /opt/local
 PATH_SUFFIXES ffmpeg libav
 )
 
-find_library(FFMPEG_LIBAVCODEC
+find_library(FFMPEG_LIBAVCODEC libavcodec.a
 NAMES avcodec
 PATHS ${_FFMPEG_AVCODEC_LIBRARY_DIRS} /usr/lib /usr/local/lib /opt/local/lib /sw/lib
 )
 
-find_library(FFMPEG_LIBAVFORMAT
+find_library(FFMPEG_LIBAVFORMAT libavformat.a
 NAMES avformat
 PATHS ${_FFMPEG_AVFORMAT_LIBRARY_DIRS} /usr/lib /usr/local/lib /opt/local/lib /sw/lib
 )
 
-find_library(FFMPEG_LIBAVUTIL
+find_library(FFMPEG_LIBAVUTIL libavutil.a
 NAMES avutil
 PATHS ${_FFMPEG_AVUTIL_LIBRARY_DIRS} /usr/lib /usr/local/lib /opt/local/lib /sw/lib
 )
 
-find_library(FFMPEG_LIBSWRESAMPLE
+find_library(FFMPEG_LIBSWRESAMPLE libswresample.a
 NAMES swresample
 PATHS ${_FFMPEG_AVUTIL_LIBRARY_DIRS} /usr/lib /usr/local/lib /opt/local/lib /sw/lib
 )
 
-find_library(FFMPEG_LIBSWSCALE
+find_library(FFMPEG_LIBSWSCALE libswscale.a
 NAMES swscale
 PATHS ${_FFMPEG_AVCODEC_LIBRARY_DIRS} /usr/lib /usr/local/lib /opt/local/lib /sw/lib
 )

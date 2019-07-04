@@ -27,15 +27,15 @@ else()
     ${GRPC_DIR}/include)
 endif()
 
-find_library(GRPCPP_UNSECURE_LIBRARY grpc++_unsecure
+find_library(GRPCPP_UNSECURE_LIBRARY libgrpc++_unsecure.a grpc++_unsecure
   PATHS
   ${GRPC_DIR}/lib)
 
-find_library(GRPC_LIBRARY grpc
+find_library(GRPC_LIBRARY libgrpc.a grpc
   PATHS
   ${GRPC_DIR}/lib)
 
-find_library(GPR_LIBRARY gpr
+find_library(GPR_LIBRARY libgpr.a gpr
   PATHS
   ${GRPC_DIR}/lib)
 
