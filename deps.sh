@@ -439,7 +439,7 @@ elif [[ $INSTALL_ALL == false ]]; then
                 INSTALL_FFMPEG=false
                 FFMPEG_DIR=/usr/local
             else
-                echo -n "Do you have ffmpeg>=3.3.1 installed? [y/N]: "
+                echo -n "Do you have ffmpeg>=4.1.3 installed? [y/N]: "
                 read yn
                 if [[ $yn == y ]] || [[ $yn == Y ]]; then
                     INSTALL_FFMPEG=false
@@ -452,7 +452,7 @@ elif [[ $INSTALL_ALL == false ]]; then
                     fi
                 else
                     INSTALL_FFMPEG=true
-                    echo "ffmpeg 3.3.1 will be installed at ${FFMPEG_DIR}."
+                    echo "ffmpeg 4.1.3 will be installed at ${FFMPEG_DIR}."
                 fi
             fi
         else
@@ -684,7 +684,7 @@ if [[ $INSTALL_GRPC == true ]] && [[ ! -f $BUILD_DIR/grpc.done ]] ; then
 fi
 
 if [[ $INSTALL_FFMPEG == true ]] && [[ ! -f $BUILD_DIR/ffmpeg.done ]] ; then
-    echo "Installing ffmpeg 3.3.1..."
+    echo "Installing ffmpeg 4.1.3..."
 
     # Determine command string to use
     if [[ "$OSTYPE" == "linux-gnu" ]]; then
@@ -701,7 +701,7 @@ if [[ $INSTALL_FFMPEG == true ]] && [[ ! -f $BUILD_DIR/ffmpeg.done ]] ; then
     # FFMPEG
     cd $BUILD_DIR
     rm -fr ffmpeg
-    git clone -b n3.3.1 https://git.ffmpeg.org/ffmpeg.git && cd ffmpeg && \
+    git clone -b n4.1.3 https://git.ffmpeg.org/ffmpeg.git && cd ffmpeg && \
     ./configure --prefix=$INSTALL_PREFIX \
                 --enable-shared --disable-stripping \
                 --disable-decoder=libschroedinger \
@@ -710,10 +710,11 @@ if [[ $INSTALL_FFMPEG == true ]] && [[ ! -f $BUILD_DIR/ffmpeg.done ]] ; then
                 --enable-nonfree \
                 --enable-gpl \
                 --enable-gnutls \
+		--enable-libx265 \
                 $(echo $CMDS) && \
     make -j${cores} && make install && touch $BUILD_DIR/ffmpeg.done \
         || { echo 'Installing ffmpeg failed!' ; exit 1; }
-    echo "Done installing ffmpeg 3.3.1"
+    echo "Done installing ffmpeg 4.1.3"
 fi
 
 if [[ $INSTALL_PYBIND == true ]] && [[ ! -f $BUILD_DIR/pybind.done ]] ; then
