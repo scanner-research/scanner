@@ -46,9 +46,6 @@
           <a href="../genindex.html" title="General Index"
              accesskey="I">index</a></li>
         <li class="right" >
-          <a href="../py-modindex.html" title="Python Module Index"
-             >modules</a> |</li>
-        <li class="right" >
           <a href="stored-streams.html" title="Stored Streams"
              accesskey="N">next</a> |</li>
         <li class="right" >
@@ -189,8 +186,8 @@
 <p>Parameters to operations can be declared at one of three locations:</p>
 <ul class="simple">
 <li><p><code class="xref py py-meth docutils literal notranslate"><span class="pre">__init__()</span></code>: the constructor for the operation.</p></li>
-<li><p><a class="reference internal" href="../api/scannerpy.html#scannerpy.kernel.Kernel.new_stream" title="scannerpy.kernel.Kernel.new_stream"><code class="xref py py-meth docutils literal notranslate"><span class="pre">new_stream()</span></code></a>: called whenever the operation starts processing a new stream.</p></li>
-<li><p><a class="reference internal" href="../api/scannerpy.html#scannerpy.kernel.Kernel.execute" title="scannerpy.kernel.Kernel.execute"><code class="xref py py-meth docutils literal notranslate"><span class="pre">execute()</span></code></a>: called with input stream elements to produce transformed output elements.</p></li>
+<li><p><code class="xref py py-meth docutils literal notranslate"><span class="pre">new_stream()</span></code>: called whenever the operation starts processing a new stream.</p></li>
+<li><p><code class="xref py py-meth docutils literal notranslate"><span class="pre">execute()</span></code>: called with input stream elements to produce transformed output elements.</p></li>
 </ul>
 <p>The frequency at which each of these functions is invoked is called its <em>rate</em>.</p>
 <div class="section" id="init-parameters">
@@ -199,20 +196,20 @@
 </div>
 <div class="section" id="stream-config-parameters">
 <span id="id2"></span><h3>Stream Config Parameters<a class="headerlink" href="#stream-config-parameters" title="Permalink to this headline">¶</a></h3>
-<p>Stream config parameters are provided to an operation before processing elements from a stream in a batch of streams (see <a class="reference internal" href="graphs.html#batch-processing"><span class="std std-ref">Batch processing of stored streams</span></a>). For example, the <code class="code docutils literal notranslate"><span class="pre">threshold</span></code> parameter specified in the <a class="reference internal" href="../api/scannerpy.html#scannerpy.kernel.Kernel.new_stream" title="scannerpy.kernel.Kernel.new_stream"><code class="xref py py-meth docutils literal notranslate"><span class="pre">new_stream()</span></code></a> method of the <code class="code docutils literal notranslate"><span class="pre">PersonDetectorDNN</span></code> operation is a stream config parameter. For each stream in the batch of streams being processed, Scanner expects a separate <code class="code docutils literal notranslate"><span class="pre">threshold</span></code> parameter to be provided. This is done by passing a list like so: <code class="code docutils literal notranslate"><span class="pre">PersonDetectorDNN(threshold=[0.5,</span> <span class="pre">0.6,</span> <span class="pre">...,</span> <span class="pre">0.2],</span> <span class="pre">...)</span></code>.</p>
+<p>Stream config parameters are provided to an operation before processing elements from a stream in a batch of streams (see <a class="reference internal" href="graphs.html#batch-processing"><span class="std std-ref">Batch processing of stored streams</span></a>). For example, the <code class="code docutils literal notranslate"><span class="pre">threshold</span></code> parameter specified in the <code class="xref py py-meth docutils literal notranslate"><span class="pre">new_stream()</span></code> method of the <code class="code docutils literal notranslate"><span class="pre">PersonDetectorDNN</span></code> operation is a stream config parameter. For each stream in the batch of streams being processed, Scanner expects a separate <code class="code docutils literal notranslate"><span class="pre">threshold</span></code> parameter to be provided. This is done by passing a list like so: <code class="code docutils literal notranslate"><span class="pre">PersonDetectorDNN(threshold=[0.5,</span> <span class="pre">0.6,</span> <span class="pre">...,</span> <span class="pre">0.2],</span> <span class="pre">...)</span></code>.</p>
 </div>
 <div class="section" id="stream-parameters">
 <span id="id3"></span><h3>Stream Parameters<a class="headerlink" href="#stream-parameters" title="Permalink to this headline">¶</a></h3>
-<p>Stream parameters are parameters that bind to streams and are processed element at a time by the operation. For the <code class="code docutils literal notranslate"><span class="pre">PersonDetectorDNN</span></code> operation, the <code class="code docutils literal notranslate"><span class="pre">frame</span></code> parameter specified in the <a class="reference internal" href="../api/scannerpy.html#scannerpy.kernel.Kernel.execute" title="scannerpy.kernel.Kernel.execute"><code class="xref py py-meth docutils literal notranslate"><span class="pre">execute()</span></code></a> method is a stream parameter. Stream parameters must be annotated with a type so that Scanner understands how to serialize and deserialize the data. The following types are supported:</p>
+<p>Stream parameters are parameters that bind to streams and are processed element at a time by the operation. For the <code class="code docutils literal notranslate"><span class="pre">PersonDetectorDNN</span></code> operation, the <code class="code docutils literal notranslate"><span class="pre">frame</span></code> parameter specified in the <code class="xref py py-meth docutils literal notranslate"><span class="pre">execute()</span></code> method is a stream parameter. Stream parameters must be annotated with a type so that Scanner understands how to serialize and deserialize the data. The following types are supported:</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="../api/scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType"><code class="xref py py-class docutils literal notranslate"><span class="pre">FrameType</span></code></a>: a built-in type that represents frames from a video. In Python operations, parameters of this type are represented with numpy arrays.</p></li>
+<li><p><code class="xref py py-class docutils literal notranslate"><span class="pre">FrameType</span></code>: a built-in type that represents frames from a video. In Python operations, parameters of this type are represented with numpy arrays.</p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#bytes" title="(in Python v3.7)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bytes</span></code></a>: these parameters represent blobs of binary data.</p></li>
 <li><p>User-defined types: Scanner supports registering custom types for stream parameters. See the next section to find out how to do that!</p></li>
 </ul>
 </div>
 <div class="section" id="stream-parameter-types">
 <h3>Stream Parameter Types<a class="headerlink" href="#stream-parameter-types" title="Permalink to this headline">¶</a></h3>
-<p>Stream parameter types tell Scanner how to serialize and deserialize the elements in streams and the inputs/outputs to operations. One can define their own custom stream parameter type in Python by calling <a class="reference internal" href="../api/scannerpy.html#scannerpy.types.register_type" title="scannerpy.types.register_type"><code class="xref py py-func docutils literal notranslate"><span class="pre">scannerpy.types.register_type()</span></code></a>. For example, to register a new type for numpy float32 arrays, we can write the following code:</p>
+<p>Stream parameter types tell Scanner how to serialize and deserialize the elements in streams and the inputs/outputs to operations. One can define their own custom stream parameter type in Python by calling <code class="xref py py-func docutils literal notranslate"><span class="pre">scannerpy.types.register_type()</span></code>. For example, to register a new type for numpy float32 arrays, we can write the following code:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">scannerpy</span> <span class="kn">as</span> <span class="nn">sp</span>
 <span class="kn">import</span> <span class="nn">scannerpy.types</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
@@ -233,8 +230,8 @@
 <h2>Fetching Resources<a class="headerlink" href="#fetching-resources" title="Permalink to this headline">¶</a></h2>
 <p>Some operations require external resources to be download or fetched before they can start processing data. In the case of the <code class="code docutils literal notranslate"><span class="pre">PersonDetectorDNN</span></code> operation, it requires the model weights for its deep neural network. To download external resources, operations should implement the following two methods:</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="../api/scannerpy.html#scannerpy.kernel.Kernel.fetch_resources" title="scannerpy.kernel.Kernel.fetch_resources"><code class="xref py py-meth docutils literal notranslate"><span class="pre">scannerpy.kernel.Kernel.fetch_resources()</span></code></a>: To avoid redownloading resources that are shared across instances of an operation, this method is called once per machine to download resources.</p></li>
-<li><p><a class="reference internal" href="../api/scannerpy.html#scannerpy.kernel.Kernel.setup_with_resources" title="scannerpy.kernel.Kernel.setup_with_resources"><code class="xref py py-meth docutils literal notranslate"><span class="pre">scannerpy.kernel.Kernel.setup_with_resources()</span></code></a>: Once <a class="reference internal" href="../api/scannerpy.html#scannerpy.kernel.Kernel.fetch_resources" title="scannerpy.kernel.Kernel.fetch_resources"><code class="xref py py-meth docutils literal notranslate"><span class="pre">fetch_resources()</span></code></a> has been executed, this method is called for every instance of that operation after <code class="code docutils literal notranslate"><span class="pre">__init__</span></code>.</p></li>
+<li><p><code class="xref py py-meth docutils literal notranslate"><span class="pre">scannerpy.kernel.Kernel.fetch_resources()</span></code>: To avoid redownloading resources that are shared across instances of an operation, this method is called once per machine to download resources.</p></li>
+<li><p><code class="xref py py-meth docutils literal notranslate"><span class="pre">scannerpy.kernel.Kernel.setup_with_resources()</span></code>: Once <code class="xref py py-meth docutils literal notranslate"><span class="pre">fetch_resources()</span></code> has been executed, this method is called for every instance of that operation after <code class="code docutils literal notranslate"><span class="pre">__init__</span></code>.</p></li>
 </ul>
 </div>
 <div class="section" id="operation-properties">
@@ -304,9 +301,6 @@
         <li class="right" style="margin-right: 10px">
           <a href="../genindex.html" title="General Index"
              >index</a></li>
-        <li class="right" >
-          <a href="../py-modindex.html" title="Python Module Index"
-             >modules</a> |</li>
         <li class="right" >
           <a href="stored-streams.html" title="Stored Streams"
              >next</a> |</li>

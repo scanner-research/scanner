@@ -43,9 +43,6 @@
         <li class="right" style="margin-right: 10px">
           <a href="../genindex.html" title="General Index"
              accesskey="I">index</a></li>
-        <li class="right" >
-          <a href="../py-modindex.html" title="Python Module Index"
-             >modules</a> |</li>
         <li class="nav-item nav-item-0"><a href="../index.html">Scanner 0.2.22 documentation</a> &#187;</li> 
       </ul>
     </div>
@@ -139,13 +136,13 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 <p>Stream parameters:</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>frame</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType"><em>scannerpy.types.FrameType</em></a>) – The frames to detect poses in.</p>
+<dd class="field-odd"><p><strong>frame</strong> (<em>scannerpy.types.FrameType</em>) – The frames to detect poses in.</p>
 </dd>
 <dt class="field-even">Returns</dt>
 <dd class="field-even"><p>A list of bounding boxes.</p>
 </dd>
 <dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p><a class="reference internal" href="scannerpy.html#scannerpy.types.BboxList" title="scannerpy.types.BboxList">scannerpy.types.BboxList</a></p>
+<dd class="field-odd"><p>scannerpy.types.BboxList</p>
 </dd>
 </dl>
 </dd></dl>
@@ -184,8 +181,8 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>frame</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType"><em>scannerpy.types.FrameType</em></a>) – The frames to detect poses in.</p></li>
-<li><p><strong>bboxes</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.BboxList" title="scannerpy.types.BboxList"><em>scannerpy.types.BboxList</em></a>) – Bounding boxes to compute face embeddings on.</p></li>
+<li><p><strong>frame</strong> (<em>scannerpy.types.FrameType</em>) – The frames to detect poses in.</p></li>
+<li><p><strong>bboxes</strong> (<em>scannerpy.types.BboxList</em>) – Bounding boxes to compute face embeddings on.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns</dt>
@@ -209,8 +206,8 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>frame</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType"><em>scannerpy.types.FrameType</em></a>) – The frames to detect gender in.</p></li>
-<li><p><strong>bboxes</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.BboxList" title="scannerpy.types.BboxList"><em>scannerpy.types.BboxList</em></a>) – Bounding boxes to indicate where to estimate gender.</p></li>
+<li><p><strong>frame</strong> (<em>scannerpy.types.FrameType</em>) – The frames to detect gender in.</p></li>
+<li><p><strong>bboxes</strong> (<em>scannerpy.types.BboxList</em>) – Bounding boxes to indicate where to estimate gender.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns</dt>
@@ -233,13 +230,13 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 <p>Stream parameters:</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>frame</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType"><em>scannerpy.types.FrameType</em></a>) – The frames to detect objects in.</p>
+<dd class="field-odd"><p><strong>frame</strong> (<em>scannerpy.types.FrameType</em>) – The frames to detect objects in.</p>
 </dd>
 <dt class="field-even">Returns</dt>
 <dd class="field-even"><p>A list of bounding boxes for the detected objects.</p>
 </dd>
 <dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p><a class="reference internal" href="scannerpy.html#scannerpy.types.BboxList" title="scannerpy.types.BboxList">scannerpy.types.BboxList</a></p>
+<dd class="field-odd"><p>scannerpy.types.BboxList</p>
 </dd>
 </dl>
 </dd></dl>
@@ -269,7 +266,7 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 <p>Stream parameters:</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>frame</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType"><em>scannerpy.types.FrameType</em></a>) – The frames to detect poses in.</p>
+<dd class="field-odd"><p><strong>frame</strong> (<em>scannerpy.types.FrameType</em>) – The frames to detect poses in.</p>
 </dd>
 <dt class="field-even">Returns</dt>
 <dd class="field-even"><p>A list of detected poses.</p>
@@ -292,7 +289,7 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 <p>Stream parameters:</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>histograms</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.Histogram" title="scannerpy.types.Histogram"><em>scannerpy.types.Histogram</em></a>) – The color histograms of frames from a video.</p>
+<dd class="field-odd"><p><strong>histograms</strong> (<em>scannerpy.types.Histogram</em>) – The color histograms of frames from a video.</p>
 </dd>
 <dt class="field-even">Returns</dt>
 <dd class="field-even"><p>The indices of the shot boundaries.</p>
@@ -326,13 +323,13 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 <p>Stream parameters:</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>frame</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType"><em>scannerpy.types.FrameType</em></a>) – The frame to resize.</p>
+<dd class="field-odd"><p><strong>frame</strong> (<em>scannerpy.types.FrameType</em>) – The frame to resize.</p>
 </dd>
 <dt class="field-even">Returns</dt>
 <dd class="field-even"><p>The resized frame.</p>
 </dd>
 <dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p><a class="reference internal" href="scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType">scannerpy.types.FrameType</a></p>
+<dd class="field-odd"><p>scannerpy.types.FrameType</p>
 </dd>
 </dl>
 </dd></dl>
@@ -348,13 +345,13 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 <p>Stream parameters:</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>frame</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType"><em>scannerpy.types.FrameType</em></a>) – The frame to compute flow on.</p>
+<dd class="field-odd"><p><strong>frame</strong> (<em>scannerpy.types.FrameType</em>) – The frame to compute flow on.</p>
 </dd>
 <dt class="field-even">Returns</dt>
 <dd class="field-even"><p>The flow field.</p>
 </dd>
 <dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p><a class="reference internal" href="scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType">scannerpy.types.FrameType</a></p>
+<dd class="field-odd"><p>scannerpy.types.FrameType</p>
 </dd>
 </dl>
 </dd></dl>
@@ -370,13 +367,13 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
 <p>Stream parameters:</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>frame</strong> (<a class="reference internal" href="scannerpy.html#scannerpy.types.FrameType" title="scannerpy.types.FrameType"><em>scannerpy.types.FrameType</em></a>) – The frame to process.</p>
+<dd class="field-odd"><p><strong>frame</strong> (<em>scannerpy.types.FrameType</em>) – The frame to process.</p>
 </dd>
 <dt class="field-even">Returns</dt>
 <dd class="field-even"><p>The color histogram.</p>
 </dd>
 <dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p><a class="reference internal" href="scannerpy.html#scannerpy.types.Histogram" title="scannerpy.types.Histogram">scannerpy.types.Histogram</a></p>
+<dd class="field-odd"><p>scannerpy.types.Histogram</p>
 </dd>
 </dl>
 </dd></dl>
@@ -417,9 +414,6 @@ Registered with <code class="code docutils literal notranslate"><span class="pre
         <li class="right" style="margin-right: 10px">
           <a href="../genindex.html" title="General Index"
              >index</a></li>
-        <li class="right" >
-          <a href="../py-modindex.html" title="Python Module Index"
-             >modules</a> |</li>
         <li class="nav-item nav-item-0"><a href="../index.html">Scanner 0.2.22 documentation</a> &#187;</li> 
       </ul>
     </div>
