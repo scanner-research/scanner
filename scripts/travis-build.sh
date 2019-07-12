@@ -24,7 +24,6 @@ if [[ ("$TRAVIS_BRANCH" = "master" || "$TRAVIS_BRANCH" = "$TRAVIS_TAG") && \
     PUSH=0
 else
     PUSH=1
-    yes | docker login -u="$DOCKER_USER" -p="$DOCKER_PASS"
 fi
 
 build_docker() {
@@ -55,6 +54,7 @@ build_docker() {
     fi
 }
 
+yes | docker login -u="$DOCKER_USER" -p="$DOCKER_PASS"
 build_docker $BUILD_TYPE
 
 exit $?
