@@ -88,7 +88,9 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
       // Select a decoder type based on the type of the first op and
       // the available decoders
       if (device_handle.type == DeviceType::GPU &&
-          VideoDecoder::has_decoder_type(VideoDecoderType::NVIDIA)) {
+          VideoDecoder::has_decoder_type(VideoDecoderType::NVIDIA) &&
+          false) {
+        // FIXME: disabling GPU decode until #277 is resolved
         LOG(INFO) << "Selecting GPU decoder type";
         decoder_output_handle.type = DeviceType::GPU;
         decoder_output_handle.id = device_handle.id;
