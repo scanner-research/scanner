@@ -405,7 +405,7 @@ elif [[ $INSTALL_ALL == false ]]; then
         echo -n "Do you need support for OpenVino Inference Engine? [y/N]: "
         read yn
         if [[ $yn != n ]] && [[ $yn != N ]]; then
-            echo -n "Do you have OpenVino Inference Engine 2019 R1 installed? [y/N]: "
+            echo -n "Do you have OpenVino Inference Engine 2019 R2 installed? [y/N]: "
             read yn
             if [[ $yn == y ]] || [[ $yn == Y ]]; then
                 INSTALL_OPENVINO=false
