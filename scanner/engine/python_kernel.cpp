@@ -64,14 +64,16 @@ PythonKernel::PythonKernel(const KernelConfig &config,
   std::string kernel_ns_name_ = tfm::format("ns_%s_%s", op_name_, rand);
 
   try {
+    py::module::import("scannerpy._python");
     py::module main = py::module::import("__main__");
     py::object scope = main.attr("__dict__");
     py::module cloudpickle = py::module::import("cloudpickle");
     // FIXME(apoms): for some reason, serializing the config object in release
     // mode on MacOS fails....
+    py::bytes py_kernel_config = cloudpickle.attr("dumps")(config);
     main.attr(kernel_ns_name_.c_str()) = py::dict(
         "kernel_code"_a=py::bytes(kernel_code),
-        "config"_a=cloudpickle.attr("dumps")(config));
+        "config"_a=py_kernel_config);
 
     std::string pycode = tfm::format(R"(
 from scannerpy.kernel import python_kernel_fn

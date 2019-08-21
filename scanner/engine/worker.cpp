@@ -1153,9 +1153,13 @@ bool WorkerImpl::process_job(const proto::BulkJobParameters* job_params,
     for (int i = 0; i < op.inputs().size(); ++i) {
       auto input = op.inputs(i);
       kernel_config.input_columns.push_back(input.column());
-      if (input_columns.size() == 0) {
-        // We ccan have 0 columns in op info if variadic arguments
-        kernel_config.input_column_types.push_back(ColumnType::Bytes);
+      if (op_info->variadic_inputs()) {
+        // We can have 0 columns in op info if variadic arguments
+        if (input_columns.size() == 1) {
+          kernel_config.input_column_types.push_back(input_columns[0].type());
+        } else {
+          kernel_config.input_column_types.push_back(ColumnType::Bytes);
+        }
       } else {
         kernel_config.input_column_types.push_back(input_columns[i].type());
       }

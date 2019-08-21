@@ -388,6 +388,7 @@ def register_python_op(name: str = None,
 
         input_columns = []
         has_variadic_inputs = False
+        variadic_inputs_type = None
         sig = signature(exec_fn)
 
         fn_params = sig.parameters
@@ -397,6 +398,27 @@ def register_python_op(name: str = None,
         else:
             # If this is a class kernel, then first argument should be self
             fn_params = OrderedDict(islice(fn_params.items(), 1, None))
+
+        def parse_tuple(typ):
+            is_tuple = True
+            origin_type = getattr(typ, '__origin__', None)
+            if (origin_type == Tuple or origin_type == tuple or
+                getattr(typ, '__tuple_params__', None)):
+                if getattr(typ, '__tuple_params__', None):
+                    # Python 3.5
+                    use_ellipsis = typ.__tuple_use_ellipsis__
+                    tuple_params = typ.__tuple_params__
+                elif getattr(typ, '__args__', None):
+                    # Python 3.6+
+                    use_ellipsis = typ.__args__[-1] is Ellipsis
+                    tuple_params = typ.__args__[:-1 if use_ellipsis else None]
+                else:
+                    raise ScannerException('This should not happen...')
+            else:
+                use_ellipsis = False
+                is_tuple = False
+                tuple_params = [typ]
+            return is_tuple, use_ellipsis, tuple_params
 
         def parse_annotation_to_column_type(typ, is_input=False):
             if can_batch:
@@ -450,6 +472,19 @@ def register_python_op(name: str = None,
                     raise ScannerException(
                         ('Variadic positional inputs (*args) are not supported '
                          'when used with other inputs.'))
+                # Get tuple type
+                typ = param.annotation
+                is_tuple, use_ellipsis, tuple_params = parse_tuple(typ)
+                annotation_message = (
+                    'Variadic positional inputs (*args) must be annotated as '
+                    '"args: Tuple[Type, ...]" or "args: Type"')
+                if is_tuple:
+                    if not use_ellipsis:
+                        raise ScannerException(annotation_message)
+                variadic_inputs_type, typ = parse_annotation_to_column_type(
+                    tuple_params[0], is_input=True)
+                type_info = scannertypes.get_type_info(typ)
+                input_columns.append((param_name, variadic_inputs_type, type_info))
                 break
 
             if param.annotation == param.empty:
@@ -470,23 +505,7 @@ def register_python_op(name: str = None,
             raise ScannerException(
                 ('Return annotation must be specified for "execute" method.'))
 
-        return_is_tuple = True
-        origin_type = getattr(typ, '__origin__', None)
-        if origin_type == Tuple or origin_type == tuple:
-            if getattr(typ, '__tuple_params__', None):
-                # Python 3.5
-                use_ellipsis = typ.__tuple_use_ellipsis__
-                tuple_params = typ.__tuple_params__
-            elif getattr(typ, '__args__', None):
-                # Python 3.6+
-                use_ellipsis = typ.__args__[-1] is Ellipsis
-                tuple_params = typ.__args__[:-1 if use_ellipsis else None]
-            else:
-                raise ScannerException('This should not happen...')
-        else:
-            use_ellipsis = False
-            return_is_tuple = False
-            tuple_params = [typ]
+        return_is_tuple, use_ellipsis, tuple_params = parse_tuple(typ)
 
         if use_ellipsis:
             raise ScannerException(

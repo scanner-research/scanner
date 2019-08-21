@@ -709,6 +709,24 @@ def test_bind_op_args(cl):
         assert p['y'] == y
 
 
+@scannerpy.register_python_op()
+class TestPyVariadic(Kernel):
+    def execute(self, *frame: Tuple[FrameType, ...]) -> FrameType:
+        assert len(frame) == 3
+        return frame[0]
+
+
+def test_py_variadic(cl):
+    input = NamedVideoStream(cl, 'test1')
+    frame = cl.io.Input([input])
+    range_frame = cl.streams.Range(frame, ranges=[{'start': 0, 'end': 30}])
+    out_frame = cl.ops.TestPyVariadic(range_frame, range_frame, range_frame)
+    output = NamedVideoStream(cl, 'test_variadic')
+    output_op = cl.io.Output(out_frame.lossless(), [output])
+    cl.run(output_op, PerfParams.estimate(), cache_mode=CacheMode.Overwrite, show_progress=False)
+    next(output.load())
+
+
 def test_lossless(cl):
     input = NamedVideoStream(cl, 'test1')
     frame = cl.io.Input([input])
