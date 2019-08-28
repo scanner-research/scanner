@@ -68,7 +68,8 @@ message VideoDescriptor {
 
   enum VideoCodecType {
     H264 = 0;
-    RAW = 1;
+    HEVC = 1;
+    RAW = 2;
   }
 
   enum VideoChromaFormat {
