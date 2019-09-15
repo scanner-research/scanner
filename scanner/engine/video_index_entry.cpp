@@ -65,7 +65,8 @@ VideoIndexEntry read_video_index(storehouse::StorageBackend* storage,
   index_entry.keyframe_indices = video_meta.keyframe_indices();
   index_entry.sample_offsets = video_meta.sample_offsets();
   index_entry.sample_sizes = video_meta.sample_sizes();
-  if (index_entry.codec_type == proto::VideoDescriptor::H264) {
+  if (index_entry.codec_type == proto::VideoDescriptor::H264 ||
+      index_entry.codec_type == proto::VideoDescriptor::HEVC) {
     index_entry.metadata = video_meta.metadata();
     // Update keyframe positions and byte offsets so that the separately
     // encoded videos seem like they are one
