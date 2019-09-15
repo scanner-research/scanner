@@ -402,10 +402,10 @@ elif [[ $INSTALL_ALL == false ]]; then
 
     echo "Optional dependencies: "
     if [[ -z ${WITH_OPENVINO+x} ]] && [[ ${NO_OPENVINO+x} != true ]] && [[ "$OSTYPE" == "linux-gnu" ]]; then
-        echo -n "Do you need support for OpenVino Inference Engine? [y/N]: "
+        echo -n "Do you need support for OpenVINO Inference Engine? [y/N]: "
         read yn
         if [[ $yn != n ]] && [[ $yn != N ]]; then
-            echo -n "Do you have OpenVino Inference Engine 2019 R2.0.1 installed? [y/N]: "
+            echo -n "Do you have OpenVINO Inference Engine 2019 R2.0.1 installed? [y/N]: "
             read yn
             if [[ $yn == y ]] || [[ $yn == Y ]]; then
                 INSTALL_OPENVINO=false
@@ -591,10 +591,10 @@ if [[ $INSTALL_OPENVINO == true ]] && [[ ! -f $BUILD_DIR/openvino.done ]] ; then
     sed -i 's/decline/accept/g' silent.cfg
     sed -i 's/COMPONENTS=DEFAULTS/COMPONENTS=intel-openvino-ie-rt-cpu-ubuntu-xenial__x86_64;intel-openvino-ie-rt-gpu-ubuntu-xenial__x86_64;intel-openvino-ie-sdk-ubuntu-xenial__x86_64;intel-openvino-model-optimizer__x86_64/g' silent.cfg
     sed -i "s!PSET_INSTALL_DIR=/opt/intel!PSET_INSTALL_DIR=$INSTALL_PREFIX/intel!g" silent.cfg
-    ./install.sh --silent silent.cfg || { echo 'Installing OpenVino failed!' ; exit 1; }
+    ./install.sh --silent silent.cfg || { echo 'Installing OpenVINO failed!' ; exit 1; }
     cd .. && rm l_openvino_toolkit_p_2019.2.275.tgz
     touch $BUILD_DIR/openvino.done
-    echo "Done installing OpenVino Inference Engine 2019 R2.0.1"
+    echo "Done installing OpenVINO Inference Engine 2019 R2.0.1"
     #This will be needed by OpenCV
     INTEL_OPENVINO_DIR=$INSTALL_PREFIX/intel/openvino_2019.2.275
     export INTEL_OPENVINO_DIR=$INTEL_OPENVINO_DIR
