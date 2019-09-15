@@ -1035,5 +1035,5 @@ if [[ $INSTALL_OPENVINO == true ]]; then
     IE_PLUGINS_PATH=$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/lib/intel64
     echo "export LD_LIBRARY_PATH=$HDDL_INSTALL_DIR/lib:$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/external/gna/lib:$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/external/mkltiny_lnx/lib:$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/external/tbb/lib:$IE_PLUGINS_PATH:$LD_LIBRARY_PATH"
     # OpenVINO's Python API
-    echo "export PYTHONPATH=$INTEL_OPENVINO_DIR/python/python$PYTHON_VERSION"
+    echo "export PYTHONPATH=$INTEL_OPENVINO_DIR/python/python$PYTHON_VERSION:\$PYTHONPATH"
 fi
