@@ -499,8 +499,9 @@ void ColumnSource::read(const std::vector<ElementArgs>& element_args,
       info = FrameInfo(entry.height, entry.width, entry.channels,
                        entry.frame_type);
       codec_type_= entry.codec_type;
-      if (entry.codec_type == proto::VideoDescriptor::H264) {
-        // Video was encoded using h264
+      if (entry.codec_type == proto::VideoDescriptor::H264 ||
+              entry.codec_type == proto::VideoDescriptor::HEVC) {
+        // Video was encoded using h264 or hevc
         read_video_column(*profiler_, entry, valid_offsets, item_start_row,
                           output_columns[0]);
       } else {
