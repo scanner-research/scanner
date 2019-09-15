@@ -460,7 +460,22 @@ bool parse_video_inplace(storehouse::StorageBackend* storage,
   video_descriptor.set_channels(3);
   video_descriptor.set_frame_type(FrameType::U8);
   video_descriptor.set_chroma_format(proto::VideoDescriptor::YUV_420);
-  video_descriptor.set_codec_type(proto::VideoDescriptor::H264);
+  std::string video_descriptor_codec_type = index.format();
+  if(video_descriptor_codec_type == "h265" ||
+        video_descriptor_codec_type == "hev1" ||
+        video_descriptor_codec_type == "hevc"){
+    video_descriptor.set_codec_type(proto::VideoDescriptor::HEVC);
+    LOG(INFO) << "Codec Type: HEVC";
+  }
+  else if(video_descriptor_codec_type == "h264" ||
+        video_descriptor_codec_type == "avc1"){
+    video_descriptor.set_codec_type(proto::VideoDescriptor::H264);
+    LOG(INFO) << "Codec Type: H264";
+  }
+  else{
+    error_message = "Unsupported video codec: " + video_descriptor_codec_type;
+    return false;
+  }
 
   video_descriptor.set_data_path(path);
   video_descriptor.set_inplace(true);
