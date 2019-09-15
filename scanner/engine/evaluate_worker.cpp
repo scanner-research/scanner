@@ -124,8 +124,10 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
     };
     for (size_t c = 0; c < work_entry.columns.size(); ++c) {
       if (work_entry.column_types[c] == ColumnType::Video &&
+          (work_entry.video_encoding_type[media_col_idx] ==
+          proto::VideoDescriptor::H264 ||
           work_entry.video_encoding_type[media_col_idx] ==
-              proto::VideoDescriptor::H264) {
+          proto::VideoDescriptor::HEVC)) {
         // Select device type
         VideoDecoderType decoder_type;
         i32 num_devices;
@@ -215,8 +217,10 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
   auto decode_start = now();
   for (size_t c = 0; c < work_entry.columns.size(); ++c) {
     if (work_entry.column_types[c] == ColumnType::Video &&
+        (work_entry.video_encoding_type[media_col_idx] ==
+        proto::VideoDescriptor::H264 ||
         work_entry.video_encoding_type[media_col_idx] ==
-            proto::VideoDescriptor::H264) {
+        proto::VideoDescriptor::HEVC)) {
       decode_args_.emplace_back();
       auto& args = decode_args_.back();
       for (Element element : work_entry.columns[c]) {
@@ -259,6 +263,22 @@ void PreEvaluateWorker::feed(EvalWorkEntry& work_entry, bool first) {
                 std::vector<u64>(da.keyframes().begin(), da.keyframes().end());
             ed.valid_frames = std::vector<u64>(da.valid_frames().begin(),
                                                da.valid_frames().end());
+            if(work_entry.video_encoding_type[media_col_idx] ==
+                proto::VideoDescriptor::H264){
+              ed.format = "h264";
+            }
+            else if(work_entry.video_encoding_type[media_col_idx] ==
+                proto::VideoDescriptor::HEVC){
+              ed.format = "hevc";
+            }
+            else{
+              std::string message =
+                "Unsupported video descriptor codec type";
+              LOG(ERROR) << message;
+              result_.set_msg(message);
+              result_.set_success(false);
+              THREAD_RETURN_SUCCESS();
+            }
           }
           if (args.size() > 0) {
             std::vector<u8> metadata(args.back().metadata().begin(),
@@ -326,7 +346,9 @@ bool PreEvaluateWorker::yield(i32 item_size,
       // Perform decoding
       i64 num_rows = column_end_row - column_start_row;
       if (work_entry.video_encoding_type[media_col_idx] ==
-          proto::VideoDescriptor::H264) {
+          proto::VideoDescriptor::H264 ||
+          work_entry.video_encoding_type[media_col_idx] ==
+          proto::VideoDescriptor::HEVC) {
         if (num_rows > 0) {
           // Encoded as video
           FrameInfo frame_info(decode_args_[media_col_idx][0].height(),
