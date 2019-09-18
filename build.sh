@@ -15,7 +15,9 @@ else
 fi
 
 pushd build
-if make -j$cores; then
+make -j$cores
+rc=$?
+if $rc; then
     popd
     if rm -rf dist && \
         python3 setup.py bdist_wheel;
@@ -31,3 +33,4 @@ if make -j$cores; then
 else
     popd
 fi
+exit $rc
