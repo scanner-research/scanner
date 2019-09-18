@@ -38,8 +38,8 @@ do
         local TAG=$2
         local BASE_TAG=$3
 
-        build base $TAG-base $BASE_TAG && \
-            build $TYPE $TAG scannerresearch/scanner-base:$TAG-base
+        build base "$TAG-base" $BASE_TAG && \
+            build $TYPE $TAG "scannerresearch/scanner-base:$TAG-base"
     }
 
     function push {
