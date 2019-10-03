@@ -54,7 +54,7 @@ sudo apt-get install -y \
    libfreetype6-dev libsdl2-dev libtheora-dev libtool \
    libva-dev libvdpau-dev libvorbis-dev libxcb1-dev libxcb-shm0-dev \
    libxcb-xfixes0-dev mercurial texinfo zlib1g-dev curl libcap-dev \
-   libboost-all-dev libgnutls-dev libpq-dev postgresql
+   libboost-all-dev libgnutls-dev libpq-dev postgresql libx265-dev
 
 pip3 install numpy
 
