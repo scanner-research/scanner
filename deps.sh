@@ -585,7 +585,7 @@ if [[ $INSTALL_OPENVINO == true ]] && [[ ! -f $BUILD_DIR/openvino.done ]] ; then
     echo "Installing OpenVINO Inference Engine 2019 R3"
     cd $BUILD_DIR
 #    rm -fr openvino
-    wget -c http://registrationcenter-download.intel.com/akdlm/irc_nas/15792/l_openvino_toolkit_p_2019.3.334.tgz
+    wget -c http://registrationcenter-download.intel.com/akdlm/irc_nas/15944/l_openvino_toolkit_p_2019.3.334.tgz
     tar xf l_openvino_toolkit*.tgz
     cd l_openvino_toolkit*
     sed -i 's/decline/accept/g' silent.cfg
