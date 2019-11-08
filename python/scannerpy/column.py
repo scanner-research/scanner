@@ -283,12 +283,19 @@ class Column(object):
     def save_mp4(self, output_name, fps=None, scale=None):
         self._load_meta()
         if not (self._descriptor.type == protobufs.Video
-                and self._video_descriptor.codec_type ==
-                protobufs.VideoDescriptor.H264):
-            raise ScannerException('Attempted to save a non-h264-compressed '
+                and (self._video_descriptor.codec_type ==
+                protobufs.VideoDescriptor.H264 or self._video_descriptor.codec_type == protobufs.VideoDescriptor.HEVC)):
+            raise ScannerException('Attempted to save a non-h264-compressed or non-hevc-compressed'
                                    'column as an mp4. Try compressing the '
                                    'column first by saving the output as '
                                    'an RGB24 frame')
+        if self._video_descriptor.codec_type == protobufs.VideoDescriptor.H264:
+            log.info("Saving H264 bitstream as an mp4")
+            encode_lib = 'libx264'
+        elif self._video_descriptor.codec_type == protobufs.VideoDescriptor.HEVC:
+            log.info("Saving HEVC bitstream as an mp4")
+            encode_lib = 'libx265'
+
         num_items = len(self._table._descriptor.end_rows)
 
         paths = [
@@ -320,7 +327,7 @@ class Column(object):
             'ffmpeg -y '
             '-r {fps:f} '  # set the input fps
             '-i "concat:{input_files:s}" '  # concatenate the h264 files
-            '-c:v libx264 '
+            '-c:v {encode_lib:s} '
             '-filter:v "setpts=N" '  # h264 does not have pts' in it
             '-loglevel panic '
             '{extra_args:s}'
@@ -328,7 +335,8 @@ class Column(object):
                 input_files=files,
                 fps=vid_fps,
                 extra_args=args,
-                output_name=output_name))
+                output_name=output_name,
+                encode_lib=encode_lib))
         rc = Popen(cmd, shell=True).wait()
         if rc != 0:
             raise ScannerException('ffmpeg failed during mp4 export!')
