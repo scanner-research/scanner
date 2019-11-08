@@ -405,7 +405,7 @@ elif [[ $INSTALL_ALL == false ]]; then
         echo -n "Do you need support for OpenVINO Inference Engine? [y/N]: "
         read yn
         if [[ $yn != n ]] && [[ $yn != N ]]; then
-            echo -n "Do you have OpenVINO Inference Engine 2019 R3 installed? [y/N]: "
+            echo -n "Do you have OpenVINO Inference Engine R3.1 2019 installed? [y/N]: "
             read yn
             if [[ $yn == y ]] || [[ $yn == Y ]]; then
                 INSTALL_OPENVINO=false
@@ -416,7 +416,7 @@ elif [[ $INSTALL_ALL == false ]]; then
                 else
                     OPENVINO_DIR=$install_location
                 fi
-                INTEL_OPENVINO_DIR=$install_location/intel/openvino_2019.3.334
+                INTEL_OPENVINO_DIR=$install_location/intel/openvino_2019.3.376
                 export INTEL_OPENVINO_DIR=$INTEL_OPENVINO_DIR
                 export INTEL_CVSDK_DIR=$INTEL_OPENVINO_DIR
                 export InferenceEngine_DIR=$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/share
@@ -425,7 +425,7 @@ elif [[ $INSTALL_ALL == false ]]; then
                 export LD_LIBRARY_PATH=$HDDL_INSTALL_DIR/lib:$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/external/gna/lib:$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/external/mkltiny_lnx/lib:$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/external/tbb/lib:$IE_PLUGINS_PATH:$LD_LIBRARY_PATH
             else
                 INSTALL_OPENVINO=true
-                echo "OpenVINO Inference Engine R3 2019 will be installed at ${OPENVINO_DIR}."
+                echo "OpenVINO Inference Engine 2019 R3.1 will be installed at ${OPENVINO_DIR}."
             fi
         else
             INSTALL_OPENVINO=false
@@ -585,18 +585,18 @@ if [[ $INSTALL_OPENVINO == true ]] && [[ ! -f $BUILD_DIR/openvino.done ]] ; then
     echo "Installing OpenVINO Inference Engine 2019 R3"
     cd $BUILD_DIR
 #    rm -fr openvino
-    wget -c http://registrationcenter-download.intel.com/akdlm/irc_nas/15944/l_openvino_toolkit_p_2019.3.334.tgz
+    wget -c http://registrationcenter-download.intel.com/akdlm/irc_nas/16057/l_openvino_toolkit_p_2019.3.376.tgz
     tar xf l_openvino_toolkit*.tgz
     cd l_openvino_toolkit*
     sed -i 's/decline/accept/g' silent.cfg
     sed -i 's/COMPONENTS=DEFAULTS/COMPONENTS=intel-openvino-ie-rt-cpu-ubuntu-xenial__x86_64;intel-openvino-ie-rt-gpu-ubuntu-xenial__x86_64;intel-openvino-ie-rt-vpu-ubuntu-xenial__x86_64;intel-openvino-ie-rt-gna-ubuntu-xenial__x86_64;intel-openvino-ie-rt-hddl-ubuntu-xenial__x86_64;intel-openvino-ie-sdk-ubuntu-xenial__x86_64;intel-openvino-model-optimizer__x86_64/g' silent.cfg
     sed -i "s!PSET_INSTALL_DIR=/opt/intel!PSET_INSTALL_DIR=$INSTALL_PREFIX/intel!g" silent.cfg
     ./install.sh --silent silent.cfg || { echo 'Installing OpenVINO failed!' ; exit 1; }
-    cd .. && rm l_openvino_toolkit_p_2019.3.334.tgz
+    cd .. && rm l_openvino_toolkit_p_2019.3.376.tgz
     touch $BUILD_DIR/openvino.done
-    echo "Done installing OpenVINO Inference Engine 2019 R3"
+    echo "Done installing OpenVINO Inference Engine 2019 R3.1"
     #This will be needed by OpenCV
-    INTEL_OPENVINO_DIR=$INSTALL_PREFIX/intel/openvino_2019.3.334
+    INTEL_OPENVINO_DIR=$INSTALL_PREFIX/intel/openvino_2019.3.376
     export INTEL_OPENVINO_DIR=$INTEL_OPENVINO_DIR
     export INTEL_CVSDK_DIR=$INTEL_OPENVINO_DIR
     export InferenceEngine_DIR=$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/share
@@ -1025,7 +1025,7 @@ if [[ $INSTALL_CAFFE_CPU == true ]] || [[ $INSTALL_CAFFE_GPU == true ]]; then
     echo "export PYTHONPATH=$INSTALL_PREFIX/python:\$PYTHONPATH"
 fi
 if [[ $INSTALL_OPENVINO == true ]]; then
-    INTEL_OPENVINO_DIR=$INSTALL_PREFIX/intel/openvino_2019.3.334
+    INTEL_OPENVINO_DIR=$INSTALL_PREFIX/intel/openvino_2019.3.376
     echo "export INTEL_OPENVINO_DIR=$INTEL_OPENVINO_DIR"
     echo "export INTEL_CVSDK_DIR=$INTEL_OPENVINO_DIR"
     echo "export InferenceEngine_DIR=$INTEL_OPENVINO_DIR/deployment_tools/inference_engine/share"
