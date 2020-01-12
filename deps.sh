@@ -588,10 +588,15 @@ if [[ $INSTALL_OPENVINO == true ]] && [[ ! -f $BUILD_DIR/openvino.done ]] ; then
     wget -c http://registrationcenter-download.intel.com/akdlm/irc_nas/16057/l_openvino_toolkit_p_2019.3.376.tgz
     tar xf l_openvino_toolkit*.tgz
     cd l_openvino_toolkit*
-    sed -i 's/decline/accept/g' silent.cfg
-    sed -i 's/COMPONENTS=DEFAULTS/COMPONENTS=intel-openvino-ie-rt-cpu-ubuntu-xenial__x86_64;intel-openvino-ie-rt-gpu-ubuntu-xenial__x86_64;intel-openvino-ie-rt-vpu-ubuntu-xenial__x86_64;intel-openvino-ie-rt-gna-ubuntu-xenial__x86_64;intel-openvino-ie-rt-hddl-ubuntu-xenial__x86_64;intel-openvino-ie-sdk-ubuntu-xenial__x86_64;intel-openvino-model-optimizer__x86_64;intel-openvino-omz-dev__x86_64/g' silent.cfg
-    sed -i "s!PSET_INSTALL_DIR=/opt/intel!PSET_INSTALL_DIR=$INSTALL_PREFIX/intel!g" silent.cfg
-    ./install.sh --silent silent.cfg || { echo 'Installing OpenVINO failed!' ; exit 1; }
+    echo "COMPONENTS=intel-openvino-ie-rt-cpu-ubuntu-xenial__x86_64;intel-openvino-ie-rt-gpu-ubuntu-xenial__x86_64;intel-openvino-ie-rt-vpu-ubuntu-xenial__x86_64;intel-openvino-ie-rt-gna-ubuntu-xenial__x86_64;intel-openvino-ie-rt-hddl-ubuntu-xenial__x86_64;intel-openvino-ie-sdk-ubuntu-xenial__x86_64;intel-openvino-model-optimizer__x86_64;intel-openvino-omz-dev__x86_64" >> silent.cfg
+    echo "ACCEPT_EULA=accept" > silent.cfg
+    echo "CONTINUE_WITH_OPTIONAL_ERROR=yes" >> silent.cfg
+    echo "PSET_INSTALL_DIR=${INSTALL_PREFIX}/intel" >> silent.cfg
+    echo "CONTINUE_WITH_INSTALLDIR_OVERWRITE=yes" >> silent.cfg
+    echo "PSET_MODE=install" >> silent.cfg
+    echo "INTEL_SW_IMPROVEMENT_PROGRAM_CONSENT=no" >> silent.cfg
+    echo "SIGNING_ENABLED=no" >> silent.cfg
+    ./install.sh --ignore-signature --cli-mode --silent silent.cfg || { echo 'Installing OpenVINO failed!' ; exit 1; }
     cd .. && rm l_openvino_toolkit_p_2019.3.376.tgz
     touch $BUILD_DIR/openvino.done
     echo "Done installing OpenVINO Inference Engine 2019 R3.1"
