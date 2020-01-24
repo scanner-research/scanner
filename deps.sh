@@ -334,7 +334,7 @@ elif [[ $INSTALL_ALL == false ]]; then
             OPENCV_DIR=/usr/local
         else
             # The package is not installed via brew
-            echo -n "Do you have opencv>=4.1.0 with contrib installed? [y/N]: "
+            echo -n "Do you have opencv>=4.2.0 with contrib installed? [y/N]: "
             read yn
             if [[ $yn == y ]] || [[ $yn == Y ]]; then
                 INSTALL_OPENCV=false
@@ -347,7 +347,7 @@ elif [[ $INSTALL_ALL == false ]]; then
                 fi
             else
                 INSTALL_OPENCV=true
-                echo "opencv 4.1.0 will be installed at ${OPENCV_DIR}."
+                echo "opencv 4.2.0 will be installed at ${OPENCV_DIR}."
             fi
         fi
     fi
@@ -613,8 +613,8 @@ if [[ $INSTALL_OPENVINO == true ]] && [[ ! -f $BUILD_DIR/openvino.done ]] ; then
 fi
 
 if [[ $INSTALL_OPENCV == true ]] && [[ ! -f $BUILD_DIR/opencv.done ]]; then
-    # OpenCV 4.1.0 + OpenCV contrib
-    echo "Installing OpenCV 4.1.0..."
+    # OpenCV 4.2.0 + OpenCV contrib
+    echo "Installing OpenCV 4.2.0..."
 
     # Determine command string to use
     if [[ "$OSTYPE" == "linux-gnu" ]]; then
@@ -628,8 +628,8 @@ if [[ $INSTALL_OPENCV == true ]] && [[ ! -f $BUILD_DIR/opencv.done ]]; then
 
     cd $BUILD_DIR
     rm -rf opencv opencv_contrib ceres-solver
-    git clone -b 4.1.0 https://github.com/opencv/opencv --depth 1 && \
-        git clone -b 4.1.0  https://github.com/opencv/opencv_contrib \
+    git clone -b 4.2.0 https://github.com/opencv/opencv --depth 1 && \
+        git clone -b 4.2.0  https://github.com/opencv/opencv_contrib \
             --depth 1 && \
         git clone -b 1.14.0 https://github.com/ceres-solver/ceres-solver \
             --depth 1 && \
@@ -658,7 +658,7 @@ if [[ $INSTALL_OPENCV == true ]] && [[ ! -f $BUILD_DIR/opencv.done ]]; then
               $(echo $CMDS) -DCMAKE_PREFIX_PATH=$(echo $PY_EXTRA_CMDS) ..
         make install -j$cores && touch $BUILD_DIR/opencv.done \
             || { echo 'Installing OpenCV failed!' ; exit 1; }
-    echo "Done installing OpenCV 4.1.0"
+    echo "Done installing OpenCV 4.2.0"
 fi
 
 if [[ $INSTALL_GRPC == true ]] && [[ ! -f $BUILD_DIR/grpc.done ]] ; then
