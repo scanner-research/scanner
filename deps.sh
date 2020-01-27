@@ -583,6 +583,15 @@ fi
 
 if [[ $INSTALL_OPENVINO == true ]] && [[ ! -f $BUILD_DIR/openvino.done ]] ; then
     echo "Installing OpenVINO Inference Engine 2019 R3"
+    OPENVINO_REQ_PKGS=(
+        libusb-1.0-0-dev
+        libgstreamer1.0-0
+        gstreamer1.0-plugins-base
+        gstreamer1.0-plugins-good
+        gstreamer1.0-plugins-bad
+    )
+    apt update
+    apt install -y ${OPENVINO_REQ_PKGS[@]}
     cd $BUILD_DIR
 #    rm -fr openvino
     wget -c http://registrationcenter-download.intel.com/akdlm/irc_nas/16057/l_openvino_toolkit_p_2019.3.376.tgz
