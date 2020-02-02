@@ -11,6 +11,7 @@ do
     base=`basename ${dir%*/}`
 
     cp $DIR/../deps.sh $dir/deps.sh
+    cp $DIR/../deps_openvino.sh $dir/deps_openvino.sh
 
     rm -rf $dir/thirdparty
     mkdir -p $dir/thirdparty
