@@ -40,6 +40,7 @@ do
         local BASE_TAG=$3
 
         build base "$TAG-base" $BASE_TAG && \
+            push "$TAG-base" && \
             build $TYPE $TAG "scannerresearch/scanner-base:$TAG-base"
     }
 

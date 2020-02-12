@@ -36,7 +36,7 @@ test_docker() {
     # We add -local to make sure it doesn't run the remote image if the build fails.
     docker pull $DOCKER_TEST_REPO:$1-$TRAVIS_BUILD_NUMBER
     docker run $DOCKER_TEST_REPO:$1-$TRAVIS_BUILD_NUMBER /bin/bash \
-           -c "adduser --disabled-password --gecos \"\" user && pip3 uninstall -y grpcio protobuf || chmod -R 777 /opt/scanner && su -c \"cd /opt/scanner/dist && (yes | pip3 install --user *) && $TEST_COMMAND\" user"
+           -c "adduser --disabled-password --gecos \"\" user && pip3 uninstall -y grpcio protobuf; chmod -R 777 /opt/scanner && su -c \"cd /opt/scanner/dist && (yes | pip3 install --user *) && $TEST_COMMAND\" user"
     docker rm $(docker ps -a -f status=exited -q)
     docker rmi -f $DOCKER_REPO:$1-$TRAVIS_BUILD_NUMBER
 }

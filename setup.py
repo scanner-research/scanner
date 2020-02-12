@@ -15,7 +15,8 @@ PIP_DIR = os.path.join(BUILD_DIR, 'pip')
 
 def main():
     # Make a pip directory in the build directory
-    shutil.rmtree(PIP_DIR, ignore_errors=True)
+    if os.path.isdir(PIP_DIR):
+        shutil.rmtree(PIP_DIR)
     shutil.copytree(PYTHON_DIR, PIP_DIR)
     #os.makedirs(PIP_DIR, exist_ok=True)
     #os.makedirs(PIP_DIR + '/scanner', exist_ok=True)

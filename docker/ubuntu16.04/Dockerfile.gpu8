@@ -10,7 +10,7 @@ RUN ln -s /usr/local/cuda-8.0/targets/x86_64-linux/lib/stubs/libcuda.so \
        /usr/local/cuda-8.0/targets/x86_64-linux/lib/stubs/libcuda.so.1
 ENV CUDA_LIB_PATH /usr/local/cuda/lib64/stubs
 
-RUN bash ./deps.sh --install-all --prefix /usr/local --use-gpu && \
+RUN bash ./deps.sh --root-install --install-all --prefix /usr/local --use-gpu && \
     rm -rf /opt/scanner-base
 
 ENV LD_LIBRARY_PATH /usr/local/intel/mkl/lib:${LD_LIBRARY_PATH}

@@ -57,6 +57,7 @@ INSTALL_PREFIX=$DEFAULT_INSTALL_DIR
 
 INSTALL_ALL=false
 INSTALL_NONE=false
+ROOT_INSTALL=false
 
 while [[ $# -gt 0 ]]
 do
@@ -87,6 +88,10 @@ case $key in
         ;;
     -n|--install-none)
         INSTALL_NONE=true
+        shift # past arg
+        ;;
+    --root-install)
+        ROOT_INSTALL=true
         shift # past arg
         ;;
     --with-opencv)
@@ -666,7 +671,7 @@ if [[ $INSTALL_GRPC == true ]] && [[ ! -f $BUILD_DIR/grpc.done ]] ; then
     echo "Installing gRPC 1.16.0..."
     cd $BUILD_DIR
     rm -fr grpc
-    git clone -b v1.16.0 https://github.com/grpc/grpc && \
+    git clone -b v1.16.0 --depth 1 https://github.com/grpc/grpc && \
         cd grpc && git submodule update --init --recursive && \
         CPPFLAGS=-I$INSTALL_PREFIX/include LDFLAGS=-L$INSTALL_PREFIX/lib make -j$cores && \
         CPPFLAGS=-I$INSTALL_PREFIX/include LDFLAGS=-L$INSTALL_PREFIX/lib make install prefix=$INSTALL_PREFIX && \
@@ -741,6 +746,11 @@ fi
 
 if [[ $INSTALL_STOREHOUSE == true ]] && [[ ! -f $BUILD_DIR/storehouse.done ]] ; then
     echo "Installing storehouse..."
+    if [ $ROOT_INSTALL == true ]; then
+        BUILD_CMD="cd python && rm -rf dist && python3 setup.py bdist_wheel && cwd=\$(pwd) && pushd /tmp && ((yes | pip3 uninstall storehouse) || true) && (yes | pip3 install \$cwd/dist/*) && popd"
+    else
+        BUILD_CMD="./build.sh"
+    fi
     cd $BUILD_DIR
     rm -fr storehouse
     git clone https://github.com/scanner-research/storehouse && \
@@ -774,18 +784,26 @@ fi
 
 if [[ $INSTALL_HWANG == true ]] && [[ ! -f $BUILD_DIR/hwang.done ]] ; then
     echo "Installing hwang..."
+    if [ $ROOT_INSTALL == true ]; then
+        BUILD_CMD="cd python && rm -rf dist && python3 setup.py bdist_wheel && cwd=\$(pwd) && pushd /tmp && ((yes | pip3 uninstall hwang) || true) && (yes | pip3 install \$cwd/dist/*) && popd"
+    else
+        BUILD_CMD="./build.sh"
+    fi
+       
     cd $BUILD_DIR
     rm -fr hwang
     git clone https://github.com/scanner-research/hwang && \
         cd hwang && \
-        git checkout v0.5.0 && \
+        git checkout v0.5.1 && \
         bash ./deps.sh -a \
              --with-ffmpeg $INSTALL_PREFIX \
              --with-protobuf $INSTALL_PREFIX \
              --cores ${cores} && \
         mkdir -p build && cd build && \
         cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX -DBUILD_CUDA=$USE_GPU && \
-        make install -j${cores} && cd .. && ./build.sh && \
+        make install -j${cores} && \
+        cd .. && \
+        eval $BUILD_CMD && \
         touch $BUILD_DIR/hwang.done \
             || { echo 'Installing hwang failed!' ; exit 1; }
     echo "Done installing hwang"
