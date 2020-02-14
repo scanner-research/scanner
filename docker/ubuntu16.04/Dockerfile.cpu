@@ -5,8 +5,7 @@ FROM ${base_tag}
 MAINTAINER Will Crichton "wcrichto@cs.stanford.edu"
 ARG cores=1
 
-RUN bash ./deps_openvino.sh && \
-    bash ./deps.sh --root-install --install-all --prefix /usr/local && \
+RUN bash ./deps.sh --root-install --install-all --prefix /usr/local && \
     rm -rf /opt/scanner-base
 
 ENV PYTHONPATH /usr/local/python:${PYTHONPATH}
