@@ -1,0 +1,274 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+
+<title>scannerpy.config - Scanner</title>
+
+
+    <link rel="stylesheet" href="../../_static/basic.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
+    <script id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/jquery.js"></script>
+    <script src="../../_static/underscore.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/language_data.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+<meta charset='utf-8'>
+<meta http-equiv='X-UA-Compatible' content='IE=edge,chrome=1'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1'>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" />
+<link rel="stylesheet"
+      href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/styles/default.min.css">
+
+<!-- Global site tag (gtag.js) - Google Analytics -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-133298183-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'UA-133298183-1');
+</script>
+
+
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Scanner 0.2.22 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>
+<div class="container">
+  <div id="navbar" class="navbar-default">
+    <div class="row">
+      <div class="col-md-4 col-sm-12">
+        <a class="navbar-brand" href="../../index.html"><span><img src="../../_static/scanner_logo.png"></span>
+        </a>
+      </div>
+      <div class="col-md-4 offset-md-4 col-sm-12">
+        <div class="btn-group">
+          <a href="../../guide.html"><button type="button" class="btn btn-light">Guide</button></a>
+          <a href="../../api.html"><button type="button" class="btn btn-light">API</button></a>
+          <a href="https://github.com/scanner-research/scanner"><button type="button" class="btn btn-light">Github</button></a>
+          <a href="../../publications.html"><button type="button" class="btn btn-light">Publications</button></a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-3">
+      <div class="bs-sidenav">
+        <div class="bs-sidenav-inner">
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-9">
+      <div class="content">
+        
+  <h1>Source code for scannerpy.config</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">toml</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">from</span> <span class="nn">subprocess</span> <span class="kn">import</span> <span class="n">check_output</span>
+<span class="kn">import</span> <span class="nn">errno</span>
+
+<span class="kn">from</span> <span class="nn">scannerpy.common</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">import</span> <span class="nn">storehouse</span> <span class="k">as</span> <span class="nn">sh</span>
+
+
+<div class="viewcode-block" id="read_line"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.config.read_line">[docs]</a><span class="k">def</span> <span class="nf">read_line</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span></div>
+
+
+<span class="c1"># https://stackoverflow.com/questions/600268/mkdir-p-functionality-in-python</span>
+<div class="viewcode-block" id="mkdir_p"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.config.mkdir_p">[docs]</a><span class="k">def</span> <span class="nf">mkdir_p</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>  <span class="c1"># Python &gt;2.5</span>
+        <span class="k">if</span> <span class="n">exc</span><span class="o">.</span><span class="n">errno</span> <span class="o">==</span> <span class="n">errno</span><span class="o">.</span><span class="n">EEXIST</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+            <span class="k">pass</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span></div>
+
+
+<div class="viewcode-block" id="Config"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.config.Config">[docs]</a><span class="k">class</span> <span class="nc">Config</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config_path</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">db_path</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">config_path</span> <span class="o">=</span> <span class="n">config_path</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_config_path</span><span class="p">()</span>
+
+        <span class="c1"># Prompt to create Scanner configuration file if it doesn&#39;t already exit</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config_path</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_create_config_prompt</span><span class="p">()</span>
+
+        <span class="c1"># Load configuration from file</span>
+        <span class="n">config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load_config</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config_path</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">config</span>
+
+        <span class="c1"># Extract information from configuration</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># Add build directory to Python import path</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">module_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">realpath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))</span>
+            <span class="n">build_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">module_dir</span><span class="p">,</span> <span class="s1">&#39;build&#39;</span><span class="p">)</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">build_path</span><span class="p">)</span>
+
+            <span class="c1"># Determine path to database</span>
+            <span class="k">if</span> <span class="n">db_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">db_path</span> <span class="o">=</span> <span class="n">db_path</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">storage</span> <span class="o">=</span> <span class="n">config</span><span class="p">[</span><span class="s1">&#39;storage&#39;</span><span class="p">]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">db_path</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">storage</span><span class="p">[</span><span class="s1">&#39;db_path&#39;</span><span class="p">])</span>
+            <span class="n">mkdir_p</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">db_path</span><span class="p">)</span>
+
+            <span class="c1"># Create connector to Storehouse</span>
+            <span class="n">storage_config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_make_storage_config</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">storage_config</span> <span class="o">=</span> <span class="n">storage_config</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">storage</span> <span class="o">=</span> <span class="n">sh</span><span class="o">.</span><span class="n">StorageBackend</span><span class="o">.</span><span class="n">make_from_config</span><span class="p">(</span><span class="n">storage_config</span><span class="p">)</span>
+
+            <span class="c1"># Configure network settings</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">master_address</span> <span class="o">=</span> <span class="s1">&#39;localhost&#39;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">master_port</span> <span class="o">=</span> <span class="s1">&#39;5001&#39;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">worker_port</span> <span class="o">=</span> <span class="s1">&#39;5002&#39;</span>
+            <span class="k">if</span> <span class="s1">&#39;network&#39;</span> <span class="ow">in</span> <span class="n">config</span><span class="p">:</span>
+                <span class="n">network</span> <span class="o">=</span> <span class="n">config</span><span class="p">[</span><span class="s1">&#39;network&#39;</span><span class="p">]</span>
+                <span class="k">if</span> <span class="s1">&#39;master&#39;</span> <span class="ow">in</span> <span class="n">network</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">master_address</span> <span class="o">=</span> <span class="n">network</span><span class="p">[</span><span class="s1">&#39;master&#39;</span><span class="p">]</span>
+                <span class="k">if</span> <span class="s1">&#39;master_port&#39;</span> <span class="ow">in</span> <span class="n">network</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">master_port</span> <span class="o">=</span> <span class="n">network</span><span class="p">[</span><span class="s1">&#39;master_port&#39;</span><span class="p">]</span>
+                <span class="k">if</span> <span class="s1">&#39;worker_port&#39;</span> <span class="ow">in</span> <span class="n">network</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">worker_port</span> <span class="o">=</span> <span class="n">network</span><span class="p">[</span><span class="s1">&#39;worker_port&#39;</span><span class="p">]</span>
+
+        <span class="k">except</span> <span class="ne">KeyError</span> <span class="k">as</span> <span class="n">key</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ScannerException</span><span class="p">(</span>
+                <span class="s1">&#39;Scanner config missing key: </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">_make_storage_config</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">):</span>
+        <span class="n">storage</span> <span class="o">=</span> <span class="n">config</span><span class="p">[</span><span class="s1">&#39;storage&#39;</span><span class="p">]</span>
+        <span class="n">storage_type</span> <span class="o">=</span> <span class="n">storage</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">storage_type</span> <span class="o">==</span> <span class="s1">&#39;posix&#39;</span><span class="p">:</span>
+            <span class="n">storage_config</span> <span class="o">=</span> <span class="n">sh</span><span class="o">.</span><span class="n">StorageConfig</span><span class="o">.</span><span class="n">make_posix_config</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">storage_type</span> <span class="o">==</span> <span class="s1">&#39;gcs&#39;</span><span class="p">:</span>
+            <span class="n">storage_config</span> <span class="o">=</span> <span class="n">sh</span><span class="o">.</span><span class="n">StorageConfig</span><span class="o">.</span><span class="n">make_gcs_config</span><span class="p">(</span><span class="n">storage</span><span class="p">[</span><span class="s1">&#39;bucket&#39;</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="n">storage_type</span> <span class="o">==</span> <span class="s1">&#39;s3&#39;</span><span class="p">:</span>
+            <span class="n">storage_config</span> <span class="o">=</span> <span class="n">sh</span><span class="o">.</span><span class="n">StorageConfig</span><span class="o">.</span><span class="n">make_s3_config</span><span class="p">(</span>
+                <span class="n">storage</span><span class="p">[</span><span class="s1">&#39;bucket&#39;</span><span class="p">],</span> <span class="n">storage</span><span class="p">[</span><span class="s1">&#39;region&#39;</span><span class="p">],</span> <span class="n">storage</span><span class="p">[</span><span class="s1">&#39;endpoint&#39;</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ScannerException</span><span class="p">(</span>
+                <span class="s1">&#39;Unsupported storage type </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">storage_type</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">storage_config</span>
+
+    <span class="k">def</span> <span class="nf">_load_config</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">toml</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">())</span>
+        <span class="k">except</span> <span class="ne">IOError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ScannerException</span><span class="p">(</span><span class="s1">&#39;Scanner config file does not exist: </span><span class="si">{}</span><span class="s1">&#39;</span>
+                                   <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">path</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">_create_config_prompt</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">write</span><span class="p">(</span>
+            <span class="s1">&#39;Your Scanner configuration file (</span><span class="si">{}</span><span class="s1">) does not exist. Create one? &#39;</span>
+            <span class="s1">&#39;[Y/n] &#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config_path</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;n&#39;</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span>
+                <span class="s1">&#39;Exiting script. Please create a Scanner configuration file or re-run this script and follow &#39;</span>
+                <span class="s1">&#39;the dialogue.&#39;</span><span class="p">)</span>
+            <span class="n">exit</span><span class="p">()</span>
+
+        <span class="n">config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_config</span><span class="p">()</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_config_path</span><span class="p">()</span>
+        <span class="n">mkdir_p</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">path</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">toml</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">config</span><span class="p">))</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Wrote Scanner configuration to </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">path</span><span class="p">))</span>
+
+<div class="viewcode-block" id="Config.default_config_path"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.config.Config.default_config_path">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">default_config_path</span><span class="p">():</span>
+        <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="s1">&#39;~/.scanner/config.toml&#39;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Config.default_config"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.config.Config.default_config">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">default_config</span><span class="p">():</span>
+        <span class="n">hostname</span> <span class="o">=</span> <span class="s1">&#39;localhost&#39;</span>
+
+        <span class="n">db_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="s1">&#39;~/.scanner/db&#39;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s1">&#39;storage&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;posix&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;db_path&#39;</span><span class="p">:</span> <span class="n">db_path</span><span class="p">,</span>
+            <span class="p">},</span>
+            <span class="s1">&#39;network&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;master&#39;</span><span class="p">:</span> <span class="n">hostname</span><span class="p">,</span>
+                <span class="s1">&#39;master_port&#39;</span><span class="p">:</span> <span class="s1">&#39;5001&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;worker_port&#39;</span><span class="p">:</span> <span class="s1">&#39;5002&#39;</span>
+            <span class="p">}</span>
+        <span class="p">}</span></div>
+
+    <span class="k">def</span> <span class="nf">__getstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># capture what is normally pickled</span>
+        <span class="n">state</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="c1"># Get rid of the storehouse objects</span>
+        <span class="n">state</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;storage_config&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="n">state</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;storage&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="c1"># what we return here will be stored in the pickle</span>
+        <span class="k">return</span> <span class="n">state</span>
+
+    <span class="k">def</span> <span class="nf">__setstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">newstate</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">module_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">realpath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))</span>
+        <span class="n">build_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">module_dir</span> <span class="o">+</span> <span class="s1">&#39;/build&#39;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">build_path</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="p">:</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">build_path</span><span class="p">)</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+        <span class="n">sc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_make_storage_config</span><span class="p">(</span><span class="n">newstate</span><span class="p">[</span><span class="s1">&#39;config&#39;</span><span class="p">])</span>
+        <span class="n">newstate</span><span class="p">[</span><span class="s1">&#39;storage_config&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">sc</span>
+        <span class="n">newstate</span><span class="p">[</span><span class="s1">&#39;storage&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">sh</span><span class="o">.</span><span class="n">StorageBackend</span><span class="o">.</span><span class="n">make_from_config</span><span class="p">(</span><span class="n">sc</span><span class="p">)</span>
+        <span class="c1"># re-instate our __dict__ state from the pickled state</span>
+        <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">newstate</span><span class="p">)</span></div>
+</pre></div>
+
+      </div>
+    </div>
+  </div>
+</div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Scanner 0.2.22 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/languages/python.min.js"></script>
+<script>hljs.initHighlightingOnLoad();</script>
+  </body>
+</html>

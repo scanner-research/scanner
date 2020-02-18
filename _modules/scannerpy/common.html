@@ -1,0 +1,350 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+
+<title>scannerpy.common - Scanner</title>
+
+
+    <link rel="stylesheet" href="../../_static/basic.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
+    <script id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/jquery.js"></script>
+    <script src="../../_static/underscore.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/language_data.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+<meta charset='utf-8'>
+<meta http-equiv='X-UA-Compatible' content='IE=edge,chrome=1'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1'>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" />
+<link rel="stylesheet"
+      href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/styles/default.min.css">
+
+<!-- Global site tag (gtag.js) - Google Analytics -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-133298183-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'UA-133298183-1');
+</script>
+
+
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Scanner 0.2.22 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>
+<div class="container">
+  <div id="navbar" class="navbar-default">
+    <div class="row">
+      <div class="col-md-4 col-sm-12">
+        <a class="navbar-brand" href="../../index.html"><span><img src="../../_static/scanner_logo.png"></span>
+        </a>
+      </div>
+      <div class="col-md-4 offset-md-4 col-sm-12">
+        <div class="btn-group">
+          <a href="../../guide.html"><button type="button" class="btn btn-light">Guide</button></a>
+          <a href="../../api.html"><button type="button" class="btn btn-light">API</button></a>
+          <a href="https://github.com/scanner-research/scanner"><button type="button" class="btn btn-light">Github</button></a>
+          <a href="../../publications.html"><button type="button" class="btn btn-light">Publications</button></a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-3">
+      <div class="bs-sidenav">
+        <div class="bs-sidenav-inner">
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-9">
+      <div class="content">
+        
+  <h1>Source code for scannerpy.common</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">defaultdict</span>
+<span class="kn">from</span> <span class="nn">enum</span> <span class="kn">import</span> <span class="n">Enum</span>
+<span class="kn">from</span> <span class="nn">multiprocessing</span> <span class="kn">import</span> <span class="n">cpu_count</span>
+<span class="kn">from</span> <span class="nn">psutil</span> <span class="kn">import</span> <span class="n">virtual_memory</span>
+<span class="kn">import</span> <span class="nn">GPUtil</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">import</span> <span class="nn">math</span>
+
+<span class="n">log</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s1">&#39;scanner&#39;</span><span class="p">)</span>
+<span class="n">log</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">)</span>
+<span class="n">log</span><span class="o">.</span><span class="n">propagate</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="k">if</span> <span class="ow">not</span> <span class="n">log</span><span class="o">.</span><span class="n">handlers</span><span class="p">:</span>
+
+<div class="viewcode-block" id="CustomFormatter"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.common.CustomFormatter">[docs]</a>    <span class="k">class</span> <span class="nc">CustomFormatter</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">Formatter</span><span class="p">):</span>
+<div class="viewcode-block" id="CustomFormatter.format"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.common.CustomFormatter.format">[docs]</a>        <span class="k">def</span> <span class="nf">format</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">record</span><span class="p">):</span>
+            <span class="n">level</span> <span class="o">=</span> <span class="n">record</span><span class="o">.</span><span class="n">levelname</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;%Y-%m-</span><span class="si">%d</span><span class="s1"> %H:%M:%S&#39;</span><span class="p">)[</span><span class="mi">2</span><span class="p">:]</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">record</span><span class="o">.</span><span class="n">msg</span> <span class="o">=</span> <span class="s1">&#39;(</span><span class="si">{}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                    <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="p">[</span><span class="n">record</span><span class="o">.</span><span class="n">msg</span><span class="p">]</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">args</span><span class="p">)]))</span>
+                <span class="n">record</span><span class="o">.</span><span class="n">args</span> <span class="o">=</span> <span class="p">()</span>
+            <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{level}</span><span class="s1"> </span><span class="si">{time}</span><span class="s1"> </span><span class="si">{filename}</span><span class="s1">:</span><span class="si">{lineno:03d}</span><span class="s1">] </span><span class="si">{msg}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">level</span><span class="o">=</span><span class="n">level</span><span class="p">,</span> <span class="n">time</span><span class="o">=</span><span class="n">time</span><span class="p">,</span> <span class="o">**</span><span class="n">record</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">)</span></div></div>
+
+    <span class="n">handler</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">StreamHandler</span><span class="p">()</span>
+    <span class="n">handler</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">CustomFormatter</span><span class="p">())</span>
+    <span class="n">log</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">handler</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="ScannerException"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.common.ScannerException">[docs]</a><span class="k">class</span> <span class="nc">ScannerException</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="DeviceType"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.common.DeviceType">[docs]</a><span class="k">class</span> <span class="nc">DeviceType</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Enum for specifying where an Op should run. &quot;&quot;&quot;</span>
+    <span class="n">CPU</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">GPU</span> <span class="o">=</span> <span class="mi">1</span>
+
+<div class="viewcode-block" id="DeviceType.to_proto"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.common.DeviceType.to_proto">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">to_proto</span><span class="p">(</span><span class="n">protobufs</span><span class="p">,</span> <span class="n">device</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">device</span> <span class="o">==</span> <span class="n">DeviceType</span><span class="o">.</span><span class="n">CPU</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">CPU</span>
+        <span class="k">elif</span> <span class="n">device</span> <span class="o">==</span> <span class="n">DeviceType</span><span class="o">.</span><span class="n">GPU</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">GPU</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ScannerException</span><span class="p">(</span><span class="s1">&#39;Invalid device type&#39;</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="DeviceHandle"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.common.DeviceHandle">[docs]</a><span class="k">class</span> <span class="nc">DeviceHandle</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">device</span><span class="p">,</span> <span class="n">device_id</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="n">device</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">device_id</span> <span class="o">=</span> <span class="n">device_id</span></div>
+
+
+<div class="viewcode-block" id="ColumnType"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.common.ColumnType">[docs]</a><span class="k">class</span> <span class="nc">ColumnType</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Enum for specifying what the type of a column is. &quot;&quot;&quot;</span>
+    <span class="n">Blob</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">Video</span> <span class="o">=</span> <span class="mi">1</span>
+
+<div class="viewcode-block" id="ColumnType.to_proto"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.common.ColumnType.to_proto">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">to_proto</span><span class="p">(</span><span class="n">protobufs</span><span class="p">,</span> <span class="n">ty</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">ty</span> <span class="o">==</span> <span class="n">ColumnType</span><span class="o">.</span><span class="n">Blob</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">Bytes</span>
+        <span class="k">elif</span> <span class="n">ty</span> <span class="o">==</span> <span class="n">ColumnType</span><span class="o">.</span><span class="n">Video</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">Video</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ScannerException</span><span class="p">(</span><span class="s1">&#39;Invalid column type&#39;</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="CacheMode"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.common.CacheMode">[docs]</a><span class="k">class</span> <span class="nc">CacheMode</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
+    <span class="n">Error</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">Ignore</span> <span class="o">=</span> <span class="mi">2</span>
+    <span class="n">Overwrite</span> <span class="o">=</span> <span class="mi">3</span></div>
+
+
+<div class="viewcode-block" id="PerfParams"><a class="viewcode-back" href="../../guide/profiling.html#scannerpy.common.PerfParams">[docs]</a><span class="k">class</span> <span class="nc">PerfParams</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    work_packet_size</span>
+<span class="sd">      The size of the packets of intermediate elements to pass between</span>
+<span class="sd">      operations. This parameter only affects performance and should not</span>
+<span class="sd">      affect the output.</span>
+
+<span class="sd">    io_packet_size</span>
+<span class="sd">      The size of the packets of elements to read and write from Sources and</span>
+<span class="sd">      sinks. This parameter only affects performance and should not</span>
+<span class="sd">      affect the output. When reading and writing to high latency storage</span>
+<span class="sd">      (such as the cloud), it is helpful to increase this value.</span>
+
+<span class="sd">    cpu_pool</span>
+<span class="sd">      A string describing the size of the CPU memory pool to initialize.</span>
+<span class="sd">      If none, no memory pool is used.</span>
+
+<span class="sd">    gpu_pool</span>
+<span class="sd">      A string describing the size of the GPU memory pool to initialize.</span>
+<span class="sd">      If none, no memory pool is used.</span>
+
+<span class="sd">    pipeline_instances_per_node</span>
+<span class="sd">      The number of concurrent instances of the computation graph to</span>
+<span class="sd">      execute. If set to None, it will be automatically inferred based on</span>
+<span class="sd">      computation graph and the available machine resources.</span>
+
+<span class="sd">    load_sparsity_threshold</span>
+
+<span class="sd">    queue_size_per_pipeline</span>
+<span class="sd">      The max number of tasks that a worker will request from the master</span>
+<span class="sd">      for each pipeline instance. This influences the amount of data that</span>
+<span class="sd">      can will be resident in memory at once.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                 <span class="n">work_packet_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+                 <span class="n">io_packet_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+                 <span class="n">cpu_pool</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">gpu_pool</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">pipeline_instances_per_node</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">load_sparsity_threshold</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8</span><span class="p">,</span>
+                 <span class="n">queue_size_per_pipeline</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">work_packet_size</span> <span class="o">=</span> <span class="n">work_packet_size</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">io_packet_size</span> <span class="o">=</span> <span class="n">io_packet_size</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cpu_pool</span> <span class="o">=</span> <span class="n">cpu_pool</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gpu_pool</span> <span class="o">=</span> <span class="n">gpu_pool</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pipeline_instances_per_node</span> <span class="o">=</span> <span class="n">pipeline_instances_per_node</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">load_sparsity_threshold</span> <span class="o">=</span> <span class="n">load_sparsity_threshold</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">queue_size_per_pipeline</span> <span class="o">=</span> <span class="n">queue_size_per_pipeline</span>
+
+<div class="viewcode-block" id="PerfParams.manual"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.common.PerfParams.manual">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">manual</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">work_packet_size</span><span class="p">,</span> <span class="n">io_packet_size</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Explicitly provide values for each performance parameter.</span>
+
+<span class="sd">        See class definition for explanation of each parameter.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        work_packet_size</span>
+
+<span class="sd">        io_packet_size</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">def</span> <span class="nf">resolve</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs2</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">work_packet_size</span><span class="p">,</span> <span class="n">io_packet_size</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">resolve</span></div>
+
+<div class="viewcode-block" id="PerfParams.estimate"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.common.PerfParams.estimate">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">estimate</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span>
+                 <span class="n">max_memory_util</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.7</span><span class="p">,</span>
+                 <span class="n">total_memory</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span>  <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">work_io_ratio</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.2</span><span class="p">,</span>
+                 <span class="n">queue_size_per_pipeline</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span><span class="p">,</span>
+                 <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Guess the best value of each performance parameters given the computation graph.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        max_memory_util</span>
+<span class="sd">          Target maximum memory utilization as a fraction of the total system memory, e.g. 0.5 means Scanner</span>
+<span class="sd">          should try to use 50% of the machine&#39;s memory.</span>
+
+<span class="sd">        total_memory</span>
+<span class="sd">          Total memory on the worker machines in bytes. Memory of the current machine will be used if none is</span>
+<span class="sd">          is provided.</span>
+
+<span class="sd">        work_io_ratio</span>
+<span class="sd">          Ratio of work_packet_size to io_packet_size.</span>
+
+<span class="sd">        queue_size_per_pipeline</span>
+<span class="sd">          The max number of tasks potentially resident for each pipeline on a worker.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">def</span> <span class="nf">resolve</span><span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="n">ops</span><span class="p">):</span>
+            <span class="n">max_size</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">ins</span> <span class="ow">in</span> <span class="n">inputs</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">ins</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">estimate_size</span><span class="p">()</span>
+                <span class="k">except</span> <span class="ne">NotImplementedError</span><span class="p">:</span>
+                    <span class="k">continue</span>
+
+                <span class="n">max_size</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">max</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">estimate_size</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ins</span><span class="p">]),</span> <span class="n">max_size</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">max_size</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">log</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;PerfParams.estimate could not estimate size of input stream elements, &#39;</span>
+                            <span class="s1">&#39;falling back to conservative guess&#39;</span><span class="p">)</span>
+                <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">100</span><span class="p">)</span>
+
+            <span class="n">has_gpu</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">for</span> <span class="n">op</span> <span class="ow">in</span> <span class="n">ops</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">op</span><span class="p">,</span> <span class="s1">&#39;_device&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">op</span><span class="o">.</span><span class="n">_device</span> <span class="o">==</span> <span class="n">DeviceType</span><span class="o">.</span><span class="n">GPU</span><span class="p">:</span>
+                    <span class="n">has_gpu</span> <span class="o">=</span> <span class="kc">True</span>
+
+            <span class="k">if</span> <span class="n">has_gpu</span><span class="p">:</span>
+                <span class="n">gpus</span> <span class="o">=</span> <span class="n">GPUtil</span><span class="o">.</span><span class="n">getGPUs</span><span class="p">()</span>
+                <span class="n">pipeline_instances</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">gpus</span><span class="p">)</span>
+                <span class="n">max_memory</span> <span class="o">=</span> <span class="nb">min</span><span class="p">([</span><span class="n">g</span><span class="o">.</span><span class="n">memoryTotal</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">gpus</span><span class="p">])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">pipeline_instances</span> <span class="o">=</span> <span class="n">cpu_count</span><span class="p">()</span>
+                <span class="n">max_memory</span> <span class="o">=</span> <span class="n">virtual_memory</span><span class="p">()</span><span class="o">.</span><span class="n">total</span> <span class="k">if</span> <span class="n">total_memory</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">total_memory</span>
+
+            <span class="k">def</span> <span class="nf">fmt_bytes</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+                <span class="n">exp</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">log2</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">exp</span> <span class="o">&lt;</span> <span class="mi">10</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">B&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="n">exp</span> <span class="o">&lt;</span> <span class="mi">20</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{:.1f}</span><span class="s1">KB&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">n</span> <span class="o">/</span> <span class="p">(</span><span class="mi">2</span><span class="o">**</span><span class="mi">10</span><span class="p">))</span>
+                <span class="k">elif</span> <span class="n">exp</span> <span class="o">&lt;</span> <span class="mi">30</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{:.1f}</span><span class="s1">MB&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">n</span> <span class="o">/</span> <span class="p">(</span><span class="mi">2</span><span class="o">**</span><span class="mi">20</span><span class="p">))</span>
+                <span class="k">elif</span> <span class="n">exp</span> <span class="o">&lt;</span> <span class="mi">40</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{:.1f}</span><span class="s1">GB&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">n</span> <span class="o">/</span> <span class="p">(</span><span class="mi">2</span><span class="o">**</span><span class="mi">30</span><span class="p">))</span>
+
+            <span class="n">max_memory</span> <span class="o">*=</span> <span class="n">max_memory_util</span>
+
+            <span class="n">log</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sd">&quot;&quot;&quot;PERF PARAMS STATISTICS</span>
+<span class="sd">                Maximum element size: {}</span>
+<span class="sd">                Memory size: {}</span>
+<span class="sd">                Pipeline instances: {}</span>
+<span class="sd">                Tasks in queue per PU: {}</span>
+<span class="sd">                &quot;&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">fmt_bytes</span><span class="p">(</span><span class="n">max_size</span><span class="p">),</span> <span class="n">fmt_bytes</span><span class="p">(</span><span class="n">max_memory</span><span class="p">),</span> <span class="n">pipeline_instances</span><span class="p">,</span> <span class="n">queue_size_per_pipeline</span><span class="p">))</span>
+
+            <span class="n">io_packet_size</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">max_memory</span> <span class="o">/</span> <span class="p">(</span><span class="n">queue_size_per_pipeline</span> <span class="o">*</span> <span class="n">max_size</span> <span class="o">*</span> <span class="n">pipeline_instances</span><span class="p">))</span>
+            <span class="n">io_packet_size</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">io_packet_size</span><span class="p">,</span> <span class="mi">100</span><span class="p">)</span>
+            <span class="n">work_packet_size</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">io_packet_size</span> <span class="o">*</span> <span class="n">work_io_ratio</span><span class="p">)</span>
+            <span class="c1"># IO packet size must be a multiple of work packet size</span>
+            <span class="n">io_packet_size</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">work_packet_size</span> <span class="o">*</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="mf">1.0</span> <span class="o">/</span> <span class="n">work_io_ratio</span><span class="p">)))</span>
+
+            <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Estimated params: work packet size </span><span class="si">{}</span><span class="s1">, io packet size </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">work_packet_size</span><span class="p">,</span> <span class="n">io_packet_size</span><span class="p">))</span>
+
+            <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">work_packet_size</span><span class="p">,</span> <span class="n">io_packet_size</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">resolve</span></div></div>
+</pre></div>
+
+      </div>
+    </div>
+  </div>
+</div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Scanner 0.2.22 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/languages/python.min.js"></script>
+<script>hljs.initHighlightingOnLoad();</script>
+  </body>
+</html>

@@ -11,11 +11,11 @@
     <link rel="stylesheet" href="../_static/basic.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../_static/custom.css" />
-    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-    <script type="text/javascript" src="../_static/jquery.js"></script>
-    <script type="text/javascript" src="../_static/underscore.js"></script>
-    <script type="text/javascript" src="../_static/doctools.js"></script>
-    <script type="text/javascript" src="../_static/language_data.js"></script>
+    <script id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/language_data.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Computation Graphs" href="graphs.html" />
@@ -45,6 +45,9 @@
         <li class="right" style="margin-right: 10px">
           <a href="../genindex.html" title="General Index"
              accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
         <li class="right" >
           <a href="graphs.html" title="Computation Graphs"
              accesskey="N">next</a> |</li>
@@ -150,8 +153,8 @@ python3 grayscale_conversion.py
 <p>After <code class="code docutils literal notranslate"><span class="pre">grayscale_conversion.py</span></code> exits, you should have a grayscale version of <code class="code docutils literal notranslate"><span class="pre">sample-clip.mp4</span></code> named <code class="code docutils literal notranslate"><span class="pre">sample-grayscale.mp4</span></code> in the current directory. Let’s see how that happened by looking inside <code class="code docutils literal notranslate"><span class="pre">main.py</span></code>.</p>
 <div class="section" id="starting-up-scanner">
 <h3>Starting up Scanner<a class="headerlink" href="#starting-up-scanner" title="Permalink to this headline">¶</a></h3>
-<p>The first step in any Scanner program is to create a <code class="xref py py-class docutils literal notranslate"><span class="pre">Client</span></code> object. The <code class="xref py py-class docutils literal notranslate"><span class="pre">Client</span></code> object manages your connection to the Scanner runtime and provides the API to execute new video processing jobs. By default, creating a client will first start an instance of Scanner on the local machine and then establish a connection to it:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">scannerpy</span> <span class="kn">as</span> <span class="nn">sp</span>
+<p>The first step in any Scanner program is to create a <a class="reference internal" href="../api/scannerpy.html#scannerpy.client.Client" title="scannerpy.client.Client"><code class="xref py py-class docutils literal notranslate"><span class="pre">Client</span></code></a> object. The <a class="reference internal" href="../api/scannerpy.html#scannerpy.client.Client" title="scannerpy.client.Client"><code class="xref py py-class docutils literal notranslate"><span class="pre">Client</span></code></a> object manages your connection to the Scanner runtime and provides the API to execute new video processing jobs. By default, creating a client will first start an instance of Scanner on the local machine and then establish a connection to it:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">scannerpy</span> <span class="k">as</span> <span class="nn">sp</span>
 <span class="kn">import</span> <span class="nn">scannertools</span>
 
 <span class="n">sc</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">Client</span><span class="p">()</span>
@@ -164,7 +167,7 @@ python3 grayscale_conversion.py
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">input_stream</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">NamedVideoStream</span><span class="p">(</span><span class="n">sc</span><span class="p">,</span> <span class="s1">&#39;sample-clip&#39;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s1">&#39;sample-clip.mp4&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
-<p><code class="xref py py-class docutils literal notranslate"><span class="pre">NamedVideoStream</span></code> is a stream that stores data in Scanner’s internal database format
+<p><a class="reference internal" href="../api/scannerpy.html#scannerpy.storage.NamedVideoStream" title="scannerpy.storage.NamedVideoStream"><code class="xref py py-class docutils literal notranslate"><span class="pre">NamedVideoStream</span></code></a> is a stream that stores data in Scanner’s internal database format
 (see <a class="reference internal" href="stored-streams.html#stored-streams"><span class="std std-ref">Stored Streams</span></a> for more detail). In this case, we stored the data under the name <code class="code docutils literal notranslate"><span class="pre">sample-clip</span></code> for the video file <code class="code docutils literal notranslate"><span class="pre">sample-clip.mp4</span></code>.</p>
 <p>To implement the logic for downsampling all frames of a video to 640x480 and converting them to grayscale, we need to create a computation graph containing each of these operations. First, we’ll create an input operation that reads from our video:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">frames</span> <span class="o">=</span> <span class="n">sc</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">Input</span><span class="p">([</span><span class="n">input_stream</span><span class="p">])</span>
@@ -174,7 +177,7 @@ python3 grayscale_conversion.py
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">sampled_frames</span> <span class="o">=</span> <span class="n">sc</span><span class="o">.</span><span class="n">streams</span><span class="o">.</span><span class="n">Stride</span><span class="p">(</span><span class="n">frames</span><span class="p">,</span> <span class="p">[</span><span class="mi">2</span><span class="p">])</span> <span class="c1"># Select every other frame</span>
 </pre></div>
 </div>
-<p>This <code class="xref py py-meth docutils literal notranslate"><span class="pre">Stride()</span></code> operation selects only every other frame from the stream of frames we read from the video. (<code class="code docutils literal notranslate"><span class="pre">Stride</span></code> comes from a special class of operations, called <em>stream</em> operations, that can subsample elements in stream. See <a class="reference internal" href="graphs.html#stream-operations"><span class="std std-ref">Stream Operations</span></a>.)</p>
+<p>This <a class="reference internal" href="../api/scannerpy.html#scannerpy.streams.StreamsGenerator.Stride" title="scannerpy.streams.StreamsGenerator.Stride"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Stride()</span></code></a> operation selects only every other frame from the stream of frames we read from the video. (<code class="code docutils literal notranslate"><span class="pre">Stride</span></code> comes from a special class of operations, called <em>stream</em> operations, that can subsample elements in stream. See <a class="reference internal" href="graphs.html#stream-operations"><span class="std std-ref">Stream Operations</span></a>.)</p>
 <p>Next, we’ll resize the sampled frames by instantiating a <code class="code docutils literal notranslate"><span class="pre">Resize</span></code> operation that will resize the frames in the <code class="code docutils literal notranslate"><span class="pre">sampled_frame</span></code> stream to 640 x 480:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">scannertools.imgproc</span>
 
@@ -186,7 +189,7 @@ python3 grayscale_conversion.py
 </pre></div>
 </div>
 <p>To write a new video containing these grayscale frames, we are going to use Scanner’s builtin video compression functionality. However, video compression formats (such as h264) require three channels for each frame but our grayscale frames only have one channel. To rectify this, we’re going to define a new operation called <code class="code docutils literal notranslate"><span class="pre">CloneChannels</span></code> that will allow us to produce a three channel frame by replicating our single channel grayscale image:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@sp.register_python_op</span><span class="p">()</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@sp</span><span class="o">.</span><span class="n">register_python_op</span><span class="p">()</span>
 <span class="k">def</span> <span class="nf">CloneChannels</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">frame</span><span class="p">:</span> <span class="n">sp</span><span class="o">.</span><span class="n">FrameType</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">sp</span><span class="o">.</span><span class="n">FrameType</span><span class="p">:</span>
     <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">dstack</span><span class="p">([</span><span class="n">frame</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="s1">&#39;replications&#39;</span><span class="p">])])</span>
 
@@ -217,7 +220,7 @@ python3 grayscale_conversion.py
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">sc</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">PerfParams</span><span class="o">.</span><span class="n">estimate</span><span class="p">())</span>
 </pre></div>
 </div>
-<p>This call will block until Scanner has finished processing the job. You should see a progress bar while Scanner is executing the computation graph. The <code class="xref py py-class docutils literal notranslate"><span class="pre">PerfParams</span></code> are parameters used to tune the performance of graph execution, e.g. the number of video frames that should be in memory at any one time. By default, the <code class="xref py py-meth docutils literal notranslate"><span class="pre">estimate()</span></code> guesses an appropriate value of all parameters for your graph.</p>
+<p>This call will block until Scanner has finished processing the job. You should see a progress bar while Scanner is executing the computation graph. The <a class="reference internal" href="profiling.html#scannerpy.common.PerfParams" title="scannerpy.common.PerfParams"><code class="xref py py-class docutils literal notranslate"><span class="pre">PerfParams</span></code></a> are parameters used to tune the performance of graph execution, e.g. the number of video frames that should be in memory at any one time. By default, the <a class="reference internal" href="../api/scannerpy.html#scannerpy.common.PerfParams.estimate" title="scannerpy.common.PerfParams.estimate"><code class="xref py py-meth docutils literal notranslate"><span class="pre">estimate()</span></code></a> guesses an appropriate value of all parameters for your graph.</p>
 </div>
 <div class="section" id="exporting-to-mp4">
 <h3>Exporting to mp4<a class="headerlink" href="#exporting-to-mp4" title="Permalink to this headline">¶</a></h3>
@@ -271,6 +274,9 @@ jupyter notebook --ip<span class="o">=</span><span class="m">0</span>.0.0.0 --po
         <li class="right" style="margin-right: 10px">
           <a href="../genindex.html" title="General Index"
              >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
         <li class="right" >
           <a href="graphs.html" title="Computation Graphs"
              >next</a> |</li>

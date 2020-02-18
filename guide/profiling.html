@@ -11,11 +11,11 @@
     <link rel="stylesheet" href="../_static/basic.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../_static/custom.css" />
-    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-    <script type="text/javascript" src="../_static/jquery.js"></script>
-    <script type="text/javascript" src="../_static/underscore.js"></script>
-    <script type="text/javascript" src="../_static/doctools.js"></script>
-    <script type="text/javascript" src="../_static/language_data.js"></script>
+    <script id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/language_data.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Kubernetes Integration" href="kubernetes.html" />
@@ -45,6 +45,9 @@
         <li class="right" style="margin-right: 10px">
           <a href="../genindex.html" title="General Index"
              accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
         <li class="right" >
           <a href="kubernetes.html" title="Kubernetes Integration"
              accesskey="N">next</a> |</li>
@@ -140,7 +143,7 @@
 <div class="section" id="overview">
 <h2>Overview<a class="headerlink" href="#overview" title="Permalink to this headline">¶</a></h2>
 <p>While executing a graph, Scanner keeps a record of how long various tasks take to complete: loading data, moving data between CPU and GPU, executing operations, saving data, etc. We call this information the <em>profile</em> of a computation graph. Getting the profile for the execution of the computation graph works as follows:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">scannerpy</span> <span class="kn">as</span> <span class="nn">sp</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">scannerpy</span> <span class="k">as</span> <span class="nn">sp</span>
 <span class="kn">import</span> <span class="nn">scannertools.imgproc</span>
 
 <span class="c1"># Set up the client</span>
@@ -160,7 +163,7 @@
 <span class="n">profile</span> <span class="o">=</span> <span class="n">sc</span><span class="o">.</span><span class="n">get_profile</span><span class="p">(</span><span class="n">job_id</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>The <code class="xref py py-class docutils literal notranslate"><span class="pre">Profile</span></code> class contains information about how long the various parts of the execution graph took and on what processors or workers (when running Scanner with multiple machines) those parts were executed. We can visualize the profile on a timeline by writing out a trace file:</p>
+<p>The <a class="reference internal" href="../api/scannerpy.html#scannerpy.profiler.Profile" title="scannerpy.profiler.Profile"><code class="xref py py-class docutils literal notranslate"><span class="pre">Profile</span></code></a> class contains information about how long the various parts of the execution graph took and on what processors or workers (when running Scanner with multiple machines) those parts were executed. We can visualize the profile on a timeline by writing out a trace file:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">profile</span><span class="o">.</span><span class="n">write_trace</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="s1">&#39;resize-graph.trace&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
@@ -174,7 +177,7 @@
 </div>
 <div class="section" id="scanner-s-execution-model">
 <h2>Scanner’s Execution Model<a class="headerlink" href="#scanner-s-execution-model" title="Permalink to this headline">¶</a></h2>
-<p>Scanner operates under a master-worker model: a centralized coordinator process (the <em>master</em>) listens for commands from a client (<code class="xref py py-class docutils literal notranslate"><span class="pre">scannerpy.client.Client</span></code>) and issues processing tasks to worker processes that are running on potentially hundreds of machines  (the <em>workers</em>). Naturally, the trace visualization groups together processing events by the process they occur in:</p>
+<p>Scanner operates under a master-worker model: a centralized coordinator process (the <em>master</em>) listens for commands from a client (<a class="reference internal" href="../api/scannerpy.html#scannerpy.client.Client" title="scannerpy.client.Client"><code class="xref py py-class docutils literal notranslate"><span class="pre">scannerpy.client.Client</span></code></a>) and issues processing tasks to worker processes that are running on potentially hundreds of machines  (the <em>workers</em>). Naturally, the trace visualization groups together processing events by the process they occur in:</p>
 <img alt="../_images/trace_processes.jpg" src="../_images/trace_processes.jpg" />
 <p>Here, you can see the master process and a sole worker (there is only one worker for this trace because we ran Scanner locally only on a single machine). The events for the master process mainly deal with distributing work among the workers and tracking job progress. Since these events are usually not performance critical, we won’t go into them here. On the other hand, the recorded events for a worker process reflect the execution of the computation graph that was submitted to Scanner and so are useful for understanding the performance of a Scanner graph. Let’s look at the worker process’ timeline of events:</p>
 <img alt="../_images/trace_worker.jpg" src="../_images/trace_worker.jpg" />
@@ -194,7 +197,36 @@
 <div class="section" id="tunable-parameters">
 <h2>Tunable Parameters<a class="headerlink" href="#tunable-parameters" title="Permalink to this headline">¶</a></h2>
 <p>Scanner provides a collection of tunable parameters that affect the performance of executing a computation graph. Setting these parameters optimally depends on the computational properties of the graph, such as the I/O versus compute balance, usage of GPUs or CPUs, intermediate data element size, size of available memory, and latency to data storage. The tunable parameters are captured in the <code class="code docutils literal notranslate"><span class="pre">PerfParams</span></code> class:</p>
-<p>For new users to Scanner, we recommend using the <code class="xref py py-meth docutils literal notranslate"><span class="pre">scannerpy.common.PerfParams.estimate()</span></code> method to have Scanner automatically set these parameters based upon inferred properties of your computation graph. More advanced users that understand how these parameters influence performance can make use of <code class="xref py py-meth docutils literal notranslate"><span class="pre">scannerpy.common.PerfParams.manual()</span></code> to tune the parameters themselves.</p>
+<dl class="class">
+<dt id="scannerpy.common.PerfParams">
+<em class="property">class </em><code class="sig-prename descclassname">scannerpy.common.</code><code class="sig-name descname">PerfParams</code><span class="sig-paren">(</span><em class="sig-param">work_packet_size</em>, <em class="sig-param">io_packet_size</em>, <em class="sig-param">cpu_pool=None</em>, <em class="sig-param">gpu_pool=None</em>, <em class="sig-param">pipeline_instances_per_node=None</em>, <em class="sig-param">load_sparsity_threshold=8</em>, <em class="sig-param">queue_size_per_pipeline=4</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scannerpy/common.html#PerfParams"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#scannerpy.common.PerfParams" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>work_packet_size</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.8)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>) – The size of the packets of intermediate elements to pass between
+operations. This parameter only affects performance and should not
+affect the output.</p></li>
+<li><p><strong>io_packet_size</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.8)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>) – The size of the packets of elements to read and write from Sources and
+sinks. This parameter only affects performance and should not
+affect the output. When reading and writing to high latency storage
+(such as the cloud), it is helpful to increase this value.</p></li>
+<li><p><strong>cpu_pool</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.8)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.8)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>]) – A string describing the size of the CPU memory pool to initialize.
+If none, no memory pool is used.</p></li>
+<li><p><strong>gpu_pool</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.8)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.8)"><code class="xref py py-class docutils literal notranslate"><span class="pre">str</span></code></a>]) – A string describing the size of the GPU memory pool to initialize.
+If none, no memory pool is used.</p></li>
+<li><p><strong>pipeline_instances_per_node</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.8)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Optional</span></code></a>[<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.8)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>]) – The number of concurrent instances of the computation graph to
+execute. If set to None, it will be automatically inferred based on
+computation graph and the available machine resources.</p></li>
+<li><p><strong>load_sparsity_threshold</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.8)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>) – </p></li>
+<li><p><strong>queue_size_per_pipeline</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.8)"><code class="xref py py-class docutils literal notranslate"><span class="pre">int</span></code></a>) – The max number of tasks that a worker will request from the master
+for each pipeline instance. This influences the amount of data that
+can will be resident in memory at once.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<p>For new users to Scanner, we recommend using the <a class="reference internal" href="../api/scannerpy.html#scannerpy.common.PerfParams.estimate" title="scannerpy.common.PerfParams.estimate"><code class="xref py py-meth docutils literal notranslate"><span class="pre">scannerpy.common.PerfParams.estimate()</span></code></a> method to have Scanner automatically set these parameters based upon inferred properties of your computation graph. More advanced users that understand how these parameters influence performance can make use of <a class="reference internal" href="../api/scannerpy.html#scannerpy.common.PerfParams.manual" title="scannerpy.common.PerfParams.manual"><code class="xref py py-meth docutils literal notranslate"><span class="pre">scannerpy.common.PerfParams.manual()</span></code></a> to tune the parameters themselves.</p>
 </div>
 </div>
 
@@ -209,6 +241,9 @@
         <li class="right" style="margin-right: 10px">
           <a href="../genindex.html" title="General Index"
              >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
         <li class="right" >
           <a href="kubernetes.html" title="Kubernetes Integration"
              >next</a> |</li>

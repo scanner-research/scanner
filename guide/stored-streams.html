@@ -11,11 +11,11 @@
     <link rel="stylesheet" href="../_static/basic.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../_static/custom.css" />
-    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-    <script type="text/javascript" src="../_static/jquery.js"></script>
-    <script type="text/javascript" src="../_static/underscore.js"></script>
-    <script type="text/javascript" src="../_static/doctools.js"></script>
-    <script type="text/javascript" src="../_static/language_data.js"></script>
+    <script id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/language_data.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Performance Profiling" href="profiling.html" />
@@ -45,6 +45,9 @@
         <li class="right" style="margin-right: 10px">
           <a href="../genindex.html" title="General Index"
              accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
         <li class="right" >
           <a href="profiling.html" title="Performance Profiling"
              accesskey="N">next</a> |</li>
@@ -138,7 +141,7 @@
 <span id="id1"></span><h1>Stored Streams<a class="headerlink" href="#stored-streams" title="Permalink to this headline">¶</a></h1>
 <div class="section" id="overview">
 <h2>Overview<a class="headerlink" href="#overview" title="Permalink to this headline">¶</a></h2>
-<p>Scanner represents input and output data as sequences of data items called <code class="xref py py-class docutils literal notranslate"><span class="pre">StoredStream</span></code>. Stored streams are Python objects that describe to Scanner how to read data to be processed and how to write data after it has been processed by a Scanner application. Stored streams can represent data stored in a variety of locations or formats:</p>
+<p>Scanner represents input and output data as sequences of data items called <a class="reference internal" href="../api/scannerpy.html#scannerpy.storage.StoredStream" title="scannerpy.storage.StoredStream"><code class="xref py py-class docutils literal notranslate"><span class="pre">StoredStream</span></code></a>. Stored streams are Python objects that describe to Scanner how to read data to be processed and how to write data after it has been processed by a Scanner application. Stored streams can represent data stored in a variety of locations or formats:</p>
 <ul class="simple">
 <li><p>Video files (mp4, mkv, etc).</p></li>
 <li><p>Collections of files (images, text, etc)</p></li>
@@ -146,24 +149,24 @@
 <li><p>SQL tables (image metadata)</p></li>
 </ul>
 <p>For example, the following code creates a stored stream for a video file named <code class="code docutils literal notranslate"><span class="pre">example.mp4</span></code>:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">scannerpy</span> <span class="kn">as</span> <span class="nn">sp</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">scannerpy</span> <span class="k">as</span> <span class="nn">sp</span>
 <span class="n">sc</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">Client</span><span class="p">()</span>
 <span class="n">video_stream</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">NamedVideoStream</span><span class="p">(</span><span class="n">sc</span><span class="p">,</span> <span class="s1">&#39;example&#39;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s1">&#39;example.mp4&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
-<p><code class="xref py py-class docutils literal notranslate"><span class="pre">NamedVideoStream</span></code> is a special type of stored stream which represents data stored inside Scanner’s internal datastore. Since Scanner was built specifically for processing video, it has specialized support for fast access to frames in videos, even under random access patterns. In order to efficiently read frames from a video, Scanner needs to build an index over the compressed video. By specifying <code class="code docutils literal notranslate"><span class="pre">path</span> <span class="pre">=</span> <span class="pre">'example.mp4</span></code>, we’ve told Scanner to initialize a stream named <code class="code docutils literal notranslate"><span class="pre">example</span></code> from the <code class="code docutils literal notranslate"><span class="pre">example.mp4</span></code> video.</p>
+<p><a class="reference internal" href="../api/scannerpy.html#scannerpy.storage.NamedVideoStream" title="scannerpy.storage.NamedVideoStream"><code class="xref py py-class docutils literal notranslate"><span class="pre">NamedVideoStream</span></code></a> is a special type of stored stream which represents data stored inside Scanner’s internal datastore. Since Scanner was built specifically for processing video, it has specialized support for fast access to frames in videos, even under random access patterns. In order to efficiently read frames from a video, Scanner needs to build an index over the compressed video. By specifying <code class="code docutils literal notranslate"><span class="pre">path</span> <span class="pre">=</span> <span class="pre">'example.mp4</span></code>, we’ve told Scanner to initialize a stream named <code class="code docutils literal notranslate"><span class="pre">example</span></code> from the <code class="code docutils literal notranslate"><span class="pre">example.mp4</span></code> video.</p>
 <p>Another example of a stored stream is the <code class="xref py py-class docutils literal notranslate"><span class="pre">FilesStream</span></code>, which represents a stream of individual files stored on a filesystem or cloud blob storage:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">scannertools.storage.files</span> <span class="kn">import</span> <span class="n">FilesStream</span>
 <span class="n">image_paths</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;image1.jpg&#39;</span><span class="p">,</span> <span class="s1">&#39;image2.jpg&#39;</span><span class="p">,</span> <span class="s1">&#39;image3.jpg&#39;</span><span class="p">]</span>
 <span class="n">file_stream</span> <span class="o">=</span> <span class="n">FilesStream</span><span class="p">(</span><span class="n">sc</span><span class="p">,</span> <span class="n">paths</span><span class="o">=</span><span class="n">image_paths</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>By default, <code class="xref py py-class docutils literal notranslate"><span class="pre">FilesStream</span></code> reads from the local filesystem. However, like all stored streams, the storage location and configuration options can be specified with a <code class="xref py py-class docutils literal notranslate"><span class="pre">StorageBackend</span></code>.</p>
+<p>By default, <code class="xref py py-class docutils literal notranslate"><span class="pre">FilesStream</span></code> reads from the local filesystem. However, like all stored streams, the storage location and configuration options can be specified with a <a class="reference internal" href="../api/scannerpy.html#scannerpy.storage.StorageBackend" title="scannerpy.storage.StorageBackend"><code class="xref py py-class docutils literal notranslate"><span class="pre">StorageBackend</span></code></a>.</p>
 <p>Te rest of this guide explains the additional features of stored streams.</p>
 </div>
 <div class="section" id="storage-backends">
 <h2>Storage Backends<a class="headerlink" href="#storage-backends" title="Permalink to this headline">¶</a></h2>
-<p><code class="xref py py-class docutils literal notranslate"><span class="pre">StorageBackend</span></code> s represent the specific storage location or format for stored streams. For example, <code class="xref py py-class docutils literal notranslate"><span class="pre">FilesStream</span></code> can be configured to read files from Amazon’s S3 storage service instead of the default local file system by creating the appropriate storage backend:</p>
+<p><a class="reference internal" href="../api/scannerpy.html#scannerpy.storage.StorageBackend" title="scannerpy.storage.StorageBackend"><code class="xref py py-class docutils literal notranslate"><span class="pre">StorageBackend</span></code></a> s represent the specific storage location or format for stored streams. For example, <code class="xref py py-class docutils literal notranslate"><span class="pre">FilesStream</span></code> can be configured to read files from Amazon’s S3 storage service instead of the default local file system by creating the appropriate storage backend:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">scannertools.storage.files</span> <span class="kn">import</span> <span class="n">FilesStorage</span><span class="p">,</span> <span class="n">FilesStream</span>
 <span class="n">image_paths</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;image1.jpg&#39;</span><span class="p">,</span> <span class="s1">&#39;image2.jpg&#39;</span><span class="p">,</span> <span class="s1">&#39;image3.jpg&#39;</span><span class="p">]</span>
 <span class="n">file_storage</span> <span class="o">=</span> <span class="n">FilesStorage</span><span class="p">(</span><span class="n">storage_type</span><span class="o">=</span><span class="s1">&#39;s3&#39;</span><span class="p">,</span>
@@ -175,7 +178,7 @@
 </div>
 <div class="section" id="i-o-operations">
 <h2>I/O Operations<a class="headerlink" href="#i-o-operations" title="Permalink to this headline">¶</a></h2>
-<p>I/O operations allow Scanner applications to read and write to stored streams. To read from a stored stream, Scanner applications construct <code class="xref py py-meth docutils literal notranslate"><span class="pre">Input()</span></code> operations, specifying a list of stored streams:</p>
+<p>I/O operations allow Scanner applications to read and write to stored streams. To read from a stored stream, Scanner applications construct <a class="reference internal" href="../api/scannerpy.html#scannerpy.io.IOGenerator.Input" title="scannerpy.io.IOGenerator.Input"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Input()</span></code></a> operations, specifying a list of stored streams:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">frame</span> <span class="o">=</span> <span class="n">sc</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">Input</span><span class="p">([</span><span class="n">video_stream</span><span class="p">])</span>
 </pre></div>
 </div>
@@ -184,33 +187,33 @@
 <span class="n">frame</span> <span class="o">=</span> <span class="n">sc</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">Output</span><span class="p">(</span><span class="n">frame</span><span class="p">,</span> <span class="p">[</span><span class="n">output_video_stream</span><span class="p">])</span>
 </pre></div>
 </div>
-<p>Here, the frames we read in from before will be written back out to a <code class="xref py py-class docutils literal notranslate"><span class="pre">NamedVideoStream</span></code> called <code class="code docutils literal notranslate"><span class="pre">example-output</span></code>.</p>
+<p>Here, the frames we read in from before will be written back out to a <a class="reference internal" href="../api/scannerpy.html#scannerpy.storage.NamedVideoStream" title="scannerpy.storage.NamedVideoStream"><code class="xref py py-class docutils literal notranslate"><span class="pre">NamedVideoStream</span></code></a> called <code class="code docutils literal notranslate"><span class="pre">example-output</span></code>.</p>
 </div>
 <div class="section" id="reading-data-locally">
 <h2>Reading Data Locally<a class="headerlink" href="#reading-data-locally" title="Permalink to this headline">¶</a></h2>
-<p>Stored streams can be read directly in Python by calling the <code class="xref py py-meth docutils literal notranslate"><span class="pre">load()</span></code> method:</p>
+<p>Stored streams can be read directly in Python by calling the <a class="reference internal" href="../api/scannerpy.html#scannerpy.storage.StoredStream.load" title="scannerpy.storage.StoredStream.load"><code class="xref py py-meth docutils literal notranslate"><span class="pre">load()</span></code></a> method:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> <span class="n">frame</span> <span class="ow">in</span> <span class="n">video_stream</span><span class="o">.</span><span class="n">load</span><span class="p">():</span>
-    <span class="k">print</span><span class="p">(</span><span class="n">frame</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">frame</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>Reading from this stream lazily loads video frames from <code class="code docutils literal notranslate"><span class="pre">video_stream</span></code> as numpy arrays. If we were reading bounding boxes or some other data format, the <code class="code docutils literal notranslate"><span class="pre">load</span></code> method would return data elements formatted according to the data type of the stream.</p>
 </div>
 <div class="section" id="deleting-stored-streams">
 <h2>Deleting Stored Streams<a class="headerlink" href="#deleting-stored-streams" title="Permalink to this headline">¶</a></h2>
-<p>Stored stream data is persistent: unless a stored stream is explicitly deleted, the data will stay around and can be used in future Scanner applications. A stored stream can be deleted by invoking the <code class="xref py py-meth docutils literal notranslate"><span class="pre">delete()</span></code> method:</p>
+<p>Stored stream data is persistent: unless a stored stream is explicitly deleted, the data will stay around and can be used in future Scanner applications. A stored stream can be deleted by invoking the <a class="reference internal" href="../api/scannerpy.html#scannerpy.storage.StoredStream.delete" title="scannerpy.storage.StoredStream.delete"><code class="xref py py-meth docutils literal notranslate"><span class="pre">delete()</span></code></a> method:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">video_stream</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">sc</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>If there are multiple streams to delete, it can be more efficient to invoke a bulk delete operation by calling <code class="xref py py-meth docutils literal notranslate"><span class="pre">delete()</span></code> on the storage backend itself:</p>
+<p>If there are multiple streams to delete, it can be more efficient to invoke a bulk delete operation by calling <a class="reference internal" href="../api/scannerpy.html#scannerpy.storage.StorageBackend.delete" title="scannerpy.storage.StorageBackend.delete"><code class="xref py py-meth docutils literal notranslate"><span class="pre">delete()</span></code></a> on the storage backend itself:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">video_stream</span><span class="o">.</span><span class="n">storage</span><span class="p">()</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">sc</span><span class="p">,</span> <span class="p">[</span><span class="o">...</span><span class="p">])</span>
 </pre></div>
 </div>
 </div>
 <div class="section" id="inplace-video-indexing">
 <h2>Inplace video indexing<a class="headerlink" href="#inplace-video-indexing" title="Permalink to this headline">¶</a></h2>
-<p>By default, Scanner copies the video data for a <code class="xref py py-class docutils literal notranslate"><span class="pre">NamedVideoStream</span></code> to Scanner’s internal database (located at <code class="code docutils literal notranslate"><span class="pre">~/.scanner/db</span></code> by default) when it builds the index over the video for fast frame access. For a limited set of video container formats (currently only MP4), Scanner also supports accessing videos without copying them using the <code class="code docutils literal notranslate"><span class="pre">inplace=True</span></code> flag:</p>
+<p>By default, Scanner copies the video data for a <a class="reference internal" href="../api/scannerpy.html#scannerpy.storage.NamedVideoStream" title="scannerpy.storage.NamedVideoStream"><code class="xref py py-class docutils literal notranslate"><span class="pre">NamedVideoStream</span></code></a> to Scanner’s internal database (located at <code class="code docutils literal notranslate"><span class="pre">~/.scanner/db</span></code> by default) when it builds the index over the video for fast frame access. For a limited set of video container formats (currently only MP4), Scanner also supports accessing videos without copying them using the <code class="code docutils literal notranslate"><span class="pre">inplace=True</span></code> flag:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">input_stream</span> <span class="o">=</span> <span class="n">NamedVideoStream</span><span class="p">(</span><span class="n">sc</span><span class="p">,</span> <span class="s1">&#39;sample-clip&#39;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s1">&#39;sample-clip.mp4&#39;</span><span class="p">,</span>
-                                <span class="n">inplace</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+                                <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>This still builds the index for accessing the video but avoids copying the files. When Scanner accesses the video data, it will read it directly from the path provided to the named video stream.</p>
@@ -228,6 +231,9 @@
         <li class="right" style="margin-right: 10px">
           <a href="../genindex.html" title="General Index"
              >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
         <li class="right" >
           <a href="profiling.html" title="Performance Profiling"
              >next</a> |</li>

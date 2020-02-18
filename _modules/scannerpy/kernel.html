@@ -1,0 +1,233 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+
+<title>scannerpy.kernel - Scanner</title>
+
+
+    <link rel="stylesheet" href="../../_static/basic.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
+    <script id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/jquery.js"></script>
+    <script src="../../_static/underscore.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/language_data.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+<meta charset='utf-8'>
+<meta http-equiv='X-UA-Compatible' content='IE=edge,chrome=1'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1'>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" />
+<link rel="stylesheet"
+      href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/styles/default.min.css">
+
+<!-- Global site tag (gtag.js) - Google Analytics -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-133298183-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'UA-133298183-1');
+</script>
+
+
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Scanner 0.2.22 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>
+<div class="container">
+  <div id="navbar" class="navbar-default">
+    <div class="row">
+      <div class="col-md-4 col-sm-12">
+        <a class="navbar-brand" href="../../index.html"><span><img src="../../_static/scanner_logo.png"></span>
+        </a>
+      </div>
+      <div class="col-md-4 offset-md-4 col-sm-12">
+        <div class="btn-group">
+          <a href="../../guide.html"><button type="button" class="btn btn-light">Guide</button></a>
+          <a href="../../api.html"><button type="button" class="btn btn-light">API</button></a>
+          <a href="https://github.com/scanner-research/scanner"><button type="button" class="btn btn-light">Github</button></a>
+          <a href="../../publications.html"><button type="button" class="btn btn-light">Publications</button></a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-3">
+      <div class="bs-sidenav">
+        <div class="bs-sidenav-inner">
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-9">
+      <div class="content">
+        
+  <h1>Source code for scannerpy.kernel</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">pickle</span>
+<span class="kn">import</span> <span class="nn">traceback</span>
+
+<div class="viewcode-block" id="KernelConfig"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kernel.KernelConfig">[docs]</a><span class="k">class</span> <span class="nc">KernelConfig</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">devices</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">devices</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">input_columns</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">input_columns</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">input_column_types</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">input_column_types</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">output_columns</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">output_columns</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">output_column_types</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">output_column_types</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">args</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">args</span><span class="p">())</span> <span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">args</span><span class="p">()</span> <span class="o">!=</span> <span class="sa">b</span><span class="s1">&#39;&#39;</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">node_id</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">node_id</span></div>
+
+
+<div class="viewcode-block" id="Kernel"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kernel.Kernel">[docs]</a><span class="k">class</span> <span class="nc">Kernel</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">KernelConfig</span><span class="p">,</span> <span class="n">init_parameter</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        config</span>
+<span class="sd">          Contains the configuration settings for this instance of the kernel.</span>
+
+<span class="sd">        init_parameter</span>
+<span class="sd">          An example init parameter. Any parameters defined in the __init__ method</span>
+<span class="sd">          of a Kernel can be set when creating an instance of the corresponding operation.</span>
+<span class="sd">          For example, an operation for this Kernel could be initialized like this:</span>
+
+<span class="sd">          :code:`cl.ops.Kernel(init_parameter=&#39;test&#39;, ...)`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">config</span>
+
+<div class="viewcode-block" id="Kernel.close"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kernel.Kernel.close">[docs]</a>    <span class="k">def</span> <span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Called when this Kernel instance will no longer be used.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span></div>
+
+<div class="viewcode-block" id="Kernel.new_stream"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kernel.Kernel.new_stream">[docs]</a>    <span class="k">def</span> <span class="nf">new_stream</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Runs after fetch_resources for each instance of this operation.</span>
+
+<span class="sd">        Parameters added for this method by operations are considered</span>
+<span class="sd">        `stream config parameters` (see :ref:`stream-config-parameters`).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span></div>
+
+<div class="viewcode-block" id="Kernel.reset"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kernel.Kernel.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Called for stateful operations when the operation should reset its logical state.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span></div>
+
+<div class="viewcode-block" id="Kernel.fetch_resources"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kernel.Kernel.fetch_resources">[docs]</a>    <span class="k">def</span> <span class="nf">fetch_resources</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Runs once per Scanner worker to download resources for running this operation.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span></div>
+
+<div class="viewcode-block" id="Kernel.setup_with_resources"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kernel.Kernel.setup_with_resources">[docs]</a>    <span class="k">def</span> <span class="nf">setup_with_resources</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Runs after fetch_resources for each instance of this operation.</span>
+
+<span class="sd">        This method is reponsible for handling any setup that requires resources to first be downloaded.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span></div>
+
+<div class="viewcode-block" id="Kernel.execute"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kernel.Kernel.execute">[docs]</a>    <span class="k">def</span> <span class="nf">execute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stream_parameter</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bytes</span><span class="p">:</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;Runs the kernel on input elements and returns new output elements.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        stream_parameter</span>
+<span class="sd">          An example stream parameter. Must be annotated with a stream parameter type.</span>
+<span class="sd">          See :ref:`stream-parameters`.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        bytes</span>
+<span class="sd">          The outputs for the operation.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span></div></div>
+
+
+<div class="viewcode-block" id="python_kernel_fn"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kernel.python_kernel_fn">[docs]</a><span class="k">def</span> <span class="nf">python_kernel_fn</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">recv_conn</span><span class="p">,</span> <span class="n">send_conn</span><span class="p">,</span> <span class="n">p_conn1</span><span class="p">,</span> <span class="n">p_conn2</span><span class="p">):</span>
+  <span class="kn">import</span> <span class="nn">pickle</span>
+  <span class="kn">import</span> <span class="nn">cloudpickle</span>
+  <span class="kn">import</span> <span class="nn">traceback</span>
+  <span class="kn">import</span> <span class="nn">os</span>
+  <span class="kn">from</span> <span class="nn">scannerpy</span> <span class="kn">import</span> <span class="n">Config</span><span class="p">,</span> <span class="n">DeviceType</span><span class="p">,</span> <span class="n">DeviceHandle</span><span class="p">,</span> <span class="n">KernelConfig</span>
+
+  <span class="c1"># Close parent connections</span>
+  <span class="n">p_conn1</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+  <span class="n">p_conn2</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+  <span class="k">try</span><span class="p">:</span>
+    <span class="n">kernel_config</span> <span class="o">=</span> <span class="n">KernelConfig</span><span class="p">(</span><span class="n">cloudpickle</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">n</span><span class="p">[</span><span class="s1">&#39;config&#39;</span><span class="p">]))</span>
+    <span class="n">kernel</span> <span class="o">=</span> <span class="n">cloudpickle</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">n</span><span class="p">[</span><span class="s1">&#39;kernel_code&#39;</span><span class="p">])(</span><span class="n">kernel_config</span><span class="p">,</span> <span class="o">**</span><span class="n">kernel_config</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+      <span class="k">try</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">recv_conn</span><span class="o">.</span><span class="n">recv_bytes</span><span class="p">()</span>
+        <span class="n">msg_type</span><span class="p">,</span> <span class="n">data</span> <span class="o">=</span> <span class="n">cloudpickle</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+      <span class="k">except</span> <span class="ne">EOFError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="k">break</span>
+      <span class="k">if</span> <span class="n">msg_type</span> <span class="o">==</span> <span class="s1">&#39;reset&#39;</span><span class="p">:</span>
+        <span class="n">kernel</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+      <span class="k">elif</span> <span class="n">msg_type</span> <span class="o">==</span> <span class="s1">&#39;new_stream&#39;</span><span class="p">:</span>
+        <span class="n">kernel</span><span class="o">.</span><span class="n">new_stream</span><span class="p">(</span><span class="o">**</span><span class="p">(</span><span class="n">data</span> <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">{}))</span>
+      <span class="k">elif</span> <span class="n">msg_type</span> <span class="o">==</span> <span class="s1">&#39;execute&#39;</span><span class="p">:</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">kernel</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+        <span class="n">send_conn</span><span class="o">.</span><span class="n">send_bytes</span><span class="p">(</span><span class="n">cloudpickle</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">result</span><span class="p">))</span>
+      <span class="k">elif</span> <span class="n">msg_type</span> <span class="o">==</span> <span class="s1">&#39;fetch_resources&#39;</span><span class="p">:</span>
+        <span class="n">kernel</span><span class="o">.</span><span class="n">fetch_resources</span><span class="p">()</span>
+        <span class="n">send_conn</span><span class="o">.</span><span class="n">send_bytes</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;&#39;</span><span class="p">)</span>
+      <span class="k">elif</span> <span class="n">msg_type</span> <span class="o">==</span> <span class="s1">&#39;setup_with_resources&#39;</span><span class="p">:</span>
+        <span class="n">kernel</span><span class="o">.</span><span class="n">setup_with_resources</span><span class="p">()</span>
+  <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+    <span class="n">traceback</span><span class="o">.</span><span class="n">print_exc</span><span class="p">()</span>
+    <span class="k">raise</span>
+  <span class="k">finally</span><span class="p">:</span>
+    <span class="n">send_conn</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+    <span class="n">recv_conn</span><span class="o">.</span><span class="n">close</span><span class="p">()</span></div>
+</pre></div>
+
+      </div>
+    </div>
+  </div>
+</div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Scanner 0.2.22 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/languages/python.min.js"></script>
+<script>hljs.initHighlightingOnLoad();</script>
+  </body>
+</html>

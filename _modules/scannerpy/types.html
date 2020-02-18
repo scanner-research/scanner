@@ -1,0 +1,258 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+
+<title>scannerpy.types - Scanner</title>
+
+
+    <link rel="stylesheet" href="../../_static/basic.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
+    <script id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/jquery.js"></script>
+    <script src="../../_static/underscore.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/language_data.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+<meta charset='utf-8'>
+<meta http-equiv='X-UA-Compatible' content='IE=edge,chrome=1'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1'>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" />
+<link rel="stylesheet"
+      href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/styles/default.min.css">
+
+<!-- Global site tag (gtag.js) - Google Analytics -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-133298183-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'UA-133298183-1');
+</script>
+
+
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Scanner 0.2.22 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>
+<div class="container">
+  <div id="navbar" class="navbar-default">
+    <div class="row">
+      <div class="col-md-4 col-sm-12">
+        <a class="navbar-brand" href="../../index.html"><span><img src="../../_static/scanner_logo.png"></span>
+        </a>
+      </div>
+      <div class="col-md-4 offset-md-4 col-sm-12">
+        <div class="btn-group">
+          <a href="../../guide.html"><button type="button" class="btn btn-light">Guide</button></a>
+          <a href="../../api.html"><button type="button" class="btn btn-light">API</button></a>
+          <a href="https://github.com/scanner-research/scanner"><button type="button" class="btn btn-light">Github</button></a>
+          <a href="../../publications.html"><button type="button" class="btn btn-light">Publications</button></a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-3">
+      <div class="bs-sidenav">
+        <div class="bs-sidenav-inner">
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-9">
+      <div class="content">
+        
+  <h1>Source code for scannerpy.types</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">attr</span> <span class="kn">import</span> <span class="n">attrs</span><span class="p">,</span> <span class="n">attrib</span>
+<span class="kn">from</span> <span class="nn">scannerpy.common</span> <span class="kn">import</span> <span class="n">ScannerException</span>
+<span class="kn">from</span> <span class="nn">scannerpy.protobufs</span> <span class="kn">import</span> <span class="n">protobufs</span>
+<span class="kn">import</span> <span class="nn">pickle</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">NewType</span><span class="p">,</span> <span class="n">Generic</span><span class="p">,</span> <span class="n">TypeVar</span><span class="p">,</span> <span class="n">Any</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">struct</span>
+
+<span class="n">PYTHON_TYPE_REGISTRY</span> <span class="o">=</span> <span class="p">{}</span>
+
+<span class="c1"># This is a special built-in type for video frame streams.</span>
+<span class="c1"># Class purely for type annotation.</span>
+<div class="viewcode-block" id="FrameType"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.types.FrameType">[docs]</a><span class="k">class</span> <span class="nc">FrameType</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">pass</span></div>
+
+<span class="n">BlobType</span> <span class="o">=</span> <span class="nb">bytes</span>
+
+<div class="viewcode-block" id="ScannerTypeInfo"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.types.ScannerTypeInfo">[docs]</a><span class="nd">@attrs</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span> <span class="nc">ScannerTypeInfo</span><span class="p">:</span>
+    <span class="nb">type</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">()</span>
+    <span class="n">cpp_name</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">()</span>
+    <span class="n">serialize</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">()</span>
+    <span class="n">deserialize</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">()</span></div>
+
+<span class="k">def</span> <span class="nf">_register_type</span><span class="p">(</span><span class="n">ty</span><span class="p">,</span> <span class="n">cpp_name</span><span class="p">,</span> <span class="n">serialize</span><span class="p">,</span> <span class="n">deserialize</span><span class="p">):</span>
+    <span class="k">global</span> <span class="n">PYTHON_TYPE_REGISTRY</span>
+    <span class="n">PYTHON_TYPE_REGISTRY</span><span class="p">[</span><span class="n">ty</span><span class="p">]</span> <span class="o">=</span> <span class="n">ScannerTypeInfo</span><span class="p">(</span>
+        <span class="nb">type</span><span class="o">=</span><span class="n">ty</span><span class="p">,</span>
+        <span class="n">cpp_name</span><span class="o">=</span><span class="n">cpp_name</span><span class="p">,</span>
+        <span class="n">serialize</span><span class="o">=</span><span class="n">serialize</span><span class="p">,</span>
+        <span class="n">deserialize</span><span class="o">=</span><span class="n">deserialize</span><span class="p">)</span>
+
+<div class="viewcode-block" id="get_type_info"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.types.get_type_info">[docs]</a><span class="k">def</span> <span class="nf">get_type_info</span><span class="p">(</span><span class="n">ty</span><span class="p">):</span>
+    <span class="k">global</span> <span class="n">PYTHON_TYPE_REGISTRY</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">ty</span> <span class="ow">in</span> <span class="n">PYTHON_TYPE_REGISTRY</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">ScannerException</span><span class="p">(</span><span class="s2">&quot;Type `</span><span class="si">{}</span><span class="s2">` has not been registered with Scanner&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ty</span><span class="o">.</span><span class="vm">__name__</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">PYTHON_TYPE_REGISTRY</span><span class="p">[</span><span class="n">ty</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="get_type_info_cpp"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.types.get_type_info_cpp">[docs]</a><span class="k">def</span> <span class="nf">get_type_info_cpp</span><span class="p">(</span><span class="n">cpp_name</span><span class="p">):</span>
+    <span class="k">global</span> <span class="n">PYTHON_TYPE_REGISTRY</span>
+    <span class="k">for</span> <span class="n">ty</span> <span class="ow">in</span> <span class="n">PYTHON_TYPE_REGISTRY</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">ty</span><span class="o">.</span><span class="n">cpp_name</span> <span class="o">==</span> <span class="n">cpp_name</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">ty</span>
+    <span class="k">raise</span> <span class="n">ScannerException</span><span class="p">(</span><span class="s2">&quot;Type `</span><span class="si">{}</span><span class="s2">` has not been registered with Scanner&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">cpp_name</span><span class="p">))</span></div>
+
+<span class="n">_register_type</span><span class="p">(</span><span class="nb">bytes</span><span class="p">,</span> <span class="s2">&quot;Bytes&quot;</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">)</span>
+<span class="n">_register_type</span><span class="p">(</span><span class="n">Any</span><span class="p">,</span> <span class="s2">&quot;Any&quot;</span><span class="p">,</span> <span class="n">pickle</span><span class="o">.</span><span class="n">dumps</span><span class="p">,</span> <span class="n">pickle</span><span class="o">.</span><span class="n">loads</span><span class="p">)</span>
+<span class="n">_register_type</span><span class="p">(</span><span class="n">FrameType</span><span class="p">,</span> <span class="s2">&quot;FrameType&quot;</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">)</span>
+
+<span class="c1"># TODO: document this</span>
+<div class="viewcode-block" id="register_type"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.types.register_type">[docs]</a><span class="k">def</span> <span class="nf">register_type</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="vm">__name__</span>
+    <span class="n">_register_type</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="bp">cls</span><span class="o">.</span><span class="n">serialize</span><span class="p">,</span> <span class="bp">cls</span><span class="o">.</span><span class="n">deserialize</span><span class="p">)</span>
+    <span class="k">return</span> <span class="bp">cls</span></div>
+
+<div class="viewcode-block" id="ProtobufType"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.types.ProtobufType">[docs]</a><span class="k">def</span> <span class="nf">ProtobufType</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">proto</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">serialize</span><span class="p">(</span><span class="n">proto_obj</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">proto_obj</span><span class="o">.</span><span class="n">SerializeToString</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">deserialize</span><span class="p">(</span><span class="n">buf</span><span class="p">):</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="n">proto</span><span class="p">()</span>
+        <span class="n">p</span><span class="o">.</span><span class="n">ParseFromString</span><span class="p">(</span><span class="n">buf</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">p</span>
+
+    <span class="k">return</span> <span class="n">register_type</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="p">(),</span> <span class="nb">dict</span><span class="p">(</span><span class="n">serialize</span><span class="o">=</span><span class="n">serialize</span><span class="p">,</span> <span class="n">deserialize</span><span class="o">=</span><span class="n">deserialize</span><span class="p">)))</span></div>
+
+
+<div class="viewcode-block" id="VariableList"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.types.VariableList">[docs]</a><span class="k">def</span> <span class="nf">VariableList</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">typ</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">serialize</span><span class="p">(</span><span class="n">variable_list</span><span class="p">):</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="n">struct</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="s1">&#39;=Q&#39;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">variable_list</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">element</span> <span class="ow">in</span> <span class="n">variable_list</span><span class="p">:</span>
+            <span class="n">serialized</span> <span class="o">=</span> <span class="n">typ</span><span class="o">.</span><span class="n">serialize</span><span class="p">(</span><span class="n">element</span><span class="p">)</span>
+            <span class="n">s</span> <span class="o">+=</span> <span class="n">struct</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="s1">&#39;=Q&#39;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">serialized</span><span class="p">))</span>
+            <span class="n">s</span> <span class="o">+=</span> <span class="n">serialized</span>
+        <span class="k">return</span> <span class="n">s</span>
+
+    <span class="k">def</span> <span class="nf">deserialize</span><span class="p">(</span><span class="n">buf</span><span class="p">):</span>
+        <span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="p">)</span> <span class="o">=</span> <span class="n">struct</span><span class="o">.</span><span class="n">unpack</span><span class="p">(</span><span class="s2">&quot;=Q&quot;</span><span class="p">,</span> <span class="n">buf</span><span class="p">[:</span><span class="mi">8</span><span class="p">])</span>
+        <span class="n">buf</span> <span class="o">=</span> <span class="n">buf</span><span class="p">[</span><span class="mi">8</span><span class="p">:]</span>
+        <span class="n">elements</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">N</span><span class="p">):</span>
+            <span class="p">(</span><span class="n">serialized_size</span><span class="p">,</span> <span class="p">)</span> <span class="o">=</span> <span class="n">struct</span><span class="o">.</span><span class="n">unpack</span><span class="p">(</span><span class="s2">&quot;=Q&quot;</span><span class="p">,</span> <span class="n">buf</span><span class="p">[:</span><span class="mi">8</span><span class="p">])</span>
+            <span class="n">buf</span> <span class="o">=</span> <span class="n">buf</span><span class="p">[</span><span class="mi">8</span><span class="p">:]</span>
+            <span class="n">element</span> <span class="o">=</span> <span class="n">typ</span><span class="o">.</span><span class="n">deserialize</span><span class="p">(</span><span class="n">buf</span><span class="p">[:</span><span class="n">serialized_size</span><span class="p">])</span>
+            <span class="n">buf</span> <span class="o">=</span> <span class="n">buf</span><span class="p">[</span><span class="n">serialized_size</span><span class="p">:]</span>
+            <span class="n">elements</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">element</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">elements</span>
+
+    <span class="k">return</span> <span class="n">register_type</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="p">(),</span> <span class="nb">dict</span><span class="p">(</span><span class="n">serialize</span><span class="o">=</span><span class="n">serialize</span><span class="p">,</span> <span class="n">deserialize</span><span class="o">=</span><span class="n">deserialize</span><span class="p">)))</span></div>
+
+<div class="viewcode-block" id="UniformList"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.types.UniformList">[docs]</a><span class="k">def</span> <span class="nf">UniformList</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">typ</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">parts</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">assert</span> <span class="p">(</span><span class="n">size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span> <span class="o">^</span> <span class="p">(</span><span class="n">parts</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">serialize</span><span class="p">(</span><span class="n">uniform_list</span><span class="p">):</span>
+        <span class="k">return</span> <span class="sa">b</span><span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">typ</span><span class="o">.</span><span class="n">serialize</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span> <span class="k">for</span> <span class="n">obj</span> <span class="ow">in</span> <span class="n">uniform_list</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">deserialize</span><span class="p">(</span><span class="n">buf</span><span class="p">):</span>
+        <span class="k">nonlocal</span> <span class="n">size</span>
+        <span class="k">nonlocal</span> <span class="n">parts</span>
+
+        <span class="c1"># HACK(will): need a placeholder for an empty list</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">buf</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">4</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>
+
+        <span class="k">if</span> <span class="n">parts</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">size</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">buf</span><span class="p">)</span> <span class="o">//</span> <span class="n">parts</span>
+
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">buf</span><span class="p">)</span> <span class="o">%</span> <span class="n">size</span> <span class="o">==</span> <span class="mi">0</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">typ</span><span class="o">.</span><span class="n">deserialize</span><span class="p">(</span><span class="n">buf</span><span class="p">[</span><span class="n">i</span><span class="p">:</span><span class="n">i</span><span class="o">+</span><span class="n">size</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">buf</span><span class="p">),</span> <span class="n">size</span><span class="p">)]</span>
+
+    <span class="k">return</span> <span class="n">register_type</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="p">(),</span> <span class="nb">dict</span><span class="p">(</span><span class="n">serialize</span><span class="o">=</span><span class="n">serialize</span><span class="p">,</span> <span class="n">deserialize</span><span class="o">=</span><span class="n">deserialize</span><span class="p">)))</span></div>
+
+<span class="n">Bbox</span> <span class="o">=</span> <span class="n">ProtobufType</span><span class="p">(</span><span class="s1">&#39;Bbox&#39;</span><span class="p">,</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">BoundingBox</span><span class="p">)</span>
+<span class="n">BboxList</span> <span class="o">=</span> <span class="n">VariableList</span><span class="p">(</span><span class="s1">&#39;BboxList&#39;</span><span class="p">,</span> <span class="n">Bbox</span><span class="p">)</span>
+
+<div class="viewcode-block" id="NumpyArrayFloat32"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.types.NumpyArrayFloat32">[docs]</a><span class="nd">@register_type</span>
+<span class="k">class</span> <span class="nc">NumpyArrayFloat32</span><span class="p">:</span>
+<div class="viewcode-block" id="NumpyArrayFloat32.serialize"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.types.NumpyArrayFloat32.serialize">[docs]</a>    <span class="k">def</span> <span class="nf">serialize</span><span class="p">(</span><span class="n">array</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">array</span><span class="o">.</span><span class="n">tobytes</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="NumpyArrayFloat32.deserialize"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.types.NumpyArrayFloat32.deserialize">[docs]</a>    <span class="k">def</span> <span class="nf">deserialize</span><span class="p">(</span><span class="n">data_buffer</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">frombuffer</span><span class="p">(</span><span class="n">data_buffer</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span></div></div>
+
+<div class="viewcode-block" id="NumpyArrayInt32"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.types.NumpyArrayInt32">[docs]</a><span class="nd">@register_type</span>
+<span class="k">class</span> <span class="nc">NumpyArrayInt32</span><span class="p">:</span>
+<div class="viewcode-block" id="NumpyArrayInt32.serialize"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.types.NumpyArrayInt32.serialize">[docs]</a>    <span class="k">def</span> <span class="nf">serialize</span><span class="p">(</span><span class="n">array</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">array</span><span class="o">.</span><span class="n">tobytes</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="NumpyArrayInt32.deserialize"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.types.NumpyArrayInt32.deserialize">[docs]</a>    <span class="k">def</span> <span class="nf">deserialize</span><span class="p">(</span><span class="n">data_buffer</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">frombuffer</span><span class="p">(</span><span class="n">data_buffer</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span></div></div>
+
+<span class="n">Histogram</span> <span class="o">=</span> <span class="n">UniformList</span><span class="p">(</span><span class="s1">&#39;Histogram&#39;</span><span class="p">,</span> <span class="n">NumpyArrayInt32</span><span class="p">,</span> <span class="n">parts</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Image"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.types.Image">[docs]</a><span class="nd">@register_type</span>
+<span class="k">class</span> <span class="nc">Image</span><span class="p">:</span>
+<div class="viewcode-block" id="Image.serialize"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.types.Image.serialize">[docs]</a>    <span class="k">def</span> <span class="nf">serialize</span><span class="p">(</span><span class="n">image</span><span class="p">):</span>
+        <span class="kn">import</span> <span class="nn">cv2</span>
+        <span class="k">return</span> <span class="n">cv2</span><span class="o">.</span><span class="n">imencode</span><span class="p">(</span><span class="s1">&#39;.png&#39;</span><span class="p">,</span> <span class="n">image</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Image.deserialize"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.types.Image.deserialize">[docs]</a>    <span class="k">def</span> <span class="nf">deserialize</span><span class="p">(</span><span class="n">encoded_image</span><span class="p">):</span>
+        <span class="kn">import</span> <span class="nn">cv2</span>
+        <span class="k">return</span> <span class="n">cv2</span><span class="o">.</span><span class="n">imdecode</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">frombuffer</span><span class="p">(</span><span class="n">encoded_image</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)),</span> <span class="n">cv2</span><span class="o">.</span><span class="n">IMREAD_COLOR</span><span class="p">)</span></div></div>
+</pre></div>
+
+      </div>
+    </div>
+  </div>
+</div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Scanner 0.2.22 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/languages/python.min.js"></script>
+<script>hljs.initHighlightingOnLoad();</script>
+  </body>
+</html>

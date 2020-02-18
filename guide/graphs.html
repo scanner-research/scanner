@@ -11,11 +11,11 @@
     <link rel="stylesheet" href="../_static/basic.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../_static/custom.css" />
-    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-    <script type="text/javascript" src="../_static/jquery.js"></script>
-    <script type="text/javascript" src="../_static/underscore.js"></script>
-    <script type="text/javascript" src="../_static/doctools.js"></script>
-    <script type="text/javascript" src="../_static/language_data.js"></script>
+    <script id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/language_data.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Operations" href="ops.html" />
@@ -45,6 +45,9 @@
         <li class="right" style="margin-right: 10px">
           <a href="../genindex.html" title="General Index"
              accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
         <li class="right" >
           <a href="ops.html" title="Operations"
              accesskey="N">next</a> |</li>
@@ -146,7 +149,7 @@
 <li><p><strong>Output nodes</strong> (<code class="code docutils literal notranslate"><span class="pre">sc.io.Output</span></code>): write data to empty stored streams.</p></li>
 </ul>
 <p>For example, let’s look at a computation graph with an operation that resizes frames:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">scannerpy</span> <span class="kn">as</span> <span class="nn">sp</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">scannerpy</span> <span class="k">as</span> <span class="nn">sp</span>
 <span class="kn">import</span> <span class="nn">scannertools.imgproc</span>
 
 <span class="n">sc</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">Client</span><span class="p">()</span>
@@ -157,7 +160,7 @@
 <span class="n">output</span> <span class="o">=</span> <span class="n">sc</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">Output</span><span class="p">(</span><span class="n">resized_frames</span><span class="p">,</span> <span class="p">[</span><span class="n">output_stream</span><span class="p">])</span>
 </pre></div>
 </div>
-<p>Here, the <code class="code docutils literal notranslate"><span class="pre">sc.io.Input</span></code>, <code class="code docutils literal notranslate"><span class="pre">sc.ops.Resize</span></code>, and <code class="code docutils literal notranslate"><span class="pre">sc.io.Output</span></code> operations are nodes in a three node graph. <code class="code docutils literal notranslate"><span class="pre">sc.ops.Resize</span></code> is connected to <code class="code docutils literal notranslate"><span class="pre">sc.io.Input</span></code> through passing its output, <code class="code docutils literal notranslate"><span class="pre">input_frames</span></code>, to the resize operation, <code class="code docutils literal notranslate"><span class="pre">frame=input_frames</span></code>. Likewise for <code class="code docutils literal notranslate"><span class="pre">sc.io.Output</span></code> and <code class="code docutils literal notranslate"><span class="pre">sc.ops.Resize</span></code>, but <code class="xref py py-meth docutils literal notranslate"><span class="pre">Output()</span></code> operations also bind an edge from a computation graph to an empty stored stream (<code class="code docutils literal notranslate"><span class="pre">output_stream</span></code> here) to be filled in with the sequence of elements produce from that edge. Importantly, note that we have not processed any data at this point: we have only defined a computation graph that we can tell Scanner to execute. Let’s do that now:</p>
+<p>Here, the <code class="code docutils literal notranslate"><span class="pre">sc.io.Input</span></code>, <code class="code docutils literal notranslate"><span class="pre">sc.ops.Resize</span></code>, and <code class="code docutils literal notranslate"><span class="pre">sc.io.Output</span></code> operations are nodes in a three node graph. <code class="code docutils literal notranslate"><span class="pre">sc.ops.Resize</span></code> is connected to <code class="code docutils literal notranslate"><span class="pre">sc.io.Input</span></code> through passing its output, <code class="code docutils literal notranslate"><span class="pre">input_frames</span></code>, to the resize operation, <code class="code docutils literal notranslate"><span class="pre">frame=input_frames</span></code>. Likewise for <code class="code docutils literal notranslate"><span class="pre">sc.io.Output</span></code> and <code class="code docutils literal notranslate"><span class="pre">sc.ops.Resize</span></code>, but <a class="reference internal" href="../api/scannerpy.html#scannerpy.io.IOGenerator.Output" title="scannerpy.io.IOGenerator.Output"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Output()</span></code></a> operations also bind an edge from a computation graph to an empty stored stream (<code class="code docutils literal notranslate"><span class="pre">output_stream</span></code> here) to be filled in with the sequence of elements produce from that edge. Importantly, note that we have not processed any data at this point: we have only defined a computation graph that we can tell Scanner to execute. Let’s do that now:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">sc</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
 </pre></div>
 </div>
@@ -182,7 +185,7 @@
 <span class="n">sc</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="n">large_output</span><span class="p">,</span> <span class="n">small_output</span><span class="p">])</span>
 </pre></div>
 </div>
-<p>Notice how we pass both outputs to the <code class="xref py py-meth docutils literal notranslate"><span class="pre">run()</span></code> method. Scanner only runs the portions of the graph needed to produce the streams for the outputs passed to <code class="code docutils literal notranslate"><span class="pre">run</span></code>.</p>
+<p>Notice how we pass both outputs to the <a class="reference internal" href="../api/scannerpy.html#scannerpy.client.Client.run" title="scannerpy.client.Client.run"><code class="xref py py-meth docutils literal notranslate"><span class="pre">run()</span></code></a> method. Scanner only runs the portions of the graph needed to produce the streams for the outputs passed to <code class="code docutils literal notranslate"><span class="pre">run</span></code>.</p>
 </div>
 <div class="section" id="batch-processing-of-stored-streams">
 <span id="batch-processing"></span><h2>Batch processing of stored streams<a class="headerlink" href="#batch-processing-of-stored-streams" title="Permalink to this headline">¶</a></h2>
@@ -237,6 +240,9 @@
         <li class="right" style="margin-right: 10px">
           <a href="../genindex.html" title="General Index"
              >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
         <li class="right" >
           <a href="ops.html" title="Operations"
              >next</a> |</li>

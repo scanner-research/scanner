@@ -1,0 +1,895 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+
+<title>scannerpy.kube - Scanner</title>
+
+
+    <link rel="stylesheet" href="../../_static/basic.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
+    <script id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/jquery.js"></script>
+    <script src="../../_static/underscore.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/language_data.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+<meta charset='utf-8'>
+<meta http-equiv='X-UA-Compatible' content='IE=edge,chrome=1'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1'>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" />
+<link rel="stylesheet"
+      href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/styles/default.min.css">
+
+<!-- Global site tag (gtag.js) - Google Analytics -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-133298183-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'UA-133298183-1');
+</script>
+
+
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Scanner 0.2.22 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>
+<div class="container">
+  <div id="navbar" class="navbar-default">
+    <div class="row">
+      <div class="col-md-4 col-sm-12">
+        <a class="navbar-brand" href="../../index.html"><span><img src="../../_static/scanner_logo.png"></span>
+        </a>
+      </div>
+      <div class="col-md-4 offset-md-4 col-sm-12">
+        <div class="btn-group">
+          <a href="../../guide.html"><button type="button" class="btn btn-light">Guide</button></a>
+          <a href="../../api.html"><button type="button" class="btn btn-light">API</button></a>
+          <a href="https://github.com/scanner-research/scanner"><button type="button" class="btn btn-light">Github</button></a>
+          <a href="../../publications.html"><button type="button" class="btn btn-light">Publications</button></a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-3">
+      <div class="bs-sidenav">
+        <div class="bs-sidenav-inner">
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-9">
+      <div class="content">
+        
+  <h1>Source code for scannerpy.kube</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">attr</span> <span class="kn">import</span> <span class="n">attrs</span><span class="p">,</span> <span class="n">attrib</span><span class="p">,</span> <span class="n">evolve</span>
+<span class="kn">import</span> <span class="nn">subprocess</span> <span class="k">as</span> <span class="nn">sp</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">yaml</span>
+<span class="kn">import</span> <span class="nn">tempfile</span>
+<span class="kn">import</span> <span class="nn">argparse</span>
+<span class="kn">import</span> <span class="nn">scannerpy</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">signal</span>
+<span class="kn">import</span> <span class="nn">shlex</span>
+<span class="kn">import</span> <span class="nn">cloudpickle</span>
+<span class="kn">import</span> <span class="nn">base64</span>
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">import</span> <span class="nn">traceback</span>
+<span class="kn">from</span> <span class="nn">abc</span> <span class="kn">import</span> <span class="n">ABC</span>
+<span class="kn">from</span> <span class="nn">threading</span> <span class="kn">import</span> <span class="n">Thread</span><span class="p">,</span> <span class="n">Condition</span>
+<span class="kn">import</span> <span class="nn">logging</span> <span class="k">as</span> <span class="nn">log</span>
+<span class="kn">from</span> <span class="nn">scanner.metadata_pb2</span> <span class="kn">import</span> <span class="n">MachineParameters</span>
+<span class="kn">from</span> <span class="nn">scannerpy._python</span> <span class="kn">import</span> <span class="n">default_machine_params</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
+
+<span class="n">MASTER_POOL</span> <span class="o">=</span> <span class="s1">&#39;default-pool&#39;</span>
+<span class="n">WORKER_POOL</span> <span class="o">=</span> <span class="s1">&#39;workers&#39;</span>
+
+<span class="n">log</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="n">log</span><span class="o">.</span><span class="n">INFO</span><span class="p">)</span>
+
+<div class="viewcode-block" id="run"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.run">[docs]</a><span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">detach</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">detach</span><span class="p">:</span>
+        <span class="n">sp</span><span class="o">.</span><span class="n">Popen</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">shell</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">stdout</span><span class="o">=</span><span class="n">sp</span><span class="o">.</span><span class="n">PIPE</span><span class="p">,</span> <span class="n">stderr</span><span class="o">=</span><span class="n">sp</span><span class="o">.</span><span class="n">PIPE</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">sp</span><span class="o">.</span><span class="n">check_output</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">shell</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="CloudConfig"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.CloudConfig">[docs]</a><span class="nd">@attrs</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span> <span class="nc">CloudConfig</span><span class="p">:</span>
+    <span class="n">project</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">)</span>
+    <span class="n">service_key</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">)</span>
+    <span class="n">storage_key_id</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">)</span>
+    <span class="n">storage_key_secret</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">)</span>
+
+    <span class="nd">@service_key</span><span class="o">.</span><span class="n">default</span>
+    <span class="k">def</span> <span class="nf">_service_key_default</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;GOOGLE_APPLICATION_CREDENTIALS&#39;</span><span class="p">]</span>
+
+    <span class="nd">@storage_key_id</span><span class="o">.</span><span class="n">default</span>
+    <span class="k">def</span> <span class="nf">_storage_key_id_default</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;AWS_ACCESS_KEY_ID&#39;</span><span class="p">]</span>
+
+    <span class="nd">@storage_key_secret</span><span class="o">.</span><span class="n">default</span>
+    <span class="k">def</span> <span class="nf">_storage_key_secret_default</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;AWS_SECRET_ACCESS_KEY&#39;</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="MachineType"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.MachineType">[docs]</a><span class="k">class</span> <span class="nc">MachineType</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
+<div class="viewcode-block" id="MachineType.get_cpu"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.MachineType.get_cpu">[docs]</a>    <span class="k">def</span> <span class="nf">get_cpu</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="bp">NotImplemented</span></div>
+
+<div class="viewcode-block" id="MachineType.get_mem"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.MachineType.get_mem">[docs]</a>    <span class="k">def</span> <span class="nf">get_mem</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="bp">NotImplemented</span></div>
+
+<div class="viewcode-block" id="MachineType.get_name"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.MachineType.get_name">[docs]</a>    <span class="k">def</span> <span class="nf">get_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="bp">NotImplemented</span></div></div>
+
+
+<span class="n">GCP_MEM_RATIOS</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;standard&#39;</span><span class="p">:</span> <span class="mf">3.75</span><span class="p">,</span> <span class="s1">&#39;highmem&#39;</span><span class="p">:</span> <span class="mf">6.5</span><span class="p">,</span> <span class="s1">&#39;highcpu&#39;</span><span class="p">:</span> <span class="mf">0.9</span><span class="p">}</span>
+
+
+<div class="viewcode-block" id="MachineTypeName"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.MachineTypeName">[docs]</a><span class="nd">@attrs</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span> <span class="nc">MachineTypeName</span><span class="p">(</span><span class="n">MachineType</span><span class="p">):</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">)</span>
+
+<div class="viewcode-block" id="MachineTypeName.get_cpu"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.MachineTypeName.get_cpu">[docs]</a>    <span class="k">def</span> <span class="nf">get_cpu</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;-&#39;</span><span class="p">)[</span><span class="mi">2</span><span class="p">])</span></div>
+
+<div class="viewcode-block" id="MachineTypeName.get_mem"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.MachineTypeName.get_mem">[docs]</a>    <span class="k">def</span> <span class="nf">get_mem</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">ty</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;-&#39;</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">GCP_MEM_RATIOS</span><span class="p">[</span><span class="n">ty</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_cpu</span><span class="p">())</span></div>
+
+<div class="viewcode-block" id="MachineTypeName.get_name"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.MachineTypeName.get_name">[docs]</a>    <span class="k">def</span> <span class="nf">get_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span></div></div>
+
+
+<div class="viewcode-block" id="MachineTypeQuantity"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.MachineTypeQuantity">[docs]</a><span class="nd">@attrs</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span> <span class="nc">MachineTypeQuantity</span><span class="p">(</span><span class="n">MachineType</span><span class="p">):</span>
+    <span class="n">cpu</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+    <span class="n">mem</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+
+<div class="viewcode-block" id="MachineTypeQuantity.get_cpu"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.MachineTypeQuantity.get_cpu">[docs]</a>    <span class="k">def</span> <span class="nf">get_cpu</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">cpu</span></div>
+
+<div class="viewcode-block" id="MachineTypeQuantity.get_mem"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.MachineTypeQuantity.get_mem">[docs]</a>    <span class="k">def</span> <span class="nf">get_mem</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">mem</span></div>
+
+<div class="viewcode-block" id="MachineTypeQuantity.get_name"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.MachineTypeQuantity.get_name">[docs]</a>    <span class="k">def</span> <span class="nf">get_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># See Google Cloud documentation for instance names.</span>
+        <span class="c1"># https://cloud.google.com/compute/pricing#machinetype</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">mem_cpu_ratio</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mem</span><span class="p">)</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">cpu</span>
+        <span class="k">if</span> <span class="n">math</span><span class="o">.</span><span class="n">log2</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cpu</span><span class="p">)</span><span class="o">.</span><span class="n">is_integer</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">ratio</span> <span class="ow">in</span> <span class="n">GCP_MEM_RATIOS</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">math</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span><span class="n">mem_cpu_ratio</span><span class="p">,</span> <span class="n">ratio</span><span class="p">):</span>
+                    <span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;n1-</span><span class="si">{}</span><span class="s1">-</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cpu</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;custom-</span><span class="si">{}</span><span class="s1">-</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cpu</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">mem</span> <span class="o">*</span> <span class="mi">1024</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">mem_cpu_ratio</span> <span class="o">&gt;</span> <span class="mf">6.5</span><span class="p">:</span>
+                <span class="n">name</span> <span class="o">+=</span> <span class="s1">&#39;-ext&#39;</span>
+
+        <span class="k">return</span> <span class="n">name</span></div></div>
+
+
+<div class="viewcode-block" id="MachineConfig"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.MachineConfig">[docs]</a><span class="nd">@attrs</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span> <span class="nc">MachineConfig</span><span class="p">:</span>
+    <span class="n">image</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">)</span>
+    <span class="nb">type</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="n">MachineType</span><span class="p">)</span>
+    <span class="n">disk</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+    <span class="n">gpu</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">gpu_type</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s1">&#39;nvidia-tesla-p100&#39;</span><span class="p">)</span>
+    <span class="n">preemptible</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="nb">bool</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+<div class="viewcode-block" id="MachineConfig.price"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.MachineConfig.price">[docs]</a>    <span class="k">def</span> <span class="nf">price</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">parts</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">type</span><span class="o">.</span><span class="n">get_name</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;-&#39;</span><span class="p">)</span>
+        <span class="n">category</span> <span class="o">=</span> <span class="n">parts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">preempt</span> <span class="o">=</span> <span class="s1">&#39;preemptible&#39;</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">preemptible</span> <span class="k">else</span> <span class="s1">&#39;normal&#39;</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="k">if</span> <span class="n">category</span> <span class="o">==</span> <span class="s1">&#39;n1&#39;</span><span class="p">:</span>
+            <span class="n">prices</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">&#39;normal&#39;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s1">&#39;standard&#39;</span><span class="p">:</span> <span class="mf">0.0475</span><span class="p">,</span>
+                    <span class="s1">&#39;highmem&#39;</span><span class="p">:</span> <span class="mf">0.1184</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span>
+                    <span class="s1">&#39;highcpu&#39;</span><span class="p">:</span> <span class="mf">0.0709</span> <span class="o">/</span> <span class="mi">2</span>
+                <span class="p">},</span>
+                <span class="s1">&#39;preemptible&#39;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s1">&#39;standard&#39;</span><span class="p">:</span> <span class="mf">0.01</span><span class="p">,</span>
+                    <span class="s1">&#39;highmem&#39;</span><span class="p">:</span> <span class="mf">0.0125</span><span class="p">,</span>
+                    <span class="s1">&#39;highcpu&#39;</span><span class="p">:</span> <span class="mf">0.0075</span>
+                <span class="p">}</span>
+            <span class="p">}</span>
+            <span class="n">p</span> <span class="o">=</span> <span class="n">prices</span><span class="p">[</span><span class="n">preempt</span><span class="p">][</span><span class="n">parts</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span> <span class="o">*</span> <span class="nb">int</span><span class="p">(</span><span class="n">parts</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+
+        <span class="k">elif</span> <span class="n">category</span> <span class="o">==</span> <span class="s1">&#39;custom&#39;</span><span class="p">:</span>
+            <span class="p">[</span><span class="n">cpu</span><span class="p">,</span> <span class="n">mem</span><span class="p">]</span> <span class="o">=</span> <span class="n">parts</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+            <span class="n">cpu</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cpu</span><span class="p">)</span>
+            <span class="n">mem</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">mem</span><span class="p">)</span>
+            <span class="n">prices</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">&#39;normal&#39;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s1">&#39;cpu&#39;</span><span class="p">:</span> <span class="mf">0.033174</span><span class="p">,</span>
+                    <span class="s1">&#39;mem&#39;</span><span class="p">:</span> <span class="mf">0.004446</span><span class="p">,</span>
+                <span class="p">},</span>
+                <span class="s1">&#39;preemptible&#39;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s1">&#39;cpu&#39;</span><span class="p">:</span> <span class="mf">0.00698</span><span class="p">,</span>
+                    <span class="s1">&#39;mem&#39;</span><span class="p">:</span> <span class="mf">0.00094</span>
+                <span class="p">}</span>
+            <span class="p">}</span>
+            <span class="n">p</span> <span class="o">=</span> <span class="n">prices</span><span class="p">[</span><span class="n">preempt</span><span class="p">][</span><span class="s1">&#39;cpu&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="n">cpu</span> <span class="o">+</span> <span class="n">prices</span><span class="p">[</span><span class="n">preempt</span><span class="p">][</span><span class="s1">&#39;mem&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">mem</span> <span class="o">/</span> <span class="mi">1024</span><span class="p">)</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">&#39;Invalid category </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">category</span><span class="p">))</span>
+
+        <span class="n">gpu_prices</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;normal&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;nvidia-tesla-k80&#39;</span><span class="p">:</span> <span class="mf">0.45</span><span class="p">,</span>
+                <span class="s1">&#39;nvidia-tesla-p100&#39;</span><span class="p">:</span> <span class="mf">1.46</span><span class="p">,</span>
+                <span class="s1">&#39;nvidia-tesla-v100&#39;</span><span class="p">:</span> <span class="mf">2.48</span>
+            <span class="p">},</span>
+            <span class="s1">&#39;preemptible&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;nvidia-tesla-k80&#39;</span><span class="p">:</span> <span class="mf">0.135</span><span class="p">,</span>
+                <span class="s1">&#39;nvidia-tesla-p100&#39;</span><span class="p">:</span> <span class="mf">0.43</span><span class="p">,</span>
+                <span class="s1">&#39;nvidia-tesla-v100&#39;</span><span class="p">:</span> <span class="mf">0.74</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+
+        <span class="n">p</span> <span class="o">+=</span> <span class="n">gpu_prices</span><span class="p">[</span><span class="n">preempt</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">gpu_type</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">gpu</span>
+        <span class="k">return</span> <span class="n">p</span></div></div>
+
+
+<div class="viewcode-block" id="ClusterConfig"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.ClusterConfig">[docs]</a><span class="nd">@attrs</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span> <span class="nc">ClusterConfig</span><span class="p">:</span>
+    <span class="nb">id</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">)</span>
+    <span class="n">num_workers</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+    <span class="n">master</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="n">MachineConfig</span><span class="p">)</span>
+    <span class="n">worker</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="n">MachineConfig</span><span class="p">)</span>
+    <span class="n">zone</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s1">&#39;us-east1-b&#39;</span><span class="p">)</span>
+    <span class="n">kube_version</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s1">&#39;latest&#39;</span><span class="p">)</span>
+    <span class="n">num_load_workers</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span>
+    <span class="n">num_save_workers</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span>
+    <span class="n">autoscale</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="nb">bool</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">no_workers_timeout</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">600</span><span class="p">)</span>
+    <span class="n">scopes</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span>
+        <span class="nb">type</span><span class="o">=</span><span class="nb">frozenset</span><span class="p">,</span>
+        <span class="n">default</span><span class="o">=</span><span class="nb">frozenset</span><span class="p">([</span>
+            <span class="s2">&quot;https://www.googleapis.com/auth/compute&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;https://www.googleapis.com/auth/devstorage.read_write&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;https://www.googleapis.com/auth/logging.write&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;https://www.googleapis.com/auth/monitoring&quot;</span><span class="p">,</span> <span class="s2">&quot;https://www.googleapis.com/auth/pubsub&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;https://www.googleapis.com/auth/servicecontrol&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;https://www.googleapis.com/auth/service.management.readonly&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;https://www.googleapis.com/auth/trace.append&quot;</span>
+        <span class="p">]))</span>
+    <span class="n">scanner_config</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span>
+        <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;HOME&#39;</span><span class="p">],</span> <span class="s1">&#39;.scanner/config.toml&#39;</span><span class="p">))</span>
+    <span class="n">pipelines</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="nb">frozenset</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="nb">frozenset</span><span class="p">([]))</span>
+
+    <span class="c1"># unit is $/hr</span>
+<div class="viewcode-block" id="ClusterConfig.price"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.ClusterConfig.price">[docs]</a>    <span class="k">def</span> <span class="nf">price</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">no_master</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">master</span><span class="o">.</span><span class="n">price</span><span class="p">()</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">no_master</span> <span class="k">else</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">worker</span><span class="o">.</span><span class="n">price</span><span class="p">()</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_workers</span></div></div>
+
+
+<div class="viewcode-block" id="Cluster"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.Cluster">[docs]</a><span class="k">class</span> <span class="nc">Cluster</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cloud_config</span><span class="p">,</span> <span class="n">cluster_config</span><span class="p">,</span> <span class="n">no_start</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">no_delete</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">containers</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cloud_config</span> <span class="o">=</span> <span class="n">cloud_config</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cluster_config</span> <span class="o">=</span> <span class="n">cluster_config</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cluster_cmd</span> <span class="o">=</span> <span class="s1">&#39;gcloud beta container --project </span><span class="si">{}</span><span class="s1"> clusters --zone </span><span class="si">{}</span><span class="s1">&#39;</span> \
+            <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cloud_config</span><span class="o">.</span><span class="n">project</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cluster_config</span><span class="o">.</span><span class="n">zone</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_no_start</span> <span class="o">=</span> <span class="n">no_start</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_no_delete</span> <span class="o">=</span> <span class="n">no_delete</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_containers</span> <span class="o">=</span> <span class="n">containers</span> <span class="ow">or</span> <span class="p">[]</span>
+
+<div class="viewcode-block" id="Cluster.config"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.Cluster.config">[docs]</a>    <span class="k">def</span> <span class="nf">config</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cluster_config</span></div>
+
+<div class="viewcode-block" id="Cluster.get_kube_info"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.Cluster.get_kube_info">[docs]</a>    <span class="k">def</span> <span class="nf">get_kube_info</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">kind</span><span class="p">,</span> <span class="n">namespace</span><span class="o">=</span><span class="s1">&#39;default&#39;</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">run</span><span class="p">(</span><span class="s1">&#39;kubectl get </span><span class="si">{}</span><span class="s1"> -o json -n </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">kind</span><span class="p">,</span> <span class="n">namespace</span><span class="p">)))</span></div>
+
+<div class="viewcode-block" id="Cluster.get_by_owner"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.Cluster.get_by_owner">[docs]</a>    <span class="k">def</span> <span class="nf">get_by_owner</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ty</span><span class="p">,</span> <span class="n">owner</span><span class="p">,</span> <span class="n">namespace</span><span class="o">=</span><span class="s1">&#39;default&#39;</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">run</span><span class="p">(</span>
+            <span class="s1">&#39;kubectl get </span><span class="si">{}</span><span class="s1"> -o json -n </span><span class="si">{}</span><span class="s1"> | jq -r </span><span class="se">\&#39;</span><span class="s1">.items[] | select(.metadata.ownerReferences[0].name == &quot;</span><span class="si">{}</span><span class="s1">&quot;) | .metadata.name</span><span class="se">\&#39;</span><span class="s1">&#39;</span> \
+            <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ty</span><span class="p">,</span> <span class="n">namespace</span><span class="p">,</span> <span class="n">owner</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="Cluster.get_object"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.Cluster.get_object">[docs]</a>    <span class="k">def</span> <span class="nf">get_object</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">info</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">info</span><span class="p">[</span><span class="s1">&#39;items&#39;</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="n">item</span><span class="p">[</span><span class="s1">&#39;metadata&#39;</span><span class="p">][</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">name</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">item</span>
+        <span class="k">return</span> <span class="kc">None</span></div>
+
+<div class="viewcode-block" id="Cluster.get_pod"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.Cluster.get_pod">[docs]</a>    <span class="k">def</span> <span class="nf">get_pod</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">deployment</span><span class="p">,</span> <span class="n">namespace</span><span class="o">=</span><span class="s1">&#39;default&#39;</span><span class="p">):</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">rs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_by_owner</span><span class="p">(</span><span class="s1">&#39;rs&#39;</span><span class="p">,</span> <span class="n">deployment</span><span class="p">,</span> <span class="n">namespace</span><span class="p">)</span>
+            <span class="n">pod_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_by_owner</span><span class="p">(</span><span class="s1">&#39;pod&#39;</span><span class="p">,</span> <span class="n">rs</span><span class="p">,</span> <span class="n">namespace</span><span class="p">)</span>
+            <span class="k">if</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">pod_name</span> <span class="ow">and</span> <span class="n">pod_name</span> <span class="o">!=</span> <span class="s2">&quot;&quot;</span><span class="p">:</span>
+                <span class="k">break</span>
+            <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">pod</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_object</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_kube_info</span><span class="p">(</span><span class="s1">&#39;pod&#39;</span><span class="p">,</span> <span class="n">namespace</span><span class="p">),</span> <span class="n">pod_name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">pod</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">pod</span>
+            <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Cluster.running"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.Cluster.running">[docs]</a>    <span class="k">def</span> <span class="nf">running</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pool</span><span class="o">=</span><span class="n">MASTER_POOL</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">run</span><span class="p">(</span>
+            <span class="s1">&#39;</span><span class="si">{cmd}</span><span class="s1"> list --cluster=</span><span class="si">{id}</span><span class="s1"> --format=json | jq </span><span class="se">\&#39;</span><span class="s1">.[] | select(.name == &quot;</span><span class="si">{pool}</span><span class="s1">&quot;)</span><span class="se">\&#39;</span><span class="s1">&#39;</span><span class="o">.</span>
+            <span class="nb">format</span><span class="p">(</span>
+                <span class="n">cmd</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_cluster_cmd</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;clusters&#39;</span><span class="p">,</span> <span class="s1">&#39;node-pools&#39;</span><span class="p">),</span>
+                <span class="nb">id</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_cluster_config</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+                <span class="n">pool</span><span class="o">=</span><span class="n">pool</span><span class="p">))</span> <span class="o">!=</span> <span class="s1">&#39;&#39;</span></div>
+
+<div class="viewcode-block" id="Cluster.get_credentials"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.Cluster.get_credentials">[docs]</a>    <span class="k">def</span> <span class="nf">get_credentials</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cluster_config</span><span class="o">.</span><span class="n">id</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">run</span><span class="p">(</span>
+                <span class="s1">&#39;kubectl config view -o json | jq </span><span class="se">\&#39;</span><span class="s1">.[&quot;current-context&quot;]</span><span class="se">\&#39;</span><span class="s1"> -r&#39;</span><span class="p">):</span>
+            <span class="n">run</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">{cmd}</span><span class="s1"> get-credentials </span><span class="si">{id}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">cmd</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_cluster_cmd</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_cluster_config</span><span class="o">.</span><span class="n">id</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="Cluster.create_object"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.Cluster.create_object">[docs]</a>    <span class="k">def</span> <span class="nf">create_object</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">template</span><span class="p">):</span>
+        <span class="k">with</span> <span class="n">tempfile</span><span class="o">.</span><span class="n">NamedTemporaryFile</span><span class="p">()</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">yaml</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">template</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+            <span class="n">run</span><span class="p">(</span><span class="s1">&#39;kubectl create -f </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">name</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="Cluster.make_container"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.Cluster.make_container">[docs]</a>    <span class="k">def</span> <span class="nf">make_container</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">machine_config</span><span class="p">):</span>
+        <span class="n">template</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="n">name</span><span class="p">,</span>
+            <span class="s1">&#39;image&#39;</span><span class="p">:</span> <span class="n">machine_config</span><span class="o">.</span><span class="n">image</span><span class="p">,</span>
+            <span class="s1">&#39;command&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;/bin/bash&#39;</span><span class="p">],</span>
+            <span class="s1">&#39;args&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;-c&#39;</span><span class="p">,</span> <span class="s1">&#39;python3 -c &quot;from scannerpy import kube; kube.</span><span class="si">{}</span><span class="s1">()&quot;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">)],</span>
+            <span class="s1">&#39;imagePullPolicy&#39;</span><span class="p">:</span> <span class="s1">&#39;Always&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;volumeMounts&#39;</span><span class="p">:</span> <span class="p">[{</span>
+                <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;service-key&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;mountPath&#39;</span><span class="p">:</span> <span class="s1">&#39;/secret&#39;</span>
+            <span class="p">},</span> <span class="p">{</span>
+                <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;scanner-config&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;mountPath&#39;</span><span class="p">:</span> <span class="s1">&#39;/root/.scanner/config.toml&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;subPath&#39;</span><span class="p">:</span> <span class="s1">&#39;config.toml&#39;</span>
+            <span class="p">}],</span>
+            <span class="s1">&#39;env&#39;</span><span class="p">:</span> <span class="p">[</span>
+                <span class="p">{</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;GOOGLE_APPLICATION_CREDENTIALS&#39;</span><span class="p">,</span>
+                 <span class="s1">&#39;value&#39;</span><span class="p">:</span> <span class="s1">&#39;/secret/</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cloud_config</span><span class="o">.</span><span class="n">service_key</span><span class="p">))},</span>
+                <span class="p">{</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;AWS_ACCESS_KEY_ID&#39;</span><span class="p">,</span>
+                 <span class="s1">&#39;valueFrom&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;secretKeyRef&#39;</span><span class="p">:</span> <span class="p">{</span>
+                     <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;aws-storage-key&#39;</span><span class="p">,</span>
+                     <span class="s1">&#39;key&#39;</span><span class="p">:</span> <span class="s1">&#39;AWS_ACCESS_KEY_ID&#39;</span>
+                 <span class="p">}}},</span>
+                <span class="p">{</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;AWS_SECRET_ACCESS_KEY&#39;</span><span class="p">,</span>
+                 <span class="s1">&#39;valueFrom&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;secretKeyRef&#39;</span><span class="p">:</span> <span class="p">{</span>
+                     <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;aws-storage-key&#39;</span><span class="p">,</span>
+                     <span class="s1">&#39;key&#39;</span><span class="p">:</span> <span class="s1">&#39;AWS_SECRET_ACCESS_KEY&#39;</span>
+                 <span class="p">}}},</span>
+                <span class="p">{</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;NO_WORKERS_TIMEOUT&#39;</span><span class="p">,</span>
+                 <span class="s1">&#39;value&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cluster_config</span><span class="o">.</span><span class="n">no_workers_timeout</span><span class="p">)},</span>
+                <span class="p">{</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;GLOG_minloglevel&#39;</span><span class="p">,</span>
+                 <span class="s1">&#39;value&#39;</span><span class="p">:</span> <span class="s1">&#39;0&#39;</span><span class="p">},</span>
+                <span class="p">{</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;GLOG_logtostderr&#39;</span><span class="p">,</span>
+                 <span class="s1">&#39;value&#39;</span><span class="p">:</span> <span class="s1">&#39;1&#39;</span><span class="p">},</span>
+                <span class="p">{</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;GLOG_v&#39;</span><span class="p">,</span>
+                 <span class="s1">&#39;value&#39;</span><span class="p">:</span> <span class="s1">&#39;2&#39;</span> <span class="k">if</span> <span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;master&#39;</span> <span class="k">else</span> <span class="s1">&#39;1&#39;</span><span class="p">},</span>
+                <span class="p">{</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;NUM_LOAD_WORKERS&#39;</span><span class="p">,</span>
+                 <span class="s1">&#39;value&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cluster_config</span><span class="o">.</span><span class="n">num_load_workers</span><span class="p">)},</span>
+                <span class="p">{</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;NUM_SAVE_WORKERS&#39;</span><span class="p">,</span>
+                 <span class="s1">&#39;value&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cluster_config</span><span class="o">.</span><span class="n">num_save_workers</span><span class="p">)},</span>
+                <span class="p">{</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;PIPELINES&#39;</span><span class="p">,</span>
+                 <span class="s1">&#39;value&#39;</span><span class="p">:</span> <span class="n">base64</span><span class="o">.</span><span class="n">b64encode</span><span class="p">(</span><span class="n">cloudpickle</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cluster_config</span><span class="o">.</span><span class="n">pipelines</span><span class="p">))},</span>
+                <span class="c1"># HACK(wcrichto): GPU decode for interlaced videos is broken, so forcing CPU</span>
+                <span class="c1"># decode instead for now.</span>
+                <span class="p">{</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;FORCE_CPU_DECODE&#39;</span><span class="p">,</span>
+                 <span class="s1">&#39;value&#39;</span><span class="p">:</span> <span class="s1">&#39;1&#39;</span><span class="p">}</span>
+            <span class="p">],</span>
+            <span class="s1">&#39;resources&#39;</span><span class="p">:</span> <span class="p">{},</span>
+            <span class="s1">&#39;securityContext&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;capabilities&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;add&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;SYS_PTRACE&#39;</span><span class="p">]</span>  <span class="c1"># Allows gdb to work in container</span>
+            <span class="p">}}</span>
+        <span class="p">}</span>  <span class="c1"># yapf: disable</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;master&#39;</span><span class="p">:</span>
+            <span class="n">template</span><span class="p">[</span><span class="s1">&#39;ports&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[{</span>
+                <span class="s1">&#39;containerPort&#39;</span><span class="p">:</span> <span class="mi">8080</span><span class="p">,</span>
+            <span class="p">}]</span>
+
+        <span class="k">if</span> <span class="n">machine_config</span><span class="o">.</span><span class="n">gpu</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">template</span><span class="p">[</span><span class="s1">&#39;resources&#39;</span><span class="p">][</span><span class="s1">&#39;limits&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;nvidia.com/gpu&#39;</span><span class="p">:</span> <span class="n">machine_config</span><span class="o">.</span><span class="n">gpu</span><span class="p">}</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;worker&#39;</span><span class="p">:</span>
+                <span class="n">template</span><span class="p">[</span><span class="s1">&#39;resources&#39;</span><span class="p">][</span><span class="s1">&#39;requests&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                    <span class="s1">&#39;cpu&#39;</span><span class="p">:</span> <span class="n">machine_config</span><span class="o">.</span><span class="n">type</span><span class="o">.</span><span class="n">get_cpu</span><span class="p">()</span> <span class="o">/</span> <span class="mf">2.0</span> <span class="o">+</span> <span class="mf">0.1</span>
+                <span class="p">}</span>
+
+        <span class="k">return</span> <span class="n">template</span></div>
+
+<div class="viewcode-block" id="Cluster.make_deployment"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.Cluster.make_deployment">[docs]</a>    <span class="k">def</span> <span class="nf">make_deployment</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">machine_config</span><span class="p">,</span> <span class="n">replicas</span><span class="p">):</span>
+        <span class="n">template</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;apiVersion&#39;</span><span class="p">:</span> <span class="s1">&#39;apps/v1beta1&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="s1">&#39;Deployment&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;metadata&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;scanner-</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">)},</span>
+            <span class="s1">&#39;spec&#39;</span><span class="p">:</span> <span class="p">{</span>  <span class="c1"># DeploymentSpec</span>
+                <span class="s1">&#39;replicas&#39;</span><span class="p">:</span> <span class="n">replicas</span><span class="p">,</span>
+                <span class="s1">&#39;template&#39;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s1">&#39;metadata&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;labels&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;app&#39;</span><span class="p">:</span> <span class="s1">&#39;scanner-</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">)}},</span>
+                    <span class="s1">&#39;spec&#39;</span><span class="p">:</span> <span class="p">{</span>  <span class="c1"># PodSpec</span>
+                        <span class="s1">&#39;containers&#39;</span><span class="p">:</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">make_container</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">machine_config</span><span class="p">)]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_containers</span><span class="p">,</span>
+                        <span class="s1">&#39;volumes&#39;</span><span class="p">:</span> <span class="p">[{</span>
+                            <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;service-key&#39;</span><span class="p">,</span>
+                            <span class="s1">&#39;secret&#39;</span><span class="p">:</span> <span class="p">{</span>
+                                <span class="s1">&#39;secretName&#39;</span><span class="p">:</span> <span class="s1">&#39;service-key&#39;</span><span class="p">,</span>
+                                <span class="s1">&#39;items&#39;</span><span class="p">:</span> <span class="p">[{</span>
+                                    <span class="s1">&#39;key&#39;</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cloud_config</span><span class="o">.</span><span class="n">service_key</span><span class="p">),</span>
+                                    <span class="s1">&#39;path&#39;</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cloud_config</span><span class="o">.</span><span class="n">service_key</span><span class="p">)</span>
+                                <span class="p">}]</span>
+                            <span class="p">}</span>
+                        <span class="p">},</span> <span class="p">{</span>
+                            <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;scanner-config&#39;</span><span class="p">,</span>
+                            <span class="s1">&#39;configMap&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;scanner-config&#39;</span><span class="p">}</span>
+                        <span class="p">}],</span>
+                        <span class="s1">&#39;nodeSelector&#39;</span><span class="p">:</span> <span class="p">{</span>
+                            <span class="s1">&#39;cloud.google.com/gke-nodepool&#39;</span><span class="p">:</span>
+                            <span class="n">MASTER_POOL</span> <span class="k">if</span> <span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;master&#39;</span> <span class="k">else</span> <span class="n">WORKER_POOL</span>
+                        <span class="p">}</span>
+                    <span class="p">}</span>
+                <span class="p">}</span>
+            <span class="p">}</span>
+        <span class="p">}</span>  <span class="c1"># yapf: disable</span>
+
+        <span class="k">return</span> <span class="n">template</span></div>
+
+    <span class="k">def</span> <span class="nf">_cluster_start</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">cfg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cluster_config</span>
+        <span class="n">fmt_args</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;cmd&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cluster_cmd</span><span class="p">,</span>
+            <span class="s1">&#39;cluster_id&#39;</span><span class="p">:</span> <span class="n">cfg</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+            <span class="s1">&#39;cluster_version&#39;</span><span class="p">:</span> <span class="n">cfg</span><span class="o">.</span><span class="n">kube_version</span><span class="p">,</span>
+            <span class="s1">&#39;master_machine&#39;</span><span class="p">:</span> <span class="n">cfg</span><span class="o">.</span><span class="n">master</span><span class="o">.</span><span class="n">type</span><span class="o">.</span><span class="n">get_name</span><span class="p">(),</span>
+            <span class="s1">&#39;master_disk&#39;</span><span class="p">:</span> <span class="n">cfg</span><span class="o">.</span><span class="n">master</span><span class="o">.</span><span class="n">disk</span><span class="p">,</span>
+            <span class="s1">&#39;worker_machine&#39;</span><span class="p">:</span> <span class="n">cfg</span><span class="o">.</span><span class="n">worker</span><span class="o">.</span><span class="n">type</span><span class="o">.</span><span class="n">get_name</span><span class="p">(),</span>
+            <span class="s1">&#39;worker_disk&#39;</span><span class="p">:</span> <span class="n">cfg</span><span class="o">.</span><span class="n">worker</span><span class="o">.</span><span class="n">disk</span><span class="p">,</span>
+            <span class="s1">&#39;scopes&#39;</span><span class="p">:</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">scopes</span><span class="p">),</span>
+            <span class="s1">&#39;initial_size&#39;</span><span class="p">:</span> <span class="n">cfg</span><span class="o">.</span><span class="n">num_workers</span><span class="p">,</span>
+            <span class="s1">&#39;accelerator&#39;</span><span class="p">:</span> <span class="s1">&#39;--accelerator type=</span><span class="si">{}</span><span class="s1">,count=</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">worker</span><span class="o">.</span><span class="n">gpu_type</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">worker</span><span class="o">.</span><span class="n">gpu</span><span class="p">)</span> <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">worker</span><span class="o">.</span><span class="n">gpu</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;preemptible&#39;</span><span class="p">:</span> <span class="s1">&#39;--preemptible&#39;</span> <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">worker</span><span class="o">.</span><span class="n">preemptible</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;autoscaling&#39;</span><span class="p">:</span> <span class="s1">&#39;--enable-autoscaling --min-nodes 0 --max-nodes </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">num_workers</span><span class="p">)</span> <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">autoscale</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;master_cpu_platform&#39;</span><span class="p">:</span> <span class="s1">&#39;--min-cpu-platform skylake&#39;</span> <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">master</span><span class="o">.</span><span class="n">type</span><span class="o">.</span><span class="n">get_cpu</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">64</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;worker_cpu_platform&#39;</span><span class="p">:</span> <span class="s1">&#39;--min-cpu-platform skylake&#39;</span> <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">worker</span><span class="o">.</span><span class="n">type</span><span class="o">.</span><span class="n">get_cpu</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">64</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span>
+        <span class="p">}</span>  <span class="c1"># yapf: disable</span>
+
+
+        <span class="c1"># wcrichto 2-22-19: after correspondence with Edward Doan at GCP on cluster startup times,</span>
+        <span class="c1"># they say that enabling autoscaling on the master node pool should reduce startup times for worker pool</span>
+        <span class="n">cluster_cmd</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<span class="si">{cmd}</span><span class="s2"> -q create &quot;</span><span class="si">{cluster_id}</span><span class="s2">&quot; </span><span class="se">\</span>
+<span class="s2">        --cluster-version &quot;</span><span class="si">{cluster_version}</span><span class="s2">&quot; </span><span class="se">\</span>
+<span class="s2">        --machine-type &quot;</span><span class="si">{master_machine}</span><span class="s2">&quot; </span><span class="se">\</span>
+<span class="s2">        --image-type &quot;COS&quot; </span><span class="se">\</span>
+<span class="s2">        --disk-size &quot;</span><span class="si">{master_disk}</span><span class="s2">&quot; </span><span class="se">\</span>
+<span class="s2">        --scopes </span><span class="si">{scopes}</span><span class="s2"> </span><span class="se">\</span>
+<span class="s2">        --num-nodes &quot;1&quot; </span><span class="se">\</span>
+<span class="s2">        --enable-cloud-logging </span><span class="se">\</span>
+<span class="s2">        --enable-autoscaling --min-nodes 1 --max-nodes 1 </span><span class="se">\</span>
+<span class="s2">        </span><span class="si">{accelerator}</span><span class="s2"> </span><span class="se">\</span>
+<span class="s2">        </span><span class="si">{master_cpu_platform}</span><span class="s2"></span>
+<span class="s2">        &quot;&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="o">**</span><span class="n">fmt_args</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">running</span><span class="p">(</span><span class="n">pool</span><span class="o">=</span><span class="n">MASTER_POOL</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Cluster price: $</span><span class="si">{:.2f}</span><span class="s1">/hr&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">price</span><span class="p">()))</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Failed to compute cluster price with error:&#39;</span><span class="p">)</span>
+                <span class="n">traceback</span><span class="o">.</span><span class="n">print_exc</span><span class="p">()</span>
+
+            <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Creating master...&#39;</span><span class="p">)</span>
+            <span class="n">run</span><span class="p">(</span><span class="n">cluster_cmd</span><span class="p">)</span>
+            <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                <span class="s1">&#39;https://console.cloud.google.com/kubernetes/clusters/details/</span><span class="si">{zone}</span><span class="s1">/</span><span class="si">{cluster_id}</span><span class="s1">?project=</span><span class="si">{project}</span><span class="s1">&amp;tab=details&#39;</span> \
+                <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">zone</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">zone</span><span class="p">,</span> <span class="n">project</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_cloud_config</span><span class="o">.</span><span class="n">project</span><span class="p">,</span> <span class="o">**</span><span class="n">fmt_args</span><span class="p">))</span>
+
+            <span class="n">fmt_args</span><span class="p">[</span><span class="s1">&#39;cmd&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">fmt_args</span><span class="p">[</span><span class="s1">&#39;cmd&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;clusters&#39;</span><span class="p">,</span> <span class="s1">&#39;node-pools&#39;</span><span class="p">)</span>
+            <span class="n">pool_cmd</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">    </span><span class="si">{cmd}</span><span class="s2"> -q create workers </span><span class="se">\</span>
+<span class="s2">            --cluster &quot;</span><span class="si">{cluster_id}</span><span class="s2">&quot; </span><span class="se">\</span>
+<span class="s2">            --machine-type &quot;</span><span class="si">{worker_machine}</span><span class="s2">&quot; </span><span class="se">\</span>
+<span class="s2">            --image-type &quot;COS&quot; </span><span class="se">\</span>
+<span class="s2">            --disk-size &quot;</span><span class="si">{worker_disk}</span><span class="s2">&quot; </span><span class="se">\</span>
+<span class="s2">            --scopes </span><span class="si">{scopes}</span><span class="s2"> </span><span class="se">\</span>
+<span class="s2">            --num-nodes &quot;</span><span class="si">{initial_size}</span><span class="s2">&quot; </span><span class="se">\</span>
+<span class="s2">            </span><span class="si">{autoscaling}</span><span class="s2"> </span><span class="se">\</span>
+<span class="s2">            </span><span class="si">{preemptible}</span><span class="s2"> </span><span class="se">\</span>
+<span class="s2">            </span><span class="si">{accelerator}</span><span class="s2"> </span><span class="se">\</span>
+<span class="s2">            </span><span class="si">{worker_cpu_platform}</span><span class="s2"></span>
+<span class="s2">            &quot;&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="o">**</span><span class="n">fmt_args</span><span class="p">)</span>
+
+            <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Creating workers...&#39;</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">run</span><span class="p">(</span><span class="n">pool_cmd</span><span class="p">)</span>
+            <span class="k">except</span> <span class="n">sp</span><span class="o">.</span><span class="n">CalledProcessError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="c1"># Ignore errors for now due to GKE issue</span>
+                <span class="n">log</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s1">&#39;Worker pool command errored: </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">e</span><span class="p">))</span>
+
+            <span class="c1"># Wait for cluster to enter reconciliation if it&#39;s going to occur</span>
+            <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Waiting for cluster to reconcile...&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">num_workers</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">60</span><span class="p">)</span>
+
+            <span class="c1"># If we requested workers up front, we have to wait for the cluster to reconcile while</span>
+            <span class="c1"># they are being allocated</span>
+            <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+                <span class="n">cluster_status</span> <span class="o">=</span> <span class="n">run</span><span class="p">(</span>
+                    <span class="s1">&#39;</span><span class="si">{cmd}</span><span class="s1"> list --format=json | jq -r </span><span class="se">\&#39;</span><span class="s1">.[] | select(.name == &quot;</span><span class="si">{id}</span><span class="s1">&quot;) | .status</span><span class="se">\&#39;</span><span class="s1">&#39;</span><span class="o">.</span>
+                    <span class="nb">format</span><span class="p">(</span><span class="n">cmd</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_cluster_cmd</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">id</span><span class="p">))</span>
+
+                <span class="k">if</span> <span class="n">cluster_status</span> <span class="o">==</span> <span class="s1">&#39;RECONCILING&#39;</span><span class="p">:</span>
+                    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">cluster_status</span> <span class="o">!=</span> <span class="s1">&#39;RUNNING&#39;</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span>
+                            <span class="s1">&#39;Expected cluster status RUNNING, got: </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">cluster_status</span><span class="p">))</span>
+                    <span class="k">break</span>
+
+        <span class="c1"># TODO(wcrichto): run this if GPU driver daemon isn&#39;t running yet</span>
+        <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">worker</span><span class="o">.</span><span class="n">gpu</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># Install GPU drivers</span>
+            <span class="c1"># https://cloud.google.com/kubernetes-engine/docs/concepts/gpus#installing_drivers</span>
+            <span class="n">run</span><span class="p">(</span><span class="s1">&#39;kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/stable/nvidia-driver-installer/cos/daemonset-preloaded.yaml&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_kube_start</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reset</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">wait</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="n">cfg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cluster_config</span>
+        <span class="n">deploy</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_object</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_kube_info</span><span class="p">(</span><span class="s1">&#39;deployments&#39;</span><span class="p">),</span> <span class="s1">&#39;scanner-worker&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">deploy</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">num_workers</span> <span class="o">=</span> <span class="n">deploy</span><span class="p">[</span><span class="s1">&#39;status&#39;</span><span class="p">][</span><span class="s1">&#39;replicas&#39;</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">num_workers</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">num_workers</span>
+
+        <span class="k">if</span> <span class="n">reset</span><span class="p">:</span>
+            <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Deleting current deployments...&#39;</span><span class="p">)</span>
+            <span class="n">run</span><span class="p">(</span><span class="s1">&#39;kubectl delete deploy/scanner-master deploy/scanner-worker --ignore-not-found=true&#39;</span>
+                <span class="p">)</span>
+            <span class="n">run</span><span class="p">(</span><span class="s1">&#39;kubectl delete service/scanner-master --ignore-not-found=true&#39;</span><span class="p">)</span>
+
+        <span class="n">secrets</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_kube_info</span><span class="p">(</span><span class="s1">&#39;secrets&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_object</span><span class="p">(</span><span class="n">secrets</span><span class="p">,</span> <span class="s1">&#39;service-key&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Making secrets...&#39;</span><span class="p">)</span>
+            <span class="n">run</span><span class="p">(</span><span class="s1">&#39;kubectl create secret generic service-key --from-file=</span><span class="si">{}</span><span class="s1">&#39;</span> \
+                <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cloud_config</span><span class="o">.</span><span class="n">service_key</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_object</span><span class="p">(</span><span class="n">secrets</span><span class="p">,</span> <span class="s1">&#39;aws-storage-key&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">run</span><span class="p">(</span><span class="s1">&#39;kubectl create secret generic aws-storage-key --from-literal=AWS_ACCESS_KEY_ID=</span><span class="si">{}</span><span class="s1"> --from-literal=AWS_SECRET_ACCESS_KEY=</span><span class="si">{}</span><span class="s1">&#39;</span> \
+                <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cloud_config</span><span class="o">.</span><span class="n">storage_key_id</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cloud_config</span><span class="o">.</span><span class="n">storage_key_secret</span><span class="p">))</span>
+
+        <span class="n">configmaps</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_kube_info</span><span class="p">(</span><span class="s1">&#39;configmaps&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_object</span><span class="p">(</span><span class="n">configmaps</span><span class="p">,</span> <span class="s1">&#39;scanner-config&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">run</span><span class="p">(</span><span class="s1">&#39;kubectl create configmap scanner-config --from-file=</span><span class="si">{}</span><span class="s1">&#39;</span> \
+                <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cluster_config</span><span class="o">.</span><span class="n">scanner_config</span><span class="p">))</span>
+
+        <span class="n">deployments</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_kube_info</span><span class="p">(</span><span class="s1">&#39;deployments&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_object</span><span class="p">(</span><span class="n">deployments</span><span class="p">,</span> <span class="s1">&#39;scanner-master&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Creating deployments...&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">create_object</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">make_deployment</span><span class="p">(</span><span class="s1">&#39;master&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cluster_config</span><span class="o">.</span><span class="n">master</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+
+        <span class="n">services</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_kube_info</span><span class="p">(</span><span class="s1">&#39;services&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_object</span><span class="p">(</span><span class="n">services</span><span class="p">,</span> <span class="s1">&#39;scanner-master&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">run</span><span class="p">(</span><span class="s1">&#39;kubectl expose deploy/scanner-master --type=NodePort --port=8080&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_object</span><span class="p">(</span><span class="n">deployments</span><span class="p">,</span> <span class="s1">&#39;scanner-worker&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">create_object</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">make_deployment</span><span class="p">(</span><span class="s1">&#39;worker&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cluster_config</span><span class="o">.</span><span class="n">worker</span><span class="p">,</span> <span class="n">num_workers</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">wait</span><span class="p">:</span>
+            <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Waiting on master...&#39;</span><span class="p">)</span>
+            <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+                <span class="n">master</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_pod</span><span class="p">(</span><span class="s1">&#39;scanner-master&#39;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">master</span><span class="p">[</span><span class="s1">&#39;status&#39;</span><span class="p">][</span><span class="s1">&#39;phase&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;Running&#39;</span><span class="p">:</span>
+                    <span class="k">break</span>
+                <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Cluster.start"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.Cluster.start">[docs]</a>    <span class="k">def</span> <span class="nf">start</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reset</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">wait</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cluster_start</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">get_credentials</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_kube_start</span><span class="p">(</span><span class="n">reset</span><span class="p">,</span> <span class="n">wait</span><span class="p">)</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Finished startup.&#39;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Cluster.resize"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.Cluster.resize">[docs]</a>    <span class="k">def</span> <span class="nf">resize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">size</span><span class="p">):</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Resized cluster price: $</span><span class="si">{:.2f}</span><span class="s1">/hr&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">evolve</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cluster_config</span><span class="p">,</span> <span class="n">num_workers</span><span class="o">=</span><span class="n">size</span><span class="p">)</span><span class="o">.</span><span class="n">price</span><span class="p">()))</span>
+
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Resizing cluster...&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cluster_config</span><span class="o">.</span><span class="n">autoscale</span><span class="p">:</span>
+            <span class="n">run</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">{cmd}</span><span class="s1"> resize </span><span class="si">{id}</span><span class="s1"> -q --node-pool=workers --size=</span><span class="si">{size}</span><span class="s1">&#39;</span> \
+                <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">cmd</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_cluster_cmd</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_cluster_config</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">size</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">run</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">{cmd}</span><span class="s1"> update </span><span class="si">{id}</span><span class="s1"> -q --node-pool=workers --enable-autoscaling --max-nodes=</span><span class="si">{size}</span><span class="s1">&#39;</span> \
+                <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">cmd</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_cluster_cmd</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_cluster_config</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">size</span><span class="p">))</span>
+
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Scaling deployment...&#39;</span><span class="p">)</span>
+        <span class="n">run</span><span class="p">(</span><span class="s1">&#39;kubectl scale deploy/scanner-worker --replicas=</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">size</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="Cluster.delete"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.Cluster.delete">[docs]</a>    <span class="k">def</span> <span class="nf">delete</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prompt</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="n">run</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">{cmd}</span><span class="s1"> </span><span class="si">{prompt}</span><span class="s1"> delete </span><span class="si">{id}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="n">cmd</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_cluster_cmd</span><span class="p">,</span> <span class="n">prompt</span><span class="o">=</span><span class="s1">&#39;-q&#39;</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">prompt</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_cluster_config</span><span class="o">.</span><span class="n">id</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="Cluster.master_address"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.Cluster.master_address">[docs]</a>    <span class="k">def</span> <span class="nf">master_address</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">ip</span> <span class="o">=</span> <span class="n">run</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">            kubectl get pods -l &#39;app=scanner-master&#39; -o json | </span><span class="se">\</span>
+<span class="s1">            jq &#39;.items[0].spec.nodeName&#39; -r | </span><span class="se">\</span>
+<span class="s1">            xargs -I </span><span class="si">{}</span><span class="s1"> kubectl get nodes/</span><span class="si">{}</span><span class="s1"> -o json | </span><span class="se">\</span>
+<span class="s1">            jq &#39;.status.addresses[] | select(.type == &quot;ExternalIP&quot;) | .address&#39; -r</span>
+<span class="s1">            &#39;&#39;&#39;</span><span class="p">)</span>
+
+        <span class="n">port</span> <span class="o">=</span> <span class="n">run</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">            kubectl get svc/scanner-master -o json | </span><span class="se">\</span>
+<span class="s1">            jq &#39;.spec.ports[0].nodePort&#39; -r</span>
+<span class="s1">            &#39;&#39;&#39;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">:</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">port</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Cluster.client"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.Cluster.client">[docs]</a>    <span class="k">def</span> <span class="nf">client</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">retries</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">scannerpy</span><span class="o">.</span><span class="n">Client</span><span class="p">(</span>
+                    <span class="n">master</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">master_address</span><span class="p">(),</span> <span class="n">start_cluster</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                    <span class="n">config_path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_cluster_config</span><span class="o">.</span><span class="n">scanner_config</span><span class="p">,</span>
+                    <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="k">except</span> <span class="n">scannerpy</span><span class="o">.</span><span class="n">ScannerException</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">retries</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="k">raise</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">retries</span> <span class="o">-=</span> <span class="mi">1</span></div>
+
+<div class="viewcode-block" id="Cluster.job_status"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.Cluster.job_status">[docs]</a>    <span class="k">def</span> <span class="nf">job_status</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">sc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="p">()</span>
+        <span class="n">jobs</span> <span class="o">=</span> <span class="n">sc</span><span class="o">.</span><span class="n">get_active_jobs</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">jobs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">sc</span><span class="o">.</span><span class="n">wait_on_job</span><span class="p">(</span><span class="n">jobs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span></div>
+
+<div class="viewcode-block" id="Cluster.healthy"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.Cluster.healthy">[docs]</a>    <span class="k">def</span> <span class="nf">healthy</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">failed</span> <span class="o">=</span> <span class="n">run</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">            kubectl get pod -o json | </span><span class="se">\</span>
+<span class="s1">            jq -r &#39;.items[].status | select(.phase == &quot;Failed&quot; or .containerStatuses[0].lastState.terminated.reason == &quot;OOMKilled&quot;)&#39;</span>
+<span class="s1">            &#39;&#39;&#39;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">failed</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span></div>
+
+<div class="viewcode-block" id="Cluster.monitor"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.Cluster.monitor">[docs]</a>    <span class="k">def</span> <span class="nf">monitor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sc</span><span class="p">):</span>
+        <span class="n">done</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">done_cvar</span> <span class="o">=</span> <span class="n">Condition</span><span class="p">()</span>
+
+        <span class="k">def</span> <span class="nf">loop_set</span><span class="p">(</span><span class="n">cond</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+            <span class="k">def</span> <span class="nf">wrapper</span><span class="p">():</span>
+                <span class="k">nonlocal</span> <span class="n">done</span>
+                <span class="k">nonlocal</span> <span class="n">done_cvar</span>
+
+                <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">done</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="k">break</span>
+
+                    <span class="k">if</span> <span class="n">cond</span><span class="p">():</span>
+                        <span class="k">with</span> <span class="n">done_cvar</span><span class="p">:</span>
+                            <span class="n">done</span> <span class="o">=</span> <span class="n">val</span>
+                            <span class="n">done_cvar</span><span class="o">.</span><span class="n">notify</span><span class="p">()</span>
+
+                    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">wrapper</span>
+
+        <span class="n">jobs</span> <span class="o">=</span> <span class="n">sc</span><span class="o">.</span><span class="n">get_active_jobs</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">jobs</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;No active jobs&quot;</span><span class="p">)</span>
+
+        <span class="n">gen</span> <span class="o">=</span> <span class="n">sc</span><span class="o">.</span><span class="n">wait_on_job_gen</span><span class="p">(</span><span class="n">jobs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+        <span class="k">def</span> <span class="nf">scanner_check</span><span class="p">():</span>
+            <span class="k">nonlocal</span> <span class="n">gen</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="nb">next</span><span class="p">(</span><span class="n">gen</span><span class="p">)</span>
+                <span class="k">return</span> <span class="kc">False</span>
+            <span class="k">except</span> <span class="ne">StopIteration</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">True</span>
+
+        <span class="k">def</span> <span class="nf">health_check</span><span class="p">():</span>
+            <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">healthy</span><span class="p">()</span>
+
+        <span class="n">metrics</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">def</span> <span class="nf">resource_check</span><span class="p">():</span>
+            <span class="k">nonlocal</span> <span class="n">metrics</span>
+            <span class="n">metrics</span><span class="o">.</span><span class="n">extend</span><span class="p">([{</span><span class="s1">&#39;TIME&#39;</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">(),</span> <span class="o">**</span><span class="n">r</span><span class="p">}</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">resource_metrics</span><span class="p">()])</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="n">checks</span> <span class="o">=</span> <span class="p">[(</span><span class="n">scanner_check</span><span class="p">,</span> <span class="kc">True</span><span class="p">),</span> <span class="p">(</span><span class="n">health_check</span><span class="p">,</span> <span class="kc">False</span><span class="p">),</span> <span class="p">(</span><span class="n">resource_check</span><span class="p">,</span> <span class="kc">None</span><span class="p">)]</span>
+
+        <span class="n">threads</span> <span class="o">=</span> <span class="p">[</span><span class="n">Thread</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">loop_set</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">v</span><span class="p">),</span> <span class="n">daemon</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">for</span> <span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="n">checks</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">threads</span><span class="p">:</span>
+            <span class="n">t</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+
+        <span class="k">with</span> <span class="n">done_cvar</span><span class="p">:</span>
+            <span class="k">while</span> <span class="n">done</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">done_cvar</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>
+
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">threads</span><span class="p">:</span>
+            <span class="n">t</span><span class="o">.</span><span class="n">join</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">done</span><span class="p">,</span> <span class="n">metrics</span></div>
+
+<div class="viewcode-block" id="Cluster.resource_metrics"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.Cluster.resource_metrics">[docs]</a>    <span class="k">def</span> <span class="nf">resource_metrics</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">table</span> <span class="o">=</span> <span class="n">run</span><span class="p">(</span><span class="s1">&#39;kubectl top nodes&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="p">(</span><span class="n">header</span><span class="p">,</span> <span class="n">rows</span><span class="p">)</span> <span class="o">=</span> <span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">table</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+
+        <span class="k">def</span> <span class="nf">match</span><span class="p">(</span><span class="n">line</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;([^\s]+)\s*&#39;</span><span class="p">,</span> <span class="n">line</span><span class="p">)</span>
+
+        <span class="n">columns</span> <span class="o">=</span> <span class="n">match</span><span class="p">(</span><span class="n">header</span><span class="p">)</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="p">[{</span>
+            <span class="n">c</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;(\d+)&#39;</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span> <span class="k">if</span> <span class="n">c</span> <span class="o">!=</span> <span class="s1">&#39;NAME&#39;</span> <span class="k">else</span> <span class="n">v</span>
+            <span class="k">for</span> <span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">columns</span><span class="p">,</span> <span class="n">match</span><span class="p">(</span><span class="n">row</span><span class="p">))</span>
+        <span class="p">}</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">]</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="p">[</span><span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">values</span> <span class="k">if</span> <span class="s1">&#39;default-pool&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">v</span><span class="p">[</span><span class="s1">&#39;NAME&#39;</span><span class="p">]]</span>
+
+        <span class="k">return</span> <span class="n">values</span></div>
+
+<div class="viewcode-block" id="Cluster.master_logs"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.Cluster.master_logs">[docs]</a>    <span class="k">def</span> <span class="nf">master_logs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">previous</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="n">master</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_pod</span><span class="p">(</span><span class="s1">&#39;scanner-master&#39;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">run</span><span class="p">(</span><span class="s1">&#39;kubectl logs pod/</span><span class="si">{}</span><span class="s1"> master </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">master</span><span class="p">[</span><span class="s1">&#39;metadata&#39;</span><span class="p">][</span><span class="s1">&#39;name&#39;</span><span class="p">],</span> <span class="s1">&#39;--previous&#39;</span> <span class="k">if</span> <span class="n">previous</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span><span class="p">)))</span></div>
+
+<div class="viewcode-block" id="Cluster.worker_logs"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.Cluster.worker_logs">[docs]</a>    <span class="k">def</span> <span class="nf">worker_logs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">previous</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="n">workers</span> <span class="o">=</span> <span class="p">[</span><span class="n">pod</span> <span class="k">for</span> <span class="n">pod</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_kube_info</span><span class="p">(</span><span class="s1">&#39;pod&#39;</span><span class="p">)[</span><span class="s1">&#39;items&#39;</span><span class="p">]</span> <span class="k">if</span> <span class="n">pod</span><span class="p">[</span><span class="s1">&#39;metadata&#39;</span><span class="p">][</span><span class="s1">&#39;labels&#39;</span><span class="p">][</span><span class="s1">&#39;app&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;scanner-worker&#39;</span><span class="p">]</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">run</span><span class="p">(</span><span class="s1">&#39;kubectl logs pod/</span><span class="si">{}</span><span class="s1"> worker </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">workers</span><span class="p">[</span><span class="n">n</span><span class="p">][</span><span class="s1">&#39;metadata&#39;</span><span class="p">][</span><span class="s1">&#39;name&#39;</span><span class="p">],</span> <span class="s1">&#39;--previous&#39;</span> <span class="k">if</span> <span class="n">previous</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span><span class="p">)))</span></div>
+
+<div class="viewcode-block" id="Cluster.trace"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.Cluster.trace">[docs]</a>    <span class="k">def</span> <span class="nf">trace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">subsample</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">job</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">get_credentials</span><span class="p">()</span>
+
+        <span class="n">sc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="p">()</span>
+
+        <span class="c1"># Get most recent job id if none is provided</span>
+        <span class="k">if</span> <span class="n">job</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Fetching job ID&#39;</span><span class="p">)</span>
+            <span class="n">job</span> <span class="o">=</span> <span class="nb">max</span><span class="p">([</span>
+                <span class="nb">int</span><span class="p">(</span><span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)[</span><span class="o">-</span><span class="mi">2</span><span class="p">])</span>
+                <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">sp</span><span class="o">.</span><span class="n">check_output</span><span class="p">(</span><span class="s1">&#39;gsutil ls gs://</span><span class="si">{}</span><span class="s1">/</span><span class="si">{}</span><span class="s1">/jobs&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                        <span class="n">sc</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s1">&#39;storage&#39;</span><span class="p">][</span><span class="s1">&#39;bucket&#39;</span><span class="p">],</span>
+                        <span class="n">sc</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">db_path</span><span class="p">),</span>
+                    <span class="n">shell</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> \
+                <span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="p">])</span>
+
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Writing trace...&#39;</span><span class="p">)</span>
+        <span class="n">sc</span><span class="o">.</span><span class="n">profiler</span><span class="p">(</span><span class="n">job</span><span class="p">,</span> <span class="n">subsample</span><span class="o">=</span><span class="n">subsample</span><span class="p">)</span><span class="o">.</span><span class="n">write_trace</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Trace written.&#39;</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="fm">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_no_start</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="fm">__exit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_no_delete</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">delete</span><span class="p">()</span>
+
+<div class="viewcode-block" id="Cluster.cli"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.Cluster.cli">[docs]</a>    <span class="k">def</span> <span class="nf">cli</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">()</span>
+        <span class="n">command</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">add_subparsers</span><span class="p">(</span><span class="n">dest</span><span class="o">=</span><span class="s1">&#39;command&#39;</span><span class="p">)</span>
+        <span class="n">command</span><span class="o">.</span><span class="n">required</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">create</span> <span class="o">=</span> <span class="n">command</span><span class="o">.</span><span class="n">add_parser</span><span class="p">(</span><span class="s1">&#39;start&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Create cluster&#39;</span><span class="p">)</span>
+        <span class="n">create</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+            <span class="s1">&#39;--no-reset&#39;</span><span class="p">,</span> <span class="s1">&#39;-nr&#39;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_true&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Delete current deployments&#39;</span><span class="p">)</span>
+        <span class="n">create</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;--no-wait&#39;</span><span class="p">,</span> <span class="s1">&#39;-nw&#39;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_true&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Don</span><span class="se">\&#39;</span><span class="s1">t wait for master&#39;</span><span class="p">)</span>
+        <span class="n">create</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+            <span class="s1">&#39;--num-workers&#39;</span><span class="p">,</span> <span class="s1">&#39;-n&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Initial number of workers&#39;</span><span class="p">)</span>
+        <span class="n">delete</span> <span class="o">=</span> <span class="n">command</span><span class="o">.</span><span class="n">add_parser</span><span class="p">(</span><span class="s1">&#39;delete&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Delete cluster&#39;</span><span class="p">)</span>
+        <span class="n">delete</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+            <span class="s1">&#39;--no-prompt&#39;</span><span class="p">,</span> <span class="s1">&#39;-np&#39;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_true&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Don</span><span class="se">\&#39;</span><span class="s1">t prompt for deletion&#39;</span><span class="p">)</span>
+        <span class="n">resize</span> <span class="o">=</span> <span class="n">command</span><span class="o">.</span><span class="n">add_parser</span><span class="p">(</span><span class="s1">&#39;resize&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Resize number of nodes in cluster&#39;</span><span class="p">)</span>
+        <span class="n">resize</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;size&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Number of nodes&#39;</span><span class="p">)</span>
+        <span class="n">command</span><span class="o">.</span><span class="n">add_parser</span><span class="p">(</span><span class="s1">&#39;get-credentials&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Setup kubectl with credentials&#39;</span><span class="p">)</span>
+        <span class="n">command</span><span class="o">.</span><span class="n">add_parser</span><span class="p">(</span><span class="s1">&#39;job-status&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;View status of current running job&#39;</span><span class="p">)</span>
+        <span class="n">master_logs</span> <span class="o">=</span> <span class="n">command</span><span class="o">.</span><span class="n">add_parser</span><span class="p">(</span><span class="s1">&#39;master-logs&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Get logs of Scanner master&#39;</span><span class="p">)</span>
+        <span class="n">master_logs</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;--previous&#39;</span><span class="p">,</span> <span class="s1">&#39;-p&#39;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_true&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Get logs for previous container&#39;</span><span class="p">)</span>
+        <span class="n">worker_logs</span> <span class="o">=</span> <span class="n">command</span><span class="o">.</span><span class="n">add_parser</span><span class="p">(</span><span class="s1">&#39;worker-logs&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Get logs of a Scanner worker&#39;</span><span class="p">)</span>
+        <span class="n">worker_logs</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;n&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Index of worker&#39;</span><span class="p">)</span>
+        <span class="n">worker_logs</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;--previous&#39;</span><span class="p">,</span> <span class="s1">&#39;-p&#39;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_true&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Get logs for previous container&#39;</span><span class="p">)</span>
+        <span class="n">trace</span> <span class="o">=</span> <span class="n">command</span><span class="o">.</span><span class="n">add_parser</span><span class="p">(</span><span class="s1">&#39;trace&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Extract profiler trace&#39;</span><span class="p">)</span>
+        <span class="n">trace</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;path&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Path to output trace&#39;</span><span class="p">)</span>
+        <span class="n">trace</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;--subsample&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Number of workers to include in trace&#39;</span><span class="p">)</span>
+        <span class="n">trace</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;--job&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Job ID to extract (default is latest)&#39;</span><span class="p">)</span>
+
+        <span class="n">args</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">command</span> <span class="o">==</span> <span class="s1">&#39;start&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">(</span><span class="n">reset</span><span class="o">=</span><span class="ow">not</span> <span class="n">args</span><span class="o">.</span><span class="n">no_reset</span><span class="p">,</span> <span class="n">wait</span><span class="o">=</span><span class="ow">not</span> <span class="n">args</span><span class="o">.</span><span class="n">no_wait</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">args</span><span class="o">.</span><span class="n">command</span> <span class="o">==</span> <span class="s1">&#39;delete&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">prompt</span><span class="o">=</span><span class="ow">not</span> <span class="n">args</span><span class="o">.</span><span class="n">no_prompt</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">args</span><span class="o">.</span><span class="n">command</span> <span class="o">==</span> <span class="s1">&#39;resize&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">resize</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">args</span><span class="o">.</span><span class="n">command</span> <span class="o">==</span> <span class="s1">&#39;get-credentials&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">get_credentials</span><span class="p">()</span>
+
+        <span class="k">elif</span> <span class="n">args</span><span class="o">.</span><span class="n">command</span> <span class="o">==</span> <span class="s1">&#39;job-status&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">job_status</span><span class="p">()</span>
+
+        <span class="k">elif</span> <span class="n">args</span><span class="o">.</span><span class="n">command</span> <span class="o">==</span> <span class="s1">&#39;master-logs&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">master_logs</span><span class="p">(</span><span class="n">previous</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">previous</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">args</span><span class="o">.</span><span class="n">command</span> <span class="o">==</span> <span class="s1">&#39;worker-logs&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">worker_logs</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">n</span><span class="p">,</span> <span class="n">previous</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">previous</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">args</span><span class="o">.</span><span class="n">command</span> <span class="o">==</span> <span class="s1">&#39;trace&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">path</span><span class="p">,</span> <span class="n">subsample</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">subsample</span><span class="p">,</span> <span class="n">job</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">job</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="master"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.master">[docs]</a><span class="k">def</span> <span class="nf">master</span><span class="p">():</span>
+    <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Scanner: starting master...&#39;</span><span class="p">)</span>
+    <span class="n">scannerpy</span><span class="o">.</span><span class="n">start_master</span><span class="p">(</span>
+        <span class="n">port</span><span class="o">=</span><span class="s1">&#39;8080&#39;</span><span class="p">,</span>
+        <span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">watchdog</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">no_workers_timeout</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;NO_WORKERS_TIMEOUT&#39;</span><span class="p">]))</span></div>
+
+
+<div class="viewcode-block" id="worker"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.kube.worker">[docs]</a><span class="k">def</span> <span class="nf">worker</span><span class="p">():</span>
+    <span class="n">machine_params</span> <span class="o">=</span> <span class="n">MachineParameters</span><span class="p">()</span>
+    <span class="n">machine_params</span><span class="o">.</span><span class="n">ParseFromString</span><span class="p">(</span><span class="n">default_machine_params</span><span class="p">())</span>
+    <span class="n">machine_params</span><span class="o">.</span><span class="n">num_load_workers</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;NUM_LOAD_WORKERS&#39;</span><span class="p">])</span>
+    <span class="n">machine_params</span><span class="o">.</span><span class="n">num_save_workers</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;NUM_SAVE_WORKERS&#39;</span><span class="p">])</span>
+
+    <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Scanner: starting worker...&#39;</span><span class="p">)</span>
+    <span class="n">scannerpy</span><span class="o">.</span><span class="n">start_worker</span><span class="p">(</span>
+        <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">:</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;SCANNER_MASTER_SERVICE_HOST&#39;</span><span class="p">],</span>
+                       <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;SCANNER_MASTER_SERVICE_PORT&#39;</span><span class="p">]),</span>
+        <span class="n">machine_params</span><span class="o">=</span><span class="n">machine_params</span><span class="o">.</span><span class="n">SerializeToString</span><span class="p">(),</span>
+        <span class="n">block</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">watchdog</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">port</span><span class="o">=</span><span class="mi">5002</span><span class="p">)</span></div>
+</pre></div>
+
+      </div>
+    </div>
+  </div>
+</div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Scanner 0.2.22 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/languages/python.min.js"></script>
+<script>hljs.initHighlightingOnLoad();</script>
+  </body>
+</html>

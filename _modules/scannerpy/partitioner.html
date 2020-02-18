@@ -1,0 +1,171 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+
+<title>scannerpy.partitioner - Scanner</title>
+
+
+    <link rel="stylesheet" href="../../_static/basic.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
+    <script id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/jquery.js"></script>
+    <script src="../../_static/underscore.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/language_data.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+<meta charset='utf-8'>
+<meta http-equiv='X-UA-Compatible' content='IE=edge,chrome=1'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1'>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" />
+<link rel="stylesheet"
+      href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/styles/default.min.css">
+
+<!-- Global site tag (gtag.js) - Google Analytics -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-133298183-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'UA-133298183-1');
+</script>
+
+
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Scanner 0.2.22 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>
+<div class="container">
+  <div id="navbar" class="navbar-default">
+    <div class="row">
+      <div class="col-md-4 col-sm-12">
+        <a class="navbar-brand" href="../../index.html"><span><img src="../../_static/scanner_logo.png"></span>
+        </a>
+      </div>
+      <div class="col-md-4 offset-md-4 col-sm-12">
+        <div class="btn-group">
+          <a href="../../guide.html"><button type="button" class="btn btn-light">Guide</button></a>
+          <a href="../../api.html"><button type="button" class="btn btn-light">API</button></a>
+          <a href="https://github.com/scanner-research/scanner"><button type="button" class="btn btn-light">Github</button></a>
+          <a href="../../publications.html"><button type="button" class="btn btn-light">Publications</button></a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-3">
+      <div class="bs-sidenav">
+        <div class="bs-sidenav-inner">
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-9">
+      <div class="content">
+        
+  <h1>Source code for scannerpy.partitioner</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">scannerpy.common</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">scannerpy.protobufs</span> <span class="kn">import</span> <span class="n">protobufs</span>
+
+<span class="n">DEFAULT_GROUP_SIZE</span> <span class="o">=</span> <span class="mi">250</span>
+
+<div class="viewcode-block" id="TaskPartitioner"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.partitioner.TaskPartitioner">[docs]</a><span class="k">class</span> <span class="nc">TaskPartitioner</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Utility for specifying how to partition the output domain of a job into</span>
+<span class="sd">    tasks.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sc</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sc</span> <span class="o">=</span> <span class="n">sc</span>
+
+<div class="viewcode-block" id="TaskPartitioner.all"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.partitioner.TaskPartitioner.all">[docs]</a>    <span class="k">def</span> <span class="nf">all</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">group_size</span><span class="o">=</span><span class="n">DEFAULT_GROUP_SIZE</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">strided</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">group_size</span><span class="o">=</span><span class="n">group_size</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="TaskPartitioner.strided"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.partitioner.TaskPartitioner.strided">[docs]</a>    <span class="k">def</span> <span class="nf">strided</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stride</span><span class="p">,</span> <span class="n">group_size</span><span class="o">=</span><span class="n">DEFAULT_GROUP_SIZE</span><span class="p">):</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">StridedPartitionerArgs</span><span class="p">()</span>
+        <span class="n">args</span><span class="o">.</span><span class="n">stride</span> <span class="o">=</span> <span class="n">stride</span>
+        <span class="n">args</span><span class="o">.</span><span class="n">group_size</span> <span class="o">=</span> <span class="n">group_size</span>
+        <span class="n">sampling_args</span> <span class="o">=</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">SamplingArgs</span><span class="p">()</span>
+        <span class="n">sampling_args</span><span class="o">.</span><span class="n">sampling_function</span> <span class="o">=</span> <span class="s1">&#39;Strided&#39;</span>
+        <span class="n">sampling_args</span><span class="o">.</span><span class="n">sampling_args</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">SerializeToString</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">sampling_args</span></div>
+
+<div class="viewcode-block" id="TaskPartitioner.range"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.partitioner.TaskPartitioner.range">[docs]</a>    <span class="k">def</span> <span class="nf">range</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">ranges</span><span class="p">([(</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">)])</span></div>
+
+<div class="viewcode-block" id="TaskPartitioner.ranges"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.partitioner.TaskPartitioner.ranges">[docs]</a>    <span class="k">def</span> <span class="nf">ranges</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">intervals</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">strided_ranges</span><span class="p">(</span><span class="n">intervals</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="TaskPartitioner.gather"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.partitioner.TaskPartitioner.gather">[docs]</a>    <span class="k">def</span> <span class="nf">gather</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">groups</span><span class="p">):</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">GatherSamplerArgs</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">rows</span> <span class="ow">in</span> <span class="n">groups</span><span class="p">:</span>
+            <span class="n">gather_group</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">groups_add</span><span class="p">()</span>
+            <span class="n">gather_group</span><span class="o">.</span><span class="n">rows</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">rows</span>
+        <span class="n">sampling_args</span> <span class="o">=</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">SamplingArgs</span><span class="p">()</span>
+        <span class="n">sampling_args</span><span class="o">.</span><span class="n">sampling_function</span> <span class="o">=</span> <span class="s1">&#39;Gather&#39;</span>
+        <span class="n">sampling_args</span><span class="o">.</span><span class="n">sampling_args</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">SerializeToString</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">sampling_args</span></div>
+
+<div class="viewcode-block" id="TaskPartitioner.strided_range"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.partitioner.TaskPartitioner.strided_range">[docs]</a>    <span class="k">def</span> <span class="nf">strided_range</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">stride</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">strided_ranges</span><span class="p">([(</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">)],</span> <span class="n">stride</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="TaskPartitioner.strided_ranges"><a class="viewcode-back" href="../../api/scannerpy.html#scannerpy.partitioner.TaskPartitioner.strided_ranges">[docs]</a>    <span class="k">def</span> <span class="nf">strided_ranges</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">intervals</span><span class="p">,</span> <span class="n">stride</span><span class="p">):</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">StridedRangePartitionerArgs</span><span class="p">()</span>
+        <span class="n">args</span><span class="o">.</span><span class="n">stride</span> <span class="o">=</span> <span class="n">stride</span>
+        <span class="k">for</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span> <span class="ow">in</span> <span class="n">intervals</span><span class="p">:</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">starts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">start</span><span class="p">)</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">ends</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">end</span><span class="p">)</span>
+        <span class="n">sampling_args</span> <span class="o">=</span> <span class="n">protobufs</span><span class="o">.</span><span class="n">SamplingArgs</span><span class="p">()</span>
+        <span class="n">sampling_args</span><span class="o">.</span><span class="n">sampling_function</span> <span class="o">=</span> <span class="s1">&#39;StridedRange&#39;</span>
+        <span class="n">sampling_args</span><span class="o">.</span><span class="n">sampling_args</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">SerializeToString</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">sampling_args</span></div></div>
+</pre></div>
+
+      </div>
+    </div>
+  </div>
+</div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Scanner 0.2.22 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/languages/python.min.js"></script>
+<script>hljs.initHighlightingOnLoad();</script>
+  </body>
+</html>
