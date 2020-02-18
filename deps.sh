@@ -180,6 +180,7 @@ case $key in
         ;;
     --without-openvino)
         NO_OPENVINO=true
+        INSTALL_OPENVINO=false
         shift # past arg
         ;;
     *)    # unknown option
@@ -216,8 +217,13 @@ else
 fi
 
 # Check if we have GPUs by looking for nvidia-smi
+BUILD_CV_DNN=false
 if command -v nvidia-smi >/dev/null 2>&1; then
     HAVE_GPU=true
+    CUDA_VERSION=$(nvcc --version | grep "release" | awk '{print $5}' |  sed 's/.$//')
+    if [ $CUDA_VERSION -ge '10.0' ]; then
+        BUILD_CV_DNN=true
+    fi
 else
     HAVE_GPU=false
 fi
@@ -237,7 +243,7 @@ echo ""
 echo "Configuration:"
 echo "--------------------------------------------------------------"
 echo "Detected Python version: $PYTHON_VERSION"
-echo "GPUs available:          $HAVE_GPU"
+echo "GPUs available:          $HAVE_GPU ($CUDA_VERSION)"
 echo ""
 
 # Directories for installed dependencies
@@ -633,6 +639,7 @@ if [[ $INSTALL_OPENCV == true ]] && [[ ! -f $BUILD_DIR/opencv.done ]]; then
 
     cd $BUILD_DIR
     rm -rf opencv opencv_contrib ceres-solver
+    # Forcing versions below CUDA 5.3 to not be built because OpenCV 4.2 DNN does not support them
     git clone -b 4.2.0 https://github.com/opencv/opencv --depth 1 && \
         git clone -b 4.2.0  https://github.com/opencv/opencv_contrib \
             --depth 1 && \
@@ -650,12 +657,13 @@ if [[ $INSTALL_OPENCV == true ]] && [[ ! -f $BUILD_DIR/opencv.done ]]; then
               -D BUILD_opencv_cnn_3dobj=OFF \
               -D BUILD_opencv_cudacodec=OFF \
               -D BUILD_opencv_xfeatures2d=OFF \
+              -D CUDA_ARCH_BIN="5.3 6.0 6.1" \
               -D WITH_PROTOBUF=OFF \
               -D BUILD_PROTOBUF=OFF \
               -D OPENCV_EXTRA_MODULES_PATH=$BUILD_DIR/opencv_contrib/modules \
               -D WITH_INF_ENGINE=ON \
               -D ENABLE_CXX11=ON \
-              -D BUILD_opencv_dnn=ON \
+              -D BUILD_opencv_dnn=$BUILD_CV_DNN \
               -D OPENCV_ENABLE_NONFREE=ON \
               -D WITH_PROTOBUF=ON \
               -D BUILD_PROTOBUF=ON \
@@ -922,11 +930,11 @@ if [[ $INSTALL_CAFFE == true ]] && \
         rm -fr mkl
         mkdir mkl && \
             cd mkl && \
-            wget http://registrationcenter-download.intel.com/akdlm/irc_nas/tec/12414/l_mkl_2018.1.163.tgz && \
-            tar -zxf l_mkl_2018.1.163.tgz && \
+            wget http://registrationcenter-download.intel.com/akdlm/irc_nas/tec/16318/l_mkl_2020.0.166.tgz && \
+            tar -zxf l_mkl_2020.0.166.tgz && \
             cp $FILES_DIR/mkl/silent.cfg silent.cfg && \
             echo "PSET_INSTALL_DIR=$INSTALL_PREFIX/intel" >> silent.cfg && \
-            cd l_mkl_2018.1.163 && \
+            cd l_mkl_2020.0.166 && \
             bash install.sh --cli-mode --silent ../silent.cfg
     fi
 
