@@ -1280,7 +1280,8 @@ a binary blob for non-frame columns (optionally processed by the
 <p>Initialize the formatter with specified format strings.</p>
 <p>Initialize the formatter either with the specified format string, or a
 default as described above. Allow for specialized date formatting with
-the optional datefmt argument (if omitted, you get the ISO8601 format).</p>
+the optional datefmt argument. If datefmt is omitted, you get an
+ISO8601-like (or RFC 3339-like) format.</p>
 <p>Use a style parameter of ‘%’, ‘{‘ or ‘$’ to specify that you want to
 use one of %-formatting, <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str.format" title="(in Python v3.8)"><code class="xref py py-meth docutils literal notranslate"><span class="pre">str.format()</span></code></a> (<code class="docutils literal notranslate"><span class="pre">{}</span></code>) formatting or
 <a class="reference external" href="https://docs.python.org/3/library/string.html#string.Template" title="(in Python v3.8)"><code class="xref py py-class docutils literal notranslate"><span class="pre">string.Template</span></code></a> formatting in your format string.</p>
