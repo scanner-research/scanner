@@ -123,7 +123,7 @@ def main():
         'grpcio == {:s}'.format(major_minor_grpc_version),
         'protobuf == 3.6.1', 'toml >= 0.9.2',
         'numpy >= 1.12.0,<=1.16.0', 'tqdm >= 4.19.5', 'cloudpickle >=0.5.3,<=0.6.1',
-        'attrs == 18.2.0', 'psutil == 5.6.1', 'gputil == 1.4.0', 'pyyaml'
+        'attrs >= 18.2.0', 'psutil == 5.6.1', 'gputil == 1.4.0', 'pyyaml'
        ]
 
     TEST_PACKAGES = ['pytest']

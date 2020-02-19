@@ -2,11 +2,16 @@
 
 ARG base_tag
 FROM ${base_tag}
-MAINTAINER Will Crichton "wcrichto@cs.stanford.edu"
+MAINTAINER Fait Poms "fpoms@cs.stanford.edu"
 ARG cores=1
 ARG cpu_only=OFF
 
+
 # Apt-installable dependencies
+RUN apt-get update
+RUN apt-get install -y cmake wget software-properties-common
+RUN apt-get update
+RUN add-apt-repository ppa:deadsnakes/ppa
 RUN apt-get update && apt-get upgrade -y && \
     apt-get install -y software-properties-common && \
     add-apt-repository -y ppa:git-core/ppa && \
@@ -20,11 +25,15 @@ RUN apt-get update && apt-get upgrade -y && \
       libpng-dev libjpeg-dev libbz2-dev python-pip wget \
       libleveldb-dev libsnappy-dev libhdf5-serial-dev liblmdb-dev python-dev \
       python-tk autoconf autogen libtool libtbb-dev libopenblas-dev \
-      liblapacke-dev swig yasm python3.5 python3-pip cpio automake libass-dev \
+      liblapacke-dev swig yasm python3.6 python3.6-dev python3.6-venv python3-pip cpio \
+      automake libass-dev \
       libfreetype6-dev libsdl2-dev libtheora-dev libtool \
       libva-dev libvdpau-dev libvorbis-dev libxcb1-dev libxcb-shm0-dev \
       libxcb-xfixes0-dev mercurial texinfo zlib1g-dev curl libcap-dev \
       libgnutls-dev libpq-dev postgresql libx265-dev
+
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.5 1
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.6 2
 
 RUN apt-get install -y --no-install-recommends libboost-all-dev
 
@@ -43,6 +52,6 @@ RUN wget "https://cmake.org/files/v3.12/cmake-3.12.2.tar.gz" && \
 # Python dependencies
 WORKDIR /opt/scanner-base
 ADD . .
-RUN pip3 install -r requirements.txt
+RUN pip3 install numpy==1.12.0 Cython && pip3 install -r requirements.txt
 
 ENV NVIDIA_DRIVER_CAPABILITIES compute,utility,video
