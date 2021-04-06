@@ -9,11 +9,11 @@ To learn more about Scanner, see the documentation at [scanner.run](http://scann
 Scanner's documentation is hosted at [scanner.run](http://scanner.run). Here
 are a few links to get you started:
 
-* [Installation](http://scanner.run/installation.html)
-* [Getting Started](http://scanner.run/getting-started.html)
-* [Programming Handbook](http://scanner.run/programming-handbook.html)
-* [API Reference](http://scanner.run/api.html)
-* [SIGGRAPH 2018 Technical Paper](http://graphics.stanford.edu/papers/scanner/scanner_sig18.pdf)
+* [Quickstart](https://scanner.run/guide/quickstart.html#quickstart)
+* [Installation](https://scanner.run/guide/getting-started.html#getting-started)
+* [Walkthroughs](https://scanner.run/guide/walkthrough.html#walkthrough)
+* [API Reference](https://scanner.run/api.html)
+* [SIGGRAPH 2018 Technical Paper](http://graphics.stanford.edu/papers/scanner/poms18_scanner.pdf)
 * [Scanner Examples](https://github.com/scanner-research/scanner/tree/master/examples)
 
 ## Contributing
